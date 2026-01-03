@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('logo_path')->nullable();
 
             $table->foreignId('country_id')
+                ->nullable()
                 ->constrained('countries')
                 ->cascadeOnUpdate()
                 ->restrictOnDelete();
