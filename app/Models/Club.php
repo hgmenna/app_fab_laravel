@@ -17,16 +17,31 @@ class Club extends Model
         'phone',
         'email_contact',
         'website',
-        'logo_path'
+        'logo_path',
+        'federation_code',
+        'is_active',
+        'tax_id',
+        'contact_person',
+        'notes',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
     ];
 
     public function city()
     {
-        return $this->belongsTo(\App\Models\City::class);
+        return $this->belongsTo(City::class);
     }
 
     public function players()
     {
         return $this->hasMany(Player::class);
+    }
+
+    // Pagos institucionales (el club puede pagar afiliaciones de jugadores)
+    public function payments()
+    {
+        return $this->morphMany(Payment::class, 'payer');
     }
 }

@@ -13,17 +13,23 @@ class Player extends Model
         'first_name',
         'last_name',
         'document_number',
+        'document_type',
+        'nationality',
         'birth_date',
+        'gender',
+        'email',
+        'phone',
+        'photo_path',
         'club_id',
         'category_id',
         'is_active',
-        'email',
-        'phone',
+        'is_enabled_to_compete',
     ];
 
     protected $casts = [
         'birth_date' => 'date',
         'is_active' => 'boolean',
+        'is_enabled_to_compete' => 'boolean',
     ];
 
     public function club()
@@ -40,4 +46,28 @@ class Player extends Model
     {
         return $this->hasMany(TournamentRegistration::class);
     }
+
+    public function disciplines()
+    {
+        return $this->belongsToMany(Discipline::class, 'player_discipline')
+            ->withPivot('enabled_to_compete')
+            ->withTimestamps();
+    }
+
+    public function memberships()
+    {
+        return $this->hasMany(PlayerMembership::class);
+    }
+
+    public function payments()
+    {
+        return $this->morphMany(Payment::class, 'payer');
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return "{$this->last_name}, {$this->first_name}";
+    }
 }
+
+

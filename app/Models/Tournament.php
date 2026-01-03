@@ -1,10 +1,3 @@
-<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-
 class Tournament extends Model
 {
     use HasFactory;
@@ -14,15 +7,29 @@ class Tournament extends Model
         'tournament_type_id',
         'federation_id',
         'category_id',
+        'discipline_id',
         'start_date',
         'end_date',
         'venue',
+        'status',
+        'scoring_rules',
+        'registration_open_at',
+        'registration_close_at',
+        'entry_fee',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
+        'registration_open_at' => 'datetime',
+        'registration_close_at' => 'datetime',
+        'scoring_rules' => 'array',
     ];
+
+    public function discipline()
+    {
+        return $this->belongsTo(Discipline::class);
+    }
 
     public function type()
     {
@@ -39,27 +46,8 @@ class Tournament extends Model
         return $this->belongsTo(Category::class);
     }
 
-    public function slots()
-    {
-        return $this->hasMany(TournamentSlot::class);
-    }
-
     public function registrations()
     {
         return $this->hasMany(TournamentRegistration::class);
     }
-
-    public function categoryPrices()
-    {
-        return $this->hasMany(TournamentCategoryPrice::class);
-    }
-
-    public function categories()
-    {
-        return $this->belongsToMany(Category::class, 'tournament_category_price')
-            ->withPivot('price')
-            ->withTimestamps();
-    }
-
-
 }

@@ -1,11 +1,4 @@
-<?php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-
-class TournamentRegistration extends Model
+<class TournamentRegistration extends Model
 {
     use HasFactory;
 
@@ -14,6 +7,16 @@ class TournamentRegistration extends Model
         'tournament_slot_id',
         'player_id',
         'status',
+        'price',
+        'payment_status',
+        'checked_in',
+        'source',
+        'notes',
+    ];
+
+    protected $casts = [
+        'price' => 'decimal:2',
+        'checked_in' => 'boolean',
     ];
 
     public function tournament()
@@ -34,10 +37,13 @@ class TournamentRegistration extends Model
     protected static function booted()
     {
         static::creating(function ($registration) {
+
             $player = $registration->player;
             $tournament = $registration->tournament;
 
             if ($player && $tournament) {
+
+                // Obtiene el precio según categoría del jugador
                 $price = $tournament->categoryPrices()
                     ->where('category_id', $player->category_id)
                     ->value('price');
@@ -46,5 +52,5 @@ class TournamentRegistration extends Model
             }
         });
     }
-
 }
+p
