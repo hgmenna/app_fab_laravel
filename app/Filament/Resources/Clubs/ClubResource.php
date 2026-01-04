@@ -13,12 +13,16 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use UnitEnum;
 
 class ClubResource extends Resource
 {
     protected static ?string $model = Club::class;
-
+    protected static string|UnitEnum|null $navigationGroup = 'Configuración';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static ?string $navigationLabel = 'Clubes';
 
     protected static ?string $recordTitleAttribute = 'name';
 
@@ -46,5 +50,13 @@ class ClubResource extends Resource
             'create' => CreateClub::route('/create'),
             'edit' => EditClub::route('/{record}/edit'),
         ];
+    }
+
+    public static function getRecordRouteBindingEloquentQuery(): Builder
+    {
+        return parent::getRecordRouteBindingEloquentQuery()
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ]);
     }
 }

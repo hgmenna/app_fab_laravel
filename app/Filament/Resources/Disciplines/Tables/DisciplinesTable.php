@@ -1,35 +1,32 @@
 <?php
 
-namespace App\Filament\Resources\TournamentInstances\Tables;
+namespace App\Filament\Resources\Disciplines\Tables;
 
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
-class TournamentInstancesTable
+class DisciplinesTable
 {
     public static function configure(Table $table): Table
     {
         return $table
             ->columns([
+                TextColumn::make('name')
+                    ->label('Nombre')
+                    ->searchable(),
                 TextColumn::make('code')
-                    ->numeric()
-                    ->sortable()
-                    ->label('Código')
+                    ->label('Abreviatura')
                     ->searchable(),
-                TextColumn::make('points')
-                    ->label('Puntos')
-                    ->numeric()
-                    ->sortable(),
-                TextColumn::make('description')
-                    ->label('Descripción')
+                TextColumn::make('short_name')
+                    ->label('Nombre corto')
                     ->searchable(),
-                TextColumn::make('instance')
-                    ->label('Instancia')
-                    ->searchable()
-                    ->sortable(),
+                IconColumn::make('active')
+                    ->label('Activa')
+                    ->boolean(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -43,7 +40,10 @@ class TournamentInstancesTable
                 //
             ])
             ->recordActions([
-                EditAction::make(),
+                EditAction::make()
+                    ->label('Editar'),
+                DeleteBulkAction::make()
+                    ->label('Eliminar'),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

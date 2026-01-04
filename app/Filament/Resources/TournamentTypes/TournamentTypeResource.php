@@ -13,15 +13,16 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
-use UnitEnum;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class TournamentTypeResource extends Resource
 {
     protected static ?string $model = TournamentType::class;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+
     protected static ?string $recordTitleAttribute = 'name';
-    protected static string|UnitEnum|null $navigationGroup = 'Torneos';
-    protected static ?string $navigationLabel = 'Tipos de Torneo';
 
     public static function form(Schema $schema): Schema
     {
@@ -47,5 +48,13 @@ class TournamentTypeResource extends Resource
             'create' => CreateTournamentType::route('/create'),
             'edit' => EditTournamentType::route('/{record}/edit'),
         ];
+    }
+
+    public static function getRecordRouteBindingEloquentQuery(): Builder
+    {
+        return parent::getRecordRouteBindingEloquentQuery()
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ]);
     }
 }

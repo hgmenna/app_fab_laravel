@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Membership extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'year',
@@ -15,6 +16,9 @@ class Membership extends Model
         'amount',
         'due_date',
         'active',
+        'notes',
+
+
     ];
 
     protected $casts = [

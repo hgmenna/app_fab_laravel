@@ -1,21 +1,29 @@
+<?php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
 class Tournament extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'name',
+        'discipline_id',
         'tournament_type_id',
         'federation_id',
         'category_id',
-        'discipline_id',
         'start_date',
         'end_date',
-        'venue',
         'status',
         'scoring_rules',
         'registration_open_at',
         'registration_close_at',
         'entry_fee',
+        'venue',
+        'notes',
     ];
 
     protected $casts = [

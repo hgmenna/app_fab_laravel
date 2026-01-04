@@ -1,6 +1,13 @@
-<class TournamentRegistration extends Model
+<?php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class TournamentRegistration extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'tournament_id',
@@ -34,6 +41,11 @@
         return $this->belongsTo(Player::class);
     }
 
+    public function instance()
+    {
+        return $this->belongsTo(TournamentInstance::class, 'tournament_instance_id');
+    }
+
     protected static function booted()
     {
         static::creating(function ($registration) {
@@ -53,4 +65,4 @@
         });
     }
 }
-p
+
