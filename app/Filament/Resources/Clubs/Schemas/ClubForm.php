@@ -10,6 +10,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Section;
+use App\Models\Country;
 
 
 class ClubForm
@@ -61,19 +62,23 @@ class ClubForm
                     TextInput::make('address')
                         ->label('Dirección')
                         ->default(null),
-                    Select::make('city_id')
-                        ->relationship('city', 'name')
+                    Select::make('country_id')
                         ->required()
-                        ->label('Ciudad')
+                        ->label('País')
                         ->searchable()
                         ->live()
-                        ->afterStateUpdated(function ($state, callable $set) {
-                            $city = \App\Models\City::find($state);
-                            if ($city) {
-                                $set('state', $city->state->name);
-                            } else {
-                                $set('state', null);
+                        ->options(function (callable $get) {
+                            $countryId = $get('country_id');
+                            if (!$countryId) {
+                                return [];
                             }
+                            return \App\Models\State::where('country_id', $countryId)
+                                ->pluck('name', 'id');
+                        })
+                        ->afterStateUpdated(function ($state, callable $set) {
+                            $set('city_id', null);
+                            $set('state', null);
+                            $set('federation_id', null);
                         })->reactive(),
                     TextInput::make('city.state.name')
                         ->label('Provincia')
@@ -87,11 +92,34 @@ class ClubForm
                                 $set('federation_id', null);
                             }
                         })->reactive(),
+                    Select::make('city_id')
+                        ->relationship('city', 'name')
+                        ->required()
+                        ->label('Ciudad')
+                        ->searchable()
+                        ->live()
+                         ->options(function (callable $get) {
+                            $stateId = $get('state_id');
+
+                            if (!$stateId) {
+                                return [];
+                            }
+
+                            return \App\Models\City::where('state_id', $stateId)
+                                ->pluck('name', 'id');
+                        })
+                        ->afterStateUpdated(function ($state, callable $set) {
+                            $city = \App\Models\City::find($state);
+                            if ($city) {
+                                $set('state', $city->state->name);
+                            } else {
+                                $set('state', null);
+                            }
+                        })->reactive(),
                     TextInput::make('city.state.federation.name')
                         ->label('Federación')
                         ->disabled()
                         ->default(null),
-
                 ]),
             FileUpload::make('logo_path')
                 ->default(null)

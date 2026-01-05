@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Filament\Resources\TournamentTypes;
+namespace App\Filament\Resources\Players;
 
-use App\Filament\Resources\TournamentTypes\Pages\CreateTournamentType;
-use App\Filament\Resources\TournamentTypes\Pages\EditTournamentType;
-use App\Filament\Resources\TournamentTypes\Pages\ListTournamentTypes;
-use App\Filament\Resources\TournamentTypes\Schemas\TournamentTypeForm;
-use App\Filament\Resources\TournamentTypes\Tables\TournamentTypesTable;
-use App\Models\TournamentType;
+use App\Filament\Resources\Players\Pages\CreatePlayer;
+use App\Filament\Resources\Players\Pages\EditPlayer;
+use App\Filament\Resources\Players\Pages\ListPlayers;
+use App\Filament\Resources\Players\Schemas\PlayerForm;
+use App\Filament\Resources\Players\Tables\PlayersTable;
+use App\Models\Player;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -17,23 +17,21 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use UnitEnum;
 
-class TournamentTypeResource extends Resource
+class PlayerResource extends Resource
 {
-    protected static ?string $model = TournamentType::class;
-    protected static string|UnitEnum|null $navigationGroup = 'Torneos';
+    protected static ?string $model = Player::class;
+    protected static string|UnitEnum|null $navigationGroup = 'Gestión Deportiva';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
-    protected static ?string $navigationLabel = 'Tipos de torneo';
-
     protected static ?string $recordTitleAttribute = 'name';
 
     public static function form(Schema $schema): Schema
     {
-        return TournamentTypeForm::configure($schema);
+        return PlayerForm::configure($schema);
     }
 
     public static function table(Table $table): Table
     {
-        return TournamentTypesTable::configure($table);
+        return PlayersTable::configure($table);
     }
 
     public static function getRelations(): array
@@ -46,9 +44,9 @@ class TournamentTypeResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => ListTournamentTypes::route('/'),
-            'create' => CreateTournamentType::route('/create'),
-            'edit' => EditTournamentType::route('/{record}/edit'),
+            'index' => ListPlayers::route('/'),
+            'create' => CreatePlayer::route('/create'),
+            'edit' => EditPlayer::route('/{record}/edit'),
         ];
     }
 
