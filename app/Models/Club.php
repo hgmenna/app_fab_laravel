@@ -13,7 +13,6 @@ class Club extends Model
     protected $fillable = [
         'name',
         'short_name',
-        'federation_code',
         'logo_path',
         'website',
         'mail_contact',
@@ -45,4 +44,11 @@ class Club extends Model
     {
         return $this->morphMany(Payment::class, 'payer');
     }
+
+    public function tournaments()
+    {
+        return $this->hasMany(Tournament::class);
+    }
+
+
 }

@@ -8,6 +8,7 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
@@ -18,38 +19,24 @@ class PlayersTable
     {
         return $table
             ->columns([
+                ImageColumn::make('photo_path')
+                    ->label('Foto')
+                    ->square()
+                    ->size(50),
                 TextColumn::make('first_name')
+                    ->label('Nombre')
                     ->searchable(),
                 TextColumn::make('last_name')
+                    ->label('Apellido')
                     ->searchable(),
-                TextColumn::make('document_number')
-                    ->searchable(),
-                TextColumn::make('document_type')
-                    ->searchable(),
-                TextColumn::make('nationality')
-                    ->searchable(),
-                TextColumn::make('birth_date')
-                    ->date()
+                TextColumn::make('club.name')
+                    ->label('Club')
+                    ->searchable()
                     ->sortable(),
-                TextColumn::make('gender')
-                    ->searchable(),
-                TextColumn::make('email')
-                    ->label('Email address')
-                    ->searchable(),
-                TextColumn::make('phone')
-                    ->searchable(),
-                TextColumn::make('photo_path')
-                    ->searchable(),
-                TextColumn::make('club_id')
-                    ->numeric()
+                TextColumn::make('category.name')
+                    ->label('Categoría')
+                    ->searchable()
                     ->sortable(),
-                TextColumn::make('category_id')
-                    ->numeric()
-                    ->sortable(),
-                IconColumn::make('is_active')
-                    ->boolean(),
-                IconColumn::make('is_enabled_to_compete')
-                    ->boolean(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

@@ -3,6 +3,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Tournament extends Model
@@ -22,7 +23,7 @@ class Tournament extends Model
         'registration_open_at',
         'registration_close_at',
         'entry_fee',
-        'venue',
+        'venue_id',
         'notes',
     ];
 
@@ -57,5 +58,20 @@ class Tournament extends Model
     public function registrations()
     {
         return $this->hasMany(TournamentRegistration::class);
+    }
+
+    public function slots()
+    {
+        return $this->hasMany(TournamentSlot::class);
+    }
+
+    public function categoryPrices()
+    {
+        return $this->hasMany(TournamentCategoryPrice::class);
+    }
+
+    public function venue()
+    {
+        return $this->belongsTo(Club::class, 'venue_id');
     }
 }

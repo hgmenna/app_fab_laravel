@@ -9,11 +9,12 @@ use Filament\Resources\Pages\ListRecords;
 class ListClubs extends ListRecords
 {
     protected static string $resource = ClubResource::class;
+    protected static ?string $title = 'Listado de Clubes';
 
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            CreateAction::make()->label('Nuevo Club'),
         ];
     }
 }

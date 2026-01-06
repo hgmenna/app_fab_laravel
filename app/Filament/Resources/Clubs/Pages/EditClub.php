@@ -12,12 +12,19 @@ class EditClub extends EditRecord
 {
     protected static string $resource = ClubResource::class;
 
+
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
+            DeleteAction::make()->label('Eliminar'),
             ForceDeleteAction::make(),
-            RestoreAction::make(),
+            RestoreAction::make()->label('Restaurar'),
         ];
     }
+
+    public function getTitle(): string
+    {
+        return 'Actualizar: ' . $this->record->name;
+    }
+    
 }

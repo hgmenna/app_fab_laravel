@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Filament\Resources\Players;
+namespace App\Filament\Resources\Tournaments;
 
-use App\Filament\Resources\Players\Pages\CreatePlayer;
-use App\Filament\Resources\Players\Pages\EditPlayer;
-use App\Filament\Resources\Players\Pages\ListPlayers;
-use App\Filament\Resources\Players\Schemas\PlayerForm;
-use App\Filament\Resources\Players\Tables\PlayersTable;
-use App\Models\Player;
+use App\Filament\Resources\Tournaments\Pages\CreateTournament;
+use App\Filament\Resources\Tournaments\Pages\EditTournament;
+use App\Filament\Resources\Tournaments\Pages\ListTournaments;
+use App\Filament\Resources\Tournaments\Schemas\TournamentForm;
+use App\Filament\Resources\Tournaments\Tables\TournamentsTable;
+use App\Models\Tournament;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -17,22 +17,22 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use UnitEnum;
 
-class PlayerResource extends Resource
+class TournamentResource extends Resource
 {
-    protected static ?string $model = Player::class;
-    protected static string|UnitEnum|null $navigationGroup = 'Gestión Deportiva';
+    protected static ?string $model = Tournament::class;
+    protected static string|UnitEnum|null $navigationGroup = 'Torneos';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+
     protected static ?string $recordTitleAttribute = 'name';
-    protected static ?string $navigationLabel = 'Jugadores';
 
     public static function form(Schema $schema): Schema
     {
-        return PlayerForm::configure($schema);
+        return TournamentForm::configure($schema);
     }
 
     public static function table(Table $table): Table
     {
-        return PlayersTable::configure($table);
+        return TournamentsTable::configure($table);
     }
 
     public static function getRelations(): array
@@ -45,9 +45,9 @@ class PlayerResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => ListPlayers::route('/'),
-            'create' => CreatePlayer::route('/create'),
-            'edit' => EditPlayer::route('/{record}/edit'),
+            'index' => ListTournaments::route('/'),
+            'create' => CreateTournament::route('/create'),
+            'edit' => EditTournament::route('/{record}/edit'),
         ];
     }
 

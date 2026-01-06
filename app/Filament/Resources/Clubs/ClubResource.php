@@ -20,7 +20,7 @@ use UnitEnum;
 class ClubResource extends Resource
 {
     protected static ?string $model = Club::class;
-    protected static string|UnitEnum|null $navigationGroup = 'Configuración';
+    protected static string|UnitEnum|null $navigationGroup = 'Gestión Deportiva';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
     protected static ?string $navigationLabel = 'Clubes';
 

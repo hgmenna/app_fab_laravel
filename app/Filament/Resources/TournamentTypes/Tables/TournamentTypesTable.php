@@ -38,7 +38,7 @@ class TournamentTypesTable
                     ->boolean(),
                 TextColumn::make('score_percentage')
                     ->label('Porcentaje de puntuación')
-                    ->numeric()
+                    ->formatStateUsing(fn (string $state): string => $state . '%')
                     ->sortable(),
                 TextColumn::make('created_at')
                     ->dateTime()

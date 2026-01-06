@@ -34,4 +34,9 @@ class Federation extends Model
     {
         return $this->hasMany(State::class);
     }
+
+    public function clubs()
+    {
+        return $this->hasMany(Club::class);
+    }
 }

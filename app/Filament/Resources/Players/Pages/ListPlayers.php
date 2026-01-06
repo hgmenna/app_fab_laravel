@@ -9,11 +9,14 @@ use Filament\Resources\Pages\ListRecords;
 class ListPlayers extends ListRecords
 {
     protected static string $resource = PlayerResource::class;
+    protected static ?string $title = 'Listado de Jugadores';
 
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            CreateAction::make()->label('Nuevo Jugador'),
         ];
     }
+
+
 }

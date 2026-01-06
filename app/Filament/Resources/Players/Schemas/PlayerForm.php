@@ -23,9 +23,11 @@ class PlayerForm
                     ->schema([
                         TextInput::make('first_name')
                             ->label('Nombre')
+                            ->extraAttributes(['style' => 'text-transform: uppercase'])
                             ->required(),
                         TextInput::make('last_name')
                             ->label('Apellido')
+                            ->extraAttributes(['style' => 'text-transform: uppercase'])
                             ->required(),
                         TextInput::make('email')
                             ->label('Email address')
@@ -51,11 +53,11 @@ class PlayerForm
                 Section::make()
                     ->heading('Información Federativa')
                     ->schema([
-                        Select::make('club.name')
+                        Select::make('club_id')
                             ->relationship('club', 'name')
                             ->label('Club')
                             ->required(),
-                        Select::make('category.name')
+                        Select::make('category_id')
                             ->relationship('category', 'name')
                             ->label('Categoría')
                             ->required(),

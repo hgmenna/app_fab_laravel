@@ -13,10 +13,13 @@ class TournamentSlot extends Model
         'tournament_id',
         'starts_at',
         'max_players',
+        'is_active',
+        
     ];
 
     protected $casts = [
         'starts_at' => 'datetime',
+        'is_active' => 'boolean',
     ];
 
     public function tournament()

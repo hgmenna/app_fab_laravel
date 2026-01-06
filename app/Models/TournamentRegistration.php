@@ -19,6 +19,8 @@ class TournamentRegistration extends Model
         'checked_in',
         'source',
         'notes',
+        'tournament_instance_id',
+        
     ];
 
     protected $casts = [
@@ -63,6 +65,20 @@ class TournamentRegistration extends Model
                 $registration->price = $price ?? 0;
             }
         });
+    }
+
+    public function calculatePoints(): float
+    {
+        $tournament = $this->tournament;
+        $type = $tournament?->type;
+        $instance = $this->instance;
+        $player = $this->player;
+
+        if (! $type || ! $instance) {
+            return 0;
+        }
+
+        return $instance->points * ($type->score_percentage / 100);
     }
 }
 

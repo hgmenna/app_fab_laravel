@@ -67,59 +67,53 @@ class ClubForm
                         ->label('País')
                         ->searchable()
                         ->live()
-                        ->options(function (callable $get) {
-                            $countryId = $get('country_id');
-                            if (!$countryId) {
-                                return [];
-                            }
-                            return \App\Models\State::where('country_id', $countryId)
-                                ->pluck('name', 'id');
-                        })
+                        ->dehydrated(false)
+                        ->options(Country::pluck('name', 'id')->toArray())
                         ->afterStateUpdated(function ($state, callable $set) {
                             $set('city_id', null);
-                            $set('state', null);
-                            $set('federation_id', null);
-                        })->reactive(),
-                    TextInput::make('city.state.name')
+                            $set('state_id', null);
+                            $set('federation_name', null);
+                        }),
+                    Select::make('state_id')
                         ->label('Provincia')
-                        ->disabled()
-                        ->default(null)
+                        ->options(function (callable $get) {
+                            $countryId = $get('country_id');
+
+                            if (!$countryId) return [];
+
+                            return \App\Models\State::where('country_id', $countryId)
+                                ->pluck('name', 'id')
+                                ->toarray();
+                        })
+                        ->searchable()
+                        ->live()
                         ->afterStateUpdated(function ($state, callable $set) {
-                            $city = \App\Models\State::find($state);
-                            if ($city) {
-                                $set('federation_id', $city->state->federation->name);
-                            } else {
-                                $set('federation_id', null);
-                            }
-                        })->reactive(),
+                            $set('city_id', null);
+
+                            // Cargar Federacion automáticamente
+
+                                $stateModel = \App\Models\State::with('federation')->find($state);
+                                $set('federation_name', $stateModel ? $stateModel->federation->name : null);
+
+                        }),
                     Select::make('city_id')
-                        ->relationship('city', 'name')
-                        ->required()
                         ->label('Ciudad')
                         ->searchable()
                         ->live()
                          ->options(function (callable $get) {
                             $stateId = $get('state_id');
 
-                            if (!$stateId) {
-                                return [];
-                            }
+                            if (!$stateId) return [];
 
                             return \App\Models\City::where('state_id', $stateId)
-                                ->pluck('name', 'id');
+                                ->pluck('name', 'id')
+                                ->toarray();
                         })
-                        ->afterStateUpdated(function ($state, callable $set) {
-                            $city = \App\Models\City::find($state);
-                            if ($city) {
-                                $set('state', $city->state->name);
-                            } else {
-                                $set('state', null);
-                            }
-                        })->reactive(),
-                    TextInput::make('city.state.federation.name')
+                        ->required(),
+                    TextInput::make('federation_name')
                         ->label('Federación')
                         ->disabled()
-                        ->default(null),
+                        ->dehydrated(false),
                 ]),
             FileUpload::make('logo_path')
                 ->default(null)
