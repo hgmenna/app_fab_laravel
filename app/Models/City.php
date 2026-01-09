@@ -16,7 +16,8 @@ class City extends Model
         'name',
         'latitude',
         'longitude',
-        'is_active'
+        'is_active',
+        'postal_code'
     ];
 
     public function clubs()

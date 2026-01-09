@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Federation extends Model
 {
@@ -30,7 +31,7 @@ class Federation extends Model
 
     }
 
-    public function states()
+    public function states(): HasMany
     {
         return $this->hasMany(State::class);
     }

@@ -23,6 +23,7 @@ class ClubResource extends Resource
     protected static string|UnitEnum|null $navigationGroup = 'Gestión Deportiva';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
     protected static ?string $navigationLabel = 'Clubes';
+    protected static ?int $navigationSort = 2;
 
     protected static ?string $recordTitleAttribute = 'name';
 

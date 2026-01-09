@@ -10,7 +10,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use App\Filament\Resources\Tournaments\TournamentResource;
-
+use Filament\Actions\DeleteAction;
 
 class TournamentsTable
 {
@@ -51,6 +51,7 @@ class TournamentsTable
             ])
             ->recordActions([
                 EditAction::make(),
+                DeleteAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

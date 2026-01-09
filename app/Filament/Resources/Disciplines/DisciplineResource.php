@@ -21,6 +21,7 @@ class DisciplineResource extends Resource
     protected static string|UnitEnum|null $navigationGroup = 'Gestión Deportiva';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
     protected static ?string $navigationLabel = 'Disciplinas';
+    protected static ?int $navigationSort = 4;
 
     protected static ?string $recordTitleAttribute = 'name';
 

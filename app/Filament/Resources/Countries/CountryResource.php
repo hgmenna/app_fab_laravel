@@ -24,6 +24,7 @@ class CountryResource extends Resource
     protected static ?string $recordTitleAttribute = 'name';
     protected static string|UnitEnum|null $navigationGroup = 'Configuración General';
     protected static ?string $navigationLabel = 'Países';
+    protected static ?int $navigationSort = 21;
 
     public static function form(Schema $schema): Schema
     {

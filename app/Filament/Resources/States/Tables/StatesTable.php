@@ -7,6 +7,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
 class StatesTable
@@ -16,8 +17,14 @@ class StatesTable
         return $table
             ->columns([
                 TextColumn::make('name')
+                    ->label('Nombre')
+                    ->sortable()
                     ->searchable(),
-                TextColumn::make('federation.name')
+                TextColumn::make('country.name')
+                    ->label('Pais')
+                    ->searchable(),
+                TextColumn::make('federation.short_name')
+                    ->label('Federacion')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('latitude')
@@ -28,7 +35,8 @@ class StatesTable
                     ->sortable(),
             ])
             ->filters([
-                //
+                SelectFilter::make('country.name')
+                    ->relationship('country', 'name'),
             ])
             ->recordActions([
                 EditAction::make(),

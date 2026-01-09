@@ -15,6 +15,7 @@ return new class extends Migration
 
         // Disciplina del torneo
         $table->foreignId('discipline_id')
+            ->nullable()
             ->after('name')
             ->constrained()
             ->cascadeOnUpdate()

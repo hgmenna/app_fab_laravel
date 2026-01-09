@@ -15,6 +15,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Validation\Rules\In;
 use UnitEnum;
 
 class TournamentResource extends Resource
@@ -22,6 +23,8 @@ class TournamentResource extends Resource
     protected static ?string $model = Tournament::class;
     protected static string|UnitEnum|null $navigationGroup = 'Torneos';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static ?int $navigationSort = 11;
+    protected static ?string $navigationLabel = 'Gestion de Torneos';
 
     protected static ?string $recordTitleAttribute = 'name';
 

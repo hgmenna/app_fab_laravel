@@ -31,7 +31,7 @@ class State extends Model
 
     public function cities(): HasMany
     {
-        return parent::cities();
+        return $this->hasMany(City::class);
     }
     public function country(): BelongsTo
     {

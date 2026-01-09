@@ -22,6 +22,7 @@ class FederationResource extends Resource
     protected static ?string $recordTitleAttribute = 'name';
     protected static string|UnitEnum|null $navigationGroup = 'Gestión Deportiva';
     protected static ?string $navigationLabel = 'Federaciones';
+    protected static ?int $navigationSort = 3;
 
     public static function form(Schema $schema): Schema
     {

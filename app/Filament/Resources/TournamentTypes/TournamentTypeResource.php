@@ -23,6 +23,7 @@ class TournamentTypeResource extends Resource
     protected static string|UnitEnum|null $navigationGroup = 'Torneos';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
     protected static ?string $navigationLabel = 'Tipos de torneo';
+    protected static ?int $navigationSort = 12;
 
     protected static ?string $recordTitleAttribute = 'name';
 

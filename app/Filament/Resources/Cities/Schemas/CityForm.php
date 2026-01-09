@@ -27,6 +27,10 @@ class CityForm
                             $set('country_name', $stateModel?->country?->name);
                         }
                     }),
+                TextInput::make('postal_code')
+                    ->label('Codigo Postal')
+                    ->numeric()
+                    ->nullable(),
                 TextInput::make('latitude')
                     ->label('Latitud')
                     ->numeric()

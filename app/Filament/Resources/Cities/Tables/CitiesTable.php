@@ -22,6 +22,14 @@ class CitiesTable
                     ->label('Provincia')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('state.country.name')
+                    ->label('Pais')
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('postal_code')
+                    ->label('Codigo Postal')
+                    ->searchable()
+                    ->sortable(),
                 TextColumn::make('latitude')
                     ->numeric()
                     ->sortable(),
@@ -34,6 +42,9 @@ class CitiesTable
                 SelectFilter::make('state_id')
                     ->relationship('state', 'name')
                     ->label('Provincia'),
+                SelectFilter::make('state.country.name')
+                    ->relationship('state.country', 'name')
+                    ->label('Pais'),
             ])
             ->recordActions([
                 EditAction::make(),
