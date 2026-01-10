@@ -31,8 +31,5 @@ class Country extends Model
         'emojiU'
     ];
 
-    public function federations()
-    {
-        return $this->hasMany(Federation::class);
-    }
+
 }

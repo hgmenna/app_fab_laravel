@@ -12,6 +12,7 @@ use Filament\Forms\Components\Select;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
@@ -22,6 +23,7 @@ class ClubsTable
     {
         return $table
             ->heading('Gestión de Clubes')
+            ->defaultSort('name')
             ->columns([
                 ImageColumn::make('logo_path')
                     ->label('Logo')
@@ -39,6 +41,8 @@ class ClubsTable
                     ->label('Federación')
                     ->sortable()
                     ->searchable(),
+                ToggleColumn::make('is_active')
+                    ->label('Activo'),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -52,7 +56,7 @@ class ClubsTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            
+
             ->filters([
                 SelectFilter::make('federation_id')
                     ->label('Federación')

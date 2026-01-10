@@ -35,8 +35,7 @@ class StatesTable
                     ->sortable(),
             ])
             ->filters([
-                SelectFilter::make('country.name')
-                    ->relationship('country', 'name'),
+                //php
             ])
             ->recordActions([
                 EditAction::make(),

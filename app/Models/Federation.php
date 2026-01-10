@@ -20,10 +20,7 @@ class Federation extends Model
         'logo_path'
     ];
 
-    public function country()
-    {
-        return $this->belongsTo(\App\Models\Country::class);
-    }
+
 
     public function tournaments()
     {

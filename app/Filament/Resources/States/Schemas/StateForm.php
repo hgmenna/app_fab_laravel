@@ -13,22 +13,19 @@ class StateForm
     {
         return $schema
             ->components([
+                TextInput::make('name')
+                    ->required(),
                 Select::make('country_id')
                     ->relationship('country', 'name')
                     ->reactive()
                     ->required(),
-                TextInput::make('name')
-                    ->required(),
                 Select::make('federation_id')
                     ->relationship('federation', 'name')
-                    ->label('Federación')
-                    ->reactive()
-                    ->searchable()
-                    ->createOptionForm(
-                        \App\Filament\Resources\Federations\Schemas\FederationForm::schema()
-                    )
-                    ->createOptionAction(fn($action) => $action->modalHeading('Crear nueva Federación')),
+                    ->label('Federacion')
+                    ->preload()
+                    ->searchable(),
                 Toggle::make('is_active')
+                    ->label('Activa')
                     ->required(),
                 TextInput::make('latitude')
                     ->numeric()
@@ -36,6 +33,6 @@ class StateForm
                 TextInput::make('longitude')
                     ->numeric()
                     ->default(null),
-            ]);
+        ]);
     }
 }
