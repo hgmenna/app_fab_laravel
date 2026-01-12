@@ -28,7 +28,7 @@ class ClubsTable
                 ImageColumn::make('logo_path')
                     ->label('Logo')
                     ->square()
-                    ->size(50),
+                    ->width(50),
                 TextColumn::make('name')
                     ->searchable(),
                 TextColumn::make('address')
