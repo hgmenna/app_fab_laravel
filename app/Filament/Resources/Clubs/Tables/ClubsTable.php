@@ -8,6 +8,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Select;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
@@ -71,6 +72,7 @@ class ClubsTable
             ->recordActions([
                 EditAction::make()->label('Editar')->iconButton(),
                 DeleteAction::make()->label('Eliminar')->iconButton(),
+                ViewAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

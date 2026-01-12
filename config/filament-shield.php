@@ -4,11 +4,6 @@ declare(strict_types=1);
 
 return [
 
-
-
-    'auth_provider_model' => 'App\\Models\\User',
-
-
     /*
     |--------------------------------------------------------------------------
     | Shield Resource
@@ -43,6 +38,7 @@ return [
     |
     */
 
+    'tenant_model' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -249,10 +245,6 @@ return [
         'discover_all_resources' => false,
         'discover_all_widgets' => false,
         'discover_all_pages' => false,
-    ],
-
-    'panels' => [
-        'admin', // ← reemplazá por el ID real si tu panel no se llama 'default'
     ],
 
     /*

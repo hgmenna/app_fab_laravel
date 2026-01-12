@@ -9,6 +9,7 @@ use Filament\Resources\Pages\ListRecords;
 class ListFederations extends ListRecords
 {
     protected static string $resource = FederationResource::class;
+    
 
     protected function getHeaderActions(): array
     {
