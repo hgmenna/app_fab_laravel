@@ -17,6 +17,7 @@ use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Filament\Actions\Action;
 
 class ClubsTable
 {
@@ -28,10 +29,10 @@ class ClubsTable
             ->columns([
                 ImageColumn::make('logo_path')
                     ->label('Logo')
-                    ->square()
-                    ->width(50),
+                    ->square(40),
                 TextColumn::make('name')
-                    ->searchable(),
+                    ->searchable()
+                    ->sortable(),
                 TextColumn::make('address')
                     ->searchable(),
                 TextColumn::make('city.name')
@@ -42,6 +43,10 @@ class ClubsTable
                     ->label('Federación')
                     ->sortable()
                     ->searchable(),
+                 TextColumn::make('players_count')
+                    ->label('Afiliados')
+                    ->counts('players')
+                    ->sortable(),
                 ToggleColumn::make('is_active')
                     ->label('Activo'),
                 TextColumn::make('created_at')
@@ -70,9 +75,23 @@ class ClubsTable
                     ]),
             ])
             ->recordActions([
+                Action::make('Afiliados')
+                    ->label('')
+                    ->icon('heroicon-o-users')
+                    ->modalHeading(fn ($record) => "Jugadores de {$record->name}")
+                    ->modalContent(fn ($record) =>
+                        view('filament.clubs.partials.players-table', [
+                            'players' => $record->players()
+                                ->with('category')
+                                ->orderBy('last_name')
+                                ->get(),
+                        ])
+                    )
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar'),
                 EditAction::make()->label('Editar')->iconButton(),
+                ViewAction::make()->label('Ver')->iconButton(),
                 DeleteAction::make()->label('Eliminar')->iconButton(),
-                ViewAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

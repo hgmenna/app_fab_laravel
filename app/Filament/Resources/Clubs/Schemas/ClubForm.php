@@ -25,80 +25,117 @@ class ClubForm
                 ->schema([
                     TextInput::make('name')
                         ->label('Nombre')
+                        ->columnSpan(2)
                         ->required(),
                     TextInput::make('short_name')
                         ->label('Sigla')
+                        ->columnSpan(1)
                         ->default(null),
                     TextInput::make('tax_id')
                         ->default(null)
                         ->maxLength(14)
                         ->mask('99-999999999-9', true)
-                        ->label('CUIT'),
+                        ->label('CUIT')
+                        ->columnSpan(1),
             ]),
 
             Section::make()
                 ->heading('Información de contacto')
-                    ->columns(2)
+                    ->columns(6)
                 ->schema([
                     TextInput::make('phone')
                         ->label('Teléfono')
+                        ->columnSpan(2)
                         ->tel()
                         ->default(null),
                     TextInput::make('mail_contact')
                         ->email()
                         ->default(null)
+                        ->columnSpan(4)
                         ->label('Correo electronico'),
                     TextInput::make('website')
                         ->url()
                         ->default(null)
-                        ->label('Sitio web'),
+                        ->label('Sitio web')
+                        ->columnSpan(3),
                     TextInput::make('contact_person')
                         ->default(null)
-                        ->label('Persona de contacto'),
+                        ->label('Persona de contacto')
+                        ->columnSpan(3),
             ]),
             Section::make()
                 ->heading('Domicilio')
-                ->columns(2)
+                ->columns([
+                    'sm' => 1,
+                    'md' => 1,
+                    'lg' => 4
+                ])
                 ->schema([
                     TextInput::make('address')
                         ->label('Dirección')
+                        ->columnSpan(4)
                         ->default(null),
                     Select::make('country_id')
-                        ->required()
                         ->label('País')
+                        ->columnSpan(2)
+                        ->options(\App\Models\Country::pluck('name', 'id'))
+                        ->default(function () {
+                            return \App\Models\Country::where('name', 'Argentina')->value('id');
+                        })
+                        ->getOptionLabelUsing(fn ($value) => \App\Models\Country::find($value)?->name)
                         ->searchable()
                         ->live()
                         ->dehydrated(false)
-                        ->options(Country::pluck('name', 'id')->toArray())
+                        ->afterStateHydrated(function ($state, callable $set, $record) {
+                            if($record) {
+                                $record->loadMissing('city.state.country');
+                                $set('country_id', $record->city?->state?->country_id);
+                            }
+                        })
                         ->afterStateUpdated(function ($state, callable $set) {
-                            $set('city_id', null);
                             $set('state_id', null);
+                            $set('city_id', null);
                             $set('federation_name', null);
                         }),
                     Select::make('state_id')
                         ->label('Provincia')
+                        ->columnSpan(2)
                         ->options(function (callable $get) {
                             $countryId = $get('country_id');
 
-                            if (!$countryId) return [];
+                            if (!$countryId) {
+                                return [];
+                            }
 
                             return \App\Models\State::where('country_id', $countryId)
                                 ->pluck('name', 'id')
-                                ->toarray();
+                                ->toArray();
                         })
+                        ->getOptionLabelUsing(fn ($value) => \App\Models\State::find($value)?->name)
                         ->searchable()
                         ->live()
+                        ->dehydrated(false) // no se guarda en clubs
+                        ->afterStateHydrated(function ($state, callable $set, $record) {
+                            // reconstruir state desde city
+                            if ($record?->city?->state_id) {
+                                $set('state_id', $record->city->state_id);
+                            }
+                        })
                         ->afterStateUpdated(function ($state, callable $set) {
+                            // resetear ciudad
                             $set('city_id', null);
 
-                            // Cargar Federacion automáticamente
-
-                                $stateModel = \App\Models\State::with('federation')->find($state);
-                                $set('federation_name', $stateModel ? $stateModel->federation->name : null);
-
+                            // cargar federación desde state
+                            $stateModel = \App\Models\State::with('federation')->find($state);
+                            $set('federation_name', $stateModel?->federation?->name);
                         }),
                     Select::make('city_id')
                         ->label('Ciudad')
+                        ->columnSpan([
+                            'lg' => 2,
+                            'md' => 3,
+                            'sm' => 3
+                        ])
                         ->searchable()
                         ->live()
                          ->options(function (callable $get) {
@@ -113,22 +150,34 @@ class ClubForm
                         ->required(),
                     TextInput::make('federation_name')
                         ->label('Federación')
+                        ->columnSpan(2)
                         ->disabled()
                         ->dehydrated(false),
                 ]),
-            FileUpload::make('logo_path')
-                ->default(null)
-                ->label('Logo')
-                ->image() // valida que sea imagen
-                ->directory('logos/clubs') // carpeta donde se guarda
-                ->visibility('public') // permite mostrarlo
-                ->imageEditor() // opcional: editor integrado
-                ->previewable(true), // muestra la miniatura,
-            Textarea::make('notes')
-                ->default(null)
-                ->columnSpanFull(),
-            Toggle::make('is_active')
-                ->required(),
+            Section::make()
+                ->columns(4)
+                ->schema([
+                    Textarea::make('notes')
+                        ->label('Observaciones')
+                        ->columnSpan(2)
+                        ->default(null)
+                        ->columnSpanFull(),
+                    FileUpload::make('logo_path')
+                        ->default(null)
+                        ->label('Logo')
+                        ->columnSpan(3)
+                        ->image() // valida que sea imagen
+                        ->directory('logos/clubs') // carpeta donde se guarda
+                        ->visibility('public') // permite mostrarlo
+                        ->imageEditor() // opcional: editor integrado
+                        ->previewable(true), // muestra la miniatura,
+                    Toggle::make('is_active')
+                        ->label('Activo')
+                        ->columnSpan(1)
+                        ->default(true)
+                        ->required(),
+                    
+                ]),
         ];
     }
 

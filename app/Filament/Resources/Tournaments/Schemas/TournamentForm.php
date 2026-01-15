@@ -51,14 +51,15 @@ class TournamentForm
                     ->columnSpan(2)
                     ->required()
                     ->reactive()
+                    ->afterStateUpdated(function($state, callable $set) {
+                        $set('end_date', $state);
+                    })
                     ->minutesStep(30),
 
                 DatePicker::make('end_date')
                     ->label('Fecha fin')
                     ->columnSpan(2)
                     ->required()
-                    ->default(fn (callable $get) => $get('start_day'))
-                    ->minDate(fn (callable $get) => $get('start_day'))
                     ->reactive(),
 
 

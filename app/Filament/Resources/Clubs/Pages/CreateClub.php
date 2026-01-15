@@ -9,4 +9,9 @@ class CreateClub extends CreateRecord
 {
     protected static string $resource = ClubResource::class;
     protected static ?string $title = 'Nuevo Club';
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

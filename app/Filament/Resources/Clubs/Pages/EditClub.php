@@ -27,4 +27,8 @@ class EditClub extends EditRecord
         return 'Actualizar: ' . $this->record->name;
     }
     
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }
