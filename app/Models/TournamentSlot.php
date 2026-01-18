@@ -10,6 +10,7 @@ class TournamentSlot extends Model
     use HasFactory;
 
     protected $fillable = [
+        'name',
         'tournament_id',
         'starts_at',
         'max_players',

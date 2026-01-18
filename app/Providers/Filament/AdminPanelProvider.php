@@ -30,6 +30,8 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->theme('app')
+            ->brandName('Federacion Argentina de Billar')
             ->colors([
                 'primary' => Color::Amber,
             ])

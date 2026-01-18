@@ -25,6 +25,7 @@ class Tournament extends Model
         'entry_fee',
         'venue_id',
         'notes',
+        'categories'
     ];
 
     protected $casts = [
@@ -33,6 +34,7 @@ class Tournament extends Model
         'registration_open_at' => 'datetime',
         'registration_close_at' => 'datetime',
         'scoring_rules' => 'array',
+        'categories' => 'array'
     ];
 
     public function discipline()
@@ -74,4 +76,19 @@ class Tournament extends Model
     {
         return $this->belongsTo(Club::class, 'venue_id');
     }
+
+    public function scopeAvailableForRegistration($query)
+    {
+        return $query
+            ->where('registration_open_at', '<=', now())
+            ->where('registration_close_at', '>=', now())
+            ->where('start_date', '>', now());
+    }
+
+    public function player() 
+    {
+        return $this->belongsTo(Player::class);
+    }
+
+
 }

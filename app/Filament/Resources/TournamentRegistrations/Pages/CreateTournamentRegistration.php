@@ -5,6 +5,10 @@ namespace App\Filament\Resources\TournamentRegistrations\Pages;
 use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
 use Filament\Resources\Pages\CreateRecord;
 use App\Models\TournamentRegistration;
+use Illuminate\Support\Facades\Request;
+use Filament\Pages\Concerns\InteractsWithHeaderActions;
+use Filament\Notifications\Notification;
+use Illuminate\Validation\ValidationException;
 
 class CreateTournamentRegistration extends CreateRecord
 {
@@ -24,7 +28,11 @@ class CreateTournamentRegistration extends CreateRecord
             ->exists();
 
         if ($existsInTournament) {
-            $this->notify('danger', 'El jugador ya está inscripto en este torneo.');
+            Notification::make()
+                ->title('El jugador ya está inscripto en este torneo.')
+                ->danger()
+                ->send();
+
             $this->halt();
         }
 
@@ -35,8 +43,21 @@ class CreateTournamentRegistration extends CreateRecord
             ->exists();
 
         if ($existsInSlot) {
-            $this->notify('danger', 'El jugador ya está inscripto en este horario.');
+            Notification::make()
+                ->title('El jugador ya está inscripto en este horario.')
+                ->danger()
+                ->send();
+
             $this->halt();
+        }
+
+        return $data;
+    }
+
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        if ($tournamentId = Request::query('tournament_id')) {
+            $data['tournament_id'] = $tournamentId;
         }
 
         return $data;

@@ -30,6 +30,7 @@ class TournamentForm
             // ───────────────────────────────── Datos del torneo
             Section::make('Datos del torneo')
                 ->columns(6)
+                ->columnSpanFull()
                 ->schema([
 
                 TextInput::make('name')
@@ -77,37 +78,18 @@ class TournamentForm
                     ->searchable()
                     ->required(),
 
-                Toggle::make('is_open_for_registration')
-                    ->label('Inscripción habilitada')
+                DatePicker::make('registration_open_at')
+                    ->label('Apertura de Inscripcion')
+                    ->columnSpan(2),
+
+                DatePicker::make('registration_close_at')
+                    ->label('Cierre de Inscripcion')
                     ->columnSpan(2),
 
                 Toggle::make('payment_enabled')
                     ->label('Pago online habilitado')
                     ->columnSpan(2),
             ]),
-
-            // ───────────────────────────────── Horarios
-            Section::make('Horarios')
-            ->schema([
-                Repeater::make('slots')
-                        ->columns(6)
-                        ->relationship('slots')
-                        ->schema([
-                            DateTimePicker::make('starts_at')
-                                ->label('Inicio')
-                                ->columnSpan(2)
-                                ->required(),
-
-                            TextInput::make('max_players')
-                                ->label('Máx. jugadores')
-                                ->columnSpan(2)
-                                ->numeric()
-                                ->required(),
-                            Toggle::make('is_active')
-                                ->label('Activo')
-                                ->columnSpan(2),
-                        ])
-                ]),
 
             // ───────────────────────────────── Precios por categoría
             Section::make('Precios por categoría')
@@ -135,6 +117,35 @@ class TournamentForm
                                 ->required(),
                             ])
                 ]),
+            // ───────────────────────────────── Horarios
+            Section::make('Horarios')
+            ->schema([
+                Repeater::make('slots')
+                        ->columns(8)
+                        ->relationship('slots')
+                        ->schema([
+                            TextInput::make('name')
+                                ->label('Nombre')
+                                ->columnSpan(5),
+                            DateTimePicker::make('starts_at')
+                                ->label('Inicio')
+                                ->columnSpan(3)
+                                ->required()
+                                ->native(false)
+                                ->minutesStep(30)
+                                ->secondsStep(60),
+
+                            TextInput::make('max_players')
+                                ->label('Máx. jugadores')
+                                ->columnSpan(4)
+                                ->numeric()
+                                ->required(),
+                            Toggle::make('is_active')
+                                ->label('Activo')
+                                ->columnSpan(2),
+                        ])
+                ]),
+
 
         ]);
     }

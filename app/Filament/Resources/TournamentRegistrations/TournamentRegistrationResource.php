@@ -5,6 +5,7 @@ namespace App\Filament\Resources\TournamentRegistrations;
 use App\Filament\Resources\TournamentRegistrations\Pages\CreateTournamentRegistration;
 use App\Filament\Resources\TournamentRegistrations\Pages\EditTournamentRegistration;
 use App\Filament\Resources\TournamentRegistrations\Pages\ListTournamentRegistrations;
+use App\Filament\Resources\TournamentRegistrations\Pages\ManageTournamentPlayers;
 use App\Filament\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
 use App\Filament\Resources\TournamentRegistrations\Tables\TournamentRegistrationsTable;
 use App\Models\TournamentRegistration;
@@ -22,7 +23,7 @@ class TournamentRegistrationResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'neme';
+    protected static ?string $recordTitleAttribute = 'name';
 
     public static function form(Schema $schema): Schema
     {
@@ -47,6 +48,7 @@ class TournamentRegistrationResource extends Resource
             'index' => ListTournamentRegistrations::route('/'),
             'create' => CreateTournamentRegistration::route('/create'),
             'edit' => EditTournamentRegistration::route('/{record}/edit'),
+            'players' => ManageTournamentPlayers::route('/{record}/players'),
         ];
     }
 
@@ -57,4 +59,12 @@ class TournamentRegistrationResource extends Resource
                 SoftDeletingScope::class,
             ]);
     }
+
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+        ->with(['tournament.type'])
+        ->whereHas('tournament', fn ($q) => $q->availableForRegistration());
+    }
+
 }
