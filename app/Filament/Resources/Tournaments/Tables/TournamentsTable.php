@@ -11,6 +11,16 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use App\Filament\Resources\Tournaments\TournamentResource;
 use Filament\Actions\DeleteAction;
+use Filament\Actions\Action;
+use App\Filament\Resources\Tournaments\Pages\ViewRegistrations;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Forms\Components\ViewField;
+use Filament\Schemas\Components\Tabs;
+use Filament\Support\View\Components\ToggleComponent;
+use Filament\Tables\Columns\Layout\Split;
+use Filament\Tables\Columns\Layout\Stack;
+use Filament\Tables\Columns\ToggleColumn;
 
 class TournamentsTable
 {
@@ -31,23 +41,24 @@ class TournamentsTable
                     ->label('Club organizador')
                     ->sortable(),
 
-                TextColumn::make('start_date')
-                    ->label('Inicio')
-                    ->date()
-                    ->sortable(),
+                    TextColumn::make('start_date')
+                        ->label('Inicio')
+                        ->date()
+                        ->sortable(),
+    
+                    TextColumn::make('end_date')
+                        ->label('Fin')
+                        ->date()
+                        ->sortable(),
 
-                TextColumn::make('end_date')
-                    ->label('Fin')
-                    ->date()
-                    ->sortable(),
+                TextColumn::make('registrations_count')
+                    ->label('Inscriptos')
+                    ->counts('registrations'),
 
-                IconColumn::make('is_open_for_registration')
-                    ->label('Inscripción')
-                    ->boolean(),
-
-                IconColumn::make('payment_enabled')
+                ToggleColumn::make('is_payment_enabled')
                     ->label('Pago online')
-                    ->boolean(),
+                    ->onColor('success')
+                    ->offColor('danger'),
             ])
             ->recordActions([
                 EditAction::make(),
@@ -60,9 +71,11 @@ class TournamentsTable
                 ]),
             ]);
     }
-
+/*
     public static function getResource(): string
     {
         return TournamentResource::class;
     }
+        */
+
 }

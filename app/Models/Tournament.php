@@ -25,7 +25,9 @@ class Tournament extends Model
         'entry_fee',
         'venue_id',
         'notes',
-        'categories'
+        'categories',
+        'is_payment_enabled',
+        'is_active'
     ];
 
     protected $casts = [

@@ -17,6 +17,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Validation\Rules\In;
 use UnitEnum;
+use App\Filament\Resources\Tournaments\RelationManagers\RegistrationsRelationManager;
+use App\Filament\Resources\Tournaments\Pages\ViewRegistrations;
+use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\TournamentRegistrationResource;
 
 class TournamentResource extends Resource
 {
@@ -25,6 +28,7 @@ class TournamentResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
     protected static ?int $navigationSort = 11;
     protected static ?string $navigationLabel = 'Gestion de Torneos';
+    protected static ?string $relatedResource = TournamentRegistrationResource::class;
 
     protected static ?string $recordTitleAttribute = 'name';
 
@@ -41,24 +45,19 @@ class TournamentResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RegistrationsRelationManager::class,
         ];
     }
 
     public static function getPages(): array
     {
         return [
+            
             'index' => ListTournaments::route('/'),
             'create' => CreateTournament::route('/create'),
             'edit' => EditTournament::route('/{record}/edit'),
+            
         ];
     }
 
-    public static function getRecordRouteBindingEloquentQuery(): Builder
-    {
-        return parent::getRecordRouteBindingEloquentQuery()
-            ->withoutGlobalScopes([
-                SoftDeletingScope::class,
-            ]);
-    }
 }

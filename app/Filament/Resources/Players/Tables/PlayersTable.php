@@ -22,17 +22,22 @@ class PlayersTable
         return $table
             ->defaultSort('last_name', 'asc')
             ->columns([
-                TextColumn::make('last_name')->searchable()->hidden(),
-                TextColumn::make('first_name')->searchable()->hidden(),
+                TextColumn::make('last_name')
+                    ->label('Apellido')
+                    ->searchable(),
+                TextColumn::make('first_name')
+                    ->label('Nombre')
+                    ->sortable()
+                    ->searchable(),
                 ImageColumn::make('photo_path')
                     ->label('Foto')
                     ->square(30),
-                TextColumn::make('full_name')
+                /*TextColumn::make('full_name')
                     ->label('Apellido y Nombre')
                     ->sortable(query: function ($query, $direction) {
                         $query->orderBy('last_name', $direction)
                             ->orderBy('first_name', $direction);
-                    }),
+                    }),*/
                 TextColumn::make('club.name')
                     ->label('Club')
                     ->searchable()

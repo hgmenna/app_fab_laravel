@@ -1,13 +1,12 @@
 <?php
 
-namespace App\Filament\Resources\TournamentRegistrations;
+namespace App\Filament\Resources\Tournaments\Resources\TournamentRegistrations;
 
-use App\Filament\Resources\TournamentRegistrations\Pages\CreateTournamentRegistration;
-use App\Filament\Resources\TournamentRegistrations\Pages\EditTournamentRegistration;
-use App\Filament\Resources\TournamentRegistrations\Pages\ListTournamentRegistrations;
-use App\Filament\Resources\TournamentRegistrations\Pages\ManageTournamentPlayers;
-use App\Filament\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
-use App\Filament\Resources\TournamentRegistrations\Tables\TournamentRegistrationsTable;
+use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Pages\CreateTournamentRegistration;
+use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Pages\EditTournamentRegistration;
+use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
+use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Tables\TournamentRegistrationsTable;
+use App\Filament\Resources\Tournaments\TournamentResource;
 use App\Models\TournamentRegistration;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -23,16 +22,19 @@ class TournamentRegistrationResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
+    protected static ?string $parentResource = TournamentResource::class;
+
     protected static ?string $recordTitleAttribute = 'name';
+
 
     public static function form(Schema $schema): Schema
     {
-        return TournamentRegistrationForm::configure($schema);
+        return TournamentRegistrationForm::configure($schema, null);
     }
 
     public static function table(Table $table): Table
     {
-        return TournamentRegistrationsTable::configure($table);
+        return TournamentRegistrationsTable::configure($table, null);
     }
 
     public static function getRelations(): array
@@ -45,10 +47,8 @@ class TournamentRegistrationResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => ListTournamentRegistrations::route('/'),
             'create' => CreateTournamentRegistration::route('/create'),
             'edit' => EditTournamentRegistration::route('/{record}/edit'),
-            'players' => ManageTournamentPlayers::route('/{record}/players'),
         ];
     }
 
@@ -59,12 +59,4 @@ class TournamentRegistrationResource extends Resource
                 SoftDeletingScope::class,
             ]);
     }
-
-    public static function getEloquentQuery(): Builder
-    {
-        return parent::getEloquentQuery()
-        ->with(['tournament.type'])
-        ->whereHas('tournament', fn ($q) => $q->availableForRegistration());
-    }
-
 }

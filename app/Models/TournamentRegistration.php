@@ -4,6 +4,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Validation\ValidationException;
 
 class TournamentRegistration extends Model
 {
@@ -20,7 +21,8 @@ class TournamentRegistration extends Model
         'source',
         'notes',
         'tournament_instance_id',
-        
+        'payment_file',
+        'points'        
     ];
 
     protected $casts = [
@@ -43,7 +45,7 @@ class TournamentRegistration extends Model
         return $this->belongsTo(Player::class);
     }
 
-    public function instance()
+    public function tournamentInstance()
     {
         return $this->belongsTo(TournamentInstance::class, 'tournament_instance_id');
     }
@@ -51,27 +53,24 @@ class TournamentRegistration extends Model
     protected static function booted()
     {
         static::creating(function ($registration) {
+            $exists = self::where('tournament_id', $registration->tournament_id)
+                ->where('player_id', $registration->player_id)
+                ->exists();
 
-            $player = $registration->player;
-            $tournament = $registration->tournament;
-
-            if ($player && $tournament) {
-
-                // Obtiene el precio según categoría del jugador
-                $price = $tournament->categoryPrices()
-                    ->where('category_id', $player->category_id)
-                    ->value('price');
-
-                $registration->price = $price ?? 0;
+            if ($exists) {
+                throw ValidationException::withMessages([
+                    'player_id' => 'Este jugador ya está inscripto en este torneo.',
+                ]);
             }
         });
     }
+
 
     public function calculatePoints(): float
     {
         $tournament = $this->tournament;
         $type = $tournament?->type;
-        $instance = $this->instance;
+        $instance = $this->tournamentInstance;
         $player = $this->player;
 
         if (! $type || ! $instance) {
@@ -80,5 +79,7 @@ class TournamentRegistration extends Model
 
         return $instance->points * ($type->score_percentage / 100);
     }
+
+
 }
 
