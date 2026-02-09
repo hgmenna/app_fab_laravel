@@ -147,7 +147,7 @@ return [
     */
 
     'localization' => [
-        'enabled' => false,
+        'enabled' => true,
         'key' => 'filament-shield::filament-shield.resource_permission_prefixes_labels',
     ],
 

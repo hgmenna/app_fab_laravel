@@ -20,6 +20,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs\Tab;
 use App\Models\Club;
 use Filament\Forms\Components\DateTimePicker;
+use App\Models\TournamentType;
 
 class TournamentForm
 {
@@ -55,6 +56,36 @@ class TournamentForm
                             ->label('Tipo de torneo')
                             ->columnSpan(3)
                             ->required(),
+
+                        TextInput::make('stage_number')
+                            ->label('Etapa (1 a 4)')
+                            ->numeric()
+                            ->columnSpan(2)
+                            ->minValue(1)
+                            ->maxValue(4)
+                            ->visible(function ($get) {
+                                $typeId = $get('tournament_type_id');
+
+                                if (! $typeId) {
+                                    return false;
+                                }
+
+                                $type = TournamentType::find($typeId);
+
+                                return $type?->affects_ranking && $type?->assigns_points;
+                            })
+                            ->required(function ($get) {
+                                $typeId = $get('tournament_type_id');
+
+                                if (! $typeId) {
+                                    return false;
+                                }
+
+                                $type = TournamentType::find($typeId);
+
+                                return $type?->affects_ranking && $type?->assigns_points;
+                            }),
+
                             
                         DatePicker::make('start_date')
                             ->label('Fecha inicio')

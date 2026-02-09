@@ -23,7 +23,7 @@ class TournamentRegistrationResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
     protected static ?string $parentResource = TournamentResource::class;
-
+    protected static ?string $title = 'Inscripciones';
     protected static ?string $recordTitleAttribute = 'name';
 
 

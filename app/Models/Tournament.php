@@ -27,7 +27,8 @@ class Tournament extends Model
         'notes',
         'categories',
         'is_payment_enabled',
-        'is_active'
+        'is_active',
+        'stage_number'
     ];
 
     protected $casts = [

@@ -21,6 +21,7 @@ use Filament\Forms\Components\FileUpload;
 use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
 use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Tables\TournamentRegistrationsTable;
 use Filament\Schemas\Components\Tabs\Tab;
+use Illuminate\Contracts\Support\Htmlable;
 
 class RegistrationsRelationManager extends RelationManager
 {
@@ -39,6 +40,7 @@ class RegistrationsRelationManager extends RelationManager
         return TournamentRegistrationsTable::configure($table, $tournament);
             
     }
+    
 
     public function getTabs(): array
     {
@@ -56,5 +58,10 @@ class RegistrationsRelationManager extends RelationManager
             })
             ->toArray();
     }
+
+   public function getTableHeading(): string|Htmlable|null
+   {
+        return 'Inscripciones';
+   }
 
 }

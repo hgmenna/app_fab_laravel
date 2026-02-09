@@ -22,6 +22,7 @@ class TournamentInstanceResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
     protected static string|UnitEnum|null $navigationGroup = 'Torneos';
     protected static ?int $navigationSort = 13;
+   
 
     protected static ?string $recordTitleAttribute = 'name';
 

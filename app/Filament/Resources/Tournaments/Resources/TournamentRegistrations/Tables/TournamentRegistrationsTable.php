@@ -71,7 +71,7 @@ class TournamentRegistrationsTable
                     ),
             ])
             ->headerActions([
-                \Filament\Actions\CreateAction::make(),
+                \Filament\Actions\CreateAction::make()->label('Inscribirse al torneo'),
         ])
 
             ->filters([

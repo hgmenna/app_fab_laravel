@@ -12,6 +12,7 @@ use Filament\Actions\Action;
 class ListTournaments extends ListRecords
 {
     protected static string $resource = TournamentResource::class;
+    protected static ?string $title = 'Torneos';
 
     protected function getHeaderActions(): array
     {

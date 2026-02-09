@@ -8,4 +8,5 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateTournamentRegistration extends CreateRecord
 {
     protected static string $resource = TournamentRegistrationResource::class;
+    protected static ?string $title = 'Nueva Inscripcion';
 }

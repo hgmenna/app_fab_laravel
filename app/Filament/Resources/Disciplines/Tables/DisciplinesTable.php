@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Disciplines\Tables;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -40,10 +41,15 @@ class DisciplinesTable
                 //
             ])
             ->recordActions([
+                ViewAction::make()
+                    ->label('Ver')
+                    ->iconButton(),
                 EditAction::make()
-                    ->label('Editar'),
+                    ->label('Editar')
+                    ->iconButton(),
                 DeleteBulkAction::make()
-                    ->label('Eliminar'),
+                    ->label('Eliminar')
+                    ->iconButton(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

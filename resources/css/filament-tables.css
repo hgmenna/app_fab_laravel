@@ -1,8 +1,3 @@
-@import '../../../../vendor/filament/filament/resources/css/theme.css';
-
-@source '../../../../app/Filament/**/*';
-@source '../../../../resources/views/filament/**/*';
-
 .filament-tables-table table {
     border: 1px solid white;
 }
@@ -32,3 +27,4 @@
 .filament-tables-table th {
     border-color: #cbd5e1;
 }
+

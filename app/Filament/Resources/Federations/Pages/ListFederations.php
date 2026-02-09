@@ -9,12 +9,14 @@ use Filament\Resources\Pages\ListRecords;
 class ListFederations extends ListRecords
 {
     protected static string $resource = FederationResource::class;
+    protected static ?string $title = 'Federaciones';
     
 
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            CreateAction::make()
+                ->label('Agregar Federacion'),
         ];
     }
 }

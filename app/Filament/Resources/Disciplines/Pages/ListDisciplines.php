@@ -9,6 +9,7 @@ use Filament\Resources\Pages\ListRecords;
 class ListDisciplines extends ListRecords
 {
     protected static string $resource = DisciplineResource::class;
+    protected static ?string $title = 'Disciplinas';
 
     protected function getHeaderActions(): array
     {

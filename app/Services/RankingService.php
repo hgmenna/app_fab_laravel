@@ -7,6 +7,9 @@ use App\Models\TournamentRegistration;
 use App\Models\Player;
 use Illuminate\Support\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
+
+use function Pest\Laravel\delete;
 
 class RankingService
 {
@@ -15,15 +18,30 @@ class RankingService
      *
      * @return \Illuminate\Support\Collection
      */
-    public static function getGeneralRanking(): Collection
+    public static function getGeneralRanking(?string $category = null, ?string $search = null): Collection
     {
         // 1) Últimos 4 torneos que afectan ranking
-        $torneos = Tournament::query()
+        /*$torneos = Tournament::query()
             ->whereHas('type', fn ($q) => $q->where('affects_ranking', true))
             ->where('end_date', '<=', now())
             ->orderByDesc('end_date') // ajustá al campo de fecha real
             ->take(4)
-            ->pluck('id');
+            ->pluck('id'); */
+
+        $torneos = collect();
+
+            foreach ([1, 2, 3, 4] as $stage) {
+            $torneo = Tournament::query()
+                ->whereHas('type', fn ($q) => $q->where('affects_ranking', true))
+                ->where('stage_number', $stage)
+                ->where('end_date', '<=', now())
+                ->orderByDesc('end_date') // toma el más reciente de esa etapa
+                ->first();
+
+            if ($torneo) {
+                $torneos->push($torneo->id);
+            }
+        }
 
         if ($torneos->isEmpty()) {
             return collect();
@@ -101,42 +119,59 @@ class RankingService
         // 6) Agregar RG y RC
         $rankingFinal = $rankingOrdenado->map(function ($item, $index) use ($rankingOrdenado) {
 
-            $player = $item['player'];
+    $player = $item['player'];
 
-            // Ranking general
-            $item['RG'] = $index + 1;
+    // Ranking general
+    $item['RG'] = $index + 1;
 
-            // Ranking por categoría
-            $item['RC'] = $rankingOrdenado
-                ->filter(fn ($r) => $r['player']->category_id === $player->category_id)
-                ->keys()
-                ->search($index) + 1;
+    // Calcular nivel según RG
+    if ($item['RG'] <= 16) {
+        $item['nivel'] = 'M';
+    } elseif ($item['RG'] >= 17 && $item['RG'] <= 48) {
+        $item['nivel'] = 'N';
+    } else {
+        $item['nivel'] = $player->category->code ?? null;
+    }
 
-            return $item;
-        });
+    // Calcular RC usando nivel
+    $item['RC'] = $rankingOrdenado
+        ->map(function ($r, $i) {
+            // calcular nivel para cada jugador
+            $rg = $i + 1;
+
+            if ($rg <= 16) {
+                $nivel = 'M';
+            } elseif ($rg >= 17 && $rg <= 48) {
+                $nivel = 'N';
+            } else {
+                $nivel = $r['player']->category->code ?? null;
+            }
+
+            return [
+                'nivel' => $nivel,
+                'index' => $i,
+            ];
+        })
+        ->filter(fn ($r) => $r['nivel'] === $item['nivel'])
+        ->pluck('index')
+        ->search($index) + 1;
+
+        return $item;
+    });
 
         // 7) Formato final para tabla
         return $rankingFinal->map(function ($item) {
 
             $player = $item['player'];
 
-            // Categoria segun ubicacion del ranking
-            if ($item['RG'] <= 16) {
-                $nivel = 'M';
-            } elseif ($item['RG'] >= 17 && $item['RG'] <= 48){
-                $nivel = 'N';
-            } else {
-                $nivel = $player->category->code ?? null;
-            }
-
             return [
                 'RG' => $item['RG'],
                 'RC' => $item['RC'],
-                'category' => $nivel,
+                'category' => $item['nivel'],
                 'last_name' => $player->last_name,
                 'first_name' => $player->first_name,
-                'club' => $player->club->name ?? null,
-                'fed' => $player->club->city->state->federation->short_code ?? null,
+                'club' => $player->club?->name ?? null,
+                'fed' => $player->club?->city?->state?->federation?->short_name ?? 'SIN FED',
                 'total_puntos' => $item['total'],
 
                 'pos_1' => $item['detalle'][0]['description'] ?? null,
@@ -153,6 +188,38 @@ class RankingService
             ];
         });
 
+        // --- APLICAR FILTROS MANUALMENTE ---
+    
+        // Filtrar por Categoría (SelectFilter)
+        if ($category) {
+            $data = $data->where('category', $category);
+        }
+
+        // Filtrar por Búsqueda (Searchable)
+        if ($search) {
+            $search = strtolower($search);
+            $data = $data->filter(function ($item) use ($search) {
+                return str_contains(strtolower($item['last_name'] ?? ''), $search) || 
+                    str_contains(strtolower($item['club'] ?? ''), $search);
+            });
+        }
+
+        return $data->values(); // Resetear índices para evitar problemas de renderizado
     }
+
+    public static function syncGeneralRanking(): void
+{
+        // Obtenemos la colección que ya procesa tu lógica [3, 8]
+        $data = self::getGeneralRanking();
+
+        DB::transaction(function () use ($data) {
+            \App\Models\GeneralRanking::query()->delete(); // Limpia el ranking anterior
+            foreach ($data as $row) {
+                \App\Models\GeneralRanking::create($row);
+            }
+        });
+    }
+
+    
 }
 

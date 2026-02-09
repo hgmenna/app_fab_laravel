@@ -6,9 +6,11 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Filament\Actions\Action;
 
 class FederationsTable
 {
@@ -44,10 +46,30 @@ class FederationsTable
                 //
             ])
             ->recordActions([
+                Action::make('verClubes')
+                    ->label('Clubes')
+                    ->icon('heroicon-m-building-office-2')
+                    ->color('info')
+                    ->modalHeading('Listado de Clubes por Ciudad')
+                    ->modalWidth('5xl')
+                    ->modalContent(fn ($record) => view(
+                        'federaciones.table.table-clubes', // Nombre de vista corregido
+                        [
+                            'record' => $record->load(['states.cities.clubs' => function($query) {
+                                $query->withCount('players'); 
+                            }])
+                        ]
+                    ))
+                    ->modalSubmitAction(false),
+                ViewAction::make()
+                    ->label('Ver')
+                    ->iconButton(),
                 EditAction::make()
-                    ->label('Editar'),
+                    ->label('Editar')
+                    ->iconButton(),
                 DeleteAction::make()
-                    ->label('Eliminar'),
+                    ->label('Eliminar')
+                    ->iconButton(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

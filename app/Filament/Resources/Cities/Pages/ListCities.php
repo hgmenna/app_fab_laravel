@@ -9,11 +9,13 @@ use Filament\Resources\Pages\ListRecords;
 class ListCities extends ListRecords
 {
     protected static string $resource = CityResource::class;
+    protected static ?string $title = 'Ciudades';
 
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            CreateAction::make()
+                ->label('Nueva Localidad'),
         ];
     }
 }
