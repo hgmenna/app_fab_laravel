@@ -15,14 +15,20 @@ class FederationForm
         return $schema
         ->components([
             TextInput::make('name')
+                ->label('Nombre')
                 ->required(),
             TextInput::make('short_name')
+                ->label('Sigla')
                 ->default(null),
             TextInput::make('mail_contact')
+                ->label('Email')
                 ->default(null),
             TextInput::make('website')
+                ->label('Sitio Web')
+                ->url()
                 ->default(null),
             TextInput::make('phone')
+                ->label('Telefono')
                 ->tel()
                 ->default(null),
             FileUpload::make('logo_path')

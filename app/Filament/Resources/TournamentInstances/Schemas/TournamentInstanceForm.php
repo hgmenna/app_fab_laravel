@@ -13,16 +13,20 @@ class TournamentInstanceForm
         return $schema
             ->components([
                         TextInput::make('code')
+                            ->label('Codigo')
                             ->columnSpan(1)
                             ->required(),
                         TextInput::make('points')
+                            ->label('Puntos')
                             ->columnSpan(1)
                             ->required()
                             ->numeric(),
                         TextInput::make('description')
+                            ->label('Descripcion')
                             ->columnSpan(1)
                             ->required(),
                         TextInput::make('instance')
+                            ->label('Instancia')
                             ->columnSpan(1)
                             ->required()
                             ->numeric(),

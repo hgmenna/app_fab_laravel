@@ -14,6 +14,7 @@ use Filament\Tables\Table;
 
 class TournamentTypesTable
 {
+
     public static function configure(Table $table): Table
     {
         return $table

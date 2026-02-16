@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Disciplines\Tables;
 
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
@@ -47,7 +48,7 @@ class DisciplinesTable
                 EditAction::make()
                     ->label('Editar')
                     ->iconButton(),
-                DeleteBulkAction::make()
+                DeleteAction::make()
                     ->label('Eliminar')
                     ->iconButton(),
             ])

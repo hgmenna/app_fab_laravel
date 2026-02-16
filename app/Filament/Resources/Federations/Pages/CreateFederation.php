@@ -8,4 +8,9 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateFederation extends CreateRecord
 {
     protected static string $resource = FederationResource::class;
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

@@ -15,4 +15,9 @@ class CreateTournament extends CreateRecord
     {
         return 'full';
     }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

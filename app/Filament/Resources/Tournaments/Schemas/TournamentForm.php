@@ -21,6 +21,7 @@ use Filament\Schemas\Components\Tabs\Tab;
 use App\Models\Club;
 use Filament\Forms\Components\DateTimePicker;
 use App\Models\TournamentType;
+use Illuminate\Support\Facades\Auth;
 
 class TournamentForm
 {
@@ -126,12 +127,13 @@ class TournamentForm
                             ->inline(false)
                             ->onColor('success')
                             ->offColor('danger'),
-                    ]),
+                    ])->disabled(fn () => !Auth::user()->can('EditField')),
 
                     Tab::make('Precios por categoria')
                     // ───────────────────────────────── Precios por categoría
                         ->schema([
                             Repeater::make('categoryPrices')
+                                ->label('Precios por Categoria')
                                 ->collapsible()
                                 ->columns(6)
                                 ->relationship('categoryPrices')
@@ -153,14 +155,16 @@ class TournamentForm
                                         ->columnSpan(3)
                                         ->numeric()
                                         ->required(),
-                                    ])
-                        ]),
+                                ])
+                        ])->disabled(fn () => !Auth::user()->can('EditField')
+                    ),
 
                     Tab::make('Horarios')
 
                     // ───────────────────────────────── Horarios
                         ->schema([
                             Repeater::make('slots')
+                                ->label('Horarios')
                                 ->grid(3)
                                 ->collapsible()
                                 ->columns(4)
@@ -193,7 +197,7 @@ class TournamentForm
                                 ])
                             ]),
 
-                ])
+                ])->disabled(fn () => !Auth::user()->can('EditField')),
 
         ]);
     }

@@ -23,16 +23,14 @@ class FederationsTable
                     ->sortable()
                     ->searchable(),
                 TextColumn::make('short_name')
-                    ->label('Abreviatura')
+                    ->label('Sigla')
+                    ->alignCenter()
                     ->sortable()
                     ->searchable(),
                 ImageColumn::make('logo_path')
                     ->label('Logo')
-                    ->square()
-                    ->size(50),
-                TextColumn::make('country.name')
-                    ->label('Pais')
-                    ->sortable(),
+                    ->alignCenter()
+                    ->square(50),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -50,7 +48,7 @@ class FederationsTable
                     ->label('Clubes')
                     ->icon('heroicon-m-building-office-2')
                     ->color('info')
-                    ->modalHeading('Listado de Clubes por Ciudad')
+                    ->modalHeading('Listado de Clubes')
                     ->modalWidth('5xl')
                     ->modalContent(fn ($record) => view(
                         'federaciones.table.table-clubes', // Nombre de vista corregido

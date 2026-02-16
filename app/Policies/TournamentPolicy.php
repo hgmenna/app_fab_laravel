@@ -29,6 +29,10 @@ class TournamentPolicy
 
     public function update(AuthUser $authUser, Tournament $tournament): bool
     {
+        if ($authUser->hasRole('federacion')) 
+        {
+            return $authUser->name === $tournament->venue?->city?->state?->federation?->short_name;
+        }
         return $authUser->can('Update:Tournament');
     }
 

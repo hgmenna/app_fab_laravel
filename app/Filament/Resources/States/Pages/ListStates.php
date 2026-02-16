@@ -9,6 +9,7 @@ use Filament\Resources\Pages\ListRecords;
 class ListStates extends ListRecords
 {
     protected static string $resource = StateResource::class;
+    protected static ?string $title = 'Provincias';
 
     protected function getHeaderActions(): array
     {

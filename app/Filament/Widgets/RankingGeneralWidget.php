@@ -114,6 +114,12 @@ class RankingGeneralWidget extends TableWidget
                         ->label('Fed')
                         ->alignment('center')
                         ->width('30px'),
+
+                    TextColumn::make('total_penalties')
+                        ->label('Dcto')
+                        ->alignment('center')
+                        ->color('danger') // Color rojo para indicar descuento
+                        ->width('25px'),
     
                     TextColumn::make('total_puntos')
                         ->label('Tot')
@@ -121,7 +127,8 @@ class RankingGeneralWidget extends TableWidget
                         ->extraCellAttributes([
                              'style' => 'background-color: #065f46 !important; color: #ffffff !important; font-weight: 700 !important; border-left: 1px solid #047857;', ])// El "!" asegura que el color de fondo sobresalga
                         ->limit(3, '')
-                        ->width('25px'),
+                        ->width('25px')
+                        ->numeric(),
                 ]),
 
                     ColumnGroup::make('Etapa 1', [

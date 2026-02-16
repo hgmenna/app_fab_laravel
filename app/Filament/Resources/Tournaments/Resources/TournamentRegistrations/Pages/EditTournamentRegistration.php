@@ -8,6 +8,7 @@ use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Resources\Concerns\HasTabs;
 use Filament\Resources\Pages\EditRecord;
+use App\Services\AdminNotifier;
 
 class EditTournamentRegistration extends EditRecord
 {
@@ -21,6 +22,11 @@ class EditTournamentRegistration extends EditRecord
             ForceDeleteAction::make(),
             RestoreAction::make(),
         ];
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
     }
 
 }

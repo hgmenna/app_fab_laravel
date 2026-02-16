@@ -29,6 +29,11 @@ class PlayerPolicy
 
     public function update(AuthUser $authUser, Player $player): bool
     {
+        if ($authUser->hasRole('federacion')) 
+        {
+            return $authUser->name === $player->club?->city?->state?->federation?->short_name;
+        }
+
         return $authUser->can('Update:Player');
     }
 

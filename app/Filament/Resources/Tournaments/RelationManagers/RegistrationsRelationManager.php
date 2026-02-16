@@ -2,22 +2,9 @@
 
 namespace App\Filament\Resources\Tournaments\RelationManagers;
 
-use Filament\Actions\AssociateAction;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\CreateAction;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\DissociateAction;
-use Filament\Actions\DissociateBulkAction;
-use Filament\Actions\EditAction;
-use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
-use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Filament\Forms\Components\Select;
-use Illuminate\Validation\ValidationException;
-use Filament\Forms\Components\FileUpload;
 use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
 use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Tables\TournamentRegistrationsTable;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -46,10 +33,19 @@ class RegistrationsRelationManager extends RelationManager
     {
         $tournament = $this->ownerRecord;
 
-        return $tournament->slots
+         // 1. Definimos la pestaña para "Todos" los inscritos
+        $tabs = [
+            'all' => Tab::make('Todos los Inscritos')
+                ->badge($tournament->registrations()->count())
+                // No aplicamos modifyQueryUsing para que no filtre por slot_id y muestre todo
+        ];
+
+        // 2. Generamos las pestañas por cada slot (horario) como ya lo hacías
+        $slotTabs = $tournament->slots
             ->mapWithKeys(function ($slot) {
                 $current = $slot->registrations()->count();
                 $max = $slot->max_players;
+
                 return [
                     "slot_{$slot->id}" => Tab::make($slot->name)
                         ->badge("{$current} / {$max}")
@@ -57,6 +53,9 @@ class RegistrationsRelationManager extends RelationManager
                 ];
             })
             ->toArray();
+
+        // 3. Combinamos ambas partes: la pestaña general y las específicas
+        return array_merge($tabs, $slotTabs);
     }
 
    public function getTableHeading(): string|Htmlable|null

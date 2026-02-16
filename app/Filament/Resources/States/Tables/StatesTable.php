@@ -3,8 +3,10 @@
 namespace App\Filament\Resources\States\Tables;
 
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -15,6 +17,7 @@ class StatesTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->defaultSort('name', 'Asc')
             ->columns([
                 TextColumn::make('name')
                     ->label('Nombre')
@@ -28,9 +31,11 @@ class StatesTable
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('latitude')
+                    ->label('Latitud')
                     ->numeric()
                     ->sortable(),
                 TextColumn::make('longitude')
+                    ->label('Longitud')
                     ->numeric()
                     ->sortable(),
             ])
@@ -38,7 +43,9 @@ class StatesTable
                 //php
             ])
             ->recordActions([
-                EditAction::make(),
+                ViewAction::make()->iconButton(),
+                EditAction::make()->iconButton(),
+                DeleteAction::make()->iconButton(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

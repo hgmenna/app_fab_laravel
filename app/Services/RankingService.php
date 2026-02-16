@@ -70,22 +70,24 @@ class RankingService
             $items = $regs->where('player_id', $player->id);
 
             // Ordenar por el orden de los torneos seleccionados
-            $ordenados = collect($torneos)->map(function ($tid) use ($items) {
-                return $items->firstWhere('tournament_id', $tid);
-            });
+            $ordenados = collect($torneos)->map(fn ($tid) => $items->firstWhere('tournament_id', $tid));
 
-            // Total de puntos (solo esos 4 torneos)
-            $total = $ordenados->sum(fn ($r) => $r?->points ?? 0);
+            // A. Suma total de puntos obtenidos en las 4 etapas
+            $puntos_brutos = $ordenados->sum(fn ($r) => $r?->points ?? 0);
+            
+            // B. Suma total de penalizaciones (multas)
+            $multas = $ordenados->sum(fn ($r) => $r?->penalty_points ?? 0);
 
-            // Posiciones (instance) para desempate
-            $posiciones = $ordenados->map(fn ($r) => $r?->tournamentInstance?->instance ?? null);
+            // C. TOTAL NETO: El primer criterio de ordenación (Puntos - Multas)
+            $total_neto = $puntos_brutos - $multas;           
 
             return [
                 'player' => $player,
-                'total' => $total,
-                'posiciones' => $posiciones,
+                'total' => $total_neto,
+                'total_penalties' => $multas,
+                // Guardamos las instancias (valores numéricos de posición)
+                'posiciones' => $ordenados->map(fn ($r) => $r?->tournamentInstance?->instance ?? 0),
                 'detalle' => $ordenados->map(fn ($r) => [
-                    'pos' => $r?->tournamentInstance?->instance ?? null,
                     'description' => $r?->tournamentInstance?->description ?? null,
                     'ptos' => $r?->points ?? null,
                 ]),
@@ -96,20 +98,26 @@ class RankingService
         // 1) mayor total
         // 2) mejor posición (mayor instance)
         // 3) segunda mejor, etc.
+        // --- Paso 5: Ordenar el ranking ---
         $rankingOrdenado = $ranking->sort(function ($a, $b) {
-
-            // 1) total de puntos
+            // 1) Primero comparamos el total neto
             if ($a['total'] !== $b['total']) {
                 return $b['total'] <=> $a['total'];
             }
 
-            // 2) posiciones (lexicográfico)
-            foreach (range(0, 3) as $i) {
-                $pa = $a['posiciones'][$i] ?? null;
-                $pb = $b['posiciones'][$i] ?? null;
+            // 2) DESEMPATE: Mejor posición absoluta (Lógica K.ESIMO.MAYOR)
+            // Extraemos las posiciones, filtramos nulos y las ORDENAMOS de mejor a peor
+            // Nota: Se usa sortDesc() porque en tu lógica una instancia mayor es un mejor puesto.
+            $mejoresA = collect($a['posiciones'])->filter()->sortDesc()->values();
+            $mejoresB = collect($b['posiciones'])->filter()->sortDesc()->values();
 
-                if ($pa !== $pb) {
-                    return ($pb ?? 0) <=> ($pa ?? 0); // mayor instance = mejor
+            // Comparamos las mejores posiciones una por una
+            for ($i = 0; $i < 4; $i++) {
+                $valA = $mejoresA->get($i, 0); // Toma el mejor resultado de A
+                $valB = $mejoresB->get($i, 0); // Toma el mejor resultado de B
+
+                if ($valA !== $valB) {
+                    return $valB <=> $valA; // El que tenga la mejor posición absoluta queda arriba
                 }
             }
 
@@ -160,9 +168,11 @@ class RankingService
     });
 
         // 7) Formato final para tabla
-        return $rankingFinal->map(function ($item) {
+        $data =  $rankingFinal->map(function ($item) {
 
             $player = $item['player'];
+
+            $detalle = collect($item['detalle']);
 
             return [
                 'RG' => $item['RG'],
@@ -173,18 +183,19 @@ class RankingService
                 'club' => $player->club?->name ?? null,
                 'fed' => $player->club?->city?->state?->federation?->short_name ?? 'SIN FED',
                 'total_puntos' => $item['total'],
+                'total_penalties' => $item['total_penalties'] ?? 0,
 
-                'pos_1' => $item['detalle'][0]['description'] ?? null,
-                'ptos_1' => $item['detalle'][0]['ptos'] ?? null,
+                'pos_1' => $detalle->get(0)['description'] ?? null,
+                'ptos_1' => $detalle->get(0)['ptos'] ?? null,
 
-                'pos_2' => $item['detalle'][1]['description'] ?? null,
-                'ptos_2' => $item['detalle'][1]['ptos'] ?? null,
+                'pos_2' => $detalle->get(1)['description'] ?? null,
+                'ptos_2' => $detalle->get(1)['ptos'] ?? null,
 
-                'pos_3' => $item['detalle'][2]['description'] ?? null,
-                'ptos_3' => $item['detalle'][2]['ptos'] ?? null,
+                'pos_3' => $detalle->get(2)['description'] ?? null,
+                'ptos_3' => $detalle->get(2)['ptos'] ?? null,
 
-                'pos_4' => $item['detalle'][3]['description'] ?? null,
-                'ptos_4' => $item['detalle'][3]['ptos'] ?? null,
+                'pos_4' => $detalle->get(3)['description'] ?? null,
+                'ptos_4' => $detalle->get(3)['ptos'] ?? null,
             ];
         });
 
@@ -208,7 +219,7 @@ class RankingService
     }
 
     public static function syncGeneralRanking(): void
-{
+    {
         // Obtenemos la colección que ya procesa tu lógica [3, 8]
         $data = self::getGeneralRanking();
 

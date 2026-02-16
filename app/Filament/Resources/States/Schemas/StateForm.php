@@ -14,8 +14,10 @@ class StateForm
         return $schema
             ->components([
                 TextInput::make('name')
+                    ->label('Nombre')
                     ->required(),
                 Select::make('country_id')
+                    ->label('Pais')
                     ->relationship('country', 'name')
                     ->reactive()
                     ->required(),
@@ -28,9 +30,11 @@ class StateForm
                     ->label('Activa')
                     ->required(),
                 TextInput::make('latitude')
+                    ->label('Latitud')
                     ->numeric()
                     ->default(null),
                 TextInput::make('longitude')
+                    ->label('Longitud')
                     ->numeric()
                     ->default(null),
         ]);

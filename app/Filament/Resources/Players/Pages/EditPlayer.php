@@ -7,6 +7,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Resources\Pages\EditRecord;
+use App\Services\AdminNotifier;
 
 class EditPlayer extends EditRecord
 {
@@ -19,5 +20,11 @@ class EditPlayer extends EditRecord
             ForceDeleteAction::make(),
             RestoreAction::make(),
         ];
+    }
+
+    protected function afterSave(): void
+    {
+        // $this->record es el modelo recién creado
+        AdminNotifier::send($this, $this->record, 'actualizó', ['last_name', 'first_name']);
     }
 }

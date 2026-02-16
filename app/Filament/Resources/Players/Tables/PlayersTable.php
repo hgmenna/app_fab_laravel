@@ -2,24 +2,16 @@
 
 namespace App\Filament\Resources\Players\Tables;
 
-use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Actions\ForceDeleteBulkAction;
-use Filament\Actions\RestoreBulkAction;
-use Filament\Tables\Columns\IconColumn;
-use Filament\Tables\Columns\ImageColumn;
-use Filament\Tables\Columns\Layout\Split;
-use Filament\Tables\Columns\Layout\Stack;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Filament\Actions\Action;
-use Filament\Schemas\Components\View as SchemaView;
+use Filament\Actions\ViewAction;
 // Contrato de Laravel para el hint de la función
-use Illuminate\Contracts\View\View as LaravelView;
+use App\Filament\Resources\Players\PlayerResource;
 
 class PlayersTable
 {
@@ -40,6 +32,7 @@ class PlayersTable
                     ->searchable(),
                 TextColumn::make('club.name')
                     ->label('Club')
+                    ->limit(15)
                     ->alignCenter()
                     ->searchable()
                     ->sortable(),
@@ -90,7 +83,26 @@ class PlayersTable
                         $promedio = $registros->avg('points'); 
 
                         return number_format($promedio, 2);
-                    }), 
+                    }),
+                // Columna para el Ranking General (RG)
+                TextColumn::make('ranking_rg')
+                    ->label('RG')
+                    ->alignCenter()
+                    ->getStateUsing(function ($record) {
+                        return \App\Models\GeneralRanking::where('first_name', $record->first_name)
+                            ->where('last_name', $record->last_name)
+                            ->value('RG') ?? '-';
+                    }),
+
+                // Columna para la Categoría del Ranking
+                TextColumn::make('ranking_category')
+                    ->label('C/R')
+                    ->alignCenter()
+                    ->getStateUsing(function ($record) {
+                        return \App\Models\GeneralRanking::where('first_name', $record->first_name)
+                            ->where('last_name', $record->last_name)
+                            ->value('category') ?? '-';
+                    }),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -108,9 +120,12 @@ class PlayersTable
             ->filters([
                 TrashedFilter::make(),
                 SelectFilter::make('category_id')
-                    ->relationship('category', 'name')
+                    ->relationship('category', 'name'),
+                SelectFilter::make('federation_id')
+                    ->relationship('club.city.state.federation', 'short_name'),
             ])
             ->recordActions([
+                ViewAction::make()->iconButton(),
                 EditAction::make()->iconButton(),
                 DeleteAction::make()->iconButton(),
                 Action::make('verTorneos')
@@ -126,12 +141,19 @@ class PlayersTable
                     ))
                     ->modalSubmitAction(false),
             ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                    ForceDeleteBulkAction::make(),
-                    RestoreBulkAction::make(),
-                ]),
+            ->headerActions([
+            Action::make('descargarPdf')
+                ->label('Exportar PDF')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('success')
+                ->action(function ($livewire) {
+                    // Obtenemos los registros filtrados desde el componente Livewire
+                    $records = $livewire->getFilteredTableQuery()->get();
+                    
+                    // Invocamos el método estático del Resource
+                    return PlayerResource::exportToPdf($records, 'Listado de Jugadores');
+                }),
             ]);
     }
+
 }

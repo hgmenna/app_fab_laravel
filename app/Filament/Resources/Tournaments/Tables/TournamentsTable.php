@@ -2,27 +2,13 @@
 
 namespace App\Filament\Resources\Tournaments\Tables;
 
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Actions\RestoreBulkAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use App\Filament\Resources\Tournaments\TournamentResource;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\Action;
-use App\Filament\Resources\Tournaments\Pages\ViewRegistrations;
-use BladeUI\Icons\Components\Icon;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\Toggle;
-use Filament\Schemas\Components\Tabs\Tab;
-use Filament\Forms\Components\ViewField;
-use Filament\Schemas\Components\Tabs;
-use Filament\Support\View\Components\ToggleComponent;
-use Filament\Tables\Columns\Layout\Split;
-use Filament\Tables\Columns\Layout\Stack;
-use Filament\Tables\Columns\ToggleColumn;
 
 class TournamentsTable
 {
@@ -36,7 +22,7 @@ class TournamentsTable
                     ->sortable()
                     ->alignCenter(),
                     
-                TextColumn::make('type.name')
+                TextColumn::make('type.code')
                     ->label('Tipo')
                     ->sortable()
                     ->alignCenter(),
@@ -63,10 +49,8 @@ class TournamentsTable
                     ->counts('registrations')
                     ->alignCenter(),
 
-                ToggleColumn::make('is_payment_enabled')
-                    ->label('Pago online')
-                    ->onColor('success')
-                    ->offColor('danger')
+                IconColumn::make('is_payment_enabled')
+                    ->label('Requiere Pago')
                     ->alignCenter(),
             ])
             ->recordActions([
@@ -79,12 +63,6 @@ class TournamentsTable
                 DeleteAction::make()
                     ->label('Eliminar')
                     ->iconButton(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                    RestoreBulkAction::make(),
-                ]),
             ]);
     }
 /*

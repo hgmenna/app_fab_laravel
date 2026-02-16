@@ -3,7 +3,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Tournament extends Model
@@ -37,7 +36,8 @@ class Tournament extends Model
         'registration_open_at' => 'datetime',
         'registration_close_at' => 'datetime',
         'scoring_rules' => 'array',
-        'categories' => 'array'
+        'categories' => 'array',
+        'is_payment_enabled' => 'boolean',
     ];
 
     public function discipline()

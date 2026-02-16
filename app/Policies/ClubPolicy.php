@@ -29,6 +29,11 @@ class ClubPolicy
 
     public function update(AuthUser $authUser, Club $club): bool
     {
+        if ($authUser->hasRole('federacion')) 
+        {
+            return $authUser->name === $club->city?->state?->federation?->short_name;
+        }
+
         return $authUser->can('Update:Club');
     }
 

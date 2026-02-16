@@ -22,7 +22,8 @@ class TournamentRegistration extends Model
         'notes',
         'tournament_instance_id',
         'payment_file',
-        'points'        
+        'points',
+        'penalty_points',       
     ];
 
     protected $casts = [

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Cities\Tables;
 
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
@@ -18,6 +19,7 @@ class CitiesTable
         return $table
             ->columns([
                 TextColumn::make('name')
+                    ->label('Nombre')
                     ->searchable(),
                 TextColumn::make('state.name')
                     ->label('Provincia')
@@ -44,8 +46,9 @@ class CitiesTable
                     ->label('Pais'),
             ])
             ->recordActions([
-                EditAction::make()->iconButton(),
                 ViewAction::make()->iconButton(),
+                EditAction::make()->iconButton(),
+                DeleteAction::make()->iconButton(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

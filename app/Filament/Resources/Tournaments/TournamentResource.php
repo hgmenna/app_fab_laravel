@@ -13,12 +13,8 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Illuminate\Validation\Rules\In;
 use UnitEnum;
 use App\Filament\Resources\Tournaments\RelationManagers\RegistrationsRelationManager;
-use App\Filament\Resources\Tournaments\Pages\ViewRegistrations;
 use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\TournamentRegistrationResource;
 
 class TournamentResource extends Resource

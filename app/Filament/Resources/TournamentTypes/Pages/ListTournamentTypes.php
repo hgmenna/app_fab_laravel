@@ -9,6 +9,7 @@ use Filament\Resources\Pages\ListRecords;
 class ListTournamentTypes extends ListRecords
 {
     protected static string $resource = TournamentTypeResource::class;
+    protected static ?string $title = 'Tipos de Torneo';
 
     protected function getHeaderActions(): array
     {

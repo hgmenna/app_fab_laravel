@@ -23,6 +23,7 @@ class GeneralRanking extends Model
         'pos_3',
         'ptos_3',
         'pos_4',
-        'ptos_4'
+        'ptos_4',
+        'total_penalties',
     ];
 }
