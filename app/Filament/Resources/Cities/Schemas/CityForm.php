@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\Cities\Schemas;
 
 use Filament\Schemas\Schema;
-use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\Select;

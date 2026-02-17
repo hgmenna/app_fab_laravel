@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Clubs\Tables;
 
+use App\Filament\Resources\Clubs\ClubResource;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -94,6 +95,19 @@ class ClubsTable
                 EditAction::make()->label('Editar')->iconButton(),
                 ViewAction::make()->label('Ver')->iconButton(),
                 DeleteAction::make()->label('Eliminar')->iconButton(),
+            ])
+            ->headerActions([
+                Action::make('descargarPdf')
+                    ->label('Exportar PDF')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('success')
+                    ->action(function ($livewire) {
+                        // Obtenemos los registros filtrados desde el componente Livewire
+                        $records = $livewire->getFilteredTableQuery()->get();
+                        
+                        // Invocamos el método estático del Resource
+                        return ClubResource::exportToPdf($records, 'Listado de Clubes');
+                    }),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

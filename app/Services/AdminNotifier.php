@@ -7,6 +7,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Throwable;
 
 class AdminNotifier
 {
@@ -52,4 +53,29 @@ class AdminNotifier
             ->info()
             ->sendToDatabase([$user, ...User::where('name', 'super-admin')->get()]); 
     }
+
+    public static function sendException(Throwable $e): void
+    {
+        // Usuario que generó el error (si existe)
+        $user = Auth::user();
+        $userName = $user?->name ?? 'Usuario no autenticado';
+
+        // Administradores a notificar
+        $admins = User::where('name', 'super-admin')->get();
+
+        // Mensaje institucional
+        $message = "Se produjo una excepción en el sistema.\n".
+                "Usuario: {$userName}\n".
+                "Mensaje: {$e->getMessage()}\n".
+                "Archivo: {$e->getFile()}\n".
+                "Línea: {$e->getLine()}";
+
+        Notification::make()
+            ->title('⚠️ Error en el sistema')
+            ->body(nl2br($message))
+            ->danger()
+            ->sendToDatabase($admins);
+    }
+
+
 }

@@ -10,6 +10,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\FileUpload;
+use Illuminate\Support\Facades\Auth;
 
 class PlayerForm
 {
@@ -83,7 +84,7 @@ class PlayerForm
                             ->label('Habilitado')
                             ->inline(false)
                             ->columnSpan(1)
-                            ->required(),
+                            ->disabled(fn () => Auth::user()->can('EditField')),
                          FileUpload::make('photo_path')
                             ->label('Foto del jugador')
                             ->columnSpan(3)

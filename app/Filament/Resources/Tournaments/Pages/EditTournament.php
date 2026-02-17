@@ -7,6 +7,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Resources\Pages\EditRecord;
+use App\Services\AdminNotifier;
 
 class EditTournament extends EditRecord
 {
@@ -24,5 +25,11 @@ class EditTournament extends EditRecord
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('index');
+    }
+
+    protected function afterSave(): void
+    {
+        // $this->record es el modelo recién creado
+        AdminNotifier::send($this, $this->record, 'actualizó', ['name']);
     }
 }

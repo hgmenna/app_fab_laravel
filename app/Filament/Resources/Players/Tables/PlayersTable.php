@@ -6,7 +6,6 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
@@ -118,11 +117,14 @@ class PlayersTable
 
             ])
             ->filters([
-                TrashedFilter::make(),
                 SelectFilter::make('category_id')
-                    ->relationship('category', 'name'),
+                    ->relationship('category', 'name')
+                    ->label('Categoria')
+                    ->multiple(),
                 SelectFilter::make('federation_id')
-                    ->relationship('club.city.state.federation', 'short_name'),
+                    ->relationship('club.city.state.federation', 'short_name')
+                    ->label('Federacion')
+                    ->multiple(),
             ])
             ->recordActions([
                 ViewAction::make()->iconButton(),

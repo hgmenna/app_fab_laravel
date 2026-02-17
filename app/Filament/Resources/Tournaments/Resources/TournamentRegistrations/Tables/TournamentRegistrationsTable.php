@@ -143,6 +143,10 @@ class TournamentRegistrationsTable
                 Action::make('asignarInstancia')
                     ->label('Asignar Posicion')
                     ->visible(fn () => Auth::user()?->can('EditField'))
+                    ->disabled(fn (TournamentRegistration $record) => 
+                        $record->tournament?->start_date > now()
+                    )
+
                     ->modalHeading('Asignar Posicion y calcular puntos')
                     ->form([
                         Select::make('tournament_instance_id')

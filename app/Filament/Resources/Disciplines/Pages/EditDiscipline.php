@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Disciplines\Pages;
 use App\Filament\Resources\Disciplines\DisciplineResource;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
+use App\Services\AdminNotifier;
 
 class EditDiscipline extends EditRecord
 {
@@ -20,5 +21,11 @@ class EditDiscipline extends EditRecord
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('index');
+    }
+
+    protected function afterSave(): void
+    {
+        // $this->record es el modelo recién creado
+        AdminNotifier::send($this, $this->record, 'actualizó', ['name']);
     }
 }

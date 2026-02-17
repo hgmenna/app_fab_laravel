@@ -16,6 +16,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use UnitEnum;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ClubResource extends Resource
 {
@@ -59,5 +60,57 @@ class ClubResource extends Resource
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);
+    }
+
+    public static function exportToPdf($records, string $title)
+    {
+        // Aumentar recursos para reportes pesados [2]
+        ini_set('memory_limit', '512M');
+        set_time_limit(300);
+
+        // 1. DEFINICIÓN DE COLUMNAS (Sin columna CLUB porque se agrupa) [3]
+        // Ancho total aproximado: 680px para Landscape
+        $columns = [
+            ['label' => 'NOMBRE',  'field' => 'name',        'width' => 180],
+            ['label' => 'DIRECCION',    'field' => 'address',       'width' => 180],
+            ['label' => 'CIUDAD', 'field' => 'city_name','width' => 180],
+            ['label' => 'AFILIADOS',       'field' => 'cant_afil', 'width' => 80],
+        ];
+
+        // 2. ORDENAMIENTO ALFABÉTICO (Directo sobre el modelo Player)
+        $sortedRecords = $records->sortBy([
+            ['name', 'asc'],
+        ]);
+
+        // 3. PROCESAMIENTO Y MAPEADO DE DATOS [1]
+        $processed = $sortedRecords->map(function ($row) {
+
+            return (object)[
+                'name'        => $row->name,
+                'address'       => $row->address,
+                'city_name'=> $row->city?->name ?? 'N/A',
+                'cant_afil'       => $row->players?->count() ?? 0, // Para agrupar
+                'federation_group' => $row->city?->state?->federation?->name ?? '-',
+            ];
+        });
+
+        // 4. AGRUPACIÓN POR CLUB Y ORDEN ALFABÉTICO DE GRUPOS
+        $grouped = $processed->groupBy('federation_group')->sortKeys();
+
+        // 5. CARGA DE VISTA Y CONFIGURACIÓN [3, 6]
+        $pdf = Pdf::loadView('pdf.generic', [
+            'title'        => $title,
+            'subtitle'     => '',
+            'date'         => now()->format('d/m/Y'),
+            'columns'      => $columns,
+            'groups'       => $grouped, // Enviamos como grupos para repetir el TH [3]
+            'logo'         => public_path('images/logo.png'),
+            'footer_image' => public_path('images/pie-pagina.png'),
+        ])->setPaper('a4', 'portrait'); // Orientación vertical 
+
+        // 6. DESCARGA MEDIANTE STREAM [6]
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->stream();
+        }, $title . ' - ' . now()->format('Y-m-d') . '.pdf');
     }
 }
