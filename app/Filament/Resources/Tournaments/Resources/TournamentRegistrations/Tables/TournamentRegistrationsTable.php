@@ -22,6 +22,7 @@ use Filament\Actions\CreateAction;
 use App\Services\AdminNotifier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Collection;
+use App\Models\GeneralRanking;
 
 class TournamentRegistrationsTable
 {
@@ -55,7 +56,7 @@ class TournamentRegistrationsTable
                     ->label('C/R')
                     ->alignCenter()
                     ->getStateUsing(function ($record) {
-                        return \App\Models\GeneralRanking::where('first_name', $record->player?->first_name)
+                        return GeneralRanking::where('first_name', $record->player?->first_name)
                             ->where('last_name', $record->player?->last_name)
                             ->value('category') ?? '-';
                     }),
@@ -65,7 +66,7 @@ class TournamentRegistrationsTable
                     ->label('RG')
                     ->alignCenter()
                     ->getStateUsing(function ($record) {
-                        return \App\Models\GeneralRanking::where('first_name', $record->player?->first_name)
+                        return GeneralRanking::where('first_name', $record->player?->first_name)
                             ->where('last_name', $record->player?->last_name)
                             ->value('RG') ?? '-';
                     }),
@@ -109,9 +110,8 @@ class TournamentRegistrationsTable
                 }),
                 Action::make('exportarInscripcionesPdf')
                     ->label('Exportar PDF')
-                    ->action(function ($livewire) {
-                        // ERROR ANTERIOR: Posiblemente se pasaba una colección o variable nula
-                        // SOLUCIÓN: Acceder explícitamente al registro padre (el Torneo)
+                    /*->action(function ($livewire) {
+                        // Acceder al registro padre (el Torneo)
                         $tournament = $livewire->ownerRecord; 
 
                     // Verificar que sea una instancia de modelo y no una colección
@@ -120,7 +120,26 @@ class TournamentRegistrationsTable
                     }
 
                     return TournamentRegistrationResource::exportRegistrationsToPdf($tournament);
-                }),                                                                                                                                                 
+                })*/
+                    ->action(function ($livewire) {
+                        $tournament = $livewire->ownerRecord;
+
+                        if ($tournament instanceof Collection) {
+                            $tournament = $tournament->first();
+                        }
+
+                        // Obtener la pestaña activa
+                        $activeTab = $livewire->activeTab; // Por ejemplo: "all" o "slot_5" [2, 3]
+                        $slotId = null;
+
+                        // Si la pestaña no es "all", extraer el ID del slot
+                        if ($activeTab !== 'all' && str_starts_with($activeTab, 'slot_')) {
+                            $slotId = str_replace('slot_', '', $activeTab);
+                        }
+
+                        // Pasar el slotId al método de exportación
+                        return TournamentRegistrationResource::exportRegistrationsToPdf($tournament, $slotId);
+                    }),                                                                                                                                                 
             ])
             ->filters([
                 TrashedFilter::make(),

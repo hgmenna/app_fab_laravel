@@ -30,10 +30,10 @@ class ListPlayers extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make()->label('Nuevo Jugador'),
+            CreateAction::make()->label('Nuevo'),
             Action::make('importPlayers')
                 ->label('Importar jugadores')
-                ->visible(fn () => Auth::user()->can('EditField'))
+                ->visible(fn () => Auth::user()?->name === 'super-admin')
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('success')
                 ->schema([

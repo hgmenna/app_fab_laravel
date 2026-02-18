@@ -63,16 +63,22 @@ class TournamentRegistrationResource extends Resource
             ]);
     }
 
-    public static function exportRegistrationsToPdf($tournament)
+    public static function exportRegistrationsToPdf($tournament, $slotId = null)
     {
         ini_set('memory_limit', '512M');
         set_time_limit(300);
 
         // 1. Obtener inscripciones usando la relación correcta 'slot' definida en el modelo [3]
         // Se usa $tournament->registrations() asumiendo que el modelo Tournament tiene esta relación [1]
-        $registrations = $tournament->registrations()
-            ->with(['player.club', 'slot']) 
-            ->get();
+        $query = $tournament->registrations()
+            ->with(['player.club', 'slot']);
+
+        if ($slotId) {
+            $query->where('tournament_slot_id', $slotId);
+        }
+
+        $registrations = $query->get();
+        $totalGeneral = $registrations->count(); // Total de inscriptos
 
         // 2. Procesar datos y Ranking (basado en fuentes [4-6])
         $processed = $registrations->map(function ($reg) {
@@ -110,14 +116,21 @@ class TournamentRegistrationResource extends Resource
         // 4. Generar PDF con la vista genérica (asegúrate de que use el encabezado de tabla solicitado)
         $pdf = Pdf::loadView('pdf.generic', [
             'title'    => $tournament->name,
-            'subtitle' => 'Nomina de Jugadores Inscriptos',
+            'subtitle' => $slotId ? 'Nomina de Jugadores por Horario': 'Nomina de Jugadores Inscriptos',
             'date'     => now()->format('d/m/Y'),
             'columns'  => $columns,
             'groups'   => $grouped,
+            'totalGeneral' => $totalGeneral, // Pasamos el total de inscriptos
+            'labelTotalGeneral' => 'Inscriptos',
             'logo'     => public_path('images/logo.png'),
             'footer_image' => public_path('images/pie-pagina.png'),
         ])->setPaper('a4', 'portrait');
 
-        return response()->streamDownload(fn () => print($pdf->output()), "Inscripciones_{$tournament->name}.pdf");
+        // Nombre dinamico para el pdf
+        $fileName = $slotId
+            ? "Inscripciones-{$tournament->name}-{$slotId}.pdf"
+            : "Inscripciones-{$tournament->name}.pdf";
+
+        return response()->streamDownload(fn () => print($pdf->output()), $fileName);
     }
 }

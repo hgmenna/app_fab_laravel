@@ -68,6 +68,8 @@ class ClubResource extends Resource
         ini_set('memory_limit', '512M');
         set_time_limit(300);
 
+        $totalClubes = $records->count(); // Total General
+
         // 1. DEFINICIÓN DE COLUMNAS (Sin columna CLUB porque se agrupa) [3]
         // Ancho total aproximado: 680px para Landscape
         $columns = [
@@ -104,6 +106,8 @@ class ClubResource extends Resource
             'date'         => now()->format('d/m/Y'),
             'columns'      => $columns,
             'groups'       => $grouped, // Enviamos como grupos para repetir el TH [3]
+            'totalGeneral' => $totalClubes,
+            'labelTotalGeneral' => 'Clubes',
             'logo'         => public_path('images/logo.png'),
             'footer_image' => public_path('images/pie-pagina.png'),
         ])->setPaper('a4', 'portrait'); // Orientación vertical 

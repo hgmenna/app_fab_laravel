@@ -69,6 +69,8 @@ class PlayerResource extends Resource
         ini_set('memory_limit', '512M');
         set_time_limit(300);
 
+        $totalPlayers = $records->count();  // Total General
+
         // 1. DEFINICIÓN DE COLUMNAS (Sin columna CLUB porque se agrupa) [3]
         // Ancho total aproximado: 680px para Landscape
         $columns = [
@@ -115,6 +117,8 @@ class PlayerResource extends Resource
             'date'         => now()->format('d/m/Y'),
             'columns'      => $columns,
             'groups'       => $grouped, // Enviamos como grupos para repetir el TH [3]
+            'totalGeneral' => $totalPlayers,
+            'labelTotalGeneral' => 'Afiliados',
             'logo'         => public_path('images/logo.png'),
             'footer_image' => public_path('images/pie-pagina.png'),
         ])->setPaper('a4', 'portrait'); // Orientación horizontal [6]

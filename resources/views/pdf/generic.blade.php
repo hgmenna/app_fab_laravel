@@ -23,7 +23,7 @@
         footer { 
             position: fixed; 
             bottom: -70px; 
-            left: 0px; 
+            left: 0px; el
             right: 0px; 
             height: 80px; 
             text-align: center;
@@ -80,6 +80,23 @@
             font-size: 11px; font-weight: bold; margin-bottom: 0px;
         }
 
+        .group-wrapper {
+            page-break-inside: avoid;
+            margin-bottom: 15px;
+        }
+
+        .summary-row {background-color: #f3f3f3; font-weight: bold; font-size: 12px;}
+
+        .total-general-section 
+        {
+            margin-top: 10px; 
+            padding: 10px; 
+            background-color: #eee; 
+            font-weight: bold;
+            text-align: right;
+            font-size: 14px;
+        }
+
         .footer-image { width: 70%; height: auto; }
     </style>
 </head>
@@ -109,31 +126,48 @@
     <main>
         @if(isset($groups))
             @foreach($groups as $slotName => $rows)
-                <div class="group-header">{{ $slotName }}</div>
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            @foreach($columns as $column)
-                                <th style="width: {{ $column['width'] }}px !important;" 
-                                    class="{{ in_array($column['field'], ['ranking_category', 'ranking_rg']) ? 'text-center' : '' }}">
-                                    {{ $column['label'] }}
-                                </th>
-                            @endforeach
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($rows as $row)
+                <div class="group-wrapper;">
+                    <div class="group-header">{{ $slotName }}</div>
+                    <table class="data-table">
+                        <thead>
                             <tr>
                                 @foreach($columns as $column)
-                                    <td class="{{ in_array($column['field'], ['ranking_category', 'ranking_rg']) ? 'text-center' : '' }}">
-                                        {{ $row->{$column['field']} }}
-                                    </td>
+                                    <th style="width: {{ $column['width'] }}px !important;" 
+                                        class="{{ in_array($column['field'], ['ranking_category', 'ranking_rg']) ? 'text-center' : '' }}">
+                                        {{ $column['label'] }}
+                                    </th>
                                 @endforeach
                             </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @foreach($rows as $row)
+                                <tr>
+                                    @foreach($columns as $column)
+                                        <td class="{{ in_array($column['field'], ['ranking_category', 'ranking_rg']) ? 'text-center' : '' }}">
+                                            {{ $row->{$column['field']} }}
+                                        </td>
+                                    @endforeach
+                                </tr>
+                            @endforeach
+                            {{-- Subtotales --}}
+                            <tr class="summary-row">
+                                <td colspan="{{ count($columns) -1 }}" style="text-align: right;">
+                                    Total: 
+                                </td>
+                                <td style="text-align: center;">
+                                    {{ count($rows) }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             @endforeach
+            @isset($totalGeneral)
+                <div class="total-general-section">
+                    Total {{ $labelTotalGeneral }}: {{ $totalGeneral }}
+                </div>
+                
+            @endisset
         @endif
     </main>
 
