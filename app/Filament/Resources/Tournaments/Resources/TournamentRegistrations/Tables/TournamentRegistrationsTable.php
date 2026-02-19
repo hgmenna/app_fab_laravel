@@ -59,9 +59,10 @@ class TournamentRegistrationsTable
                         return GeneralRanking::where('first_name', $record->player?->first_name)
                             ->where('last_name', $record->player?->last_name)
                             ->value('category') ?? '-';
-                    }),
+                    }
+                ),
 
-                    // Columna para el Ranking General (RG)
+                // Columna para el Ranking General (RG)
                 TextColumn::make('ranking_rg')
                     ->label('RG')
                     ->alignCenter()
@@ -69,11 +70,13 @@ class TournamentRegistrationsTable
                         return GeneralRanking::where('first_name', $record->player?->first_name)
                             ->where('last_name', $record->player?->last_name)
                             ->value('RG') ?? '-';
-                    }),
+                    }
+                ),
 
                 TextColumn::make('tournamentInstance.description')
                     ->label('Posicion')
-                    ->visible(fn () => Auth::user()?->can('EditField')),
+                    ->visible(fn () => Auth::user()?->can('EditField')
+                ),
 
                 TextColumn::make('points')
                     ->label('Puntos')
@@ -96,6 +99,7 @@ class TournamentRegistrationsTable
             ])
             ->headerActions([
                 CreateAction::make()->label('Inscribirse al torneo')
+                    ->disabled(fn () => $tournament->registration_close_at <= now() && $tournament->registration_open_at >= now())
                     ->after(function (Model $record) {
                     // El torneo está disponible a través de la relación del registro
                     $tournamentName = $record->tournament?->name ?? 'el torneo';
@@ -110,17 +114,6 @@ class TournamentRegistrationsTable
                 }),
                 Action::make('exportarInscripcionesPdf')
                     ->label('Exportar PDF')
-                    /*->action(function ($livewire) {
-                        // Acceder al registro padre (el Torneo)
-                        $tournament = $livewire->ownerRecord; 
-
-                    // Verificar que sea una instancia de modelo y no una colección
-                    if ($tournament instanceof Collection) {
-                        $tournament = $tournament->first();
-                    }
-
-                    return TournamentRegistrationResource::exportRegistrationsToPdf($tournament);
-                })*/
                     ->action(function ($livewire) {
                         $tournament = $livewire->ownerRecord;
 
@@ -139,7 +132,8 @@ class TournamentRegistrationsTable
 
                         // Pasar el slotId al método de exportación
                         return TournamentRegistrationResource::exportRegistrationsToPdf($tournament, $slotId);
-                    }),                                                                                                                                                 
+                    }
+                ),                                                                                                                                                 
             ])
             ->filters([
                 TrashedFilter::make(),
@@ -157,11 +151,12 @@ class TournamentRegistrationsTable
                             ['player.last_name', 'player.first_name'], 
                             "el torneo {$tournamentName}"
                         );
-                    }),
+                    }
+                ),
                 DeleteAction::make()->iconButton()->visible(fn () => Auth::user()?->can('EditField')),
                 Action::make('asignarInstancia')
                     ->label('Asignar Posicion')
-                    ->visible(fn () => Auth::user()?->can('EditField'))
+                    ->visible(fn () => Auth::user()?->can('EditField') && $tournament->start_date < now())
                     ->disabled(fn (TournamentRegistration $record) => 
                         $record->tournament?->start_date > now()
                     )
@@ -201,8 +196,9 @@ class TournamentRegistrationsTable
 
                         $record->save();
                         RankingService::syncGeneralRanking();
-                    })
-                    ->color('primary'),
+                    }
+                )
+                ->color('primary'),
             ]);
     }
 }

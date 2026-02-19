@@ -6,7 +6,6 @@ use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use App\Filament\Resources\Tournaments\TournamentResource;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 
@@ -65,11 +64,5 @@ class TournamentsTable
                     ->iconButton(),
             ]);
     }
-/*
-    public static function getResource(): string
-    {
-        return TournamentResource::class;
-    }
-        */
 
 }

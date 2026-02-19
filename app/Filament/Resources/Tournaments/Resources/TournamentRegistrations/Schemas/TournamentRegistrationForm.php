@@ -7,7 +7,10 @@ use Filament\Schemas\Schema;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
-use Illuminate\Validation\ValidationException;
+use App\Models\Tournament;
+use Filament\Schemas\Components\Utilities\Get;
+use App\Models\TournamentInstance;
+use Illuminate\Support\Facades\Auth;
 
 class TournamentRegistrationForm
 {
@@ -21,35 +24,33 @@ class TournamentRegistrationForm
                 ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
                 ->searchable(['last_name', 'first_name'])
                 ->preload()
-                ->required(),
-
+                ->required()
+                ->live(),
             Select::make('tournament_slot_id')
                 ->label('Horario')
-                ->options(
-                    $tournament->slots
-                        ->mapWithKeys(function ($slot) {
-                            $count = $slot->registrations()->count();
-                            $max = $slot->max_players;
+                ->options(function (Get $get) use ($tournament) {
+                    // Si no hay objeto $tournament, lo buscamos por el ID del formulario
+                    $t = $tournament ?? Tournament::find($get('tournament_id'));
+                    if (!$t) return [];
+                    $user = Auth::user();
 
-                            return [
-                                $slot->id => "{$slot->name} ({$count}/{$max})"
-                            ];
-                        })
-                )
+                    return $t->slots
+                        ->when($user->name !== 'super-admin',
+                            fn($slots) => $slots->filter(
+                                fn($slot) => $slot->registrations()->count() < $slot->max_players
+                            )
+                        )
+                        //->filter(fn ($slot) => $slot->registrations()->count() < $slot->max_players)
+                        ->mapWithKeys(fn ($slot) => [
+                        $slot->id => "{$slot->name} ({$slot->registrations()->count()}/{$slot->max_players})"
+                    ]);
+                })
                 ->required()
-                ->reactive()
-                ->afterStateUpdated(function ($state) use ($tournament) {
-                    $slot = $tournament->slots->firstWhere('id', $state);
-
-                    if ($slot && $slot->registrations()->count() >= $slot->max_players) {
-                        throw ValidationException::withMessages([
-                            'tournament_slot_id' => 'Este horario ya está completo.',
-                        ]);
-                    }
-                }),
+                ->live(),
             Select::make('tournament_instance_id')
                 ->relationship('tournamentInstance', 'description')
                 ->label('Posicion')
+                ->visible(fn () => Auth::user()->can('EditField') && $tournament->start_date < now())
                 ->preload()
                 ->live()
                 ->afterStateUpdated(function ($state, callable $set) {
@@ -58,38 +59,40 @@ class TournamentRegistrationForm
                         return;
                     }
 
-                    $instance = \App\Models\TournamentInstance::find($state);
+                    $instance = TournamentInstance::find($state);
 
                     $set('points', $instance?->points_default ?? 0);
                 }),
 
             TextInput::make('points')
                 ->label('Puntos')
+                ->visible(fn () => Auth::user()->can('EditField') && $tournament->start_date < now())
                 ->disabled(),
 
             FileUpload::make('payment_file')
                 ->label('Comprobante de pago')
-                ->visible(fn () => $tournament->is_payment_enabled)
-                ->required(function(callable $get) use ($tournament) {
-                    if(! $tournament->is_payment_enabled) {
+                // Usamos una función anónima para verificar la visibilidad dinámicamente
+                ->visible(function (Get $get) use ($tournament) {
+                    $t = $tournament ?? Tournament::find($get('tournament_id'));
+                    return $t?->is_payment_enabled ?? false;
+                })
+                ->required(function(Get $get) use ($tournament) {
+                    $t = $tournament ?? Tournament::find($get('tournament_id'));
+                    
+                    if(!$t || !$t->is_payment_enabled) {
                         return false;
                     }
 
                     $playerId = $get('player_id');
-                    if (! $playerId) {
-                        return true; // si no se selecciono jugaor es requerido
-                    }
+                    if (!$playerId) return true;
 
                     $player = Player::find($playerId);
-                    if (! $player) {
-                        return true;
-                    }
+                    if (!$player) return true;
 
                     $categoriasNoRequeridas = ['MASTER', '1ra NACIONAL'];
-
                     return ! in_array($player->category->name, $categoriasNoRequeridas);
                 })
-                ->reactive(),
+                ->live(),
             ]);
     }
 }
