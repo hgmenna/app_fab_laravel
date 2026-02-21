@@ -1,39 +1,43 @@
 <?php
 
-namespace App\Filament\Resources\Tournaments\RelationManagers;
+namespace App\Filament\Resources\Tournaments\Pages;
 
-use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Schemas\Schema;
+use App\Filament\Resources\Tournaments\TournamentResource;
+use Filament\Resources\Pages\ManageRelatedRecords;
 use Filament\Tables\Table;
+use Filament\Schemas\Schema;
 use App\Filament\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
 use App\Filament\Resources\TournamentRegistrations\Tables\TournamentRegistrationsTable;
+use Filament\Pages\Enums\SubNavigationPosition;
 use Filament\Schemas\Components\Tabs\Tab;
-use Illuminate\Contracts\Support\Htmlable;
 
-class RegistrationsRelationManager extends RelationManager
+class ManageTournamentRegistrations extends ManageRelatedRecords
 {
+    protected static string $resource = TournamentResource::class;
     protected static string $relationship = 'registrations';
+    protected static SubNavigationPosition|null $subNavigationPosition = SubNavigationPosition::Top;
     protected static ?string $navigationLabel = 'Inscripciones';
+
+
+    
+
 
 
     public function form(Schema $schema): Schema
     {
 
-        return TournamentRegistrationForm::configure($schema, $this->ownerRecord);
-
+        // Pasamos el registro del torneo padre ($this->getOwnerRecord())
+        return TournamentRegistrationForm::configure($schema, $this->getOwnerRecord());
     }
 
     public function table(Table $table): Table
     {
-        $tournament = $table->getLivewire()->ownerRecord;
-        return TournamentRegistrationsTable::configure($table, $tournament);
-            
+        return TournamentRegistrationsTable::configure($table, $this->getOwnerRecord());
     }
-    
 
     public function getTabs(): array
     {
-        $tournament = $this->ownerRecord;
+        $tournament = $this->getOwnerRecord();
 
          // 1. Definimos la pestaña para "Todos" los inscritos
         $tabs = [
@@ -58,11 +62,12 @@ class RegistrationsRelationManager extends RelationManager
 
         // 3. Combinamos ambas partes: la pestaña general y las específicas
         return array_merge($tabs, $slotTabs);
+    } 
+    
+    public static function isNested($livewire): bool
+    {
+        return $livewire instanceof \Filament\Resources\RelationManagers\RelationManager || 
+            $livewire instanceof \Filament\Resources\Pages\ManageRelatedRecords;
     }
-
-   public function getTableHeading(): string|Htmlable|null
-   {
-        return 'Inscripciones';
-   }
 
 }

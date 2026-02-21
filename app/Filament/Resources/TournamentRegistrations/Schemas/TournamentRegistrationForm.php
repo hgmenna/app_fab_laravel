@@ -1,0 +1,214 @@
+<?php
+
+namespace App\Filament\Resources\TournamentRegistrations\Schemas;
+
+use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
+use App\Models\Player;
+use App\Models\Tournament;
+use App\Models\TournamentInstance;
+use App\Models\TournamentRegistration;
+use App\Models\TournamentSlot;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Auth;
+
+class TournamentRegistrationForm
+{
+    public static function configure(Schema $schema, $tournament): Schema
+    {
+        return $schema
+            ->components([
+                Select::make('tournament_id')
+                    ->label('Torneo')
+                    ->relationship('tournament', 'name')
+                    ->required()
+                    ->live()
+                    // Si $tournament tiene datos O si el Livewire es una página de relación, se oculta
+                    ->hidden(function ($livewire) use ($tournament) {
+                        return $tournament !== null || 
+                            $livewire instanceof \Filament\Resources\Pages\ManageRelatedRecords ||
+                            method_exists($livewire, 'getOwnerRecord');
+                            dd($livewire->getOwnerRecord());
+                    })
+                    ->dehydrated(true),
+
+                Select::make('player_id')
+                ->label('Jugador')
+                ->relationship('player', 'full_name')
+                ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
+                ->searchable(['last_name', 'first_name'])
+                ->preload()
+                ->required()
+                ->rules([
+                    function (Get $get) {
+                        return function (string $attribute, $value, \Closure $fail) use ($get) {
+
+                            $tournamentId = $get('tournament_id')
+                                ?? request()->route('record'); // nested fallback
+
+                            if (!$tournamentId) {
+                                return;
+                            }
+
+                            $exists = TournamentRegistration::where('tournament_id', $tournamentId)
+                                ->where('player_id', $value)
+                                ->exists();
+
+                            if ($exists) {
+                                $fail('Este jugador ya está inscripto en este torneo.');
+                            }
+                        };
+                    }
+                ])
+                ->live(),
+            Select::make('tournament_slot_id')
+                ->label('Horario')
+                ->options(function (Get $get, $livewire) use ($tournament) {
+                    // 1. Determinar el torneo según el contexto (Página de relación vs Formulario independiente)
+                    if (TournamentRegistrationResource::isNested($livewire)) {
+                        // En modo nested (pestaña de inscripciones), el registro viene del componente Livewire
+                        $t = $livewire->getOwnerRecord(); 
+                    } else {
+                        // En modo independiente, el torneo se busca por el ID seleccionado en el formulario
+                        $tournamentId = $get('tournament_id');
+                        $t = Tournament::find($tournamentId);
+                    }
+
+                    if (!$t) {
+                        return [];
+                    }
+
+                    // 2. Obtener y filtrar los horarios (slots) del torneo
+                    $user = Auth::user();
+
+                    return $t->slots
+                        ->when(
+                            $user->name !== 'super-admin', // El super-admin puede ver todos los horarios
+                            fn ($slots) => $slots->filter(
+                                fn (TournamentSlot $slot) => $slot->registrations()->count() < $slot->max_players
+                            )
+                        )
+                        ->mapWithKeys(function (TournamentSlot $slot) {
+                            $inscriptos = $slot->registrations()->count();
+                            $max = $slot->max_players;
+                            $restantes = $max - $inscriptos;
+
+                            // Definimos el texto que verá el usuario
+                            $badge = $restantes > 0 ? "Cupos: {$restantes}" : "COMPLETO";
+                            $label = "{$slot->name} — {$inscriptos}/{$max} ({$badge})";
+
+                            // Retornamos un array simple [ID => Texto] para evitar errores de inserción SQL
+                            return [$slot->id => $label];
+                        });
+                })
+                ->required()
+                ->live()
+                // 3. Deshabilitar opciones sin cupos de forma segura para usuarios que no son super-admin
+                ->disableOptionWhen(function (string $value) {
+                    $user = Auth::user();
+                    if ($user->name === 'super-admin') {
+                        return false;
+                    }
+
+                    /** @var TournamentSlot $slot */ 
+                    $slot = TournamentSlot::find($value);
+                    return $slot && ($slot->registrations()->count() >= $slot->max_players);
+                })
+                // 4. Mostrar una advertencia si el torneo no tiene cupos disponibles en ningún horario
+                ->hint(function (Get $get, $livewire) use ($tournament) {
+                    $t = TournamentRegistrationResource::isNested($livewire)
+                        ? $livewire->getOwnerRecord()
+                        : Tournament::find($get('tournament_id'));
+
+                    if (!$t) return null;
+
+                    $noCupos = $t->slots->every(
+                        fn (TournamentSlot $slot) => $slot->registrations()->count() >= $slot->max_players
+                    );
+
+                    return $noCupos ? 'Este torneo no tiene cupos disponibles.' : null;
+                }
+            ),
+            Select::make('tournament_instance_id')
+                ->relationship('tournamentInstance', 'description')
+                ->label('Posicion')
+                ->visible(function (Get $get, $livewire) use ($tournament) {
+                    // Resolvemos el torneo dinámicamente
+                    $t = $tournament;
+                    if (!$t) {
+                        $t = TournamentRegistrationResource::isNested($livewire)
+                            ? $livewire->ownerRecord // Si es dentro de un torneo
+                            : Tournament::find($get('tournament_id')); // Si es independiente
+                    }
+
+                    // Si no hay torneo (aún no seleccionado), ocultamos el campo
+                    if (!$t) return false;
+
+                    return Auth::user()->can('EditField') && $t->start_date < now();
+                })
+                ->preload()
+                ->live()
+                ->afterStateUpdated(function ($state, callable $set) {
+                    if (! $state) {
+                        $set('points', null);
+                        return;
+                    }
+
+                    $instance = TournamentInstance::find($state);
+
+                    $set('points', $instance?->points_default ?? 0);
+                }
+            ),
+
+            TextInput::make('points')
+                ->label('Puntos')
+                ->visible(function (Get $get, $livewire) use ($tournament) {
+                    $t = $tournament;
+                    if (!$t) {
+                        $t = TournamentRegistrationResource::isNested($livewire)
+                            ? $livewire->ownerRecord
+                            : Tournament::find($get('tournament_id'));
+                    }
+
+                    if (!$t) return false;
+
+                    return Auth::user()->can('EditField') && $t->start_date < now();
+                })
+                ->disabled(),
+
+            FileUpload::make('payment_file')
+                ->label('Comprobante de pago')
+                // Usamos una función anónima para verificar la visibilidad dinámicamente
+                ->visible(function (Get $get, $livewire) use ($tournament) {
+                    // Consistencia en la resolución del torneo
+                    $t = $tournament;
+                    if (!$t) {
+                        $t = TournamentRegistrationResource::isNested($livewire)
+                            ? $livewire->ownerRecord
+                            : Tournament::find($get('tournament_id'));
+                    }
+                    return $t?->is_payment_enabled ?? false;
+                })
+                ->required(function(Get $get) use ($tournament) {
+                    $t = $tournament ?? Tournament::find($get('tournament_id'));
+                    
+                    if(!$t || !$t->is_payment_enabled) {
+                        return false;
+                    }
+
+                    $playerId = $get('player_id');
+                    if (!$playerId) return true;
+
+                    $player = Player::find($playerId);
+                    if (!$player) return true;
+
+                    $categoriasNoRequeridas = ['MASTER', '1ra NACIONAL'];
+                    return ! in_array($player->category->name, $categoriasNoRequeridas);
+                })
+                ->live(),
+            ]);
+    }
+}

@@ -30,6 +30,6 @@ class TournamentSlot extends Model
 
     public function registrations()
     {
-        return $this->hasMany(TournamentRegistration::class);
+        return $this->hasMany(TournamentRegistration::class, 'tournament_slot_id');
     }
 }

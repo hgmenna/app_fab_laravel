@@ -1,12 +1,11 @@
 <?php
 
-namespace App\Filament\Resources\Tournaments\Resources\TournamentRegistrations;
+namespace App\Filament\Resources\TournamentRegistrations;
 
-use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Pages\CreateTournamentRegistration;
-use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Pages\EditTournamentRegistration;
-use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
-use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Tables\TournamentRegistrationsTable;
-use App\Filament\Resources\Tournaments\TournamentResource;
+use App\Filament\Resources\TournamentRegistrations\Pages\CreateTournamentRegistration;
+use App\Filament\Resources\TournamentRegistrations\Pages\EditTournamentRegistration;
+use App\Filament\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
+use App\Filament\Resources\TournamentRegistrations\Tables\TournamentRegistrationsTable;
 use App\Models\TournamentRegistration;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -18,26 +17,29 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
 use App\Models\GeneralRanking;
+use UnitEnum;
 
 class TournamentRegistrationResource extends Resource
 {
+
     protected static ?string $model = TournamentRegistration::class;
+    protected static string|UnitEnum|null $navigationGroup = 'Torneos';
+    protected static ?string $navigationLabel = 'Inscripciones';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $parentResource = TournamentResource::class;
     protected static ?string $title = 'Inscripciones';
     protected static ?string $recordTitleAttribute = 'name';
 
 
     public static function form(Schema $schema): Schema
     {
-        return TournamentRegistrationForm::configure($schema, null);
+        return TournamentRegistrationForm::configure($schema, request()->route('record'));
     }
 
     public static function table(Table $table): Table
     {
-        return TournamentRegistrationsTable::configure($table, null);
+        return TournamentRegistrationsTable::configure($table, request()->route('record'));
     }
 
     public static function getRelations(): array
@@ -50,6 +52,7 @@ class TournamentRegistrationResource extends Resource
     public static function getPages(): array
     {
         return [
+            'index' => Pages\ListTournamentRegistrations::route('/'),
             'create' => CreateTournamentRegistration::route('/create'),
             'edit' => EditTournamentRegistration::route('/{record}/edit'),
         ];
@@ -133,4 +136,18 @@ class TournamentRegistrationResource extends Resource
 
         return response()->streamDownload(fn () => print($pdf->output()), $fileName);
     }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false; // antes estaba false por ser nested
+    }
+
+    public static function isNested($livewire): bool
+    {
+        return $livewire instanceof \Filament\Resources\RelationManagers\RelationManager || 
+            $livewire instanceof \Filament\Resources\Pages\ManageRelatedRecords;
+    }
+
+   
+
 }

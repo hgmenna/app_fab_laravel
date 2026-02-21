@@ -3,12 +3,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Validation\ValidationException;
 
 class TournamentRegistration extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory;
 
     protected $fillable = [
         'tournament_id',
@@ -81,6 +80,7 @@ class TournamentRegistration extends Model
         return $instance->points * ($type->score_percentage / 100);
     }
 
+    
 
 }
 

@@ -15,7 +15,9 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use UnitEnum;
 use App\Filament\Resources\Tournaments\RelationManagers\RegistrationsRelationManager;
-use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\TournamentRegistrationResource;
+use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
+use Filament\Pages\Page;
+use Filament\Pages\Enums\SubNavigationPosition;
 
 class TournamentResource extends Resource
 {
@@ -25,6 +27,9 @@ class TournamentResource extends Resource
     protected static ?int $navigationSort = 11;
     protected static ?string $navigationLabel = 'Gestion de Torneos';
     protected static ?string $relatedResource = TournamentRegistrationResource::class;
+    protected static SubNavigationPosition|null $subNavigationPosition = SubNavigationPosition::Top; 
+
+
 
     protected static ?string $recordTitleAttribute = 'name';
 
@@ -41,7 +46,7 @@ class TournamentResource extends Resource
     public static function getRelations(): array
     {
         return [
-            RegistrationsRelationManager::class,
+            // RegistrationsRelationManager::class,
         ];
     }
 
@@ -52,8 +57,17 @@ class TournamentResource extends Resource
             'index' => ListTournaments::route('/'),
             'create' => CreateTournament::route('/create'),
             'edit' => EditTournament::route('/{record}/edit'),
+            'registrations' => Pages\ManageTournamentRegistrations::route('/{record}/registrations'),
             
         ];
+    }
+
+    public static function getRecordSubNavigation(Page $page): array
+    {
+        return $page->generateNavigationItems([
+            Pages\EditTournament::class,
+            Pages\ManageTournamentRegistrations::class, // Aquí aparece el enlace a las inscripciones
+        ]);
     }
 
 }

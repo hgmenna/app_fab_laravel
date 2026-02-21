@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Pages;
+namespace App\Filament\Resources\TournamentRegistrations\Pages;
 
-use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\TournamentRegistrationResource;
+use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
 use Filament\Resources\Pages\CreateRecord;
 use App\Services\AdminNotifier;
 
@@ -29,4 +29,8 @@ class CreateTournamentRegistration extends CreateRecord
             "el torneo {$tournamentName}"              // Recurso relacionado personalizado
         );
     }
+
+    
+
+
 }

@@ -12,6 +12,8 @@ use App\Services\AdminNotifier;
 class EditTournament extends EditRecord
 {
     protected static string $resource = TournamentResource::class;
+    protected static ?string $navigationLabel = 'Datos del torneo';
+
 
     protected function getHeaderActions(): array
     {

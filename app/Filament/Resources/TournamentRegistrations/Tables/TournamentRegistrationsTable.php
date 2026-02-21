@@ -1,11 +1,10 @@
 <?php
 
-namespace App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\Tables;
+namespace App\Filament\Resources\TournamentRegistrations\Tables;
 
-use App\Filament\Resources\Tournaments\Resources\TournamentRegistrations\TournamentRegistrationResource;
+use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
-use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -26,6 +25,8 @@ use App\Models\GeneralRanking;
 
 class TournamentRegistrationsTable
 {
+    protected static string $resource = TournamentRegistrationResource::class;
+
     public static function configure(Table $table, $tournament): Table
     {
         return $table
@@ -93,29 +94,50 @@ class TournamentRegistrationsTable
             ->filters([
                 SelectFilter::make('tournament_slot_id')
                     ->label('Horario')
-                    ->options(
-                        $tournament->slots->pluck('name', 'id')
-                    ),
+                    ->options(function ($livewire) use ($tournament) {
+                        // Buscamos el torneo: ya sea el pasado por parámetro o el de la página actual
+                        $t = $tournament ?? (method_exists($livewire, 'getOwnerRecord') ? $livewire->getOwnerRecord() : null);
+                        
+                        // Si hay torneo, devolvemos sus slots; si no, un array vacío
+                        return $t ? $t->slots->pluck('name', 'id') : [];
+                }),
             ])
             ->headerActions([
-                CreateAction::make()->label('Inscribirse al torneo')
-                    ->disabled(fn () => $tournament->registration_close_at <= now() && $tournament->registration_open_at >= now())
-                    ->after(function (Model $record) {
-                    // El torneo está disponible a través de la relación del registro
-                    $tournamentName = $record->tournament?->name ?? 'el torneo';
+                CreateAction::make()
+                    ->label('Inscribirse al torneo')
+                    ->icon('heroicon-o-plus')
+                    ->modal()
+                    ->modalHeading('Nueva Inscripción')
+                    ->disabled(function ($livewire) use ($tournament) {
+                        // 1. Resolvemos el torneo de forma dinámica [1, 2]
+                        $t = $tournament ?? (method_exists($livewire, 'getOwnerRecord') ? $livewire->getOwnerRecord() : null);
+                        
+                        // Si no hay torneo (vista general), no se permite crear sin elegir uno primero en el form
+                        if (!$t) return false; 
 
-                    AdminNotifier::send(
-                        null, // No hay instancia de página completa
-                        $record, 
-                        'inscribió', 
-                        ['player.last_name', 'player.first_name'], 
-                        "el torneo {$tournamentName}"
-                    );
-                }),
+                        // 2. Validamos si las inscripciones están abiertas [104 de tu error]
+                        $now = now();
+                        $isOpen = ($t->registration_open_at <= $now && $t->registration_close_at >= $now);
+                        
+                        return !$isOpen;
+                    })
+                    ->mutateFormDataUsing(function (array $data, $livewire): array {
+                        // 3. Si es "nested", aseguramos que el ID del torneo se asocie correctamente [2, 3]
+                        if (method_exists($livewire, 'getOwnerRecord')) {
+                            $data['tournament_id'] = $livewire->getOwnerRecord()->id;
+                        }
+                        return $data;
+                    })
+                    ->successNotificationTitle('Inscripción realizada con éxito')
+                    // Opcional: Lógica después de crear [105 de tu error]
+                    ->after(function ($livewire) {
+                        $livewire->dispatch('refreshTable');
+                    }
+                ),
                 Action::make('exportarInscripcionesPdf')
                     ->label('Exportar PDF')
                     ->action(function ($livewire) {
-                        $tournament = $livewire->ownerRecord;
+                        $tournament = $livewire->getOwnerRecord();
 
                         if ($tournament instanceof Collection) {
                             $tournament = $tournament->first();
@@ -135,9 +157,6 @@ class TournamentRegistrationsTable
                     }
                 ),                                                                                                                                                 
             ])
-            ->filters([
-                TrashedFilter::make(),
-            ])
             ->recordActions([
                 ViewAction::make()->iconButton(),
                 EditAction::make()->iconButton()->visible(fn () => Auth::user()?->can('EditField'))
@@ -156,11 +175,13 @@ class TournamentRegistrationsTable
                 DeleteAction::make()->iconButton()->visible(fn () => Auth::user()?->can('EditField')),
                 Action::make('asignarInstancia')
                     ->label('Asignar Posicion')
-                    ->visible(fn () => Auth::user()?->can('EditField') && $tournament->start_date < now())
+                    ->visible(fn (?TournamentRegistration $record) => 
+                        Auth::user()?->can('EditField') && 
+                        $record?->tournament?->start_date < now()
+                    )
                     ->disabled(fn (TournamentRegistration $record) => 
                         $record->tournament?->start_date > now()
                     )
-
                     ->modalHeading('Asignar Posicion y calcular puntos')
                     ->form([
                         Select::make('tournament_instance_id')

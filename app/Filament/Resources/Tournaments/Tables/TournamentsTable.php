@@ -2,12 +2,15 @@
 
 namespace App\Filament\Resources\Tournaments\Tables;
 
+use App\Filament\Resources\Tournaments\TournamentResource;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
+use Filament\Actions\Action;
+use App\Models\Tournament;
 
 class TournamentsTable
 {
@@ -62,6 +65,12 @@ class TournamentsTable
                 DeleteAction::make()
                     ->label('Eliminar')
                     ->iconButton(),
+                Action::make('manageRegistrations')
+                    ->label('Inscripciones')
+                    ->icon('heroicon-o-users')
+                    ->color('info')
+                    // Genera la URL usando el nombre de la página que registraste en getPages()
+                    ->url(fn (Tournament $record): string => TournamentResource::getUrl('registrations', ['record' => $record])),
             ]);
     }
 
