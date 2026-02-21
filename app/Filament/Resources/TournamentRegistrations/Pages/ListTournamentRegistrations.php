@@ -9,5 +9,6 @@ class ListTournamentRegistrations extends ListRecords
 {
     protected static string $resource = TournamentRegistrationResource::class;
     protected static ?string $navigationLabel = 'Inscripciones';
+    protected static ?string $title = 'Inscripciones'; 
 }
 

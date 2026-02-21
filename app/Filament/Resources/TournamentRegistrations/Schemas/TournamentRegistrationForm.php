@@ -43,11 +43,9 @@ class TournamentRegistrationForm
                 ->preload()
                 ->required()
                 ->rules([
-                    function (Get $get) {
-                        return function (string $attribute, $value, \Closure $fail) use ($get) {
-
-                            $tournamentId = $get('tournament_id')
-                                ?? request()->route('record'); // nested fallback
+                    function (Get $get, $record) { // <--- Inyectamos $record aquí
+                        return function (string $attribute, $value, \Closure $fail) use ($get, $record) {
+                            $tournamentId = $get('tournament_id') ?? request()->route('record'); 
 
                             if (!$tournamentId) {
                                 return;
@@ -55,10 +53,12 @@ class TournamentRegistrationForm
 
                             $exists = TournamentRegistration::where('tournament_id', $tournamentId)
                                 ->where('player_id', $value)
-                                ->exists();
+                                // Si el registro existe (estamos editando), lo excluimos de la validación
+                                ->when($record, fn ($query) => $query->where('id', '!=', $record->id))
+                                ->exists(); 
 
                             if ($exists) {
-                                $fail('Este jugador ya está inscripto en este torneo.');
+                                $fail('Este jugador ya está inscripto en este torneo.'); 
                             }
                         };
                     }

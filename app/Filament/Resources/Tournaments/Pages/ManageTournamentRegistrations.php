@@ -18,8 +18,14 @@ class ManageTournamentRegistrations extends ManageRelatedRecords
     protected static SubNavigationPosition|null $subNavigationPosition = SubNavigationPosition::Top;
     protected static ?string $navigationLabel = 'Inscripciones';
 
+    public function getTitle(): string
+    {
+        // Obtenemos el registro del torneo actual a través del "Owner Record"
+        $tournament = $this->getOwnerRecord();
 
-    
+        // Retornamos el título concatenado con el nombre del torneo
+        return "Listado de Inscriptos - " . $tournament->name;
+    }
 
 
 

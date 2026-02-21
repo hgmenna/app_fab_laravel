@@ -66,7 +66,11 @@ class TournamentsTable
                     ->label('Eliminar')
                     ->iconButton(),
                 Action::make('manageRegistrations')
-                    ->label('Inscripciones')
+                    ->label(fn (Tournament $record): string =>
+                        $record->registration_close_at && $record->registration_close_at->isPast()
+                        ? 'Ver Inscriptos'
+                        : 'Inscripciones')
+                    //->label('Inscripciones')
                     ->icon('heroicon-o-users')
                     ->color('info')
                     // Genera la URL usando el nombre de la página que registraste en getPages()
