@@ -123,4 +123,16 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Versión de la Aplicación
+    |--------------------------------------------------------------------------
+    |
+    | Esta constante define la versión actual de la aplicación FAB, la cual
+    | se utiliza para mostrarla en el footer y en otros reportes del sistema.
+    |
+    */
+
+    'version' => env('APP_VERSION', '1.0.0'),
+
 ];

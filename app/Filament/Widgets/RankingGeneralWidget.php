@@ -2,17 +2,13 @@
 
 namespace App\Filament\Widgets;
 
-use App\Services\RankingService;
 use Filament\Tables;
 use Filament\Tables\Columns\ColumnGroup;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
-use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Contracts\View\View;
-use Filament\Forms\Components\Select;
-use Filament\Tables\Filters\Filter;
 use App\Models\GeneralRanking;
 use Filament\Actions\Action;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -33,8 +29,8 @@ class RankingGeneralWidget extends TableWidget
     {
         return $table
             ->query(GeneralRanking::query())
-            ->paginated([16, 32, 48])
-            ->defaultPaginationPageOption(16)
+            ->paginated([10, 25, 50])
+            ->defaultPaginationPageOption(10)
             ->striped()
             ->extraAttributes(['class' => 'text-center'])
 

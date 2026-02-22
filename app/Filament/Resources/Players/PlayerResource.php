@@ -24,7 +24,7 @@ class PlayerResource extends Resource
 {
     protected static ?string $model = Player::class;
     protected static string|UnitEnum|null $navigationGroup = 'Gestión Deportiva';
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::Users;
     protected static ?string $recordTitleAttribute = 'name';
     protected static ?string $navigationLabel = 'Jugadores';
     protected static ?int $navigationSort = 1;

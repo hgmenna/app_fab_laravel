@@ -23,7 +23,7 @@ class TournamentResource extends Resource
 {
     protected static ?string $model = Tournament::class;
     protected static string|UnitEnum|null $navigationGroup = 'Torneos';
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::CalendarDateRange;
     protected static ?int $navigationSort = 11;
     protected static ?string $navigationLabel = 'Gestion de Torneos';
     protected static ?string $relatedResource = TournamentRegistrationResource::class;

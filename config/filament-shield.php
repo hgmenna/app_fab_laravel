@@ -230,6 +230,7 @@ return [
 
     'custom_permissions' => [
         'edit_field' => 'Permitir edicion de campo especifico',
+        'pay_membership' => 'Permitir administrar pagos',
     ],
 
     /*

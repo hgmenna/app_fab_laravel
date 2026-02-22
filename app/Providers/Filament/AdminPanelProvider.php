@@ -20,6 +20,7 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use App\Filament\Pages\Auth\Login;
+use Filament\View\PanelsRenderHook;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -32,9 +33,19 @@ class AdminPanelProvider extends PanelProvider
             ->login(Login::class)
             ->theme('app')
             ->brandName('Federacion Argentina de Billar')
+            ->brandLogo(fn () => view('filament.brand'))
+            ->brandLogoHeight('3rem')
+            ->favicon(asset('images/logo.png'))
             ->colors([
                 'primary' => Color::Amber,
             ])
+
+            ->renderHook(
+                PanelsRenderHook::FOOTER,
+                fn (): string => view('filament.dev-footer')->render(),
+            )
+
+            ->breadcrumbs(false)
 
             ->databaseNotifications()
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
@@ -60,8 +71,8 @@ class AdminPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->plugins([
-                \BezhanSalleh\FilamentShield\FilamentShieldPlugin::make()
-                    ->scopeToTenant(false), // Fuerza a Shield a ignorar el modo multi-inquilino [1]
+                FilamentShieldPlugin::make()
+                    ->scopeToTenant(false), 
             ])
             ->authMiddleware([
                 Authenticate::class,

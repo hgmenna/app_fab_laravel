@@ -15,7 +15,7 @@ class PlayersByClubChart extends ChartWidget
     use HasFiltersSchema;
 
     protected ?string $heading = 'Afiliados por Club';
-    protected ?string $maxHeight = '400px';
+    protected ?string $maxHeight = '300px';
     protected int|string|array $columnSpan = 'full';
 
     
@@ -53,8 +53,6 @@ class PlayersByClubChart extends ChartWidget
                 $q->where('id', $federationId);
             });
         }
-
-        //$activeFilter = $this->getFilters();
 
         $rows = $query->get();
 

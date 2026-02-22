@@ -21,7 +21,7 @@ class TournamentTypeResource extends Resource
 {
     protected static ?string $model = TournamentType::class;
     protected static string|UnitEnum|null $navigationGroup = 'Torneos';
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::ArrowDownOnSquareStack;
     protected static ?string $navigationLabel = 'Tipos de torneo';
     protected static ?int $navigationSort = 12;
 

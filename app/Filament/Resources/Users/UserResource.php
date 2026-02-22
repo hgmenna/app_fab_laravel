@@ -19,7 +19,7 @@ class UserResource extends Resource
 {
     protected static ?string $model = User::class;
     protected static ?string $navigationLabel = 'Usuarios';
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::User;
     protected static string|UnitEnum|null $navigationGroup = 'Configuración General';
     protected static ?string $recordTitleAttribute = 'name';
     protected static ?int $navigationSort = 20;

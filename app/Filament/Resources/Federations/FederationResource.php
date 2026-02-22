@@ -18,7 +18,7 @@ use Filament\Tables\Table;
 class FederationResource extends Resource
 {
     protected static ?string $model = Federation::class;
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::BuildingLibrary;
     protected static ?string $recordTitleAttribute = 'name';
     protected static string|UnitEnum|null $navigationGroup = 'Gestión Deportiva';
     protected static ?string $navigationLabel = 'Federaciones';
