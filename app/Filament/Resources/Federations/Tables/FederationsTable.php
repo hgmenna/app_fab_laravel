@@ -2,11 +2,12 @@
 
 namespace App\Filament\Resources\Federations\Tables;
 
+use App\Filament\Actions\GlobalActionGroup;
+use App\Filament\Actions\GlobalDeleteAction;
+use App\Filament\Actions\GlobalEditAction;
+use App\Filament\Actions\GlobalViewAction;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -44,30 +45,26 @@ class FederationsTable
                 //
             ])
             ->recordActions([
-                Action::make('verClubes')
-                    ->label('Clubes')
-                    ->icon('heroicon-m-building-office-2')
-                    ->color('info')
-                    ->modalHeading('Listado de Clubes')
-                    ->modalWidth('5xl')
-                    ->modalContent(fn ($record) => view(
-                        'federaciones.table.table-clubes', // Nombre de vista corregido
-                        [
-                            'record' => $record->load(['states.cities.clubs' => function($query) {
-                                $query->withCount('players'); 
-                            }])
-                        ]
-                    ))
-                    ->modalSubmitAction(false),
-                ViewAction::make()
-                    ->label('Ver')
-                    ->iconButton(),
-                EditAction::make()
-                    ->label('Editar')
-                    ->iconButton(),
-                DeleteAction::make()
-                    ->label('Eliminar')
-                    ->iconButton(),
+                GlobalActionGroup::make([
+                    Action::make('verClubes')
+                        ->label('Clubes')
+                        ->icon('heroicon-m-building-office-2')
+                        ->color('info')
+                        ->modalHeading('Listado de Clubes')
+                        ->modalWidth('5xl')
+                        ->modalContent(fn ($record) => view(
+                            'federaciones.table.table-clubes', // Nombre de vista corregido
+                            [
+                                'record' => $record->load(['states.cities.clubs' => function($query) {
+                                    $query->withCount('players'); 
+                                }])
+                            ]
+                        ))
+                        ->modalSubmitAction(false),
+                    GlobalViewAction::make(),
+                    GlobalEditAction::make(),
+                    GlobalDeleteAction::make(),
+                ]),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

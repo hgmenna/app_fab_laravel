@@ -14,8 +14,8 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use UnitEnum;
-use App\Filament\Resources\Tournaments\RelationManagers\RegistrationsRelationManager;
 use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
+use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Pages\Enums\SubNavigationPosition;
 
@@ -68,6 +68,23 @@ class TournamentResource extends Resource
             Pages\EditTournament::class,
             Pages\ManageTournamentRegistrations::class, // Aquí aparece el enlace a las inscripciones
         ]);
+    }
+
+    // Accion para inscripciones al torneo
+    public static function inscriptionsAction(): Action
+    {
+        return
+            Action::make('manageRegistrations')
+                ->label(fn (Tournament $record): string =>
+                    $record->registration_close_at && $record->registration_close_at->isPast()
+                    ? 'Ver Inscriptos'
+                    : 'Inscripciones')
+                //->label('Inscripciones')
+                ->icon('heroicon-o-users')
+                ->color('info')
+                // Genera la URL usando el nombre de la página que registraste en getPages()
+                ->url(fn (Tournament $record): string => TournamentResource::getUrl('registrations', ['record' => $record])
+            );
     }
 
 }

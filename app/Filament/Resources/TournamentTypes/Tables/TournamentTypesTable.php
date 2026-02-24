@@ -2,9 +2,12 @@
 
 namespace App\Filament\Resources\TournamentTypes\Tables;
 
+use App\Filament\Actions\GlobalActionGroup;
+use App\Filament\Actions\GlobalDeleteAction;
+use App\Filament\Actions\GlobalEditAction;
+use App\Filament\Actions\GlobalViewAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Tables\Columns\IconColumn;
@@ -58,7 +61,11 @@ class TournamentTypesTable
                 TrashedFilter::make(),
             ])
             ->recordActions([
-                EditAction::make(),
+                GlobalActionGroup::make([
+                    GlobalViewAction::make(),
+                    GlobalEditAction::make(),
+                    GlobalDeleteAction::make(),
+                ])
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

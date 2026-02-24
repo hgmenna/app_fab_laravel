@@ -88,11 +88,16 @@ class TournamentRegistrationForm
                         ->when(
                             $user->name !== 'super-admin', // El super-admin puede ver todos los horarios
                             fn ($slots) => $slots->filter(
-                                fn (TournamentSlot $slot) => $slot->registrations()->count() < $slot->max_players
+                                fn (TournamentSlot $slot) => $slot->registrations()
+                                    ->where('status', '!=', 'denegado')
+                                    ->count() < $slot->max_players
                             )
                         )
                         ->mapWithKeys(function (TournamentSlot $slot) {
-                            $inscriptos = $slot->registrations()->count();
+                            $inscriptos = $slot->registrations()
+                                ->where('status', '!=', 'denegado')
+                                ->count();
+
                             $max = $slot->max_players;
                             $restantes = $max - $inscriptos;
 
@@ -115,7 +120,10 @@ class TournamentRegistrationForm
 
                     /** @var TournamentSlot $slot */ 
                     $slot = TournamentSlot::find($value);
-                    return $slot && ($slot->registrations()->count() >= $slot->max_players);
+
+                    return $slot && ($slot->registrations()
+                        ->where('status', '!=', 'denegado')
+                        ->count() >= $slot->max_players);
                 })
                 // 4. Mostrar una advertencia si el torneo no tiene cupos disponibles en ningún horario
                 ->hint(function (Get $get, $livewire) use ($tournament) {
@@ -126,7 +134,9 @@ class TournamentRegistrationForm
                     if (!$t) return null;
 
                     $noCupos = $t->slots->every(
-                        fn (TournamentSlot $slot) => $slot->registrations()->count() >= $slot->max_players
+                        fn (TournamentSlot $slot) => $slot->registrations()
+                            ->where('status', '!=', 'denegado')
+                            ->count() >= $slot->max_players
                     );
 
                     return $noCupos ? 'Este torneo no tiene cupos disponibles.' : null;
@@ -181,6 +191,9 @@ class TournamentRegistrationForm
 
             FileUpload::make('payment_file')
                 ->label('Comprobante de pago')
+                ->disk('public') // <--- Indispensable para que sea accesible vía URL
+                ->visibility('public') // <--- Asegura permisos de lectura
+                ->directory('pagos')
                 // Usamos una función anónima para verificar la visibilidad dinámicamente
                 ->visible(function (Get $get, $livewire) use ($tournament) {
                     // Consistencia en la resolución del torneo
@@ -209,6 +222,17 @@ class TournamentRegistrationForm
                     return ! in_array($player->category->name, $categoriasNoRequeridas);
                 })
                 ->live(),
+            Select::make('status')
+                ->options([
+                    'pendiente' => 'Pendiente',
+                    'aprobado' => 'Aprobado',
+                    'rechazado' => 'Rechazado',
+                ])
+                ->default('pendiente')
+                // Se deshabilita si el usuario no tiene el permiso de Shield [2, 3]
+                ->disabled(fn () => !Auth::user()->can('UpdateStatusTournament'))
+                // Asegura que el valor se envíe aunque esté deshabilitado
+                ->dehydrated(true),
             ]);
     }
 }

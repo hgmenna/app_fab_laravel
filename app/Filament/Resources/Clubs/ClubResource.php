@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use UnitEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 
 class ClubResource extends Resource
 {
@@ -116,5 +117,25 @@ class ClubResource extends Resource
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->stream();
         }, $title . ' - ' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    // Accion para ver Afiliados del Club seleccionado
+    public static function viewAfiliatesAction(): Action
+    {
+        return  
+            Action::make('Afiliados')
+                ->label('Ver Afiliados')
+                ->icon('heroicon-o-users')
+                ->modalHeading(fn ($record) => "Jugadores de {$record->name}")
+                ->modalContent(fn ($record) =>
+                    view('filament.clubs.partials.players-table', [
+                        'players' => $record->players()
+                            ->with('category')
+                            ->orderBy('last_name')
+                            ->get(),
+                    ])
+                )
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Cerrar');
     }
 }

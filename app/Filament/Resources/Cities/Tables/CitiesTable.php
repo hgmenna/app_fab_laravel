@@ -2,12 +2,12 @@
 
 namespace App\Filament\Resources\Cities\Tables;
 
+use App\Filament\Actions\GlobalActionGroup;
+use App\Filament\Actions\GlobalDeleteAction;
+use App\Filament\Actions\GlobalEditAction;
+use App\Filament\Actions\GlobalViewAction;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -46,9 +46,11 @@ class CitiesTable
                     ->label('Pais'),
             ])
             ->recordActions([
-                ViewAction::make()->iconButton(),
-                EditAction::make()->iconButton(),
-                DeleteAction::make()->iconButton(),
+                GlobalActionGroup::make([
+                    GlobalViewAction::make(),
+                    GlobalEditAction::make(),
+                    GlobalDeleteAction::make(),
+                ])
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

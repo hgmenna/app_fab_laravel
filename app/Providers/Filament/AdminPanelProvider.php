@@ -40,6 +40,8 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::Amber,
             ])
 
+            ->viteTheme('resources/css/filament/admin/theme.css')
+
             ->renderHook(
                 PanelsRenderHook::FOOTER,
                 fn (): string => view('filament.dev-footer')->render(),

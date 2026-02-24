@@ -3,8 +3,10 @@
 namespace App\Filament\Resources\TournamentRegistrations\Pages;
 
 use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
-use Filament\Resources\Pages\CreateRecord;
+use App\Mail\TournamentRegistrationNotification;
 use App\Services\AdminNotifier;
+use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Support\Facades\Mail;
 
 class CreateTournamentRegistration extends CreateRecord
 {
@@ -21,6 +23,8 @@ class CreateTournamentRegistration extends CreateRecord
         // Obtenemos el nombre del torneo dinámicamente para el contexto
         $tournamentName = $this->record->tournament?->name ?? 'el torneo';
 
+        Mail::to('notificaciones@federacionargentinadebillar.org')->send(new TournamentRegistrationNotification($this->record, 'Nueva inscripcion'));
+
         AdminNotifier::send(
             $this, 
             $this->record, 
@@ -29,8 +33,6 @@ class CreateTournamentRegistration extends CreateRecord
             "el torneo {$tournamentName}"              // Recurso relacionado personalizado
         );
     }
-
-    
 
 
 }

@@ -7,18 +7,26 @@ use App\Filament\Resources\Players\Pages\EditPlayer;
 use App\Filament\Resources\Players\Pages\ListPlayers;
 use App\Filament\Resources\Players\Schemas\PlayerForm;
 use App\Filament\Resources\Players\Tables\PlayersTable;
+use App\Imports\PlayersImport;
 use App\Models\Category;
+use App\Models\GeneralRanking;
+use App\Models\Membership;
 use App\Models\Player;
+use App\Services\AdminNotifier;
 use BackedEnum;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
+use Filament\Forms\Components\FileUpload;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Excel;
 use UnitEnum;
-use Barryvdh\DomPDF\Facade\Pdf;
-use App\Models\GeneralRanking;
 
 class PlayerResource extends Resource
 {
@@ -63,6 +71,7 @@ class PlayerResource extends Resource
             ]);
     }
 
+    // Generacion de archivo Pdf
     public static function exportToPdf($records, string $title)
     {
         // Aumentar recursos para reportes pesados [2]
@@ -128,4 +137,132 @@ class PlayerResource extends Resource
             echo $pdf->stream();
         }, $title . ' - ' . now()->format('Y-m-d') . '.pdf');
     }
+
+    // Accion para almacenar Pago Afilicacion del año corriente
+    public static function payMembershipAction(): Action
+    {
+        return Action::make('payMembership')
+            ->label('Afiliación')
+            ->icon('heroicon-o-credit-card')
+            ->color('success')
+            ->requiresConfirmation()
+            ->modalHeading('Confirmar Pago de Afiliacion')
+            ->visible(fn () => Auth::user()->can('PayMembership'))
+            ->disabled(fn ($record) => $record->is_enabled_to_compete)
+            ->action(function ($records, $livewire) {
+
+                // Normalizar: si es recordAction, $records es un solo modelo
+                $records = is_iterable($records) ? $records : [$records];
+
+                foreach ($records as $record) {
+                    try {
+                        // 1. Validar membresía activa
+                        $activeMembership = Membership::where('active', true)
+                            ->where('year', now()->year)
+                            ->first();
+
+                        if (!$activeMembership) {
+                            Notification::make()
+                                ->title('Configuración faltante')
+                                ->body('No hay una membresía activa definida para este año.')
+                                ->warning()
+                                ->send();
+                            continue;
+                        }
+
+                        // 2. Crear o recuperar afiliación
+                        $playerMembership = $record->memberships()->firstOrCreate(
+                            ['membership_id' => $activeMembership->id],
+                            [
+                                'club_id' => $record->club_id,
+                                'amount_due' => $activeMembership->amount,
+                                'amount_paid' => 0,
+                                'status' => 'pending',
+                            ]
+                        );
+
+                        // 3. Registrar pago
+                        $payment = $playerMembership->payments()->create([
+                            'payer_type' => get_class($record),
+                            'payer_id' => $record->id,
+                            'amount' => $activeMembership->amount,
+                            'method' => 'manual',
+                            'status' => 'pending',
+                            'external_reference' => 'MANUAL-' . uniqid(),
+                        ]);
+
+                        // 4. Aprobar pago
+                        $payment->approve();
+
+                        // 5. Actualizar estado del jugador
+                        $record->update(['is_enabled_to_compete' => true]);
+
+                        // 6. Notificación institucional
+                        AdminNotifier::send(
+                            pageInstance: null,
+                            record: $record,
+                            operation: 'habilitó para competir (Pago Membresía)',
+                            displayFields: ['last_name', 'first_name'],
+                            customResourceName: 'jugador'
+                        );
+
+                    } catch (\Throwable $e) {
+                        AdminNotifier::sendException($e);
+
+                        Notification::make()
+                            ->title('Error en el proceso')
+                            ->danger()
+                            ->send();
+                    }
+                }
+
+                Notification::make()
+                    ->title('Proceso completado')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    // Accion Exportar registros filtrados en archivo Pdf
+    public static function exportarPdf(): Action
+    {
+        return Action::make('descargarPdf')
+            ->label('Exportar PDF')
+            ->icon('heroicon-o-arrow-down-tray')
+            ->color('success')
+            ->action(function ($livewire) {
+                // Obtenemos los registros filtrados desde el componente Livewire
+                $records = $livewire->getFilteredTableQuery()->get();
+                
+                // Invocamos el método estático del Resource
+                return PlayerResource::exportToPdf($records, 'Listado de Jugadores');
+            }
+        );
+    }
+
+    // Accion para importar Jugadores
+    public static function importPlayers(): Action
+    {
+        return
+            Action::make('importPlayers')
+                ->label('Importar jugadores')
+                ->visible(fn () => Auth::user()?->name === 'super-admin')
+                ->icon('heroicon-o-arrow-up-tray')
+                ->color('success')
+                ->schema([
+                    FileUpload::make('file')
+                        ->label('Archivo Excel')
+                        ->acceptedFileTypes([
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        ])
+                        ->required(),
+                ])
+                ->action(function (array $data) {
+                    Excel::import(new PlayersImport, $data['file']);
+                })
+                ->modalHeading('Importar jugadores desde Excel')
+                ->modalSubmitActionLabel('Importar');
+    }
+
+
 }

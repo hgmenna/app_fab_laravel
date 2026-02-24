@@ -6,17 +6,23 @@ use App\Filament\Resources\TournamentRegistrations\Pages\CreateTournamentRegistr
 use App\Filament\Resources\TournamentRegistrations\Pages\EditTournamentRegistration;
 use App\Filament\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
 use App\Filament\Resources\TournamentRegistrations\Tables\TournamentRegistrationsTable;
+use App\Models\GeneralRanking;
+use App\Models\TournamentInstance;
 use App\Models\TournamentRegistration;
+use App\Services\RankingService;
 use BackedEnum;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
-use App\Models\GeneralRanking;
 use UnitEnum;
 
 class TournamentRegistrationResource extends Resource
@@ -148,6 +154,56 @@ class TournamentRegistrationResource extends Resource
             $livewire instanceof \Filament\Resources\Pages\ManageRelatedRecords;
     }
 
-   
+   public static function AsignInstanceAction(): Action
+   {
+        return
+            Action::make('asignarInstancia')
+                    ->label('Asignar Posicion')
+                    ->visible(fn (?TournamentRegistration $record) => 
+                        Auth::user()?->can('EditField') && 
+                        $record?->tournament?->start_date < now()
+                    )
+                    ->disabled(fn (TournamentRegistration $record) => 
+                        $record->tournament?->start_date > now()
+                    )
+                    ->modalHeading('Asignar Posicion y calcular puntos')
+                    ->form([
+                        Select::make('tournament_instance_id')
+                            ->label('Instancia')
+                            ->options(
+                                TournamentInstance::pluck('description', 'id')->toArray()
+                            )
+                            ->nullable(), // permitir null
+
+                        TextInput::make('penalty_points')
+                            ->label('Penalizacion')
+                            ->numeric()
+                            ->default(0)
+                            ->helperText('Puntos a descontar por inasistencia en Master/1ra.'),
+                    ])
+                    ->action(function (array $data, TournamentRegistration $record) {
+
+                        // Guardar instancia (puede ser null)
+                        $record->tournament_instance_id = $data['tournament_instance_id'] ?? null;
+                        $record->penalty_points = $data['penalty_points'] ?? 0; 
+                        $record->save();
+
+                        // Recargar relaciones para evitar usar la instancia vieja en memoria
+                        $record->refresh();
+
+                        // Si no hay instancia, puntos = null
+                        if (! $record->tournament_instance_id) {
+                            $record->points = null;
+                        } else {
+                            $record->points = $record->calculatePoints();
+
+                        }
+
+                        $record->save();
+                        RankingService::syncGeneralRanking();
+                    }
+                )
+                ->color('primary');
+   }
 
 }

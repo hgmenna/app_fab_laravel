@@ -13,7 +13,7 @@ class EditTournamentRegistration extends EditRecord
 {
     use HasTabs;
     protected static string $resource = TournamentRegistrationResource::class;
-   protected static ?string $title = 'Inscripción';
+    protected static ?string $title = 'Inscripción';
 
     protected function getHeaderActions(): array
     {

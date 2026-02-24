@@ -2,20 +2,21 @@
 
 namespace App\Filament\Resources\Clubs\Tables;
 
+use App\Filament\Actions\GlobalActionGroup;
+use App\Filament\Actions\GlobalDeleteAction;
+use App\Filament\Actions\GlobalEditAction;
+use App\Filament\Actions\GlobalViewAction;
 use App\Filament\Resources\Clubs\ClubResource;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
-use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Filament\Actions\Action;
 
 class ClubsTable
 {
@@ -78,23 +79,12 @@ class ClubsTable
                     ]),
             ])
             ->recordActions([
-                Action::make('Afiliados')
-                    ->label('')
-                    ->icon('heroicon-o-users')
-                    ->modalHeading(fn ($record) => "Jugadores de {$record->name}")
-                    ->modalContent(fn ($record) =>
-                        view('filament.clubs.partials.players-table', [
-                            'players' => $record->players()
-                                ->with('category')
-                                ->orderBy('last_name')
-                                ->get(),
-                        ])
-                    )
-                    ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Cerrar'),
-                EditAction::make()->label('Editar')->iconButton(),
-                ViewAction::make()->label('Ver')->iconButton(),
-                DeleteAction::make()->label('Eliminar')->iconButton(),
+                GlobalActionGroup::make([
+                    ClubResource::viewAfiliatesAction(),
+                    GlobalViewAction::make(),
+                    GlobalEditAction::make(),
+                    GlobalDeleteAction::make(),
+                ]),
             ])
             ->headerActions([
                 Action::make('descargarPdf')

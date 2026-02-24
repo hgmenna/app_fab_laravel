@@ -2,11 +2,12 @@
 
 namespace App\Filament\Resources\Countries\Tables;
 
+use App\Filament\Actions\GlobalActionGroup;
+use App\Filament\Actions\GlobalDeleteAction;
+use App\Filament\Actions\GlobalEditAction;
+use App\Filament\Actions\GlobalViewAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -39,8 +40,11 @@ class CountriesTable
                 //
             ])
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
+                GlobalActionGroup::make([
+                    GlobalViewAction::make(),
+                    GlobalEditAction::make(),
+                    GlobalDeleteAction::make(),
+                ])
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

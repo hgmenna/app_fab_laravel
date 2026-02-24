@@ -2,11 +2,12 @@
 
 namespace App\Filament\Resources\Disciplines\Tables;
 
+use App\Filament\Actions\GlobalActionGroup;
+use App\Filament\Actions\GlobalDeleteAction;
+use App\Filament\Actions\GlobalEditAction;
+use App\Filament\Actions\GlobalViewAction;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -42,15 +43,11 @@ class DisciplinesTable
                 //
             ])
             ->recordActions([
-                ViewAction::make()
-                    ->label('Ver')
-                    ->iconButton(),
-                EditAction::make()
-                    ->label('Editar')
-                    ->iconButton(),
-                DeleteAction::make()
-                    ->label('Eliminar')
-                    ->iconButton(),
+                GlobalActionGroup::make([
+                    GlobalViewAction::make(),
+                    GlobalEditAction::make(),
+                    GlobalDeleteAction::make(),
+                ]),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

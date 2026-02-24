@@ -2,11 +2,10 @@
 
 namespace App\Filament\Resources\TournamentInstances\Tables;
 
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
+use App\Filament\Actions\GlobalActionGroup;
+use App\Filament\Actions\GlobalDeleteAction;
+use App\Filament\Actions\GlobalEditAction;
+use App\Filament\Actions\GlobalViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -39,9 +38,11 @@ class TournamentInstancesTable
                 //
             ])
             ->recordActions([
-                ViewAction::make()->iconButton(),
-                EditAction::make()->iconButton(),
-                DeleteAction::make()->iconButton(),
+                GlobalActionGroup::make([
+                    GlobalViewAction::make(),
+                    GlobalEditAction::make(),
+                    GlobalDeleteAction::make(),
+                ])
             ]);
     }
 }

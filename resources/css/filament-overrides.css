@@ -1,0 +1,14 @@
+/* Override global para encabezados de tablas en Filament 4 */
+:root {
+    --fi-table-header-background: var(--success-600) !important;
+    --fi-table-header-text-color: white !important;
+}
+
+/* Refuerzo para todas las celdas del header */
+.fi-ta-header,
+.fi-ta-header th,
+.fi-ta-header-cell {
+    background-color: var(--success-600) !important;
+    color: white !important;
+}
+
