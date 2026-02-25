@@ -143,7 +143,7 @@ class TournamentRegistrationsTable
                         
                         return !$isOpen;
                     })
-                    ->mutateFormDataUsing(function (array $data, $livewire): array {
+                    ->mutateDataUsing(function (array $data, $livewire): array {
                         // 3. Si es "nested", aseguramos que el ID del torneo se asocie correctamente [2, 3]
                         if (method_exists($livewire, 'getOwnerRecord')) {
                             $data['tournament_id'] = $livewire->getOwnerRecord()->id;
@@ -187,7 +187,8 @@ class TournamentRegistrationsTable
                         ->after(function (Model $record) {
                             $tournamentName = $record->tournament?->name ?? 'el torneo';
 
-                            Mail::to('notificaciones@federacionargentinadebillar.org')->send(new TournamentRegistrationNotification($record, 'Actualizacion de inscripcion'));
+                            $emailDestino = Auth::user()->email ?? 'notificaciones@federacionargentinadebillar.org';
+                            Mail::to($emailDestino)->send(new TournamentRegistrationNotification($record, 'Actualizacion de inscripcion'));
     
                             AdminNotifier::send(
                                 null, 
@@ -202,8 +203,6 @@ class TournamentRegistrationsTable
                         ->visible(fn () => Auth::user()?->can('EditField'))
                         ->after(function (Model $record) {
                             $tournamentName = $record->tournament?->name ?? 'el torneo';
-
-                            Mail::to('notificaciones@federacionargentinadebillar.org')->send(new TournamentRegistrationNotification($record, 'Actualizacion de inscripcion'));
     
                             AdminNotifier::send(
                                 null, 
@@ -212,12 +211,18 @@ class TournamentRegistrationsTable
                                 ['player.last_name', 'player.first_name'], 
                                 "el torneo {$tournamentName}"
                             );
+                        })
+                        ->before(function (Model $record){
+                            $emailDestino = Auth::user()->email ?? 'notificaciones@federacionargentinadebillar.org';
+                            Mail::to($emailDestino)->send(
+                                new TournamentRegistrationNotification($record, 'Inscripción eliminada')
+                            );
                         }),
                     TournamentRegistrationResource::AsignInstanceAction(),
                     Action::make('cambiarEstado')
                         ->label('Cambiar Estado')
                         ->icon(Heroicon::CurrencyDollar)
-                        ->form([
+                        ->schema([
                             Select::make('status')
                                 ->label('Nuevo Estado')
                                 ->options([
@@ -230,7 +235,8 @@ class TournamentRegistrationsTable
                         ->action(function (Model $record, array $data): void {
                             $record->update(['status' => $data['status']]);
                             $record->load(['slot', 'player.club', 'player.category']);
-                            Mail::to('notificaciones@federacionargentinadebillar.org')
+                            $mailDestino = Auth::user()->email ?? 'notificaciones@federacionargentinadebillar.org';
+                            Mail::to($mailDestino)
                                 ->send(new TournamentRegistrationNotification($record, 'Actualizacion de estado de inscripcion'));
 
                             $tournamentName = $record->tournament?->name ?? 'el torneo';

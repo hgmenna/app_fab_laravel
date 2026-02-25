@@ -2,9 +2,7 @@
 
 namespace App\Filament\Pages\Auth;
 
-use Filament\Schemas\Components\Form;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Checkbox;
 use Filament\Auth\Pages\Login as BaseLogin;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Schema;
@@ -15,34 +13,27 @@ class Login extends BaseLogin
     {
         return $schema
         ->components([
-            // Campo 'name' con etiqueta directa
-            TextInput::make('name') 
-                ->label('Nombre de usuario')
-                ->required()
-                ->autocomplete()
-                ->autofocus(),
+             // Usamos el helper del nombre de usuario que ya definiste abajo
+            $this->getNameFormComponent(), 
 
-            // Campo 'password' con etiqueta directa para evitar error de traducción
-            TextInput::make('password')
-                ->label('Contraseña') // <--- Cambiado a texto plano
-                ->password()
-                ->revealable(filament()->arePasswordsRevealable())
-                ->required(),
+            // Usamos el helper de la base para que incluya el link de "olvidé mi contraseña"
+            $this->getPasswordFormComponent()
+                ->label('Contraseña'), // <--- Solo cambiamos la etiqueta
 
-            // Checkbox de 'remember' con etiqueta directa
-            Checkbox::make('remember')
-                ->label('Recordarme'), // <--- Cambiado a texto plano
+            // Usamos el helper para el checkbox de recordarme
+            $this->getRememberFormComponent()
+                ->label('Recordarme'),
         ])
         ->statePath('data');
-           
     }
 
-    protected function getUsernameFormComponent(): Component
+    protected function getNameFormComponent(): Component
     {
-        return TextInput::make('username') // Cambia 'email' por el nombre de tu columna
+        return TextInput::make('name') // Cambia 'email' por el nombre de tu columna
             ->label('Nombre de usuario')
             ->required()
-            ->autocomplete();
+            ->autocomplete()
+            ->autofocus();
     }
 
     protected function getCredentialsFromFormData(array $data): array

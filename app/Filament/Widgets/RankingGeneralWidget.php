@@ -112,7 +112,7 @@ class RankingGeneralWidget extends TableWidget
                         ->width('30px'),
 
                     TextColumn::make('total_penalties')
-                        ->label('Dcto')
+                        ->label('Pen')
                         ->alignment('center')
                         ->color('danger') // Color rojo para indicar descuento
                         ->width('25px'),
