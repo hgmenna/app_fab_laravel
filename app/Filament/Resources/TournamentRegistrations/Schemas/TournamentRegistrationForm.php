@@ -86,7 +86,7 @@ class TournamentRegistrationForm
 
                     return $t->slots
                         ->when(
-                            $user->name !== 'super-admin', // El super-admin puede ver todos los horarios
+                            ($user?->name ?? null) !== 'super-admin', // El super-admin puede ver todos los horarios
                             fn ($slots) => $slots->filter(
                                 fn (TournamentSlot $slot) => $slot->registrations()
                                     ->where('status', '!=', 'denegado')
@@ -114,7 +114,7 @@ class TournamentRegistrationForm
                 // 3. Deshabilitar opciones sin cupos de forma segura para usuarios que no son super-admin
                 ->disableOptionWhen(function (string $value) {
                     $user = Auth::user();
-                    if ($user->name === 'super-admin') {
+                    if ($user?->name === 'super-admin') {
                         return false;
                     }
 
@@ -157,6 +157,11 @@ class TournamentRegistrationForm
                     // Si no hay torneo (aún no seleccionado), ocultamos el campo
                     if (!$t) return false;
 
+                    $user = Auth::user();
+                    if(! $user) {
+                        return false; // invitado no puede editar
+                    }
+
                     return Auth::user()->can('EditField') && $t->start_date < now();
                 })
                 ->preload()
@@ -184,6 +189,11 @@ class TournamentRegistrationForm
                     }
 
                     if (!$t) return false;
+
+                    $user = Auth::user();
+                    if(! $user) {
+                        return false; // invitado no puede editar
+                    }
 
                     return Auth::user()->can('EditField') && $t->start_date < now();
                 })
@@ -230,7 +240,7 @@ class TournamentRegistrationForm
                 ])
                 ->default('pendiente')
                 // Se deshabilita si el usuario no tiene el permiso de Shield [2, 3]
-                ->disabled(fn () => !Auth::user()->can('UpdateStatusTournament'))
+                ->disabled(fn () => !Auth::user()?->can('UpdateStatusTournament') ?? true)
                 // Asegura que el valor se envíe aunque esté deshabilitado
                 ->dehydrated(true),
             ]);

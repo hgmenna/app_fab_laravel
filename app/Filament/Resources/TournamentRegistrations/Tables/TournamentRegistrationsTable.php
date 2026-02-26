@@ -249,7 +249,7 @@ class TournamentRegistrationsTable
                                 "el torneo {$tournamentName}"
                             );
                         })
-                        ->visible(fn () => Auth::user()->can('UpdateStatusTournament')
+                        ->visible(fn () => (Auth::user()?->can('UpdateStatusTournament') ?? false)
                     ),
                 ]),
             ]

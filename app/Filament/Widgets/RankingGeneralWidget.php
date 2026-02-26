@@ -2,16 +2,17 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\GeneralRanking;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
+use Filament\Facades\Filament;
 use Filament\Tables;
 use Filament\Tables\Columns\ColumnGroup;
-use Filament\Tables\Table;
-use Filament\Widgets\TableWidget;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Filament\Widgets\TableWidget;
 use Illuminate\Contracts\View\View;
-use App\Models\GeneralRanking;
-use Filament\Actions\Action;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 class RankingGeneralWidget extends TableWidget
 {
@@ -29,11 +30,10 @@ class RankingGeneralWidget extends TableWidget
     {
         return $table
             ->query(GeneralRanking::query())
-            ->paginated([10, 25, 50])
-            ->defaultPaginationPageOption(10)
+            ->paginated([5,10, 25, 50])
+            ->defaultPaginationPageOption(Filament::getCurrentPanel()?->getId() === 'guest' ? 5 : 10)
             ->striped()
             ->extraAttributes(['class' => 'text-center'])
-
             ->headerActions([
                 Action::make('descargarPdf')
                     ->label('Exportar PDF')

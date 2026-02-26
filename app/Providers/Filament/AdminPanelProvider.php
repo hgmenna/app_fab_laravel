@@ -30,14 +30,16 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->login(Login::class)
-            ->passwordReset()
-            ->profile()
-            ->theme('app')
             ->brandName('Federacion Argentina de Billar')
             ->brandLogo(fn () => view('filament.brand'))
             ->brandLogoHeight('3rem')
-            ->favicon(asset('images/logo.png'))
+            ->login(Login::class)
+            ->passwordReset()
+            ->profile()
+            ->emailChangeVerification()
+            ->emailVerification()
+            ->theme('app')
+            
             ->colors([
                 'primary' => Color::Amber,
             ])

@@ -141,13 +141,15 @@ class PlayerResource extends Resource
     // Accion para almacenar Pago Afilicacion del año corriente
     public static function payMembershipAction(): Action
     {
+        $userAuth = Auth::user();
+
         return Action::make('payMembership')
             ->label('Afiliación')
             ->icon('heroicon-o-credit-card')
             ->color('success')
             ->requiresConfirmation()
             ->modalHeading('Confirmar Pago de Afiliacion')
-            ->visible(fn () => Auth::user()->can('PayMembership'))
+            ->visible(fn () => $userAuth?->can('PayMembership') ?? false)
             ->disabled(fn ($record) => $record->is_enabled_to_compete)
             ->action(function ($records, $livewire) {
 
@@ -243,10 +245,11 @@ class PlayerResource extends Resource
     // Accion para importar Jugadores
     public static function importPlayers(): Action
     {
+        $userAuth = Auth::user();
         return
             Action::make('importPlayers')
                 ->label('Importar jugadores')
-                ->visible(fn () => Auth::user()?->name === 'super-admin')
+                ->visible(fn () => $userAuth?->name === 'super-admin')
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('success')
                 ->schema([
