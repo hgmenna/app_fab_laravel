@@ -60,9 +60,9 @@ return [
             'report' => false,
         ],
 
-        'public_path' => [
+       'public_path' => [
             'driver' => 'local',
-            'root' => public_path(),
+            'root' => base_path('../public_html'),
             'url' => env('APP_URL'),
             'visibility' => 'public',
         ],
