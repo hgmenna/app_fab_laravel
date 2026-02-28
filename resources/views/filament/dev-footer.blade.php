@@ -5,10 +5,10 @@
         <tr>
             <!-- Columna Izquierda: Identidad -->
             <td style="width: 33%; vertical-align: center; padding-left: 40px; text-align: left;">
-                <div style="text-transform: uppercase; font-size: 1.2rem; font-weight: bold; color: white; letter-spacing: 1px; margin-bottom: 5px;">
+                <div style="text-transform: uppercase; font-size: 0.7rem; font-weight: bold; color: white; letter-spacing: 1px; margin-bottom: 5px;">
                     Desarrollo y Arquitectura de Software
                 </div>
-                <div style="font-size: 2rem; font-weight: 900; color: white; margin-bottom: 2px;">
+                <div style="font-size: 1.3rem; font-weight: 900; color: white; margin-bottom: 2px;">
                     Hernán Gabriel Menna
                 </div>
             </td>
