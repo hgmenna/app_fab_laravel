@@ -8,7 +8,7 @@
         $promedio = $registros->avg('points');
     @endphp
 
-    <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem; text-align: center;">
+    <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem; text-align: center; background-color: black;">
         <thead style="background-color: green; color: white;">
             <tr style="border-bottom: 2px solid #f3f4f6;">
                 <th style="padding: 0.5rem; font-size: 0.75rem; text-transform: uppercase; text-align:center;">Torneo</th>
