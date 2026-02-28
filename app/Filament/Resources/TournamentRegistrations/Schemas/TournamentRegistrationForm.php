@@ -201,7 +201,7 @@ class TournamentRegistrationForm
 
             FileUpload::make('payment_file')
                 ->label('Comprobante de pago')
-                ->disk('public') // <--- Indispensable para que sea accesible vía URL
+                ->disk('public_path') // <--- Indispensable para que sea accesible vía URL
                 ->visibility('public') // <--- Asegura permisos de lectura
                 ->directory('pagos')
                 // Usamos una función anónima para verificar la visibilidad dinámicamente

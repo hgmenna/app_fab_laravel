@@ -97,8 +97,8 @@ class TournamentRegistrationsTable
                     ->sortable(),
 
                 ImageColumn::make('payment_file')
-                    ->label('Pago')
-                    ->disk('public')
+                    ->label('pagos')
+                    ->disk('public_path')
                     ->square(60),
 
             ])
