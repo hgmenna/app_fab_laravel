@@ -33,6 +33,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandName('Federacion Argentina de Billar')
             ->brandLogo(fn () => view('filament.brand'))
             ->brandLogoHeight('3rem')
+            ->favicon(asset('images/logo.png'))
             ->login(Login::class)
             ->passwordReset()
             ->profile()

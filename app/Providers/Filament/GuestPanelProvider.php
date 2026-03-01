@@ -27,6 +27,7 @@ class GuestPanelProvider extends PanelProvider
             ->brandName('Federacion Argentina de Billar')
             ->brandLogo(fn () => view('filament.brand'))
             ->brandLogoHeight('3rem')
+            ->favicon(asset('images/logo.png'))
             ->colors([
                 'primary' => Color::Blue,
             ])
