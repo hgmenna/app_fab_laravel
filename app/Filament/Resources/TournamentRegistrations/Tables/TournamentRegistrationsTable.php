@@ -94,12 +94,14 @@ class TournamentRegistrationsTable
                         'denegado' => 'danger',
                         default => 'gray',
                     })
-                    ->sortable(),
+                    ->sortable()
+                    ->alignCenter(),
 
                 ImageColumn::make('payment_file')
                     ->label('pagos')
                     ->disk('public_path')
-                    ->square(60),
+                    ->square(60)
+                    ->alignCenter(),
 
             ])
             ->filters([

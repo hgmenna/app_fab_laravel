@@ -69,7 +69,8 @@ class PlayerForm
                             ->relationship('club', 'name')
                             ->label('Club')
                             ->columnSpan(6)
-                            ->required(),
+                            ->required()
+                            ->searchable(),
                         Select::make('category_id')
                             ->relationship('category', 'name')
                             ->label('Categoría')
