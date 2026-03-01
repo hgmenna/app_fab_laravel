@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Auth\GuestUser;
 use App\Filament\Widgets\RankingGeneralWidget;
 use App\Http\Middleware\AssignGuestUser;
+use Filament\Enums\ThemeMode;
 use Filament\Facades\Filament;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
@@ -32,6 +33,8 @@ class GuestPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Blue,
             ])
+            ->darkMode(true)
+            ->defaultThemeMode(ThemeMode::Dark)
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->widgets([
                 RankingGeneralWidget::class,
