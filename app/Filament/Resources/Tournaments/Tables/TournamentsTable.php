@@ -53,7 +53,7 @@ class TournamentsTable
                 IconColumn::make('is_payment_enabled')
                     ->label('Requiere Pago')
                     ->alignCenter(),
-            ])
+            ])->defaultSort('start_date', direction:'desc')
             ->recordActions([
                 GlobalActionGroup::make([
                     GlobalViewAction::make(),
