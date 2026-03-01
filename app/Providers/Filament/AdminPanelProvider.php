@@ -41,6 +41,7 @@ class AdminPanelProvider extends PanelProvider
             ->profile()
             ->emailChangeVerification()
             ->emailVerification()
+            ->registration()
             ->theme('app')
             ->darkMode(true)
             ->defaultThemeMode(ThemeMode::Dark)
