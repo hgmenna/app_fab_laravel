@@ -34,6 +34,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandLogo(fn () => view('filament.brand'))
             ->brandLogoHeight('3rem')
             ->favicon(asset('images/logo.png'))
+            ->globalSearch(false)
             ->login(Login::class)
             ->passwordReset()
             ->profile()

@@ -90,7 +90,8 @@ class PlayerForm
                             ->label('Foto del jugador')
                             ->columnSpan(3)
                             ->image() // valida que sea imagen
-                            ->directory('logos/players') // carpeta donde se guarda
+                            ->disk('public_path')
+                            ->directory('players') // carpeta donde se guarda
                             ->visibility('public') // permite mostrarlo
                             ->imageEditor() // opcional: editor integrado
                             ->previewable(true) // muestra la miniatura

@@ -113,18 +113,6 @@ class PlayersTable
                     ->boolean()
                     ->trueIcon(Heroicon::OutlinedCheckBadge)
                     ->falseIcon(Heroicon::OutlinedXMark),
-                TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('deleted_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
 
             ])
             ->filters([
