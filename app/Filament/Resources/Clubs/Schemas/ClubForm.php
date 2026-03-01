@@ -2,14 +2,15 @@
 
 namespace App\Filament\Resources\Clubs\Schemas;
 
+use App\Models\Country;
+use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Section;
-use App\Models\Country;
+use Filament\Schemas\Schema;
 
 class ClubForm
 {
@@ -144,6 +145,9 @@ class ClubForm
                                 ->pluck('name', 'id')
                                 ->toarray();
                         })
+                        ->createOptionAction(fn (Action $action) => $action
+                            ->modalHeading('Nueva Ciudad')
+                            ->modalWidth('md'))
                         ->required(),
                     TextInput::make('federation_name')
                         ->label('Federación')
