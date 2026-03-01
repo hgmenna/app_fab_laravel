@@ -16,6 +16,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 
 class PlayersTable
 {
@@ -169,6 +170,7 @@ class PlayersTable
                     ->icon('heroicon-o-credit-card')
                     ->color('info')
                     ->requiresConfirmation()
+                    ->visible(fn () => (Auth::user()?->can('PayMembership') ?? false))
                     ->action(fn ($records, $livewire) =>
                         PlayerResource::payMembershipAction()->call($records, $livewire)
                 ),
