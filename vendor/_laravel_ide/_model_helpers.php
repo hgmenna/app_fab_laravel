@@ -678,6 +678,7 @@ namespace App\Models {
      * @property string|null $short_name
      * @property string $name
      * @property int $id
+     * @property-read mixed $location
      * @property-read \App\Models\City $city
      * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Player> $players
      * @property-read int|null $players_count
