@@ -2,7 +2,10 @@
 
 namespace App\Filament\Resources\Clubs\Schemas;
 
+use App\Filament\Resources\Cities\Schemas\CityForm;
+use App\Models\City;
 use App\Models\Country;
+use App\Models\State;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
@@ -76,9 +79,9 @@ class ClubForm
                     Select::make('country_id')
                         ->label('País')
                         ->columnSpan(2)
-                        ->options(\App\Models\Country::pluck('name', 'id'))
+                        ->options(Country::pluck('name', 'id'))
                         ->default(function () {
-                            return \App\Models\Country::where('name', 'Argentina')->value('id');
+                            return Country::where('name', 'Argentina')->value('id');
                         })
                         ->getOptionLabelUsing(fn ($value) => \App\Models\Country::find($value)?->name)
                         ->searchable()
@@ -105,11 +108,11 @@ class ClubForm
                                 return [];
                             }
 
-                            return \App\Models\State::where('country_id', $countryId)
+                            return State::where('country_id', $countryId)
                                 ->pluck('name', 'id')
                                 ->toArray();
                         })
-                        ->getOptionLabelUsing(fn ($value) => \App\Models\State::find($value)?->name)
+                        ->getOptionLabelUsing(fn ($value) => State::find($value)?->name)
                         ->searchable()
                         ->live()
                         ->dehydrated(false) // no se guarda en clubs
@@ -124,7 +127,7 @@ class ClubForm
                             $set('city_id', null);
 
                             // cargar federación desde state
-                            $stateModel = \App\Models\State::with('federation')->find($state);
+                            $stateModel = State::with('federation')->find($state);
                             $set('federation_name', $stateModel?->federation?->name);
                         }),
                     Select::make('city_id')
@@ -141,10 +144,11 @@ class ClubForm
 
                             if (!$stateId) return [];
 
-                            return \App\Models\City::where('state_id', $stateId)
+                            return City::where('state_id', $stateId)
                                 ->pluck('name', 'id')
                                 ->toarray();
                         })
+                        ->createOptionSchema(fn (Schema $schema) => CityForm::configure($schema))
                         ->createOptionAction(fn (Action $action) => $action
                             ->modalHeading('Nueva Ciudad')
                             ->modalWidth('md'))
