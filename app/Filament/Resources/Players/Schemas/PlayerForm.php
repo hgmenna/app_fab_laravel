@@ -71,6 +71,8 @@ class PlayerForm
                             ->relationship('club', 'name')
                             ->label('Club')
                             ->columnSpan(6)
+                            ->preload()
+                            ->live()
                             ->createOptionForm(fn (Schema $schema) 
                                 => ClubForm::configure($schema))
                             ->required()
