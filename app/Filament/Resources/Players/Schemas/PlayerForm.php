@@ -71,10 +71,11 @@ class PlayerForm
                             ->relationship('club', 'name')
                             ->label('Club')
                             ->columnSpan(6)
-                            ->createOoptionForm(fn (Schema $schema) 
+                            ->createOptionForm(fn (Schema $schema) 
                                 => ClubForm::configure($schema))
                             ->createOptionAction(fn (Action $action) => $action
-                                ->modalHeading('Nuevo Club'))
+                                ->modalHeading('Nuevo Club')
+                                ->modalWidth('md'))
                             ->required()
                             ->searchable(),
                         Select::make('category_id')
