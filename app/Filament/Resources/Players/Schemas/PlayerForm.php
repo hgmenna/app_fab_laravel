@@ -74,8 +74,7 @@ class PlayerForm
                             ->createOptionForm(fn (Schema $schema) 
                                 => ClubForm::configure($schema))
                             ->createOptionAction(fn (Action $action) => $action
-                                ->modalHeading('Nuevo Club')
-                                ->modalWidth('lg'))
+                                ->modalHeading('Nuevo Club'))
                             ->required()
                             ->searchable(),
                         Select::make('category_id')
