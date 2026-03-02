@@ -148,7 +148,7 @@ class ClubForm
                                 ->pluck('name', 'id')
                                 ->toarray();
                         })
-                        ->createOptionSchema(fn (Schema $schema) => CityForm::configure($schema))
+                        ->createOptionForm(fn (Schema $schema) => CityForm::configure($schema))
                         ->createOptionAction(fn (Action $action) => $action
                             ->modalHeading('Nueva Ciudad')
                             ->modalWidth('md'))
