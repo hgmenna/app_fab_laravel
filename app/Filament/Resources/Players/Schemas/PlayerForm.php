@@ -2,14 +2,16 @@
 
 namespace App\Filament\Resources\Players\Schemas;
 
+use App\Filament\Resources\Clubs\Schemas\ClubForm;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\FileUpload;
 use Illuminate\Support\Facades\Auth;
 
 class PlayerForm
@@ -69,6 +71,10 @@ class PlayerForm
                             ->relationship('club', 'name')
                             ->label('Club')
                             ->columnSpan(6)
+                            ->createOoptionForm(fn (Schema $schema) 
+                                => ClubForm::configure($schema))
+                            ->createOptionAction(fn (Action $action) => $action
+                                ->modalHeading('Nuevo Club'))
                             ->required()
                             ->searchable(),
                         Select::make('category_id')
