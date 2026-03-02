@@ -31,6 +31,7 @@ class RankingGeneralWidget extends TableWidget
         return $table
             ->query(GeneralRanking::query())
             ->paginated([5,10, 25, 50])
+            ->extraPaginationLinks()
             ->defaultPaginationPageOption(Filament::getCurrentPanel()?->getId() === 'guest' ? 5 : 10)
             ->striped()
             ->extraAttributes(['class' => 'text-center'])
