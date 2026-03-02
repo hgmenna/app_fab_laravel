@@ -149,9 +149,6 @@ class ClubForm
                                 ->toarray();
                         })
                         ->createOptionForm(fn (Schema $schema) => CityForm::configure($schema))
-                        ->createOptionAction(fn (Action $action) => $action
-                            ->modalHeading('Nueva Ciudad')
-                            ->modalWidth('md'))
                         ->required(),
                     TextInput::make('federation_name')
                         ->label('Federación')
