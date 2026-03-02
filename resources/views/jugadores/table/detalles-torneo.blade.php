@@ -1,69 +1,139 @@
-{{-- resources/views/jugadores/table/detalles-torneo.blade.php --}}
-@php
-        // Obtenemos los registros y calculamos totales al inicio
-        $registros = ($record->registrations ?? collect())->filter(function ($registro) {
-            return $registro->tournament?->end_date && $registro->tournament->end_date->isPast();
-        });
-        $cantidad = $registros->count();
-        $promedio = $registros->avg('points');
-    @endphp
+@php 
+    // Lógica extraída de la fuente para filtrar torneos pasados y calcular estadísticas [1]
+    $registros = ($record->registrations ?? collect())->filter(function ($registro) { 
+        return $registro->tournament?->end_date && $registro->tournament->end_date->isPast(); 
+    }); 
+    $cantidad = $registros->count(); 
+    $promedio = $registros->avg('points'); 
+@endphp
 
-    <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem; text-align: center; background-color: black;">
-        <thead style="background-color: green; color: white;">
-            <tr style="border-bottom: 2px solid #f3f4f6;">
-                <th style="padding: 0.5rem; font-size: 0.75rem; text-transform: uppercase; text-align:center;">Torneo</th>
-                <th style="padding: 0.5rem; font-size: 0.75rem; text-transform: uppercase; text-align:center;">Tipo</th>
-                <th style="padding: 0.5rem; font-size: 0.75rem; text-transform: uppercase; text-align:center;">Fecha Fin</th>
-                <th style="padding: 0.5rem; font-size: 0.75rem; text-transform: uppercase; text-align:center;">Instancia</th>
-                <th style="padding: 0.5rem; font-size: 0.75rem; text-transform: uppercase; text-align:center;">Puntos</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse ($registros as $registro)
-                <tr style="border-bottom: 1px solid #f3f4f6;">
-                    <td style="padding: 0.75rem 0.5rem; font-weight: bold; color: #fff; text-align: center;">
-                        {{ $registro->tournament?->name }}
-                    </td>
-                    <td style="padding: 0.75rem 0.5rem; color: #fff; text-align: center;">
-                        {{ $registro->tournament?->type?->name }}
-                    </td>
-                    <td style="padding: 0.75rem 0.5rem; color: #fff; text-align: center;">
-                        {{ $registro->tournament?->end_date?->format('d/m/Y') ?? 'N/A' }}
-                    </td>
-                    <td style="padding: 0.75rem 0.5rem; color: #fff; font-style: italic; text-align: center;">
-                        {{ $registro->tournamentInstance?->description }}
-                    </td>
-                    <td style="padding: 0.75rem 0.5rem; text-align: right;">
-                        <span style="padding: 0.25rem 0.5rem; font-size: 1rem; font-weight: bold; color: #fff;">
-                            {{ number_format($registro->points, 0) }}
-                        </span>
-                    </td>
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="5" style="padding: 1rem; text-align: center; color: #9ca3af; font-style: italic;">
-                        No hay torneos registrados para este jugador.
-                    </td>
-                </tr>
-            @endforelse
-        </tbody>
-    </table>
+<style>
+    /* Contenedor principal */
+    .torneo-container {
+        width: 100%;
+        font-family: sans-serif;
+        color: #333;
+    }
 
-    {{-- SECCIÓN DE RESUMEN CON ESTILOS EN LÍNEA --}}
-    @if($cantidad > 0)
-        <div style="align-items: center; background-color: green; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 2rem; font-size: 0.875rem; font-weight: bold;">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <span style="color: white; font-weight: 500; align-items: center; ">Cantidad de torneos:</span>
-                <span style="color: white; font-weight: 900; font-size: 1.25rem; padding: 0.125rem 0.5rem;align-items: center; ">
-                    {{ $cantidad }}
-                </span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <span style="color: white; font-weight: 500;align-items: center; ">Promedio de puntos:</span>
-                <span style="align-items: center; color: white; font-weight: 900; padding: 0.125rem 0.5rem; font-size: 1.25rem">
-                    {{ number_format($promedio, 2) }}
-                </span>
-            </div>
+    /* Tarjetas de estadísticas */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .stat-card {
+        background-color: #f9fafb;
+        padding: 15px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+    }
+
+    .stat-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: #6b7280;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .stat-value {
+        font-size: 20px;
+        font-weight: 800;
+        color: #1f2937;
+    }
+
+    /* Contenedor de tabla responsive */
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto; /* Permite scroll horizontal en móviles */
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 500px; /* Asegura que la tabla no se amontone */
+        background-color: #fff;
+    }
+
+    .data-table th {
+        background-color: #f3f4f6;
+        padding: 12px 16px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 700;
+        color: #4b5563;
+        text-transform: uppercase;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .data-table td {
+        padding: 12px 16px;
+        font-size: 14px;
+        border-bottom: 1px solid #f3f4f6;
+    }
+
+    .data-table tr:hover {
+        background-color: #f9fafb;
+    }
+
+    .text-right { text-align: right; }
+    .points-highlight { 
+        font-weight: 600; 
+        color: #4f46e5; 
+    }
+
+    /* Media Query para pantallas más grandes */
+    @media (min-width: 640px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+
+<div class="torneo-container">
+    <!-- Resumen de Estadísticas -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-label">Cantidad de Torneos</span>
+            <span class="stat-value">{{ $cantidad }}</span>
         </div>
-    @endif
+        <div class="stat-card">
+            <span class="stat-label">Promedio de Puntos</span>
+            <span class="stat-value">{{ number_format($promedio, 2) }}</span>
+        </div>
+    </div>
+
+    <!-- Tabla Adaptable -->
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Torneo</th>
+                    <th>Fecha Fin</th>
+                    <th class="text-right">Puntos</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($registros as $registro)
+                    <tr>
+                        <td>{{ $registro->tournament->name ?? 'N/A' }}</td>
+                        <td>{{ $registro->tournament->end_date->format('d/m/Y') }}</td>
+                        <td class="text-right points-highlight">{{ $registro->points }}</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="3" style="text-align: center; padding: 30px; color: #9ca3af; font-style: italic;">
+                            No se encontraron registros de torneos finalizados.
+                        </td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
 </div>
