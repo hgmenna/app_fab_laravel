@@ -43,8 +43,7 @@ class TournamentForm
                             ->label('Disciplina')
                             ->options(fn () => Discipline::orderBy('name')->pluck('name', 'id'))
                             ->columnSpan(4)
-                            ->searchable()
-                            ->requuired(),
+                            ->searchable(),
         
                         Select::make('venue_id')
                             ->label('Club organizador')
