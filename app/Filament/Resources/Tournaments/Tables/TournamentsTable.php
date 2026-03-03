@@ -9,6 +9,7 @@ use App\Filament\Actions\GlobalViewAction;
 use App\Filament\Resources\Tournaments\TournamentResource;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
 class TournamentsTable
@@ -19,6 +20,12 @@ class TournamentsTable
             ->columns([
                 TextColumn::make('name')
                     ->label('Torneo')
+                    ->searchable()
+                    ->sortable()
+                    ->alignCenter(),
+
+                TextColumn::make('discipline.short_name')
+                    ->label('Disciplina')
                     ->searchable()
                     ->sortable()
                     ->alignCenter(),
@@ -61,6 +68,15 @@ class TournamentsTable
                     GlobalDeleteAction::make(),
                     TournamentResource::inscriptionsAction(),
                 ]),
+            ])
+            ->filters([
+                SelectFilter::make('discipline_id')
+                    ->relationship('discipline', 'name')
+                    ->label('Disciplina'),
+                SelectFilter::make('type_id')
+                    ->relationship('type', 'name')
+                    ->label('Tipo de Torneo')
+                    ->searchable(),
             ]);
     }
 

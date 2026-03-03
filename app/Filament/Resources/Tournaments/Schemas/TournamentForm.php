@@ -4,17 +4,18 @@ namespace App\Filament\Resources\Tournaments\Schemas;
 
 use App\Filament\Resources\Tournaments\TournamentResource;
 use App\Models\Category;
-use Filament\Schemas\Components\Tabs;
+use App\Models\Club;
+use App\Models\Discipline;
+use App\Models\TournamentType;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Repeater;
-use Filament\Schemas\Schema;
+use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
-use App\Models\Club;
-use Filament\Forms\Components\DateTimePicker;
-use App\Models\TournamentType;
+use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
 
 class TournamentForm
@@ -37,6 +38,13 @@ class TournamentForm
                             ->columnSpan(5)
                             ->required()
                             ->reactive(),
+
+                        Select::make('discipline_id')
+                            ->label('Disciplina')
+                            ->options(fn () => Discipline::orderBy('name')->pluck('name', 'id'))
+                            ->columnSpan(4)
+                            ->searchable()
+                            ->requuired(),
         
                         Select::make('venue_id')
                             ->label('Club organizador')
