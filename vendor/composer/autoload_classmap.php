@@ -13,6 +13,7 @@ return array(
     'AnourValar\\EloquentSerialize\\Package' => $vendorDir . '/anourvalar/eloquent-serialize/src/Package.php',
     'AnourValar\\EloquentSerialize\\Service' => $vendorDir . '/anourvalar/eloquent-serialize/src/Service.php',
     'App\\Auth\\GuestUser' => $baseDir . '/app/Auth/GuestUser.php',
+    'App\\Console\\Commands\\GeocodeClubs' => $baseDir . '/app/Console/Commands/GeocodeClubs.php',
     'App\\Console\\Commands\\RecalculateRanking' => $baseDir . '/app/Console/Commands/RecalculateRanking.php',
     'App\\Exceptions\\Handler' => $baseDir . '/app/Exceptions/Handler.php',
     'App\\Filament\\Actions\\GlobalActionGroup' => $baseDir . '/app/Filament/Actions/GlobalActionGroup.php',

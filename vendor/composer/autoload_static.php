@@ -1198,6 +1198,7 @@ class ComposerStaticInitc514d8f7b9fc5970bdd94287905ef584
         'AnourValar\\EloquentSerialize\\Package' => __DIR__ . '/..' . '/anourvalar/eloquent-serialize/src/Package.php',
         'AnourValar\\EloquentSerialize\\Service' => __DIR__ . '/..' . '/anourvalar/eloquent-serialize/src/Service.php',
         'App\\Auth\\GuestUser' => __DIR__ . '/../..' . '/app/Auth/GuestUser.php',
+        'App\\Console\\Commands\\GeocodeClubs' => __DIR__ . '/../..' . '/app/Console/Commands/GeocodeClubs.php',
         'App\\Console\\Commands\\RecalculateRanking' => __DIR__ . '/../..' . '/app/Console/Commands/RecalculateRanking.php',
         'App\\Exceptions\\Handler' => __DIR__ . '/../..' . '/app/Exceptions/Handler.php',
         'App\\Filament\\Actions\\GlobalActionGroup' => __DIR__ . '/../..' . '/app/Filament/Actions/GlobalActionGroup.php',

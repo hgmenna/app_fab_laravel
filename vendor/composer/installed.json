@@ -5206,17 +5206,17 @@
         },
         {
             "name": "laravel/boost",
-            "version": "v1.8.10",
-            "version_normalized": "1.8.10.0",
+            "version": "v1.8.11",
+            "version_normalized": "1.8.11.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/boost.git",
-                "reference": "aad8b2a423b0a886c2ce7ee92abbfde69992ff32"
+                "reference": "485dd7c834bde865a8a174249fc6ffc56e79e63c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/boost/zipball/aad8b2a423b0a886c2ce7ee92abbfde69992ff32",
-                "reference": "aad8b2a423b0a886c2ce7ee92abbfde69992ff32",
+                "url": "https://api.github.com/repos/laravel/boost/zipball/485dd7c834bde865a8a174249fc6ffc56e79e63c",
+                "reference": "485dd7c834bde865a8a174249fc6ffc56e79e63c",
                 "shasum": ""
             },
             "require": {
@@ -5238,7 +5238,7 @@
                 "phpstan/phpstan": "^2.1.27",
                 "rector/rector": "^2.1"
             },
-            "time": "2026-01-14T14:51:16+00:00",
+            "time": "2026-02-20T07:28:22+00:00",
             "type": "library",
             "extra": {
                 "laravel": {
