@@ -88,6 +88,11 @@ class TournamentRegistrationResource extends Resource
 
         $registrations = $query->get();
         $totalGeneral = $registrations->count(); // Total de inscriptos
+        $tournamentType = $tournament->type->short_name;
+
+        if($tournamentType !== 'CAB' && $tournament->venue !== null) {
+            $logo = $tournament->venue->logo_path;
+        }
 
         // 2. Procesar datos y Ranking (basado en fuentes [4-6])
         $processed = $registrations->map(function ($reg) {
@@ -131,7 +136,7 @@ class TournamentRegistrationResource extends Resource
             'groups'   => $grouped,
             'totalGeneral' => $totalGeneral, // Pasamos el total de inscriptos
             'labelTotalGeneral' => 'Inscriptos',
-            'logo'     => public_path('images/logo.png'),
+            'logo'     => $logo ? $logo : public_path('images/logo.png'),
             'footer_image' => public_path('images/pie-pagina.png'),
         ])->setPaper('a4', 'portrait');
 
