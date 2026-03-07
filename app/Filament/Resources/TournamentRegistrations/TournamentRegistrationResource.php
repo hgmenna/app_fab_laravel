@@ -136,7 +136,7 @@ class TournamentRegistrationResource extends Resource
             'groups'   => $grouped,
             'totalGeneral' => $totalGeneral, // Pasamos el total de inscriptos
             'labelTotalGeneral' => 'Inscriptos',
-            'logo'     => $logo ? $logo : public_path('images/logo.png'),
+            'logo'     => public_path('images/logo.png'),
             'footer_image' => public_path('images/pie-pagina.png'),
         ])->setPaper('a4', 'portrait');
 
