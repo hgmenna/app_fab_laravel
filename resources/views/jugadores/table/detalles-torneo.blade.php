@@ -70,12 +70,14 @@
         color: #4b5563;
         text-transform: uppercase;
         border-bottom: 2px solid #e5e7eb;
+        text-align: center;
     }
 
     .data-table td {
         padding: 12px 16px;
         font-size: 14px;
         border-bottom: 1px solid #f3f4f6;
+        text-align: center;
     }
 
     .data-table tr:hover {
