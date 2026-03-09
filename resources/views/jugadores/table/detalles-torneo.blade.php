@@ -115,7 +115,8 @@
             <thead>
                 <tr>
                     <th>Torneo</th>
-                    <th>Fecha Fin</th>
+                    <th>Tipo></th>
+                    <th>Fecha</th>
                     <th class="text-right">Puntos</th>
                 </tr>
             </thead>
@@ -123,6 +124,7 @@
                 @forelse($registros as $registro)
                     <tr>
                         <td>{{ $registro->tournament->name ?? 'N/A' }}</td>
+                        <td>{{ $registro->tournament->type->code ?? 'N/A' }}
                         <td>{{ $registro->tournament->end_date->format('d/m/Y') }}</td>
                         <td class="text-right points-highlight">{{ $registro->points }}</td>
                     </tr>
