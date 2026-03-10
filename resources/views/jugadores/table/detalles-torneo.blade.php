@@ -117,7 +117,7 @@
             <thead>
                 <tr>
                     <th>Torneo</th>
-                    <th>Tipo></th>
+                    <th>Tipo</th>
                     <th>Fecha</th>
                     <th class="text-right">Puntos</th>
                 </tr>

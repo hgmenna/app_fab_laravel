@@ -43,8 +43,8 @@ class AdminPanelProvider extends PanelProvider
             ->emailVerification()
             ->registration()
             ->theme('app')
-            ->darkMode(true)
-            ->defaultThemeMode(ThemeMode::Dark)
+            ->topNavigation()
+            ->globalSerch(false)
             
             ->colors([
                 'primary' => Color::Amber,
