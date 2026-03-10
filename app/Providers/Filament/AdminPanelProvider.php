@@ -42,7 +42,8 @@ class AdminPanelProvider extends PanelProvider
             ->emailVerification()
             ->registration()
             ->theme('app')
-            ->globalSerch(false)
+            ->topNavigation()
+            ->globalSearch(false)
             
             ->colors([
                 'primary' => Color::Amber,
