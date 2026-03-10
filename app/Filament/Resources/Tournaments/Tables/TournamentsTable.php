@@ -24,12 +24,6 @@ class TournamentsTable
                     ->sortable()
                     ->alignCenter(),
 
-                TextColumn::make('discipline.short_name')
-                    ->label('Disciplina')
-                    ->searchable()
-                    ->sortable()
-                    ->alignCenter(),
-                    
                 TextColumn::make('type.code')
                     ->label('Tipo')
                     ->sortable()
