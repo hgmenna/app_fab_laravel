@@ -204,6 +204,22 @@ class TournamentRegistrationForm
                 ->disk('public_path') // <--- Indispensable para que sea accesible vía URL
                 ->visibility('public') // <--- Asegura permisos de lectura
                 ->directory('pagos')
+                ->getUploadedFileNameForStorageUsing(function ($file, $state, $livewire) {
+                    // 1. Torneo padre del PageRelationManager
+                    $tournament = $livewire->getOwnerRecord();
+                    $torneoSlug = str($tournament->name)->slug('_');
+
+                    // 2. Jugador seleccionado en el formulario
+                    $playerId = $livewire->data['player_id'] ?? null;
+                    $player = Player::find($playerId)?->full_name ?? 'jugador';
+                    $playerSlug = str($player)->slug('_');
+
+                    // 3. Extensión original
+                    $ext = $file->getClientOriginalExtension();
+
+                    // 4. Nombre final institucional
+                    return "{$torneoSlug}_{$playerSlug}.{$ext}";
+                })
                 // Usamos una función anónima para verificar la visibilidad dinámicamente
                 ->visible(function (Get $get, $livewire) use ($tournament) {
                     // Consistencia en la resolución del torneo
