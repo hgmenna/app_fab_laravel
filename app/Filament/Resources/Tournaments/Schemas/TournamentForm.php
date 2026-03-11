@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Club;
 use App\Models\Discipline;
 use App\Models\TournamentType;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Repeater;
@@ -113,10 +114,9 @@ class TournamentForm
                                 ->label('Cierre de Inscripcion')
                                 ->columnSpan(3),
         
-                        Select::make('categories')
+                        CheckboxList::make('categories')
                             ->label('Categorías habilitadas')
                             ->columnSpan(8)
-                            ->multiple()
                             ->options(Category::pluck('name', 'id'))
                             ->searchable()
                             ->required(),
