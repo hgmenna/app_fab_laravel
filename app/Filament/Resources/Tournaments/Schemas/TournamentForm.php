@@ -117,8 +117,8 @@ class TournamentForm
                         CheckboxList::make('categories')
                             ->label('Categorías habilitadas')
                             ->columnSpan(8)
+                            ->columns(3)
                             ->options(Category::pluck('name', 'id'))
-                            ->searchable()
                             ->required(),
         
                             
