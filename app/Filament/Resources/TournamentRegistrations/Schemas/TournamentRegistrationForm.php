@@ -14,6 +14,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class TournamentRegistrationForm
 {
@@ -204,21 +205,25 @@ class TournamentRegistrationForm
                 ->disk('public_path') // <--- Indispensable para que sea accesible vía URL
                 ->visibility('public') // <--- Asegura permisos de lectura
                 ->directory('pagos')
-                ->getUploadedFileNameForStorageUsing(function ($file, $state, $livewire) {
-                    // 1. Torneo padre del PageRelationManager
-                    $tournament = $livewire->getOwnerRecord();
-                    $torneoSlug = str($tournament->name)->slug('_');
 
-                    // 2. Jugador seleccionado en el formulario
-                    $playerId = $livewire->data['player_id'] ?? null;
-                    $player = Player::find($playerId)?->full_name ?? 'jugador';
-                    $playerSlug = str($player)->slug('_');
+                ->getUploadedFileNameForStorageUsing(function (Get $get, TemporaryUploadedFile $file, $livewire): string {
+                    // 1. Obtener el ID del jugador seleccionado
+                    $playerId = $get('player_id');
+                    $player = Player::find($playerId);
+                    
+                    // 2. Obtener el full_name del jugador (Lógica externa a las fuentes)
+                    $lastName = $player?->last_name ?? 'Apellido';
+                    $firstName = $player?->first_name ?? 'Nombre';
+                    
+                    // 3. Obtener el nombre del torneo (desde el registro actual o mediante $get)
+                    $tournamentName = $livewire->getOwnerRecord()->name;
+                    $extension = $file->getClientOriginalExtension();
 
-                    // 3. Extensión original
-                    $ext = $file->getClientOriginalExtension();
+                    $tournamentSlug = str($tournamentName)->slug();
+                    $playerSlug = str("{$lastName}_{$firstName}")->slug('_');
 
-                    // 4. Nombre final institucional
-                    return "{$torneoSlug}_{$playerSlug}.{$ext}";
+                    // 4. Concatenar y retornar el nombre con la extensión original
+                    return "{$tournamentSlug}-{$playerSlug}.{$extension}";
                 })
                 // Usamos una función anónima para verificar la visibilidad dinámicamente
                 ->visible(function (Get $get, $livewire) use ($tournament) {
