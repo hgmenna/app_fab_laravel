@@ -1,6 +1,6 @@
 
 <!-- Footer diseñado para Hernán Gabriel Menna -->
-<footer style="width: 100%; background-color: gray; border-top: 2px solid #e5e7eb; padding: 25px 0; margin-top: 20px; font-family: Arial, sans-serif;">
+<footer style="width: 100%; background-color: black; border-top: 2px solid #e5e7eb; padding: 25px 0; margin-top: 20px; font-family: Arial, sans-serif;">
     <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
         <tr>
             <!-- Columna Izquierda: Identidad -->
