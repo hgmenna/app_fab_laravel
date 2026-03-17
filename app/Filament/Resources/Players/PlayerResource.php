@@ -158,6 +158,7 @@ class PlayerResource extends Resource
 
                 foreach ($records as $record) {
                     try {
+                        /*
                         // 1. Validar membresía activa
                         $activeMembership = Membership::where('active', true)
                             ->where('year', now()->year)
@@ -195,6 +196,7 @@ class PlayerResource extends Resource
 
                         // 4. Aprobar pago
                         $payment->approve();
+                        */
 
                         // 5. Actualizar estado del jugador
                         $record->update(['is_enabled_to_compete' => true]);
