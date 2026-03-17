@@ -90,7 +90,7 @@ class PlayerForm
                             ->label('Habilitado')
                             ->inline(false)
                             ->columnSpan(1)
-                            ->disabled(fn () => Auth::user()->can('EditField')),
+                            ->disabled(fn () => !Auth::user()->can('EditField')),
                          FileUpload::make('photo_path')
                             ->label('Foto del jugador')
                             ->columnSpan(3)

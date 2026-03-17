@@ -150,81 +150,93 @@ class PlayerResource extends Resource
             ->requiresConfirmation()
             ->modalHeading('Confirmar Pago de Afiliacion')
             ->visible(fn () => $userAuth?->can('PayMembership') ?? false)
-            ->disabled(fn ($record) => $record->is_enabled_to_compete)
-            ->action(function ($records, $livewire) {
+            ->disabled(fn ($record) => $record?->is_enabled_to_compete)
+            ->action(fn ($records) => static::processPayMembership($records));
+    }
 
-                // Normalizar: si es recordAction, $records es un solo modelo
-                $records = is_iterable($records) ? $records : [$records];
+    public static function processPayMembership($records): void
+    {
+        // Normalizar: si es un solo registro, convertirlo en array
+        $records = is_iterable($records) ? $records : [$records];
 
-                foreach ($records as $record) {
-                    try {
-                        /*
-                        // 1. Validar membresía activa
-                        $activeMembership = Membership::where('active', true)
-                            ->where('year', now()->year)
-                            ->first();
+        foreach ($records as $record) {
+            try {
+                // 1) Buscar membresía activa del año actual
+                $activeMembership = Membership::where('active', true)
+                    ->where('year', now()->year)
+                    ->first();
 
-                        if (!$activeMembership) {
-                            Notification::make()
-                                ->title('Configuración faltante')
-                                ->body('No hay una membresía activa definida para este año.')
-                                ->warning()
-                                ->send();
-                            continue;
-                        }
-
-                        // 2. Crear o recuperar afiliación
-                        $playerMembership = $record->memberships()->firstOrCreate(
-                            ['membership_id' => $activeMembership->id],
-                            [
-                                'club_id' => $record->club_id,
-                                'amount_due' => $activeMembership->amount,
-                                'amount_paid' => 0,
-                                'status' => 'pending',
-                            ]
-                        );
-
-                        // 3. Registrar pago
-                        $payment = $playerMembership->payments()->create([
-                            'payer_type' => get_class($record),
-                            'payer_id' => $record->id,
-                            'amount' => $activeMembership->amount,
-                            'method' => 'manual',
-                            'status' => 'pending',
-                            'external_reference' => 'MANUAL-' . uniqid(),
-                        ]);
-
-                        // 4. Aprobar pago
-                        $payment->approve();
-                        */
-
-                        // 5. Actualizar estado del jugador
-                        $record->update(['is_enabled_to_compete' => true]);
-
-                        // 6. Notificación institucional
-                        AdminNotifier::send(
-                            pageInstance: null,
-                            record: $record,
-                            operation: 'habilitó para competir (Pago Membresía)',
-                            displayFields: ['last_name', 'first_name'],
-                            customResourceName: 'jugador'
-                        );
-
-                    } catch (\Throwable $e) {
-                        AdminNotifier::sendException($e);
-
-                        Notification::make()
-                            ->title('Error en el proceso')
-                            ->danger()
-                            ->send();
-                    }
+                if (!$activeMembership) {
+                    // Crear membresía activa automáticamente
+                    $activeMembership = Membership::create([
+                        'year' => now()->year,
+                        'discipline_id' => $record->discipline_id ?? 1, // Ajustar según tu lógica
+                        'amount' => 0, // O el monto institucional que corresponda
+                        'active' => true,
+                    ]);
                 }
 
+                // 2) Buscar membresía del jugador para el año actual
+                $playerMembership = $record->memberships()
+                    ->where('membership_id', $activeMembership->id)
+                    ->first();
+
+                // 3) Si ya existe y está aprobada → habilitar y continuar
+                if ($playerMembership && $playerMembership->status === 'approved') {
+                    $record->update(['is_enabled_to_compete' => true]);
+                    continue;
+                }
+
+                // 4) Si no existe → crearla
+                if (!$playerMembership) {
+                    $playerMembership = $record->memberships()->create([
+                        'membership_id' => $activeMembership->id,
+                        'club_id' => $record->club_id,
+                        'amount_due' => $activeMembership->amount,
+                        'amount_paid' => 0,
+                        'status' => 'pending',
+                    ]);
+                }
+
+                // 5) Registrar pago
+                $payment = $playerMembership->payments()->create([
+                    'payer_type' => 'player',
+                    'payer_id' => $record->id,
+                    'amount' => $activeMembership->amount,
+                    'method' => 'manual',
+                    'status' => 'pending',
+                    'external_reference' => 'MANUAL-' . uniqid(),
+                ]);
+
+                // 6) Aprobar pago
+                $payment->approve();
+
+                // 7) Habilitar jugador
+                $record->update(['is_enabled_to_compete' => true]);
+
+                // 8) Notificación institucional
+                AdminNotifier::send(
+                    pageInstance: null,
+                    record: $record,
+                    operation: 'habilitó para competir (Pago Membresía)',
+                    displayFields: ['last_name', 'first_name'],
+                    customResourceName: 'jugador'
+                );
+
+            } catch (\Throwable $e) {
+                AdminNotifier::sendException($e);
+
                 Notification::make()
-                    ->title('Proceso completado')
-                    ->success()
+                    ->title('Error en el proceso')
+                    ->danger()
                     ->send();
-            });
+            }
+        }
+
+        Notification::make()
+            ->title('Proceso completado')
+            ->success()
+            ->send();
     }
 
     // Accion Exportar registros filtrados en archivo Pdf

@@ -159,9 +159,7 @@ class PlayersTable
                     ->color('info')
                     ->requiresConfirmation()
                     ->visible(fn () => (Auth::user()?->can('PayMembership') ?? false))
-                    ->action(fn ($records, $livewire) =>
-                        PlayerResource::payMembershipAction()->call($records, $livewire)
-                ),
+                    ->action(fn ($records) => PlayerResource::processPayMembership($records)),
             ])
             ->headerActions([
                 PlayerResource::exportarPdf(),
