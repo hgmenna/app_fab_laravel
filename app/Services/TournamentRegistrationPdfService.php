@@ -16,8 +16,10 @@ class TournamentRegistrationPdfService
 
         $fileName = "{$tournament}-{$player}.pdf";
 
-        // Carpeta pública
-        $folder = public_path('inscripciones');
+        // Ruta pública REAL del hosting compartido
+        $publicRoot = base_path('../public_html');  // ← clave
+
+        $folder = "{$publicRoot}/inscripciones";
 
         if (!file_exists($folder)) {
             mkdir($folder, 0775, true);
