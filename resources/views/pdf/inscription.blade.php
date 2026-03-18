@@ -180,23 +180,28 @@
                 <div class="receipt-box">
 
                     @php
-                        $path = public_path($record->payment_file);
-                        $isPdf = str_ends_with($record->payment_file, '.pdf');
+                        // Ruta relativa guardada en la BD, por ejemplo: "pagos/archivo.jpg"
+                        $relative = $record->payment_file;
+
+                        // URL pública accesible desde el navegador
+                        $publicUrl = url($relative);
+
+                        // Ruta absoluta en el servidor (para verificar existencia)
+                        $absolutePath = public_path($relative);
+
+                        $isPdf = str_ends_with($relative, '.pdf');
                     @endphp
 
                     @if(!$isPdf)
-                        <p><strong>Comprobante de Pago:</strong></p>
-
-                        @if(file_exists($path))
-                            <img src="{{ $path }}" class="receipt-img">
+                        @if(file_exists($absolutePath))
+                            <img src="{{ $publicUrl }}" class="receipt-img">
                         @else
                             <p style="color: #991b1b;">No se encontró la imagen del comprobante.</p>
                         @endif
-
                     @else
                         <p style="margin: 0; font-size: 14px;">📄 <strong>Comprobante en PDF</strong></p>
                         <p class="pdf-link">
-                            Archivo: {{ basename($record->payment_file) }}
+                            Archivo: {{ basename($relative) }}
                         </p>
                     @endif
 
