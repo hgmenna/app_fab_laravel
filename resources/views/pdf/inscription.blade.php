@@ -186,7 +186,7 @@
                         // URL pública accesible desde el navegador
                         $publicUrl = url($relative);
 
-                        // Ruta absoluta en el servidor (para verificar existencia)
+                        // Ruta absoluta en el servidor (solo para verificar existencia)
                         $absolutePath = public_path($relative);
 
                         $isPdf = str_ends_with($relative, '.pdf');
