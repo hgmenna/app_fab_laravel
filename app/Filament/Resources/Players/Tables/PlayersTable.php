@@ -132,8 +132,8 @@ class PlayersTable
                 TernaryFilter::make('is_active')
                     ->label('Estado')
                     ->placeholder('Todos')
-                    ->trueLabel('Habilitados')
-                    ->falseLabel('Inhabilitados')
+                    ->trueLabel('Activos')
+                    ->falseLabel('Inactivos')
                     ->default(true),
                 TernaryFilter::make('is_enabled_to_compete')
                     ->label('Afiliado año actual')
