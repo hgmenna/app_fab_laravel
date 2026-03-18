@@ -253,6 +253,14 @@ class TournamentRegistrationsTable
                         })
                         ->visible(fn () => (Auth::user()?->can('UpdateStatusTournament') ?? false)
                     ),
+                    Action::make('pdf')
+                        ->label('PDF')
+                        ->icon('heroicon-o-document')
+                        ->color('primary')
+                        ->action(function ($record) {
+                            $url = \App\Services\TournamentRegistrationPdfService::generate($record);
+                            return redirect()->to($url);
+                    }),
                 ]),
             ]
         );

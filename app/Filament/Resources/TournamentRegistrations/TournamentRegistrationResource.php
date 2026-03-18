@@ -10,6 +10,7 @@ use App\Models\GeneralRanking;
 use App\Models\TournamentInstance;
 use App\Models\TournamentRegistration;
 use App\Services\RankingService;
+use App\Services\TournamentRegistrationPdfService;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
@@ -210,5 +211,15 @@ class TournamentRegistrationResource extends Resource
                 )
                 ->color('primary');
    }
+
+    public static function afterSave($record): void
+    {
+        $url = TournamentRegistrationPdfService::generate($record);
+        session()->flash('pdf_url', $url);
+    }
+
+
+
+
 
 }

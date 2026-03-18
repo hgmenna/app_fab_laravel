@@ -36,5 +36,10 @@ class CreateTournamentRegistration extends CreateRecord
         );
     }
 
+    public function getSavedNotificationRedirectUrl(): ?string
+    {
+        return session('pdf_url') ?? null;
+    }
+
 
 }

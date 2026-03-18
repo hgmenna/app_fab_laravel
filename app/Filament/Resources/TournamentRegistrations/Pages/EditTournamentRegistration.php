@@ -29,4 +29,9 @@ class EditTournamentRegistration extends EditRecord
         return $this->getResource()::getUrl('index');
     }
 
+    public function getSavedNotificationRedirectUrl(): ?string
+    {
+        return session('pdf_url') ?? null;
+    }
+
 }
