@@ -108,6 +108,11 @@ class PlayersTable
                             ->where('last_name', $record->last_name)
                             ->value('category') ?? '-';
                     }),
+                IconColumn::make('is_active')
+                    ->label('Activo')
+                    ->boolean()
+                    ->trueIcon(Heroicon::OutlinedCheckBadge)
+                    ->falseIcon(Heroicon::OutlinedXMark),
                 IconColumn::make('is_enabled_to_compete')
                     ->label('Habilitado')
                     ->boolean()
@@ -124,8 +129,14 @@ class PlayersTable
                     ->relationship('club.city.state.federation', 'short_name')
                     ->label('Federacion')
                     ->multiple(),
-                TernaryFilter::make('is_enabled_to_compete')
+                TernaryFilter::make('is_active')
                     ->label('Estado')
+                    ->placeholder('Todos')
+                    ->trueLabel('Habilitados')
+                    ->falseLabel('Inhabilitados')
+                    ->default(true),
+                TernaryFilter::make('is_enabled_to_compete')
+                    ->label('Afiliado año actual')
                     ->placeholder('Todos')
                     ->trueLabel('Habilitados')
                     ->falseLabel('Inhabilitados'),
