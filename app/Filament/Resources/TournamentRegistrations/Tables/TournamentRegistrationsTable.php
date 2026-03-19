@@ -139,6 +139,8 @@ class TournamentRegistrationsTable
                         // Si no hay torneo (vista general), no se permite crear sin elegir uno primero en el form
                         if (!$t) return false; 
 
+                        if (Auth::user()->name === 'super-admin') return true;
+
                         // 2. Validamos si las inscripciones están abiertas [104 de tu error]
                         $now = now();
                         $isOpen = ($t->registration_open_at <= $now && $t->registration_close_at >= $now);
