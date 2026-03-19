@@ -133,13 +133,14 @@ class TournamentRegistrationsTable
                     ->modal()
                     ->modalHeading('Nueva Inscripción')
                     ->disabled(function ($livewire) use ($tournament) {
+
+                        if (Auth::user()->name === 'super-admin') return false;
+                        
                         // 1. Resolvemos el torneo de forma dinámica [1, 2]
                         $t = $tournament ?? (method_exists($livewire, 'getOwnerRecord') ? $livewire->getOwnerRecord() : null);
                         
                         // Si no hay torneo (vista general), no se permite crear sin elegir uno primero en el form
                         if (!$t) return false; 
-
-                        if (Auth::user()->name === 'super-admin') return true;
 
                         // 2. Validamos si las inscripciones están abiertas [104 de tu error]
                         $now = now();
