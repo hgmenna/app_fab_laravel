@@ -170,7 +170,8 @@ class TournamentRegistrationResource extends Resource
                         $record?->tournament?->start_date < now()
                     )
                     ->disabled(fn (TournamentRegistration $record) => 
-                        $record->tournament?->start_date > now()
+                        ($record->tournament?->start_date > now()) &&
+                        (Auth::user()->name !== 'super-admin')
                     )
                     ->modalHeading('Asignar Posicion y calcular puntos')
                     ->form([
