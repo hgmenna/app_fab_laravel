@@ -134,7 +134,8 @@ class TournamentRegistrationsTable
                     ->modalHeading('Nueva Inscripción')
                     ->disabled(function ($livewire) use ($tournament) {
 
-                        if (Auth::user()->name === 'super-admin') return false;
+                        $user = Auth::user();
+                        if ($user?->name === 'super-admin') return false;
                         
                         // 1. Resolvemos el torneo de forma dinámica [1, 2]
                         $t = $tournament ?? (method_exists($livewire, 'getOwnerRecord') ? $livewire->getOwnerRecord() : null);
