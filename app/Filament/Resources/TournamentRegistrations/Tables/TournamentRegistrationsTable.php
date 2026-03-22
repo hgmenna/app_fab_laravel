@@ -181,8 +181,9 @@ class TournamentRegistrationsTable
                             $slotId = str_replace('slot_', '', $activeTab);
                         }
 
-                        $statusFilter = $livewire->filters['status']['value'] ?? null;
+                        $filters = $livewire->getTableFilters();
 
+                        $statusFilter = $filters['status']['value'] ?? null;
 
                         // Pasar el slotId al método de exportación
                         return TournamentRegistrationResource::exportRegistrationsToPdf($tournament, $slotId, $statusFilter);
