@@ -238,6 +238,9 @@ class TournamentRegistrationForm
                 })
                 ->required(function(Get $get) use ($tournament) {
                     $t = $tournament ?? Tournament::find($get('tournament_id'));
+
+                    $userAuth = Auth::user();
+                    if ($userAuth?->name === 'super-admin') return false;
                     
                     if(!$t || !$t->is_payment_enabled) {
                         return false;
