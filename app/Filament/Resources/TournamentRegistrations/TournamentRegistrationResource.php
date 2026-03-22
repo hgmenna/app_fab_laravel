@@ -73,7 +73,7 @@ class TournamentRegistrationResource extends Resource
             ]);
     }
 
-    public static function exportRegistrationsToPdf($tournament, $slotId = null)
+    public static function exportRegistrationsToPdf($tournament, $slotId = null, $status = null)
     {
         ini_set('memory_limit', '512M');
         set_time_limit(300);
@@ -83,8 +83,14 @@ class TournamentRegistrationResource extends Resource
         $query = $tournament->registrations()
             ->with(['player.club', 'slot']);
 
+        // Aplicar filtro por horario si esta seleccionado
         if ($slotId) {
             $query->where('tournament_slot_id', $slotId);
+        }
+
+        // Aplicar filtro de status si esta activo
+        if ($status) {
+            $query->where('status', $status);
         }
 
         $registrations = $query->get();

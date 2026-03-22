@@ -9,6 +9,7 @@ use App\Filament\Actions\GlobalViewAction;
 use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
 use App\Mail\TournamentRegistrationNotification;
 use App\Models\GeneralRanking;
+use App\Models\TournamentRegistration;
 use App\Services\AdminNotifier;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
@@ -118,7 +119,7 @@ class TournamentRegistrationsTable
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options(function () {
-                        return \App\Models\TournamentRegistration::query()
+                        return TournamentRegistration::query()
                             ->distinct()
                             ->whereNotNull('status')
                             ->pluck('status', 'status')
@@ -180,8 +181,11 @@ class TournamentRegistrationsTable
                             $slotId = str_replace('slot_', '', $activeTab);
                         }
 
+                        $statusFilter = $livewire->filters['status']['value'] ?? null;
+
+
                         // Pasar el slotId al método de exportación
-                        return TournamentRegistrationResource::exportRegistrationsToPdf($tournament, $slotId);
+                        return TournamentRegistrationResource::exportRegistrationsToPdf($tournament, $slotId, $statusFilter);
                     }
                 ),                                                                                                                                                 
             ])
