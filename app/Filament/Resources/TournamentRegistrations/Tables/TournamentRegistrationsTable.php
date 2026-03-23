@@ -31,13 +31,8 @@ class TournamentRegistrationsTable
     public static function configure(Table $table, $tournament): Table
     {
         return $table
-            ->modifyQueryUsing(function ($query) {
-                return $query
-                    ->join('players', 'players.id', '=', 'tournament_registrations.player_id')
-                    ->orderBy('player.last_name', 'asc')
-                    ->orderBy('player.first_name', 'asc')
-                    ->select('tournament_registrations.*'); // 🔥 importante
-            })
+            ->defaultSort('player.last_name', 'asc')
+            ->defaultSort('player.first_name', 'asc')
             ->columns([
                  TextColumn::make('player.last_name')
                     ->label('Apellido')
