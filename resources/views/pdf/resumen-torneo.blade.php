@@ -141,14 +141,14 @@
     </h2>
 
     <p style="text-align: center; color: #555; margin-top: 0;">
-        Resumen de inscriptos
+        Resumen de Participantes
     </p>
 
     {{-- TABLA DE RESUMEN --}}
     <table class="report-table">
         <thead>
             <tr>
-                <th>Federacion</th>
+                <th>FEDERACION</th>
 
                 @foreach ($categorias as $cat)
                     <th>{{ $cat->name }}</th>
