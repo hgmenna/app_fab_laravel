@@ -32,7 +32,6 @@ class TournamentRegistrationsTable
     {
         return $table
             ->defaultSort('player.last_name', 'asc')
-            ->defaultSort('player.first_name', 'asc')
             ->columns([
                  TextColumn::make('player.last_name')
                     ->label('Apellido')
