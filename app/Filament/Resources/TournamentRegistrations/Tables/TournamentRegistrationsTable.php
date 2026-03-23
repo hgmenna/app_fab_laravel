@@ -8,6 +8,7 @@ use App\Filament\Actions\GlobalEditAction;
 use App\Filament\Actions\GlobalViewAction;
 use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
 use App\Mail\TournamentRegistrationNotification;
+use App\Models\Category;
 use App\Models\GeneralRanking;
 use App\Models\TournamentRegistration;
 use App\Services\AdminNotifier;
@@ -106,6 +107,19 @@ class TournamentRegistrationsTable
 
             ])
             ->filters([
+                SelectFilter::make('category')
+                    ->label('Categoria')
+                    ->options(
+                        Category::orderBy('name')
+                            ->pluck('name', 'id')
+                            ->toArray()
+                    )
+                    ->query(function ($query, $value) {
+                        $query->whereHas('player.category', function ($q) use ($value) {
+                            $q->where('id', $value);
+                        });
+                    })
+                    ->searchable(),
                 SelectFilter::make('tournament_slot_id')
                     ->label('Horario')
                     ->multiple()
