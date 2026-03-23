@@ -115,7 +115,7 @@ class TournamentRegistrationsTable
                             ->toArray()
                     )
                     ->query(function ($query, $value) {
-                        $query->whereHas('player.category', function ($q) use ($value) {
+                        $query->where('player.category', function ($q) use ($value) {
                             $q->where('id', $value);
                         });
                     })
