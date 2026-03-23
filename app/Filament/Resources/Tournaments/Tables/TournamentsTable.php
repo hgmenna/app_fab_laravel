@@ -61,6 +61,7 @@ class TournamentsTable
                     GlobalEditAction::make(),
                     GlobalDeleteAction::make(),
                     TournamentResource::inscriptionsAction(),
+                    TournamentResource::resumenAction(),
                 ]),
             ])
             ->filters([

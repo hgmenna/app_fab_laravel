@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Tournaments;
 
+use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
 use App\Filament\Resources\Tournaments\Pages\CreateTournament;
 use App\Filament\Resources\Tournaments\Pages\EditTournament;
 use App\Filament\Resources\Tournaments\Pages\ListTournaments;
@@ -9,15 +10,15 @@ use App\Filament\Resources\Tournaments\Schemas\TournamentForm;
 use App\Filament\Resources\Tournaments\Tables\TournamentsTable;
 use App\Models\Tournament;
 use BackedEnum;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
+use Filament\Pages\Enums\SubNavigationPosition;
+use Filament\Pages\Page;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use UnitEnum;
-use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
-use Filament\Actions\Action;
-use Filament\Pages\Page;
-use Filament\Pages\Enums\SubNavigationPosition;
 
 class TournamentResource extends Resource
 {
@@ -86,5 +87,70 @@ class TournamentResource extends Resource
                 ->url(fn (Tournament $record): string => TournamentResource::getUrl('registrations', ['record' => $record])
             );
     }
+
+    public static function resumenAction(): Action
+    {
+        return Action::make('resumenTorneo')
+            ->label('Resumen')
+            ->icon('heroicon-o-chart-bar')
+            ->color('success')
+            ->requiresConfirmation()
+            ->action(function (Tournament $record) {
+
+                // Obtener categorías habilitadas en el torneo
+                $categorias = \App\Models\Category::whereIn('id', $record->categories)->get();
+
+                // Obtener inscripciones con relaciones necesarias
+                $inscripciones = $record->registrations()
+                    ->with(['player.category', 'player.club.city.state'])
+                    ->get();
+
+                // Agrupar por provincia
+                $porProvincia = $inscripciones->groupBy(function ($reg) {
+                    return $reg->player->club->city->state->name ?? 'SIN PROVINCIA';
+                });
+
+                // Construir matriz: provincia → categoría → cantidad
+                $tabla = [];
+
+                foreach ($porProvincia as $provincia => $regs) {
+                    $fila = [];
+
+                    foreach ($categorias as $cat) {
+                        $fila[$cat->name] = $regs->filter(function ($r) use ($cat) {
+                            return $r->player->category_id == $cat->id;
+                        })->count();
+                    }
+
+                    $fila['total'] = array_sum($fila);
+                    $tabla[$provincia] = $fila;
+                }
+
+                // Totales por categoría
+                $totales = [];
+                foreach ($categorias as $cat) {
+                    $totales[$cat->name] = $inscripciones->filter(function ($r) use ($cat) {
+                        return $r->player->category_id == $cat->id;
+                    })->count();
+                }
+                $totales['total'] = array_sum($totales);
+
+                // Render PDF
+                $pdf = Pdf::loadView('pdf.resumen-torneo', [
+                    'tournament' => $record,
+                    'categorias' => $categorias,
+                    'tabla' => $tabla,
+                    'totales' => $totales,
+                    'fecha' => now()->format('d/m/Y'),
+                ])->setPaper('a4', 'landscape');
+
+                return response()->streamDownload(
+                    fn () => print($pdf->output()),
+                    "Resumen-{$record->name}.pdf"
+                );
+            });
+    }
+
+
 
 }
