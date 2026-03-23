@@ -68,6 +68,7 @@ class TournamentRegistrationsTable
                 // Columna para el Ranking General (RG)
                 TextColumn::make('ranking_rg')
                     ->label('RG')
+                    ->sortable()
                     ->alignCenter()
                     ->getStateUsing(function ($record) {
                         return GeneralRanking::where('first_name', $record->player?->first_name)
