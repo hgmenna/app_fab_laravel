@@ -115,10 +115,15 @@ class TournamentRegistrationsTable
                             ->toArray()
                     )
                     ->query(function ($query, $value) {
-                        $query->where('player.category', function ($q) use ($value) {
+                        if (!$value) {
+                            return; // 🔥 evita 500 cuando no hay filtro
+                        }
+
+                        $query->whereHas('player.category', function ($q) use ($value) {
                             $q->where('id', $value);
                         });
                     })
+
                     ->searchable(),
                 SelectFilter::make('tournament_slot_id')
                     ->label('Horario')
