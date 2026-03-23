@@ -104,7 +104,8 @@ class TournamentResource extends Resource
 
                 // Obtener inscripciones con relaciones necesarias
                 $inscripciones = $record->registrations()
-                    ->with(['player.category', 'player.club.city.state'])
+                    ->where('status', 'aprobado')
+                    ->with(['player.category', 'player.club.city.state.federation'])
                     ->get();
 
                 // Agrupar por federacion
