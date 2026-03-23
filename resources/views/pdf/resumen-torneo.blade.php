@@ -63,7 +63,7 @@
             text-align: center;
         }
 
-        .province {
+        .federation {
             text-align: left;
             font-weight: bold;
         }
@@ -141,14 +141,14 @@
     </h2>
 
     <p style="text-align: center; color: #555; margin-top: 0;">
-        Resumen de inscriptos por provincia
+        Resumen de inscriptos
     </p>
 
     {{-- TABLA DE RESUMEN --}}
     <table class="report-table">
         <thead>
             <tr>
-                <th>Provincia</th>
+                <th>Federacion</th>
 
                 @foreach ($categorias as $cat)
                     <th>{{ $cat->name }}</th>
@@ -159,9 +159,9 @@
         </thead>
 
         <tbody>
-            @foreach ($tabla as $provincia => $fila)
+            @foreach ($tabla as $fed => $fila)
                 <tr>
-                    <td class="province">{{ $provincia }}</td>
+                    <td class="federation">{{ $fed }}</td>
 
                     @foreach ($categorias as $cat)
                         <td>{{ $fila[$cat->name] }}</td>

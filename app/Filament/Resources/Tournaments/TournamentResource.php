@@ -98,22 +98,24 @@ class TournamentResource extends Resource
             ->action(function (Tournament $record) {
 
                 // Obtener categorías habilitadas en el torneo
-                $categorias = \App\Models\Category::whereIn('id', $record->categories)->get();
+                $categorias = \App\Models\Category::whereIn('id', $record->categories)
+                    ->whereNotIn('name', ['MASTER', '1ra NACIONAL'])
+                    ->get();
 
                 // Obtener inscripciones con relaciones necesarias
                 $inscripciones = $record->registrations()
                     ->with(['player.category', 'player.club.city.state'])
                     ->get();
 
-                // Agrupar por provincia
-                $porProvincia = $inscripciones->groupBy(function ($reg) {
-                    return $reg->player->club->city->state->name ?? 'SIN PROVINCIA';
+                // Agrupar por federacion
+                $porFederacion = $inscripciones->groupBy(function ($reg) {
+                    return $reg->player->club->city->state->federation->short_name ?? 'SIN FEDERACIÓN';
                 });
 
                 // Construir matriz: provincia → categoría → cantidad
                 $tabla = [];
 
-                foreach ($porProvincia as $provincia => $regs) {
+                foreach ($porFederacion as $fed => $regs) {
                     $fila = [];
 
                     foreach ($categorias as $cat) {
@@ -123,7 +125,7 @@ class TournamentResource extends Resource
                     }
 
                     $fila['total'] = array_sum($fila);
-                    $tabla[$provincia] = $fila;
+                    $tabla[$fed] = $fila;
                 }
 
                 // Totales por categoría
