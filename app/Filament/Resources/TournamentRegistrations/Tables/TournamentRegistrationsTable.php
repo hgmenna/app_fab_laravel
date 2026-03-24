@@ -18,6 +18,7 @@ use Filament\Forms\Components\Select;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
@@ -146,17 +147,12 @@ class TournamentRegistrationsTable
                             ->map(fn ($state) => ucfirst($state)) // Capitaliza la primera letra para la vista
                             ->toArray();
                 }),
-                TernaryFilter::make('puntos')
-                    ->label('Puntos asignados')
-                    ->trueLabel('Sin puntos')
-                    ->falseLabel('Con puntos')
-                    ->nullable()
-                    ->queries(
-                        true: fn ($query) =>
-                            $query->whereHas('tournamentInstance', fn ($q) => $q->whereNull('description')),
-                        false: fn ($query) =>
-                            $query->whereHas('tournamentInstance', fn ($q) => $q->whereNotNull('description')),
-                        blank: fn ($query) => $query,
+                Filter::make('posicion_sin_asignar')
+                    ->label('Sin posición asignada')
+                    ->query(fn ($query) =>
+                        $query->whereHas('tournamentInstance', fn ($q) =>
+                            $q->whereNull('description')
+                        )
                     ),
             ])
             ->headerActions([
