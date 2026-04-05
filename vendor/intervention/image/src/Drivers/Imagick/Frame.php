@@ -1,0 +1,183 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Intervention\Image\Drivers\Imagick;
+
+use Imagick;
+use ImagickPixel;
+use Intervention\Image\Drivers\AbstractFrame;
+use Intervention\Image\Exceptions\InvalidArgumentException;
+use Intervention\Image\Image;
+use Intervention\Image\Interfaces\DriverInterface;
+use Intervention\Image\Interfaces\FrameInterface;
+use Intervention\Image\Interfaces\ImageInterface;
+use Intervention\Image\Interfaces\SizeInterface;
+use Intervention\Image\Size;
+
+class Frame extends AbstractFrame implements FrameInterface
+{
+    /**
+     * Create new frame.
+     */
+    public function __construct(protected Imagick $native)
+    {
+        $background = new ImagickPixel('rgba(255, 255, 255, 0)');
+        $this->native->setImageBackgroundColor($background);
+        $this->native->setBackgroundColor($background);
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::toImage()
+     */
+    public function toImage(DriverInterface $driver): ImageInterface
+    {
+        return new Image($driver, new Core($this->native()));
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::setNative()
+     */
+    public function setNative(mixed $native): FrameInterface
+    {
+        $this->native = $native;
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::native()
+     */
+    public function native(): Imagick
+    {
+        return $this->native;
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::size()
+     *
+     * @throws InvalidArgumentException
+     */
+    public function size(): SizeInterface
+    {
+        return new Size(
+            $this->native->getImageWidth(),
+            $this->native->getImageHeight()
+        );
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::delay()
+     */
+    public function delay(): float
+    {
+        return $this->native->getImageDelay() / 100;
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::setDelay()
+     */
+    public function setDelay(float $delay): FrameInterface
+    {
+        $this->native->setImageDelay(intval(round($delay * 100)));
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::disposalMethod()
+     */
+    public function disposalMethod(): int
+    {
+        return $this->native->getImageDispose();
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::setDisposalMethod()
+     *
+     * @throws InvalidArgumentException
+     */
+    public function setDisposalMethod(int $method): FrameInterface
+    {
+        if (!in_array($method, [0, 1, 2, 3])) {
+            throw new InvalidArgumentException('Value for argument disposal method "$method" must be 0, 1, 2 or 3');
+        }
+
+        $this->native->setImageDispose($method);
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::setOffset()
+     */
+    public function setOffset(int $left, int $top): FrameInterface
+    {
+        $this->native->setImagePage(
+            $this->native->getImageWidth(),
+            $this->native->getImageHeight(),
+            $left,
+            $top
+        );
+
+        return $this;
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::offsetLeft()
+     */
+    public function offsetLeft(): int
+    {
+        return $this->native->getImagePage()['x'];
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::setOffsetLeft()
+     */
+    public function setOffsetLeft(int $offset): FrameInterface
+    {
+        return $this->setOffset($offset, $this->offsetTop());
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::offsetTop()
+     */
+    public function offsetTop(): int
+    {
+        return $this->native->getImagePage()['y'];
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see DriverInterface::setOffsetTop()
+     */
+    public function setOffsetTop(int $offset): FrameInterface
+    {
+        return $this->setOffset($this->offsetLeft(), $offset);
+    }
+}
