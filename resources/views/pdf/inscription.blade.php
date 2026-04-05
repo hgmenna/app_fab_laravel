@@ -195,7 +195,7 @@
 
                     @if(!$isPdf)
                         @if(file_exists($absolutePath))
-                            <img src="{{ $absolutePath }}" class="receipt-img">
+                            <img src="file://{{ $absolutePath }}" class="receipt-img">
                         @else
                             <p style="color: #991b1b;">No se encontró la imagen del comprobante.</p>
                         @endif
