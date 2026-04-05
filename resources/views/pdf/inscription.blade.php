@@ -187,11 +187,8 @@
                         $publicUrl = url($relative);
 
                         // Ruta absoluta en el servidor (solo para verificar existencia)
-                        $absolutePath = base_path('../public_html/' . $relative);
-                        dd(base_path('../public_html'));
-
-
-
+                         $absolutePath = '/srv1782-files.hstgr.io/63df16ae6caa20d7/files/public_html/' . $relative;
+                         
                         // Detectar si es PDF
                         $isPdf = str_ends_with($relative, '.pdf');
                     @endphp
