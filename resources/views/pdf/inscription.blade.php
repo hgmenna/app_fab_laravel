@@ -187,9 +187,7 @@
                         $publicUrl = url($relative);
 
                         // Ruta absoluta en el servidor (solo para verificar existencia)
-                        $absolutePath = public_path($relative);
-
-                       
+                        $absolutePath = base_path('../public_html/' . $relative);
 
                         // Detectar si es PDF
                         $isPdf = str_ends_with($relative, '.pdf');
