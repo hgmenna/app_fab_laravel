@@ -17,7 +17,7 @@ class TournamentRegistrationPdfService
         $fileName = "{$tournament}-{$player}.pdf";
 
         // Ruta pública REAL del hosting compartido
-        $publicRoot = base_path('../public_html');  // ← clave
+        $publicRoot = '/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html';  // ← clave
 
         $folder = "{$publicRoot}/inscripciones";
 
