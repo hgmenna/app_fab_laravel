@@ -187,8 +187,8 @@
                         $publicUrl = url($relative);
 
                         // Ruta absoluta en el servidor (solo para verificar existencia)
-                         $absolutePath = '/srv1782-files.hstgr.io/63df16ae6caa20d7/files/public_html/' . $relative;
-                         
+                         $absolutePath = '/domains/sistem.federacionargentinadebillar.org/public_html/' . $relative;
+
                         // Detectar si es PDF
                         $isPdf = str_ends_with($relative, '.pdf');
                     @endphp
