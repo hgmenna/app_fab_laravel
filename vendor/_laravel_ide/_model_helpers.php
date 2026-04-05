@@ -3709,7 +3709,7 @@ namespace App\Models {
      * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\TournamentSlot> $slots
      * @property-read int|null $slots_count
      * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\TournamentCategoryPrice> $categoryPrices
-     * @property-read int|null $categoryPrices_count
+     * @property-read int|null $category_prices_count
      * @property-read \App\Models\Club $venue
      * @property-read \App\Models\Player $player
      * @method static \Illuminate\Database\Eloquent\Builder<Tournament>|Tournament whereId($value)
@@ -4709,7 +4709,7 @@ namespace App\Models {
      * @property int $id
      * @property-read \App\Models\Discipline $discipline
      * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\PlayerMembership> $playerMemberships
-     * @property-read int|null $playerMemberships_count
+     * @property-read int|null $player_memberships_count
      * @method static \Illuminate\Database\Eloquent\Builder<Membership>|Membership whereId($value)
      * @method static \Illuminate\Database\Eloquent\Builder<Membership>|Membership whereYear($value)
      * @method static \Illuminate\Database\Eloquent\Builder<Membership>|Membership whereDisciplineId($value)
