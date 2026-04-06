@@ -92,11 +92,19 @@
         }
 
         .footer {
-            width: 100%;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
             text-align: center;
-            margin-top: 40px;
-            page-break-inside: avoid;
+            width: 100%;
         }
+
+        .footer img {
+            width: 70%;
+            height: auto;
+        }
+
     </style>
 </head>
 
@@ -205,7 +213,7 @@
 
     @if(file_exists($footerPath))
         <div class="footer">
-            <img src="file://{{ $footerPath }}" style="width: 70%; height: auto;">
+            <img src="file://{{ $footerPath }}">
         </div>
     @endif
 
