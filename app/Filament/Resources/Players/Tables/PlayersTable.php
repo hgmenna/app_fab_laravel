@@ -111,7 +111,6 @@ class PlayersTable
                     }),
                 ToggleColumn::make('is_active')
                     ->label('Activo')
-                    ->boolean()
                     ->disabled(fn () => ! Auth::user()?->hasPermissionTo('EditField')),
                 IconColumn::make('is_enabled_to_compete')
                     ->label('Habilitado')
