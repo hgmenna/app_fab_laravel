@@ -151,9 +151,14 @@
                             {{ $record->player->last_name }}, {{ $record->player->first_name }}
                         </div>
 
+                        <div class="label">Club</div>
+                        <div class="value">
+                            {{ $record->player->club->name }}
+                        </div>
+
                         <div class="label">Club / Categoría</div>
                         <div class="value">
-                            {{ $record->player->club->name }} - {{ $record->player->category->name }}
+                            {{ $record->player->category->name }}
                         </div>
 
                         <div class="label">Horario</div>
