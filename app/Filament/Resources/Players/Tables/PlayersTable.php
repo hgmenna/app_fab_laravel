@@ -170,6 +170,26 @@ class PlayersTable
                     ->requiresConfirmation()
                     ->visible(fn () => (Auth::user()?->can('PayMembership') ?? false))
                     ->action(fn ($records) => PlayerResource::processPayMembership($records)),
+
+                BulkAction::make('desactivar')
+                    ->label('Desactivar seleccionados')
+                    ->icon('heroicon-o-x-mark')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->visible(fn () => auth()->user()?->hasPermissionTo('EditField'))
+                    ->action(function (Collection $records) {
+                        $records->each->update(['is_active' => false]);
+                    }),
+
+                BulkAction::make('activar')
+                    ->label('Activar seleccionados')
+                    ->icon('heroicon-o-check')
+                    ->requiresConfirmation()
+                    ->visible(fn () => auth()->user()?->hasPermissionTo('EditField'))
+                    ->action(function (Collection $records) {
+                        $records->each->update(['is_active' => true]);
+                    }),
+
             ])
             ->headerActions([
                 PlayerResource::exportarPdf(),
