@@ -10,15 +10,12 @@ class TournamentRegistrationPdfService
 {
     public static function generate(TournamentRegistration $record): string
     {
-        // Normalizar nombres
         $tournament = Str::slug($record->tournament->name);
         $player = Str::slug($record->player->last_name . '-' . $record->player->first_name);
 
         $fileName = "{$tournament}-{$player}.pdf";
 
-        // Ruta pública REAL del hosting compartido
-        $publicRoot = '/home/u812683595/domains/sistem.federacionadebillar.org/public_html';
-
+        $publicRoot = '/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html';
         $folder = "{$publicRoot}/inscripciones";
 
         if (!file_exists($folder)) {
@@ -27,17 +24,15 @@ class TournamentRegistrationPdfService
 
         $fullPath = "{$folder}/{$fileName}";
 
-        // Generar PDF desde la vista Blade
         $pdf = Pdf::loadView('pdf.inscription', [
             'record' => $record,
         ]);
 
-        // Guardar archivo
         $pdf->save($fullPath);
 
-        // URL pública accesible
         return url("inscripciones/{$fileName}");
     }
 }
+
 
 
