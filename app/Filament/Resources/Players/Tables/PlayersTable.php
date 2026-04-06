@@ -13,6 +13,7 @@ use Filament\Actions\BulkAction;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
@@ -108,11 +109,10 @@ class PlayersTable
                             ->where('last_name', $record->last_name)
                             ->value('category') ?? '-';
                     }),
-                IconColumn::make('is_active')
+                ToggleColumn::make('is_active')
                     ->label('Activo')
                     ->boolean()
-                    ->trueIcon(Heroicon::OutlinedCheckBadge)
-                    ->falseIcon(Heroicon::OutlinedXMark),
+                    ->disabled(fn () => !Auth::user()?->can('edit_field')),
                 IconColumn::make('is_enabled_to_compete')
                     ->label('Habilitado')
                     ->boolean()
