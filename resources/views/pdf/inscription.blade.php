@@ -8,13 +8,14 @@
         body {
             font-family: DejaVu Sans, sans-serif;
             color: #333;
-            line-height: 1.4;
-            font-size: 14px;
+            line-height: 1.3;
+            font-size: 13px;
+            margin: 20px;
         }
 
         .header-table {
             width: 100%;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             page-break-inside: avoid;
         }
 
@@ -23,7 +24,7 @@
         }
 
         .logo {
-            width: 70px;
+            width: 65px;
         }
 
         .title {
@@ -34,53 +35,59 @@
 
         .date {
             text-align: right;
-            font-size: 13px;
+            font-size: 12px;
             color: #555;
         }
 
         .container {
             width: 100%;
-            max-width: 650px;
-            margin: 0 auto;
             border: 1px solid #e2e8f0;
-            border-radius: 6px;
             padding: 0;
+            border-radius: 4px;
+            page-break-inside: avoid;
         }
 
         .header {
             background-color: #1e293b;
             color: white;
-            padding: 20px;
+            padding: 12px;
             text-align: center;
         }
 
         .content {
-            padding: 25px;
+            padding: 15px;
         }
 
-        .field-group {
-            margin-bottom: 12px;
-            padding-bottom: 6px;
-            border-bottom: 1px dotted #cbd5e1;
+        /* NUEVO: 2 COLUMNAS */
+        .row {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 10px;
+        }
+
+        .col {
+            width: 48%;
         }
 
         .label {
             font-weight: bold;
             color: #64748b;
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
         }
 
         .value {
-            font-size: 15px;
+            font-size: 14px;
             color: #1e293b;
+            margin-bottom: 6px;
         }
 
         .status-badge {
             display: inline-block;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 10px;
             font-weight: bold;
         }
 
@@ -89,27 +96,25 @@
         .rechazado { background-color: #fee2e2; color: #991b1b; }
 
         .receipt-box {
-            margin-top: 20px;
+            margin-top: 10px;
             text-align: center;
             border: 1px solid #e2e8f0;
-            padding: 10px;
-            border-radius: 0;
+            padding: 8px;
+            border-radius: 4px;
             page-break-inside: avoid;
         }
 
         .receipt-img {
-            max-width: 220px;
-            height: auto;
-            border-radius: 0;
-            margin-top: 10px;
+            max-width: 180px;
+            max-height: 240px;
             display: block;
-            page-break-inside: avoid;
+            margin: 8px auto;
         }
 
         .footer {
             width: 100%;
             text-align: center;
-            margin-top: 30px;
+            margin-top: 12px;
             page-break-inside: avoid;
         }
     </style>
@@ -117,7 +122,7 @@
 
 <body>
 
-    {{-- ENCABEZADO INSTITUCIONAL --}}
+    {{-- ENCABEZADO --}}
     @php
         $logoPath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/images/logo.png";
     @endphp
@@ -143,41 +148,45 @@
     <div class="container">
 
         <div class="header">
-            <h2 style="margin: 0; padding: 0;">Comprobante de Inscripción</h2>
-            <p style="margin: 5px 0 0 0; font-size: 15px;">
+            <h2 style="margin: 0;">Comprobante de Inscripción</h2>
+            <p style="margin: 4px 0 0 0; font-size: 14px;">
                 {{ $record->tournament->name }}
             </p>
         </div>
 
         <div class="content">
 
-            <div class="field-group">
-                <div class="label">Estado de Inscripción</div>
-                <div class="value">
-                    <span class="status-badge {{ $record->status }}">
-                        {{ strtoupper($record->status) }}
-                    </span>
+            {{-- FILA 1 --}}
+            <div class="row">
+                <div class="col">
+                    <div class="label">Estado</div>
+                    <div class="value">
+                        <span class="status-badge {{ $record->status }}">
+                            {{ strtoupper($record->status) }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <div class="label">Horario</div>
+                    <div class="value">{{ $record->slot->name }}</div>
                 </div>
             </div>
 
-            <div class="field-group">
-                <div class="label">Jugador</div>
-                <div class="value">
-                    {{ $record->player->last_name }}, {{ $record->player->first_name }}
+            {{-- FILA 2 --}}
+            <div class="row">
+                <div class="col">
+                    <div class="label">Jugador</div>
+                    <div class="value">
+                        {{ $record->player->last_name }}, {{ $record->player->first_name }}
+                    </div>
                 </div>
-            </div>
 
-            <div class="field-group">
-                <div class="label">Club / Categoría</div>
-                <div class="value">
-                    {{ $record->player->club->name }} - {{ $record->player->category->name }}
-                </div>
-            </div>
-
-            <div class="field-group">
-                <div class="label">Horario Seleccionado</div>
-                <div class="value">
-                    {{ $record->slot->name }}
+                <div class="col">
+                    <div class="label">Club / Categoría</div>
+                    <div class="value">
+                        {{ $record->player->club->name }} - {{ $record->player->category->name }}
+                    </div>
                 </div>
             </div>
 
@@ -208,7 +217,7 @@
         </div>
     </div>
 
-    {{-- PIE DE PÁGINA --}}
+    {{-- PIE --}}
     @php
         $footerPath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/images/pie-pagina.png";
     @endphp
