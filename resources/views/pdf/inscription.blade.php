@@ -195,7 +195,7 @@
                 @else
                     <p><strong>Comprobante en PDF:</strong> {{ basename($relative) }}</p>
                 @endif
-
+            @endif
         </div>
     </div>
 
