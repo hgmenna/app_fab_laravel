@@ -128,8 +128,8 @@ class PlayerResource extends Resource
             'groups'       => $grouped, // Enviamos como grupos para repetir el TH [3]
             'totalGeneral' => $totalPlayers,
             'labelTotalGeneral' => 'Afiliados',
-            'logo'         => public_path('images/logo.png'),
-            'footer_image' => public_path('images/pie-pagina.png'),
+            'logo'         => config('fab.paths.logo'),
+            'footer_image' => config('fab.paths.footer'),
         ])->setPaper('a4', 'portrait'); // Orientación horizontal [6]
 
         // 6. DESCARGA MEDIANTE STREAM [6]
