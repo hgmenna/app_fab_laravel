@@ -8,15 +8,13 @@
         body {
             font-family: DejaVu Sans, sans-serif;
             color: #333;
-            line-height: 1.3;
-            font-size: 13px;
-            margin: 20px 25px; /* margen controlado para A4 */
-            padding: 0;
+            line-height: 1.4;
+            font-size: 14px;
         }
 
         .header-table {
             width: 100%;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
             page-break-inside: avoid;
         }
 
@@ -25,64 +23,64 @@
         }
 
         .logo {
-            width: 60px;
+            width: 70px;
         }
 
         .title {
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
             text-align: center;
         }
 
         .date {
             text-align: right;
-            font-size: 11px;
+            font-size: 13px;
             color: #555;
         }
 
         .container {
             width: 100%;
+            max-width: 650px;
             margin: 0 auto;
             border: 1px solid #e2e8f0;
+            border-radius: 6px;
             padding: 0;
-            border-radius: 0;
-            page-break-inside: avoid;
         }
 
         .header {
             background-color: #1e293b;
             color: white;
-            padding: 12px;
+            padding: 20px;
             text-align: center;
         }
 
         .content {
-            padding: 15px 18px;
+            padding: 25px;
         }
 
         .field-group {
-            margin-bottom: 8px;
-            padding-bottom: 4px;
+            margin-bottom: 12px;
+            padding-bottom: 6px;
             border-bottom: 1px dotted #cbd5e1;
         }
 
         .label {
             font-weight: bold;
             color: #64748b;
-            font-size: 10px;
+            font-size: 11px;
             text-transform: uppercase;
         }
 
         .value {
-            font-size: 13px;
+            font-size: 15px;
             color: #1e293b;
         }
 
         .status-badge {
             display: inline-block;
-            padding: 3px 8px;
-            border-radius: 10px;
-            font-size: 10px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
             font-weight: bold;
         }
 
@@ -91,32 +89,27 @@
         .rechazado { background-color: #fee2e2; color: #991b1b; }
 
         .receipt-box {
-            margin-top: 12px;
+            margin-top: 20px;
             text-align: center;
             border: 1px solid #e2e8f0;
-            padding: 8px;
+            padding: 10px;
             border-radius: 0;
             page-break-inside: avoid;
         }
 
         .receipt-img {
-            max-width: 170px;
-            max-height: 220px; /* clave para que todo entre */
+            max-width: 220px;
+            height: auto;
+            border-radius: 0;
+            margin-top: 10px;
             display: block;
-            margin: 8px auto 0 auto;
             page-break-inside: avoid;
-        }
-
-        .pdf-link {
-            font-size: 12px;
-            color: #2563eb;
-            text-decoration: underline;
         }
 
         .footer {
             width: 100%;
             text-align: center;
-            margin-top: 10px;
+            margin-top: 30px;
             page-break-inside: avoid;
         }
     </style>
@@ -125,15 +118,15 @@
 <body>
 
     {{-- ENCABEZADO INSTITUCIONAL --}}
+    @php
+        $logoPath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/images/logo.png";
+    @endphp
+
     <table class="header-table">
         <tr>
-            <td style="width: 70px;">
-                @php
-                    $logoPath = public_path('images/logo.png');
-                @endphp
-
+            <td style="width: 80px;">
                 @if(file_exists($logoPath))
-                    <img src="{{ $logoPath }}" class="logo">
+                    <img src="file://{{ $logoPath }}" class="logo">
                 @endif
             </td>
 
@@ -150,8 +143,8 @@
     <div class="container">
 
         <div class="header">
-            <h2 style="margin: 0; font-size: 16px;">Comprobante de Inscripción</h2>
-            <p style="margin: 4px 0 0 0; font-size: 13px;">
+            <h2 style="margin: 0; padding: 0;">Comprobante de Inscripción</h2>
+            <p style="margin: 5px 0 0 0; font-size: 15px;">
                 {{ $record->tournament->name }}
             </p>
         </div>
@@ -188,8 +181,10 @@
                 </div>
             </div>
 
+            {{-- COMPROBANTE --}}
             @if($record->payment_file)
                 <div class="receipt-box">
+
                     @php
                         $relative = ltrim($record->payment_file, '/');
                         $absolutePath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/{$relative}";
@@ -199,32 +194,28 @@
 
                     @if(!$isPdf)
                         @if(file_exists($absolutePath))
-                            <img 
-                                src="{{ $pdfSrc }}" 
-                                class="receipt-img"
-                            >
+                            <img src="{{ $pdfSrc }}" class="receipt-img">
                         @else
-                            <p style="color: #991b1b; font-size: 12px;">No se encontró la imagen del comprobante.</p>
+                            <p style="color: #991b1b;">No se encontró la imagen del comprobante.</p>
                         @endif
                     @else
-                        <p class="pdf-link">
-                            <strong>Comprobante en PDF:</strong> {{ basename($relative) }}
-                        </p>
+                        <p><strong>Comprobante en PDF:</strong> {{ basename($relative) }}</p>
                     @endif
+
                 </div>
             @endif
 
         </div>
     </div>
 
-    {{-- FOOTER INSTITUCIONAL --}}
+    {{-- PIE DE PÁGINA --}}
     @php
-        $footerPath = public_path('images/pie-pagina.png');
+        $footerPath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/images/pie-pagina.png";
     @endphp
 
     @if(file_exists($footerPath))
         <div class="footer">
-            <img src="{{ $footerPath }}" style="width: 65%; height: auto;">
+            <img src="file://{{ $footerPath }}" style="width: 70%; height: auto;">
         </div>
     @endif
 
