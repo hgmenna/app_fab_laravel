@@ -26,11 +26,17 @@ class TournamentRegistrationPdfService
 
         $pdf = Pdf::loadView('pdf.inscription', [
             'record' => $record,
-        ]);
+        ])
+            ->setPaper('A4', 'portrait')
+            ->setOption('margin-top', 10)
+            ->setOption('margin-bottom', 10)
+            ->setOption('margin-left', 10)
+            ->setOption('margin-right', 10);
 
         $pdf->save($fullPath);
 
         return url("inscripciones/{$fileName}");
+
     }
 }
 
