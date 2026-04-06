@@ -16,7 +16,6 @@
         .header-table {
             width: 100%;
             margin-bottom: 10px;
-            page-break-inside: avoid;
         }
 
         .header-table td {
@@ -44,7 +43,6 @@
             border: 1px solid #e2e8f0;
             padding: 0;
             border-radius: 4px;
-            page-break-inside: avoid;
         }
 
         .header {
@@ -58,16 +56,20 @@
             padding: 15px;
         }
 
-        /* NUEVO: 2 COLUMNAS */
-        .row {
+        /* LAYOUT HORIZONTAL */
+        .flex-row {
             display: flex;
-            justify-content: space-between;
+            flex-direction: row;
             gap: 20px;
-            margin-bottom: 10px;
         }
 
-        .col {
-            width: 48%;
+        .left {
+            width: 55%;
+        }
+
+        .right {
+            width: 45%;
+            text-align: center;
         }
 
         .label {
@@ -80,7 +82,7 @@
         .value {
             font-size: 14px;
             color: #1e293b;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
 
         .status-badge {
@@ -95,27 +97,17 @@
         .aprobado { background-color: #d1fae5; color: #065f46; }
         .rechazado { background-color: #fee2e2; color: #991b1b; }
 
-        .receipt-box {
-            margin-top: 10px;
-            text-align: center;
-            border: 1px solid #e2e8f0;
-            padding: 8px;
-            border-radius: 4px;
-            page-break-inside: avoid;
-        }
-
         .receipt-img {
-            max-width: 180px;
-            max-height: 240px;
+            max-width: 100%;
+            max-height: 300px;
             display: block;
-            margin: 8px auto;
+            margin: 0 auto;
         }
 
         .footer {
             width: 100%;
             text-align: center;
             margin-top: 12px;
-            page-break-inside: avoid;
         }
     </style>
 </head>
@@ -156,44 +148,37 @@
 
         <div class="content">
 
-            {{-- FILA 1 --}}
-            <div class="row">
-                <div class="col">
+            <div class="flex-row">
+
+                {{-- IZQUIERDA: DATOS --}}
+                <div class="left">
+
                     <div class="label">Estado</div>
                     <div class="value">
                         <span class="status-badge {{ $record->status }}">
                             {{ strtoupper($record->status) }}
                         </span>
                     </div>
-                </div>
 
-                <div class="col">
-                    <div class="label">Horario</div>
-                    <div class="value">{{ $record->slot->name }}</div>
-                </div>
-            </div>
-
-            {{-- FILA 2 --}}
-            <div class="row">
-                <div class="col">
                     <div class="label">Jugador</div>
                     <div class="value">
                         {{ $record->player->last_name }}, {{ $record->player->first_name }}
                     </div>
-                </div>
 
-                <div class="col">
                     <div class="label">Club / Categoría</div>
                     <div class="value">
                         {{ $record->player->club->name }} - {{ $record->player->category->name }}
                     </div>
+
+                    <div class="label">Horario</div>
+                    <div class="value">
+                        {{ $record->slot->name }}
+                    </div>
+
                 </div>
-            </div>
 
-            {{-- COMPROBANTE --}}
-            @if($record->payment_file)
-                <div class="receipt-box">
-
+                {{-- DERECHA: COMPROBANTE --}}
+                <div class="right">
                     @php
                         $relative = ltrim($record->payment_file, '/');
                         $absolutePath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/{$relative}";
@@ -201,18 +186,16 @@
                         $pdfSrc = "file://{$absolutePath}";
                     @endphp
 
-                    @if(!$isPdf)
-                        @if(file_exists($absolutePath))
-                            <img src="{{ $pdfSrc }}" class="receipt-img">
-                        @else
-                            <p style="color: #991b1b;">No se encontró la imagen del comprobante.</p>
-                        @endif
+                    @if(!$isPdf && file_exists($absolutePath))
+                        <img src="{{ $pdfSrc }}" class="receipt-img">
                     @else
-                        <p><strong>Comprobante en PDF:</strong> {{ basename($relative) }}</p>
+                        <p style="font-size: 12px; color: #991b1b;">
+                            Comprobante no disponible
+                        </p>
                     @endif
-
                 </div>
-            @endif
+
+            </div>
 
         </div>
     </div>
@@ -230,4 +213,3 @@
 
 </body>
 </html>
-
