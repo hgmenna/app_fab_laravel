@@ -10,11 +10,14 @@
             color: #333;
             line-height: 1.4;
             font-size: 14px;
+            margin: 0;
+            padding: 0;
         }
 
         .header-table {
             width: 100%;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
+            page-break-inside: avoid;
         }
 
         .header-table td {
@@ -22,7 +25,7 @@
         }
 
         .logo {
-            width: 70px;
+            width: 65px;
         }
 
         .title {
@@ -37,32 +40,29 @@
             color: #555;
         }
 
+        /* CONTENEDOR PRINCIPAL – DOMPDF FRIENDLY */
         .container {
             width: 100%;
-            max-width: 650px;
             margin: 0 auto;
             border: 1px solid #e2e8f0;
-            border-radius: 6px;
             padding: 0;
+            border-radius: 0; /* DOMPDF no soporta border-radius */
+            page-break-inside: avoid;
         }
 
         .header {
             background-color: #1e293b;
             color: white;
-            padding: 20px;
+            padding: 15px;
             text-align: center;
         }
 
-        .header-table, .footer {
-            page-break-inside: avoid;
-        }
-
         .content {
-            padding: 25px;
+            padding: 20px;
         }
 
         .field-group {
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             padding-bottom: 6px;
             border-bottom: 1px dotted #cbd5e1;
         }
@@ -91,28 +91,30 @@
         .aprobado { background-color: #d1fae5; color: #065f46; }
         .rechazado { background-color: #fee2e2; color: #991b1b; }
 
+        /* BLOQUE DEL COMPROBANTE */
         .receipt-box {
-            margin-top: 20px;
+            margin-top: 15px;
             text-align: center;
             border: 1px solid #e2e8f0;
             padding: 10px;
-            border-radius: 0; /* DOMPDF no maneja border-radius correctamente */
+            border-radius: 0;
             page-break-inside: avoid;
         }
 
         .receipt-img {
-            max-width: 220px;
-            height: auto;
-            border-radius: 0;
-            margin-top: 10px;
+            max-width: 180px;
+            max-height: 260px;
             display: block;
+            margin: 10px auto;
             page-break-inside: avoid;
         }
 
-        .pdf-link {
-            font-size: 13px;
-            color: #2563eb;
-            text-decoration: underline;
+        /* FOOTER */
+        .footer {
+            width: 100%;
+            text-align: center;
+            margin-top: 15px;
+            page-break-inside: avoid;
         }
     </style>
 </head>
@@ -145,7 +147,7 @@
     <div class="container">
 
         <div class="header">
-            <h2 style="margin: 0; padding: 0;">Comprobante de Inscripción</h2>
+            <h2 style="margin: 0;">Comprobante de Inscripción</h2>
             <p style="margin: 5px 0 0 0; font-size: 15px;">
                 {{ $record->tournament->name }}
             </p>
@@ -183,8 +185,9 @@
                 </div>
             </div>
 
+            {{-- COMPROBANTE --}}
             @if($record->payment_file)
-                <div class="receipt-box" style="page-break-inside: avoid;">
+                <div class="receipt-box">
 
                     @php
                         $relative = ltrim($record->payment_file, '/');
@@ -195,29 +198,27 @@
 
                     @if(!$isPdf)
                         @if(file_exists($absolutePath))
-                            <img 
-                                src="{{ $pdfSrc }}" 
-                                class="receipt-img"
-                                style="max-width: 220px; height: auto; display: block; margin: 10px auto 0 auto; page-break-inside: avoid;"
-                            >
+                            <img src="{{ $pdfSrc }}" class="receipt-img">
                         @else
                             <p style="color: #991b1b;">No se encontró la imagen del comprobante.</p>
                         @endif
                     @else
                         <p><strong>Comprobante en PDF:</strong> {{ basename($relative) }}</p>
                     @endif
+
                 </div>
             @endif
+
         </div>
     </div>
 
-    {{-- FOOTER INSTITUCIONAL --}}
+    {{-- FOOTER --}}
     @php
         $footerPath = public_path('images/pie-pagina.png');
     @endphp
 
     @if(file_exists($footerPath))
-        <div style="width: 100%; text-align: center; margin-top: 30px;">
+        <div class="footer">
             <img src="{{ $footerPath }}" style="width: 70%; height: auto;">
         </div>
     @endif
