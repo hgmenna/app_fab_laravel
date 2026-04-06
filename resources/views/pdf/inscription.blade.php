@@ -53,6 +53,10 @@
             text-align: center;
         }
 
+        .header-table, .footer {
+            page-break-inside: avoid;
+        }
+
         .content {
             padding: 25px;
         }
@@ -97,9 +101,10 @@
 
         .receipt-img {
             max-width: 220px;
-            height: auto;
-            border-radius: 4px;
-            margin-top: 10px;
+            max-height: 300px;
+            display: block;
+            margin: 10px auto 0 auto;
+            page-break-inside: avoid;
         }
 
         .pdf-link {
@@ -177,24 +182,29 @@
             </div>
 
             @if($record->payment_file)
-                <div class="receipt-box">
+                <div class="receipt-box" style="page-break-inside: avoid;">
 
-                  @php
-                    $relative = ltrim($record->payment_file, '/');
-                    $absolutePath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/{$relative}";
-                    $isPdf = str_ends_with(strtolower($relative), '.pdf');
-                    $pdfSrc = "file://{$absolutePath}";
-                @endphp
+                    @php
+                        $relative = ltrim($record->payment_file, '/');
+                        $absolutePath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/{$relative}";
+                        $isPdf = str_ends_with(strtolower($relative), '.pdf');
+                        $pdfSrc = "file://{$absolutePath}";
+                    @endphp
 
-                @if(!$isPdf)
-                    @if(file_exists($absolutePath))
-                        <img src="{{ $pdfSrc }}" style="max-width: 250px;">
+                    @if(!$isPdf)
+                        @if(file_exists($absolutePath))
+                            <img 
+                                src="{{ $pdfSrc }}" 
+                                class="receipt-img"
+                                style="max-width: 220px; height: auto; display: block; margin: 10px auto 0 auto; page-break-inside: avoid;"
+                            >
+                        @else
+                            <p style="color: #991b1b;">No se encontró la imagen del comprobante.</p>
+                        @endif
                     @else
-                        <p style="color: #991b1b;">No se encontró la imagen del comprobante.</p>
+                        <p><strong>Comprobante en PDF:</strong> {{ basename($relative) }}</p>
                     @endif
-                @else
-                    <p><strong>Comprobante en PDF:</strong> {{ basename($relative) }}</p>
-                @endif
+                </div>
             @endif
         </div>
     </div>
