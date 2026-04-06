@@ -94,7 +94,8 @@
         .footer {
             width: 100%;
             text-align: center;
-            margin-top: 12px;
+            margin-top: 40px;
+            page-break-inside: avoid;
         }
     </style>
 </head>
