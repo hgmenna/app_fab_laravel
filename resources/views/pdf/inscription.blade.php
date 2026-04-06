@@ -156,7 +156,7 @@
                             {{ $record->player->club->name }}
                         </div>
 
-                        <div class="label">Club / Categoría</div>
+                        <div class="label">Categoría</div>
                         <div class="value">
                             {{ $record->player->category->name }}
                         </div>
