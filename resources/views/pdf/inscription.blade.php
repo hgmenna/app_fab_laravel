@@ -66,7 +66,7 @@
         .value {
             font-size: 14px;
             color: #1e293b;
-            margin-bottom: 14px;
+            margin-bottom: 20px;
             font-weight: bold;
         }
 
@@ -76,7 +76,7 @@
             display: inline-block;
             padding: 3px 8px;
             border-radius: 10px;
-            font-size: 10px;
+            font-size: 14px;
             font-weight: bold;
         }
 
@@ -86,7 +86,7 @@
 
         .receipt-img {
             max-width: 100%;
-            max-height: 300px;
+            max-height: 400px;
             display: block;
             margin: 0 auto;
         }
@@ -149,7 +149,7 @@
                 <tr>
 
                     {{-- IZQUIERDA: DATOS --}}
-                    <td width="55%" valign="top" style="padding-right: 10px;">
+                    <td width="45%" valign="top" style="padding-right: 10px;">
 
                         
                         <div class="label">Jugador</div>
@@ -181,7 +181,7 @@
                     </td>
                     
                     {{-- DERECHA: COMPROBANTE --}}
-                    <td width="45%" valign="top" style="text-align: center;">
+                    <td width="55%" valign="top" style="text-align: center;">
 
                         @php
                             $relative = ltrim($record->payment_file, '/');
