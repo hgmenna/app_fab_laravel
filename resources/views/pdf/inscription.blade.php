@@ -179,22 +179,26 @@
             @if($record->payment_file)
                 <div class="receipt-box">
 
-                    @php
+                   @php
                         // Ruta relativa guardada en la BD, por ejemplo: "pagos/archivo.jpg"
                         $relative = ltrim($record->payment_file, '/');
 
-                        // Ruta absoluta en el servidor (solo para verificar existencia)
+                        // Ruta absoluta original
                         $absolutePath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/{$relative}";
 
-                         $pdfSrc = "file://{$absolutePath}";
+                        // Si el servicio generó una copia convertida → usarla
+                        $finalPath = $converted_payment_file ?? $absolutePath;
+
+                        // DOMPDF necesita file://
+                        $pdfSrc = "file://{$finalPath}";
 
                         // Detectar si es PDF
-                        $isPdf = str_ends_with($relative, '.pdf');
+                        $isPdf = str_ends_with(strtolower($relative), '.pdf');
                     @endphp
 
                     @if(!$isPdf)
-                        @if(file_exists($absolutePath))
-                            <img src="{{ $pdfSrc }}" class="receipt-img">
+                        @if(file_exists($finalPath))
+                            <img src="{{ $pdfSrc }}" class="receipt-img" style="max-width: 250px;">
                         @else
                             <p style="color: #991b1b;">No se encontró la imagen del comprobante.</p>
                         @endif
