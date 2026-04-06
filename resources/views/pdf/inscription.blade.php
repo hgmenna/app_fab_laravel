@@ -180,37 +180,31 @@
                 <div class="receipt-box">
 
                    @php
-                        // Ruta relativa guardada en la BD, por ejemplo: "pagos/archivo.jpg"
-                        $relative = ltrim($record->payment_file, '/');
+                    // Ruta relativa guardada en la BD, por ejemplo: "pagos/archivo.jpg"
+                    $relative = ltrim($record->payment_file, '/');
 
-                        // Ruta absoluta original
-                        $absolutePath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/{$relative}";
+                    // Ruta absoluta en el servidor
+                    $absolutePath = "/home/u812683595/domains/sistem.federacionadebillar.org/public_html/{$relative}";
 
-                        // Si el servicio generó una copia convertida → usarla
-                        $finalPath = $converted_payment_file ?? $absolutePath;
+                    // Detectar si es PDF
+                    $isPdf = str_ends_with(strtolower($relative), '.pdf');
 
-                        // DOMPDF necesita file://
-                        $pdfSrc = "file://{$finalPath}";
+                    // DOMPDF necesita file://
+                    $pdfSrc = "file://{$absolutePath}";
+                @endphp
 
-                        // Detectar si es PDF
-                        $isPdf = str_ends_with(strtolower($relative), '.pdf');
-                    @endphp
-
-                    @if(!$isPdf)
-                        @if(file_exists($finalPath))
-                            <img src="{{ $pdfSrc }}" class="receipt-img" style="max-width: 250px;">
-                        @else
-                            <p style="color: #991b1b;">No se encontró la imagen del comprobante.</p>
-                        @endif
+                @if(!$isPdf)
+                    @if(file_exists($absolutePath))
+                        <img src="{{ $pdfSrc }}" class="receipt-img" style="max-width: 250px;">
                     @else
-                        <p style="margin: 0; font-size: 14px;">📄 <strong>Comprobante en PDF</strong></p>
-                        <p class="pdf-link">
-                            Archivo: {{ basename($relative) }}
-                        </p>
+                        <p style="color: #991b1b;">No se encontró la imagen del comprobante.</p>
                     @endif
-
-                </div>
-            @endif
+                @else
+                    <p style="margin: 0; font-size: 14px;">📄 <strong>Comprobante en PDF</strong></p>
+                    <p class="pdf-link">
+                        Archivo: {{ basename($relative) }}
+                    </p>
+                @endif
 
         </div>
     </div>
