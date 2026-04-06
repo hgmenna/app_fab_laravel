@@ -17,6 +17,7 @@ use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 
 class PlayersTable
@@ -176,7 +177,7 @@ class PlayersTable
                     ->icon('heroicon-o-x-mark')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->visible(fn () => auth()->user()?->hasPermissionTo('EditField'))
+                    ->visible(fn () => Auth::user()?->hasPermissionTo('EditField'))
                     ->action(function (Collection $records) {
                         $records->each->update(['is_active' => false]);
                     }),
@@ -185,7 +186,7 @@ class PlayersTable
                     ->label('Activar seleccionados')
                     ->icon('heroicon-o-check')
                     ->requiresConfirmation()
-                    ->visible(fn () => auth()->user()?->hasPermissionTo('EditField'))
+                    ->visible(fn () => Auth::user()?->hasPermissionTo('EditField'))
                     ->action(function (Collection $records) {
                         $records->each->update(['is_active' => true]);
                     }),
