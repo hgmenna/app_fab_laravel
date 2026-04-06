@@ -66,7 +66,7 @@
         .value {
             font-size: 14px;
             color: #1e293b;
-            margin-bottom: 8px;
+            margin-bottom: 14px;
             font-weight: bold;
         }
 
