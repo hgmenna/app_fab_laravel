@@ -124,7 +124,7 @@
 
     {{-- ENCABEZADO --}}
     @php
-        $logoPath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/images/logo.png";
+        $logoPath = config('fab.paths.logo');
     @endphp
 
     <table class="header-table">
@@ -219,7 +219,7 @@
 
     {{-- PIE --}}
     @php
-        $footerPath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/images/pie-pagina.png";
+        $footerPath = config('fab.paths.footer');
     @endphp
 
     @if(file_exists($footerPath))
