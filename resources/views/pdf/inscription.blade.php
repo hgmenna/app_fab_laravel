@@ -67,7 +67,10 @@
             font-size: 14px;
             color: #1e293b;
             margin-bottom: 8px;
+            font-weight: bold;
         }
+
+
 
         .status-badge {
             display: inline-block;
@@ -139,35 +142,35 @@
                     {{-- IZQUIERDA: DATOS --}}
                     <td width="55%" valign="top" style="padding-right: 10px;">
 
+                        
+                        <div class="label">Jugador</div>
+                        <div class="value">
+                            {{ $record->player->last_name }}, {{ $record->player->first_name }}
+                        </div>
+                        
+                        <div class="label">Club</div>
+                        <div class="value">
+                            {{ $record->player->club->name }}
+                        </div>
+                        
+                        <div class="label">Categoría</div>
+                        <div class="value">
+                            {{ $record->player->category->name }}
+                        </div>
+                        
+                        <div class="label">Horario</div>
+                        <div class="value">
+                            {{ $record->slot->name }}
+                        </div>
+                        
                         <div class="label">Estado</div>
                         <div class="value">
                             <span class="status-badge {{ $record->status }}">
                                 {{ strtoupper($record->status) }}
                             </span>
                         </div>
-
-                        <div class="label">Jugador</div>
-                        <div class="value">
-                            {{ $record->player->last_name }}, {{ $record->player->first_name }}
-                        </div>
-
-                        <div class="label">Club</div>
-                        <div class="value">
-                            {{ $record->player->club->name }}
-                        </div>
-
-                        <div class="label">Categoría</div>
-                        <div class="value">
-                            {{ $record->player->category->name }}
-                        </div>
-
-                        <div class="label">Horario</div>
-                        <div class="value">
-                            {{ $record->slot->name }}
-                        </div>
-
                     </td>
-
+                    
                     {{-- DERECHA: COMPROBANTE --}}
                     <td width="45%" valign="top" style="text-align: center;">
 
