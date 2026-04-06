@@ -96,14 +96,16 @@
             text-align: center;
             border: 1px solid #e2e8f0;
             padding: 10px;
-            border-radius: 5px;
+            border-radius: 0; /* DOMPDF no maneja border-radius correctamente */
+            page-break-inside: avoid;
         }
 
         .receipt-img {
             max-width: 220px;
-            max-height: 300px;
+            height: auto;
+            border-radius: 0;
+            margin-top: 10px;
             display: block;
-            margin: 10px auto 0 auto;
             page-break-inside: avoid;
         }
 
