@@ -56,22 +56,6 @@
             padding: 15px;
         }
 
-        /* LAYOUT HORIZONTAL */
-        .flex-row {
-            display: flex;
-            flex-direction: row;
-            gap: 20px;
-        }
-
-        .left {
-            width: 55%;
-        }
-
-        .right {
-            width: 45%;
-            text-align: center;
-        }
-
         .label {
             font-weight: bold;
             color: #64748b;
@@ -148,54 +132,59 @@
 
         <div class="content">
 
-            <div class="flex-row">
+            {{-- TABLA HORIZONTAL: DATOS IZQUIERDA / COMPROBANTE DERECHA --}}
+            <table width="100%" style="margin-top: 10px;">
+                <tr>
 
-                {{-- IZQUIERDA: DATOS --}}
-                <div class="left">
+                    {{-- IZQUIERDA: DATOS --}}
+                    <td width="55%" valign="top" style="padding-right: 10px;">
 
-                    <div class="label">Estado</div>
-                    <div class="value">
-                        <span class="status-badge {{ $record->status }}">
-                            {{ strtoupper($record->status) }}
-                        </span>
-                    </div>
+                        <div class="label">Estado</div>
+                        <div class="value">
+                            <span class="status-badge {{ $record->status }}">
+                                {{ strtoupper($record->status) }}
+                            </span>
+                        </div>
 
-                    <div class="label">Jugador</div>
-                    <div class="value">
-                        {{ $record->player->last_name }}, {{ $record->player->first_name }}
-                    </div>
+                        <div class="label">Jugador</div>
+                        <div class="value">
+                            {{ $record->player->last_name }}, {{ $record->player->first_name }}
+                        </div>
 
-                    <div class="label">Club / Categoría</div>
-                    <div class="value">
-                        {{ $record->player->club->name }} - {{ $record->player->category->name }}
-                    </div>
+                        <div class="label">Club / Categoría</div>
+                        <div class="value">
+                            {{ $record->player->club->name }} - {{ $record->player->category->name }}
+                        </div>
 
-                    <div class="label">Horario</div>
-                    <div class="value">
-                        {{ $record->slot->name }}
-                    </div>
+                        <div class="label">Horario</div>
+                        <div class="value">
+                            {{ $record->slot->name }}
+                        </div>
 
-                </div>
+                    </td>
 
-                {{-- DERECHA: COMPROBANTE --}}
-                <div class="right">
-                    @php
-                        $relative = ltrim($record->payment_file, '/');
-                        $absolutePath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/{$relative}";
-                        $isPdf = str_ends_with(strtolower($relative), '.pdf');
-                        $pdfSrc = "file://{$absolutePath}";
-                    @endphp
+                    {{-- DERECHA: COMPROBANTE --}}
+                    <td width="45%" valign="top" style="text-align: center;">
 
-                    @if(!$isPdf && file_exists($absolutePath))
-                        <img src="{{ $pdfSrc }}" class="receipt-img">
-                    @else
-                        <p style="font-size: 12px; color: #991b1b;">
-                            Comprobante no disponible
-                        </p>
-                    @endif
-                </div>
+                        @php
+                            $relative = ltrim($record->payment_file, '/');
+                            $absolutePath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/{$relative}";
+                            $isPdf = str_ends_with(strtolower($relative), '.pdf');
+                            $pdfSrc = "file://{$absolutePath}";
+                        @endphp
 
-            </div>
+                        @if(!$isPdf && file_exists($absolutePath))
+                            <img src="{{ $pdfSrc }}" class="receipt-img">
+                        @else
+                            <p style="font-size: 12px; color: #991b1b;">
+                                Comprobante no disponible
+                            </p>
+                        @endif
+
+                    </td>
+
+                </tr>
+            </table>
 
         </div>
     </div>
