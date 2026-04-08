@@ -28,14 +28,20 @@ class TournamentRegistrationPdfService
 
         // Ruta del comprobante original (PDF o imagen)
         $relative = ltrim($record->payment_file, '/');
-        $comprobanteOriginal = FabPath::pagos($relative);
+
+        // Si ya viene con "pagos/" no lo duplicamos
+        if (str_starts_with($relative, 'pagos/')) {
+            $comprobanteOriginal = FabPath::absolute($relative);
+        } else {
+            $comprobanteOriginal = FabPath::pagos($relative);
+        }
 
         // Si es PDF → convertir a PNG
         $comprobanteImagen = null;
 
         if (str_ends_with(strtolower($comprobanteOriginal), '.pdf')) {
 
-            $pngPath = str_replace('.pdf', '.png', $comprobanteOriginal);
+            $pngPath = preg_replace('/\.pdf$/i', '.png', $comprobanteOriginal);
 
             if (PdfHelper::pdfToPng($comprobanteOriginal, $pngPath)) {
                 $comprobanteImagen = $pngPath;
