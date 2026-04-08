@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use App\Helpers\FabPath;
-use App\Helpers\PdfHelper;
-use App\Models\TournamentRegistration;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
+use App\Models\TournamentRegistration;
+use App\Helpers\FabPath;
+use App\Helpers\PdfHelper;
 
 class TournamentRegistrationPdfService
 {
@@ -17,8 +17,7 @@ class TournamentRegistrationPdfService
 
         $fileName = "{$tournament}-{$player}.pdf";
 
-        //$publicRoot = '/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html';
-        // Carpeta para guardar los pdf generados
+        // Carpeta donde guardamos PDFs generados
         $folder = FabPath::inscripciones();
 
         if (!file_exists($folder)) {
@@ -29,18 +28,28 @@ class TournamentRegistrationPdfService
 
         // Ruta del comprobante original (PDF o imagen)
         $relative = ltrim($record->payment_file, '/');
-        $comprobantePdf = FabPath::pagos($relative);
+        $comprobanteOriginal = FabPath::pagos($relative);
 
-        // Ruta PNG convertida
-        $comprobantePng = str_replace('.pdf', '.png', $comprobantePdf);
+        // Si es PDF → convertir a PNG
+        $comprobanteImagen = null;
 
-        // Convertir PDF → PNG si corresponde
-        if (str_ends_with(strtolower($comprobantePdf), '.pdf')) {
-            PdfHelper::pdfToPng($comprobantePdf, $comprobantePng);
+        if (str_ends_with(strtolower($comprobanteOriginal), '.pdf')) {
+
+            $pngPath = str_replace('.pdf', '.png', $comprobanteOriginal);
+
+            if (PdfHelper::pdfToPng($comprobanteOriginal, $pngPath)) {
+                $comprobanteImagen = $pngPath;
+            }
+
+        } else {
+            // Si es imagen, usarla directamente
+            $comprobanteImagen = $comprobanteOriginal;
         }
 
+        // Generar PDF institucional
         $pdf = Pdf::loadView('pdf.inscription', [
             'record' => $record,
+            'comprobanteImagen' => $comprobanteImagen,
         ])
             ->setPaper('A4', 'portrait')
             ->setOption('margin-top', 10)
@@ -51,9 +60,5 @@ class TournamentRegistrationPdfService
         $pdf->save($fullPath);
 
         return url("inscripciones/{$fileName}");
-
     }
 }
-
-
-

@@ -70,8 +70,6 @@
             font-weight: bold;
         }
 
-
-
         .status-badge {
             display: inline-block;
             padding: 3px 8px;
@@ -104,7 +102,6 @@
             width: 70%;
             height: auto;
         }
-
     </style>
 </head>
 
@@ -112,7 +109,8 @@
 
     {{-- ENCABEZADO --}}
     @php
-        $logoPath = config('fab.paths.logo');
+        use App\Helpers\FabPath;
+        $logoPath = FabPath::logo();
     @endphp
 
     <table class="header-table">
@@ -148,30 +146,29 @@
             <table width="100%" style="margin-top: 10px;">
                 <tr>
 
-                    {{-- IZQUIERDA: DATOS --}}
+                    {{-- IZQUIERDA --}}
                     <td width="45%" valign="top" style="padding-right: 10px;">
 
-                        
                         <div class="label">Jugador</div>
                         <div class="value">
                             {{ $record->player->last_name }}, {{ $record->player->first_name }}
                         </div>
-                        
+
                         <div class="label">Club</div>
                         <div class="value">
                             {{ $record->player->club->name }}
                         </div>
-                        
+
                         <div class="label">Categoría</div>
                         <div class="value">
                             {{ $record->player->category->name }}
                         </div>
-                        
+
                         <div class="label">Horario</div>
                         <div class="value">
                             {{ $record->slot->name }}
                         </div>
-                        
+
                         <div class="label">Estado</div>
                         <div class="value">
                             <span class="status-badge {{ $record->status }}">
@@ -179,19 +176,12 @@
                             </span>
                         </div>
                     </td>
-                    
+
                     {{-- DERECHA: COMPROBANTE --}}
                     <td width="55%" valign="top" style="text-align: center;">
 
-                        @php
-                            $relative = ltrim($record->payment_file, '/');
-                            $absolutePath = "/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html/{$relative}";
-                            $isPdf = str_ends_with(strtolower($relative), '.pdf');
-                            $pdfSrc = "file://{$absolutePath}";
-                        @endphp
-
-                        @if(!$isPdf && file_exists($absolutePath))
-                            <img src="{{ $pdfSrc }}" class="receipt-img">
+                        @if($comprobanteImagen && file_exists($comprobanteImagen))
+                            <img src="file://{{ $comprobanteImagen }}" class="receipt-img">
                         @else
                             <p style="font-size: 12px; color: #991b1b;">
                                 Comprobante no disponible
@@ -208,7 +198,7 @@
 
     {{-- PIE --}}
     @php
-        $footerPath = config('fab.paths.footer');
+        $footerPath = FabPath::footer();
     @endphp
 
     @if(file_exists($footerPath))
@@ -219,3 +209,4 @@
 
 </body>
 </html>
+
