@@ -182,6 +182,10 @@
 
                         @if($comprobanteImagen && file_exists($comprobanteImagen))
                             <img src="file://{{ $comprobanteImagen }}" class="receipt-img">
+
+                        @elseif($comprobantePdf && file_exists($comprobantePdf))
+                            <embed src="file://{{ $comprobantePdf }}" type="application/pdf" width="100%" height="400px" />
+
                         @else
                             <p style="font-size: 12px; color: #991b1b;">
                                 Comprobante no disponible

@@ -6,18 +6,17 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
 use App\Models\TournamentRegistration;
 use App\Helpers\FabPath;
-use App\Helpers\PdfHelper;
 
 class TournamentRegistrationPdfService
 {
     public static function generate(TournamentRegistration $record): string
     {
+        // Nombre del archivo final
         $tournament = Str::slug($record->tournament->name);
         $player = Str::slug($record->player->last_name . '-' . $record->player->first_name);
-
         $fileName = "{$tournament}-{$player}.pdf";
 
-        // Carpeta donde guardamos PDFs generados
+        // Carpeta institucional donde guardamos PDFs generados
         $folder = FabPath::inscripciones();
 
         if (!file_exists($folder)) {
@@ -26,42 +25,58 @@ class TournamentRegistrationPdfService
 
         $fullPath = FabPath::inscripciones($fileName);
 
-        // Ruta del comprobante original (PDF o imagen)
+        /*
+        |--------------------------------------------------------------------------
+        | 1) Resolver ruta del comprobante original
+        |--------------------------------------------------------------------------
+        | La BD guarda: pagos/archivo.pdf
+        | FabPath::pagos() también agrega "pagos/"
+        | → Debemos evitar duplicar la carpeta.
+        */
+
         $relative = ltrim($record->payment_file, '/');
 
-        // Si ya viene con "pagos/" no lo duplicamos
         if (str_starts_with($relative, 'pagos/')) {
+            // Ruta absoluta directa
             $comprobanteOriginal = FabPath::absolute($relative);
         } else {
+            // Ruta relativa → carpeta pagos
             $comprobanteOriginal = FabPath::pagos($relative);
         }
 
-        // Si es PDF → convertir a PNG
+        /*
+        |--------------------------------------------------------------------------
+        | 2) Determinar si es imagen o PDF
+        |--------------------------------------------------------------------------
+        */
+
         $comprobanteImagen = null;
+        $comprobantePdf = null;
 
-        if (str_ends_with(strtolower($comprobanteOriginal), '.pdf')) {
-
-            $pngPath = preg_replace('/\.pdf$/i', '.png', $comprobanteOriginal);
-
-            if (PdfHelper::pdfToPng($comprobanteOriginal, $pngPath)) {
-                $comprobanteImagen = $pngPath;
-            }
-
-        } else {
-            // Si es imagen, usarla directamente
+        if (preg_match('/\.(jpg|jpeg|png)$/i', $comprobanteOriginal)) {
             $comprobanteImagen = $comprobanteOriginal;
         }
 
-        // Generar PDF institucional
+        if (preg_match('/\.pdf$/i', $comprobanteOriginal)) {
+            $comprobantePdf = $comprobanteOriginal;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | 3) Generar PDF institucional
+        |--------------------------------------------------------------------------
+        */
+
         $pdf = Pdf::loadView('pdf.inscription', [
-            'record' => $record,
+            'record'            => $record,
             'comprobanteImagen' => $comprobanteImagen,
+            'comprobantePdf'    => $comprobantePdf,
         ])
-            ->setPaper('A4', 'portrait')
-            ->setOption('margin-top', 10)
-            ->setOption('margin-bottom', 10)
-            ->setOption('margin-left', 10)
-            ->setOption('margin-right', 10);
+        ->setPaper('A4', 'portrait')
+        ->setOption('margin-top', 10)
+        ->setOption('margin-bottom', 10)
+        ->setOption('margin-left', 10)
+        ->setOption('margin-right', 10);
 
         $pdf->save($fullPath);
 
