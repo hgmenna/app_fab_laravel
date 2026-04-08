@@ -9,8 +9,12 @@ class FabPath
         return config('fab.paths.public_root');
     }
 
-    public static function absolute(string $relative): string
+    public static function absolute(?string $relative): string
     {
+        if (!$relative) {
+            return self::root(); // fallback seguro
+        }
+
         return self::root() . '/' . ltrim($relative, '/');
     }
 
