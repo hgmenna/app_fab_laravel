@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Helpers\FabPath;
+use App\Helpers\PdfHelper;
+use App\Models\TournamentRegistration;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
-use App\Models\TournamentRegistration;
 
 class TournamentRegistrationPdfService
 {
@@ -15,14 +17,27 @@ class TournamentRegistrationPdfService
 
         $fileName = "{$tournament}-{$player}.pdf";
 
-        $publicRoot = '/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html';
-        $folder = "{$publicRoot}/inscripciones";
+        //$publicRoot = '/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html';
+        // Carpeta para guardar los pdf generados
+        $folder = FabPath::inscripciones();
 
         if (!file_exists($folder)) {
             mkdir($folder, 0775, true);
         }
 
-        $fullPath = "{$folder}/{$fileName}";
+        $fullPath = FabPath::inscripciones($fileName);
+
+        // Ruta del comprobante original (PDF o imagen)
+        $relative = ltrim($record->payment_file, '/');
+        $comprobantePdf = FabPath::pagos($relative);
+
+        // Ruta PNG convertida
+        $comprobantePng = str_replace('.pdf', '.png', $comprobantePdf);
+
+        // Convertir PDF → PNG si corresponde
+        if (str_ends_with(strtolower($comprobantePdf), '.pdf')) {
+            PdfHelper::pdfToPng($comprobantePdf, $comprobantePng);
+        }
 
         $pdf = Pdf::loadView('pdf.inscription', [
             'record' => $record,

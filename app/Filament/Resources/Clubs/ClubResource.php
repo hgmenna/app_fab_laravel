@@ -92,7 +92,7 @@ class ClubResource extends Resource
                 'name'        => $row->name,
                 'address'       => $row->address,
                 'city_name'=> $row->city?->name ?? 'N/A',
-                'cant_afil'       => $row->players?->count() ?? 0, // Para agrupar
+                'cant_afil'       => $row->players?->where('is_enabled_to_compet', true)->count() ?? 0, // Para agrupar
                 'federation_group' => $row->city?->state?->federation?->name ?? '-',
             ];
         });
