@@ -7,6 +7,7 @@ use App\Filament\Resources\Players\Pages\EditPlayer;
 use App\Filament\Resources\Players\Pages\ListPlayers;
 use App\Filament\Resources\Players\Schemas\PlayerForm;
 use App\Filament\Resources\Players\Tables\PlayersTable;
+use App\Helpers\FabPath;
 use App\Imports\PlayersImport;
 use App\Models\Category;
 use App\Models\GeneralRanking;
@@ -128,8 +129,8 @@ class PlayerResource extends Resource
             'groups'       => $grouped, // Enviamos como grupos para repetir el TH [3]
             'totalGeneral' => $totalPlayers,
             'labelTotalGeneral' => 'Afiliados',
-            'logo'         => config('fab.paths.logo'),
-            'footer_image' => config('fab.paths.footer'),
+            'logo'         => FabPath::logo(),
+            'footer_image' => FabPath::footer(),
         ])->setPaper('a4', 'portrait'); // Orientación horizontal [6]
 
         // 6. DESCARGA MEDIANTE STREAM [6]
