@@ -40,6 +40,7 @@ class PlayersByClubChart extends ChartWidget
 
         $federationId = $this->filters['federationId'] ?? null;
         $query = Player::query()
+            ->where('is_enabled_to_compete', true)
             ->selectRaw('clubs.name as club_name, COUNT(players.id) as total')
             ->join('clubs', 'players.club_id', '=', 'clubs.id')
             ->join('cities', 'clubs.city_id', '=', 'cities.id')
