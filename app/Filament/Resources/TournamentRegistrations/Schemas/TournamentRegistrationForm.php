@@ -205,7 +205,7 @@ class TournamentRegistrationForm
                 ->disk('public_path') // <--- Indispensable para que sea accesible vía URL
                 ->visibility('public') // <--- Asegura permisos de lectura
                 ->directory('pagos')
-
+                ->openable(true)
                 ->getUploadedFileNameForStorageUsing(function (Get $get, TemporaryUploadedFile $file, $livewire): string {
                     // 1. Obtener el ID del jugador seleccionado
                     $playerId = $get('player_id');
