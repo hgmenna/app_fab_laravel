@@ -117,11 +117,12 @@
         <tr>
             <td style="width: 80px;">
                 @php
-                    $logoPath = public_path('images/logo.png');
+                    use App\Helpers\FabPath;
+                    $logoPath = FabPath::logo();
                 @endphp
 
                 @if(file_exists($logoPath))
-                    <img src="{{ $logoPath }}" class="logo">
+                    <img src="file://{{ $logoPath }}" class="logo">
                 @endif
             </td>
 
@@ -186,12 +187,12 @@
 
     {{-- FOOTER INSTITUCIONAL --}}
     @php
-        $footerPath = public_path('images/pie-pagina.png');
+        $footerPath = FabPath::footer();
     @endphp
 
     @if(file_exists($footerPath))
         <div class="footer">
-            <img src="{{ $footerPath }}">
+            <img src="file://{{ $footerPath }}">
         </div>
     @endif
 
