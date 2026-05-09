@@ -122,7 +122,7 @@
                 @endphp
 
                 @if(file_exists($logoPath))
-                    <img src="file://{{ $logoPath }}" class="logo">
+                    <img src="{{ $logoPath }}" class="logo">
                 @endif
             </td>
 
@@ -192,7 +192,7 @@
 
     @if(file_exists($footerPath))
         <div class="footer">
-            <img src="file://{{ $footerPath }}">
+            <img src="{{ $footerPath }}">
         </div>
     @endif
 
