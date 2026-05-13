@@ -46,16 +46,14 @@ class TournamentRegistrationForm
                 /* 🔥 ÚNICO AGREGADO: filtrar por categoría habilitada + habilitados para competir */
                 ->options(function (Get $get) {
 
+                    // ID del torneo ya cargado en el formulario
                     $tournamentId = $get('tournament_id');
-                    if (! $tournamentId) {
-                        return [];
-                    }
 
-                    // Categorías habilitadas del torneo
-                    $categorias = Tournament::find($tournamentId)
-                        ?->categories()
-                        ->pluck('id')
-                        ->toArray();
+                    // Obtener torneo
+                    $tournament = Tournament::find($tournamentId);
+
+                    // Categorías habilitadas (array JSON)
+                    $categorias = $tournament?->categories ?? [];
 
                     if (empty($categorias)) {
                         return [];
