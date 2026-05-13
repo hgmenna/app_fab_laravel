@@ -43,24 +43,31 @@ class TournamentRegistrationForm
                 ->searchable(['last_name', 'first_name'])
                 ->preload()
                 ->required()
-                /* 🔥 ÚNICO AGREGADO: filtrar jugadores por categoría habilitada + habilitados para competir */
-                ->modifyQueryUsing(function ($query, Get $get) {
+                /* 🔥 ÚNICO AGREGADO: filtrar por categoría habilitada + habilitados para competir */
+                ->options(function (Get $get) {
 
                     $tournamentId = $get('tournament_id');
                     if (! $tournamentId) {
-                        return;
+                        return [];
                     }
 
-                    // Categorías habilitadas del torneo (usando modelos importados)
+                    // Categorías habilitadas del torneo
                     $categorias = Tournament::find($tournamentId)
                         ?->categories()
-                        ->pluck('id');
+                        ->pluck('id')
+                        ->toArray();
 
-                    if ($categorias?->isNotEmpty()) {
-                        $query
-                            ->whereIn('category_id', $categorias)
-                            ->where('is_enabled_to_compete', true); // 🔥 agregado
+                    if (empty($categorias)) {
+                        return [];
                     }
+
+                    // Jugadores filtrados por categoría + habilitados para competir
+                    return Player::whereIn('category_id', $categorias)
+                        ->where('is_enabled_to_compete', true)
+                        ->orderBy('last_name')
+                        ->orderBy('first_name')
+                        ->get()
+                        ->mapWithKeys(fn ($p) => [$p->id => $p->full_name]);
                 })
                 /* 🔥 FIN DEL ÚNICO AGREGADO */
                 ->rules([
