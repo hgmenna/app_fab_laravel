@@ -39,24 +39,13 @@ class TournamentRegistrationForm
                 Select::make('player_id')
                 ->label('Jugador')
                 ->relationship('player', 'full_name', function ($query) {
-
-                    // ID del torneo tomado de la ruta (estás en edición de torneo)
+                    // ID del torneo recibido por parámetro en la ruta (como vos dijiste)
                     $tournamentId = request()->route('record');
 
-                    $tournament = Tournament::find($tournamentId);
+                    // Categorías habilitadas (array JSON)
+                    $categorias = Tournament::where('id', $tournamentId)->value('categories') ?? [];
 
-                    // Array JSON de IDs de categoría habilitadas
-                    $categorias = $tournament?->categories ?? [];
-
-                    if (empty($categorias)) {
-                        // Si no hay categorías habilitadas, no mostramos jugadores
-                        $query->whereRaw('0 = 1');
-                        return;
-                    }
-
-                    // Filtrar jugadores:
-                    // - solo categorías habilitadas del torneo
-                    // - solo habilitados para competir
+                    // Filtrar jugadores por categoría + habilitados para competir
                     $query
                         ->whereIn('category_id', $categorias)
                         ->where('is_enabled_to_compete', true);
