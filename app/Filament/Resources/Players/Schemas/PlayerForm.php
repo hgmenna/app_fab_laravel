@@ -34,7 +34,7 @@ class PlayerForm
                             ->extraAttributes(['style' => 'text-transform: uppercase'])
                             ->required(),
                         TextInput::make('email')
-                            ->label('Email address')
+                            ->label('Email')
                             ->email()
                             ->columnSpan(3)
                             ->default(null),
