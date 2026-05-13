@@ -38,39 +38,33 @@ class TournamentRegistrationForm
 
                 Select::make('player_id')
                 ->label('Jugador')
-                ->relationship('player', 'full_name')
+                ->relationship('player', 'full_name', function ($query) {
+
+                    // ID del torneo tomado de la ruta (estás en edición de torneo)
+                    $tournamentId = request()->route('record');
+
+                    $tournament = Tournament::find($tournamentId);
+
+                    // Array JSON de IDs de categoría habilitadas
+                    $categorias = $tournament?->categories ?? [];
+
+                    if (empty($categorias)) {
+                        // Si no hay categorías habilitadas, no mostramos jugadores
+                        $query->whereRaw('0 = 1');
+                        return;
+                    }
+
+                    // Filtrar jugadores:
+                    // - solo categorías habilitadas del torneo
+                    // - solo habilitados para competir
+                    $query
+                        ->whereIn('category_id', $categorias)
+                        ->where('is_enabled_to_compete', true);
+                })
                 ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
                 ->searchable(['last_name', 'first_name'])
                 ->preload()
                 ->required()
-                /* 🔥 ÚNICO AGREGADO: filtrar por categoría habilitada + habilitados para competir */
-                ->options(function (Get $get) {
-
-                    // Mismo criterio que en rules(): torneo desde form o desde la ruta
-                    $tournamentId = $get('tournament_id') ?? request()->route('record');
-
-                    if (! $tournamentId) {
-                        return [];
-                    }
-
-                    $tournament = Tournament::find($tournamentId);
-
-                    // Array JSON de IDs de categoría
-                    $categorias = $tournament?->categories ?? [];
-
-                    if (empty($categorias)) {
-                        return [];
-                    }
-
-                    // Jugadores de categorías habilitadas + habilitados para competir
-                    return Player::whereIn('category_id', $categorias)
-                        ->where('is_enabled_to_compete', true)
-                        ->orderBy('last_name')
-                        ->orderBy('first_name')
-                        ->get()
-                        ->mapWithKeys(fn ($p) => [$p->id => $p->full_name]);
-                })
-                /* 🔥 FIN DEL ÚNICO AGREGADO */
                 ->rules([
                     function (Get $get, $record) { // <--- Inyectamos $record aquí
                         return function (string $attribute, $value, \Closure $fail) use ($get, $record) {
