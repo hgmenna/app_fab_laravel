@@ -38,6 +38,9 @@ class TournamentRegistrationForm
 
                 Select::make('player_id')
                 ->label('Jugador')
+                ->relationship('player', 'full_name')
+
+                /*
                 ->options(function () {
                     $tournamentId = request()->route('record');
 
@@ -59,7 +62,8 @@ class TournamentRegistrationForm
                         ->get()
                         ->mapWithKeys(fn (Player $p) => [$p->id => $p->full_name]);
                 })
-                //->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
+                */
+                ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
                 ->searchable(['last_name', 'first_name'])
                 ->preload()
                 ->required()
