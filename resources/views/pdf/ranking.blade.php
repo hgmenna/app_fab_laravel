@@ -110,7 +110,7 @@
         <table class="header-table">
             <tr>
                 <td style="width: 20%;">
-                    <img src="{{ $logoPath ) }}" style="height: 70px;">
+                    <img src="{{ $logoPath }}" style="height: 70px;">
                 </td>
                 <td style="width: 60%;">
                     <h1 class="h1-title">Ranking Nacional 5 Quillas</h1>
