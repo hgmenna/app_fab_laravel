@@ -2072,7 +2072,6 @@ namespace App\Models {
      * @method static \Illuminate\Database\Eloquent\Builder<Player>|Player newModelQuery()
      * @method static \Illuminate\Database\Eloquent\Builder<Player>|Player newQuery()
      * @method static \Illuminate\Database\Eloquent\Builder<Player>|Player query()
-     * @method static \Illuminate\Database\Eloquent\Builder<Player>|Player habilitadoParaTorneo(mixed $tournamentId) {@see App\Models\Player::scopeHabilitadoParaTorneo()}
      * @method static \Illuminate\Database\Eloquent\Builder<Player>|Player select(mixed $columns)
      * @method static \Illuminate\Database\Eloquent\Builder<Player>|Player selectSub(\Closure|\Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder<mixed>|string $query, string $as)
      * @method static \Illuminate\Database\Eloquent\Builder<Player>|Player selectRaw(string $expression)

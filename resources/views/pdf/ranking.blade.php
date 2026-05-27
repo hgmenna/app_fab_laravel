@@ -102,11 +102,15 @@
     </style>
 </head>
 <body>
+    @php
+        use App\Helpers\FabPath;
+        $logoPath = FabPath::logo();
+    @endphp
     <header>
         <table class="header-table">
             <tr>
                 <td style="width: 20%;">
-                    <img src="{{ public_path('images/logo.png') }}" style="height: 70px;">
+                    <img src="{{ $logoPath ) }}" style="height: 70px;">
                 </td>
                 <td style="width: 60%;">
                     <h1 class="h1-title">Ranking Nacional 5 Quillas</h1>
@@ -120,7 +124,10 @@
     </header>
 
     <footer>
-        <img src="{{ public_path('images/pie-pagina.png') }}" class="footer-img">
+        @php
+            $footerPath = FabPath::footer();
+        @endphp
+        <img src="{{ $footerPath }}" class="footer-img">
     </footer>
 
     <main>

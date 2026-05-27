@@ -70,14 +70,6 @@ class Player extends Model
         return "{$this->last_name}, {$this->first_name}";
     }
 
-    public function scopeHabilitadoParaTorneo($query, $tournamentId)
-    {
-        $categorias = Tournament::find($tournamentId)?->categories ?? [];
-
-        return $query
-            ->whereIn('category_id', $categorias)
-            ->where('is_enabled_to_compete', true);
-    }
 }
 
 
