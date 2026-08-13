@@ -117,7 +117,7 @@
         <tr>
             <td style="width: 80px;">
                 @if(file_exists($logoPath))
-                    <img src="file://{{ $logoPath }}" class="logo">
+                    <img src="{{ $logoPath }}" class="logo">
                 @endif
             </td>
 
