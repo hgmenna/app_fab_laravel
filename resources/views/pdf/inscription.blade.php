@@ -109,7 +109,7 @@
 
     {{-- ENCABEZADO --}}
     @php
-        use App\Helpers\FabPath;
+        use app\Helpers\FabPath;
         $logoPath = FabPath::logo();
     @endphp
 
