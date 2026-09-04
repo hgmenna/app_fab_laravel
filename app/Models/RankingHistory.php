@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class GeneralRanking extends Model
+class RankingHistory extends Model
 {
-    //
     protected $fillable = [
+
+        'season',
         'RG',
         'RC',
         'category',

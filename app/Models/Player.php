@@ -70,6 +70,11 @@ class Player extends Model
         return "{$this->last_name}, {$this->first_name}";
     }
 
+    public function rankingHistories()
+    {
+        return $this->hasMany(RankingHistory::class);
+    }
+
 }
 
 
