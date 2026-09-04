@@ -2,14 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\GeneralRanking;
+use App\Models\Player;
+use App\Models\RankingHistory;
 use App\Models\Tournament;
 use App\Models\TournamentRegistration;
-use App\Models\Player;
 use Illuminate\Support\Collection;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
-
-use function Pest\Laravel\delete;
 
 class RankingService
 {
@@ -57,14 +56,41 @@ class RankingService
             ->whereIn('tournament_id', $torneos)
             ->get();
 
-        // 3) Jugadores con más de 0 puntos (en cualquier torneo)
+        // 3) Jugadores con puntos en alguno de los torneos seleccionados
         $jugadores = Player::query()
-            ->whereHas('registrations', fn ($q) => $q->where('points', '>', 0))
+            ->whereHas('registrations', function ($q) use ($torneos) {
+                $q->whereIn('tournament_id', $torneos)
+                    ->where('points', '>', 0);
+            })
             ->with(['club.city.state.federation', 'category'])
             ->get();
 
+        // Ranking anterior:
+        // Es la fotografía del ranking final guardada al terminar
+        // la Etapa 4 de la temporada anterior.
+
+        $selectedTournaments = Tournament::query()
+            ->findMany($torneos);
+
+        $latestTournament = $selectedTournaments
+            ->sortByDesc('end_date')
+            ->first();
+
+        $currentSeason = $latestTournament->end_date->year;
+
+        $stage4Tournament = $selectedTournaments
+            ->firstWhere('stage_number', 4);
+
+        $isSeasonClosed = $stage4Tournament
+            && $stage4Tournament->end_date->year === $currentSeason;
+
+        $previousSeason = $currentSeason - 1;
+
+        $rankingAnterior = RankingHistory::where('season', $previousSeason)
+            ->pluck('RG', 'player_id');
+
         // 4) Construir estructura por jugador
-        $ranking = $jugadores->map(function ($player) use ($regs, $torneos) {
+        $ranking = $jugadores->map(function ($player) use ($regs, $torneos, $rankingAnterior) {
 
             // Inscripciones del jugador en los 4 torneos seleccionados
             $items = $regs->where('player_id', $player->id);
@@ -91,6 +117,7 @@ class RankingService
                     'description' => $r?->tournamentInstance?->description ?? null,
                     'ptos' => $r?->points ?? null,
                 ]),
+                'previous_rank' => $rankingAnterior[$player->id] ?? PHP_INT_MAX,
             ];
         });
 
@@ -121,11 +148,13 @@ class RankingService
                 }
             }
 
-            return 0;
+           return $a['previous_rank'] <=> $b['previous_rank'];
         })->values();
 
+        $nationalMaxRG = $isSeasonClosed ? 46 : 48;
+
         // 6) Agregar RG y RC
-        $rankingFinal = $rankingOrdenado->map(function ($item, $index) use ($rankingOrdenado) {
+        $rankingFinal = $rankingOrdenado->map(function ($item, $index) use ($rankingOrdenado, $nationalMaxRG) {
 
     $player = $item['player'];
 
@@ -135,7 +164,7 @@ class RankingService
     // Calcular nivel según RG
     if ($item['RG'] <= 16) {
         $item['nivel'] = 'M';
-    } elseif ($item['RG'] >= 17 && $item['RG'] <= 48) {
+    } elseif ($item['RG'] >= 17 && $item['RG'] <= $nationalMaxRG) {
         $item['nivel'] = 'N';
     } else {
         $item['nivel'] = $player->category->code ?? null;
@@ -143,13 +172,13 @@ class RankingService
 
     // Calcular RC usando nivel
     $item['RC'] = $rankingOrdenado
-        ->map(function ($r, $i) {
+        ->map(function ($r, $i) use ($nationalMaxRG) {
             // calcular nivel para cada jugador
             $rg = $i + 1;
 
             if ($rg <= 16) {
                 $nivel = 'M';
-            } elseif ($rg >= 17 && $rg <= 48) {
+            } elseif ($rg >= 17 && $rg <= $nationalMaxRG) {
                 $nivel = 'N';
             } else {
                 $nivel = $r['player']->category->code ?? null;
@@ -175,16 +204,27 @@ class RankingService
             $detalle = collect($item['detalle']);
 
             return [
+                // Relacion con Player
+                'player_id' => $player->id,
+
+                // Ranking
                 'RG' => $item['RG'],
                 'RC' => $item['RC'],
+
+                //Datos deportivos
                 'category' => $item['nivel'],
+
+                // Datos del jugador
                 'last_name' => $player->last_name,
                 'first_name' => $player->first_name,
                 'club' => $player->club?->name ?? null,
                 'fed' => $player->club?->city?->state?->federation?->short_name ?? 'SIN FED',
+
+                // Puntos
                 'total_puntos' => $item['total'],
                 'total_penalties' => $item['total_penalties'] ?? 0,
 
+                // Detalle de las etapas
                 'pos_1' => $detalle->get(0)['description'] ?? null,
                 'ptos_1' => $detalle->get(0)['ptos'] ?? null,
 
@@ -220,17 +260,133 @@ class RankingService
 
     public static function syncGeneralRanking(): void
     {
-        // Obtenemos la colección que ya procesa tu lógica [3, 8]
+        // Primero calculamos completamente el nuevo ranking.
+        // Todavía no modificamos general_rankings.
         $data = self::getGeneralRanking();
 
+        // Seguridad 1: nunca vaciar el ranking si el cálculo no produjo jugadores.
+        if ($data->isEmpty()) {
+            throw new \RuntimeException(
+                'No se puede sincronizar el Ranking General porque el cálculo devolvió 0 jugadores.'
+            );
+        }
+
+        // Seguridad 2: todas las filas deben estar vinculadas a un jugador.
+        if ($data->contains(fn ($row) => empty($row['player_id']))) {
+            throw new \RuntimeException(
+                'No se puede sincronizar el Ranking General porque existen filas sin player_id.'
+            );
+        }
+
+        // Sólo después de superar las validaciones reemplazamos el ranking.
+        // Si cualquier create() falla, la transacción revierte también el delete().
         DB::transaction(function () use ($data) {
-            \App\Models\GeneralRanking::query()->delete(); // Limpia el ranking anterior
+            GeneralRanking::query()->delete();
+
             foreach ($data as $row) {
-                \App\Models\GeneralRanking::create($row);
+                GeneralRanking::create($row);
             }
         });
     }
 
-    
+    /**
+     * Guarda una fotografía del Ranking General al cierre de una temporada.
+     *
+     * @param int $season
+     * @return void
+     */
+    public static function saveSeasonRanking(int $season): void
+    {
+        $torneos = collect();
+
+        foreach ([1, 2, 3, 4] as $stage) {
+            $torneo = Tournament::query()
+                ->whereHas('type', fn ($q) => $q->where('affects_ranking', true))
+                ->where('stage_number', $stage)
+                ->where('end_date', '<=', now())
+                ->orderByDesc('end_date')
+                ->first();
+
+            if ($torneo) {
+                $torneos->push($torneo);
+            }
+        }
+
+        if ($torneos->count() !== 4) {
+            throw new \RuntimeException(
+                'No se puede cerrar la temporada: no existen las 4 etapas finalizadas.'
+            );
+        }
+
+        $latestTournament = $torneos
+            ->sortByDesc('end_date')
+            ->first();
+
+        $currentSeason = $latestTournament->end_date->year;
+
+        $stage4Tournament = $torneos
+            ->firstWhere('stage_number', 4);
+
+        if (
+            !$stage4Tournament ||
+            $stage4Tournament->end_date->year !== $currentSeason
+        ) {
+            throw new \RuntimeException(
+                'No se puede cerrar la temporada: la Etapa 4 de la temporada vigente todavía no está finalizada.'
+            );
+        }
+
+        if ($currentSeason !== $season) {
+            throw new \RuntimeException(
+                "La temporada vigente es {$currentSeason}, no {$season}."
+            );
+        }
+
+        $ranking = GeneralRanking::query()
+            ->orderBy('RG')
+            ->get();
+
+        if ($ranking->isEmpty()) {
+            throw new \RuntimeException(
+                'No se puede guardar el histórico porque GeneralRanking está vacío.'
+            );
+        }
+
+        if ($ranking->contains(fn ($row) => empty($row->player_id))) {
+            throw new \RuntimeException(
+                'No se puede guardar el histórico porque existen filas sin player_id.'
+            );
+        }
+
+        DB::transaction(function () use ($season, $ranking) {
+
+            RankingHistory::where('season', $season)->delete();
+
+            foreach ($ranking as $row) {
+                RankingHistory::create([
+                    'season'          => $season,
+                    'player_id'       => $row->player_id,
+                    'RG'              => $row->RG,
+                    'RC'              => $row->RC,
+                    'category'        => $row->category,
+                    'last_name'       => $row->last_name,
+                    'first_name'      => $row->first_name,
+                    'club'            => $row->club,
+                    'fed'             => $row->fed,
+                    'total_puntos'    => $row->total_puntos,
+                    'total_penalties' => $row->total_penalties,
+                    'pos_1'           => $row->pos_1,
+                    'ptos_1'          => $row->ptos_1,
+                    'pos_2'           => $row->pos_2,
+                    'ptos_2'          => $row->ptos_2,
+                    'pos_3'           => $row->pos_3,
+                    'ptos_3'          => $row->ptos_3,
+                    'pos_4'           => $row->pos_4,
+                    'ptos_4'          => $row->ptos_4,
+                ]);
+            }
+        });
+    }   
+
 }
 
