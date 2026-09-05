@@ -56,7 +56,7 @@
             padding: 4px 2px; 
             text-align: center; 
             vertical-align: middle;
-            overflow: hidden
+            overflow: hidden;
             height: 30px;
         }
 
@@ -93,7 +93,7 @@
         }
 
         table tr td {
-            line-heigt: 1.5;
+            line-height: 1.5;
             padding-top: 2px;
             padding-bottom: 2px;
         }
@@ -136,7 +136,7 @@
                 <!-- Grupos de Columnas definidos en el código fuente [1, 2, 5] -->
                 <tr class="group-label">
                     <th colspan="2">Ranking</th>
-                    <th colspan="5">Datos Personales</th>
+                    <th colspan="6">Datos Personales</th>
                     <th colspan="2">Etapa 1</th>
                     <th colspan="2">Etapa 2</th>
                     <th colspan="2">Etapa 3</th>
@@ -149,6 +149,7 @@
                     <th class="col-club group-label">Club</th>
                     <th class="col-cat-tot group-label">Cat</th>
                     <th class="col-cat-tot group-label">Fed</th>
+                    <th class="col-cat-tot group-label">R. Ant</th>
                     <th class="col-cat-tot group-label">Tot</th>
                     <!-- Etiquetas de Etapas según RankingService [3] -->
                     <th class="col-pos group-label">Pos</th><th class="col-pts group-label">Pts</th>
@@ -169,6 +170,9 @@
                     <td class="col-club text-left">{{ $row->club }}</td>
                     <td class="col-cat-tot">{{ $row->category }}</td>
                     <td class="col-cat-tot">{{ $row->fed }}</td>
+                    <td class="col-cat-tot">
+                        {{ $row->previous_rank !== null ? (int)$row->previous_rank : '-' }}
+                    </td>
                     <td class="col-cat-tot bg-green">{{ (int)$row->total_puntos }}</td>
 
                     {{-- Etapas: Se eliminan decimales mediante casting (int) [2, 5] --}}

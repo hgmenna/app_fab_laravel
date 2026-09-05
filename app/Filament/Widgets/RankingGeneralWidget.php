@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Models\GeneralRanking;
+use App\Models\RankingHistory;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -18,7 +19,6 @@ class RankingGeneralWidget extends TableWidget
 {
     protected static ?string $heading = 'Ranking Circuito Argentino de 5 Quillas';
     protected static ?int $sort = 1; // opcional: orden en el dashboard
-
     protected static ?string $maxHeight = '600px'; // ajustable 
     //protected static bool $isScrollable = false; // scroll interno
     protected int|string|array $columnSpan = 'full';
@@ -28,8 +28,21 @@ class RankingGeneralWidget extends TableWidget
      */
     public function table(Table $table): Table
     {
+       
+        $previousSeason = now()->year - 1;
+
         return $table
-            ->query(GeneralRanking::query())
+            ->query(
+                GeneralRanking::query()
+                ->select('general_rankings.*')
+                ->addSelect([
+                    'previous_rank' => RankingHistory::query()
+                        ->select('RG')
+                        ->whereColumn('player_id', 'general_rankings.player_id')
+                        ->where('season', $previousSeason)
+                        ->limit(1),
+                ])
+            )                               
             ->paginated([5,10, 25, 50])
             ->extremePaginationLinks()
             ->defaultPaginationPageOption(Filament::getCurrentPanel()?->getId() === 'guest' ? 5 : 10)
@@ -111,6 +124,12 @@ class RankingGeneralWidget extends TableWidget
                         ->label('Fed')
                         ->alignment('center')
                         ->width('30px'),
+
+                    TextColumn::make('previous_rank')
+                        ->label('R. Ant')
+                        ->alignment('center')
+                        ->placeholder('-')
+                        ->width('25px'),
 
                     TextColumn::make('total_penalties')
                         ->label('Pen')
