@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Models\GeneralRanking;
 use App\Models\RankingHistory;
+use App\Models\Tournament;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -29,7 +30,15 @@ class RankingGeneralWidget extends TableWidget
     public function table(Table $table): Table
     {
        
-        $previousSeason = now()->year - 1;
+        $latestRankingTournament = Tournament::query()
+            ->whereHas('type', fn ($q) => $q->where('affects_ranking', true))
+            ->whereIn('stage_number', [1, 2, 3, 4])
+            ->where('end_date', '<=', now())
+            ->orderByDesc('end_date')
+            ->first();
+
+        $currentSeason = $latestRankingTournament?->end_date?->year ?? now()->year;
+        $previousSeason = $currentSeason - 1;
 
         return $table
             ->query(
