@@ -1,66 +1,112 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::table('player_category_histories', function (Blueprint $table) {
-            $table->dropForeign(['player_id']);
-            $table->dropForeign(['category_id']);
-            $table->dropForeign(['previous_category_id']);
-        });
+        $table = 'player_category_histories';
 
-        Schema::table('player_category_histories', function (Blueprint $table) {
-            $table->foreign('player_id')
-                ->references('id')
-                ->on('players')
-                ->restrictOnDelete();
+        $this->dropForeignIfExists(
+            $table,
+            'player_category_histories_player_id_foreign'
+        );
 
-            $table->foreign('category_id')
-                ->references('id')
-                ->on('categories')
-                ->restrictOnDelete();
+        $this->dropForeignIfExists(
+            $table,
+            'player_category_histories_category_id_foreign'
+        );
 
-            $table->foreign('previous_category_id')
-                ->references('id')
-                ->on('categories')
-                ->restrictOnDelete();
-        });
+        $this->dropForeignIfExists(
+            $table,
+            'player_category_histories_previous_category_id_foreign'
+        );
+
+        DB::statement("
+            ALTER TABLE {$table}
+            ADD CONSTRAINT player_category_histories_player_id_foreign
+            FOREIGN KEY (player_id)
+            REFERENCES players(id)
+            ON DELETE RESTRICT
+        ");
+
+        DB::statement("
+            ALTER TABLE {$table}
+            ADD CONSTRAINT player_category_histories_category_id_foreign
+            FOREIGN KEY (category_id)
+            REFERENCES categories(id)
+            ON DELETE RESTRICT
+        ");
+
+        DB::statement("
+            ALTER TABLE {$table}
+            ADD CONSTRAINT player_category_histories_previous_category_id_foreign
+            FOREIGN KEY (previous_category_id)
+            REFERENCES categories(id)
+            ON DELETE RESTRICT
+        ");
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::table('player_category_histories', function (Blueprint $table) {
-            $table->dropForeign(['player_id']);
-            $table->dropForeign(['category_id']);
-            $table->dropForeign(['previous_category_id']);
-        });
+        $table = 'player_category_histories';
 
-        Schema::table('player_category_histories', function (Blueprint $table) {
-            $table->foreign('player_id')
-                ->references('id')
-                ->on('players')
-                ->cascadeOnDelete();
+        $this->dropForeignIfExists(
+            $table,
+            'player_category_histories_player_id_foreign'
+        );
 
-            $table->foreign('category_id')
-                ->references('id')
-                ->on('categories')
-                ->cascadeOnDelete();
+        $this->dropForeignIfExists(
+            $table,
+            'player_category_histories_category_id_foreign'
+        );
 
-            $table->foreign('previous_category_id')
-                ->references('id')
-                ->on('categories')
-                ->nullOnDelete();
-        });
+        $this->dropForeignIfExists(
+            $table,
+            'player_category_histories_previous_category_id_foreign'
+        );
+
+        DB::statement("
+            ALTER TABLE {$table}
+            ADD CONSTRAINT player_category_histories_player_id_foreign
+            FOREIGN KEY (player_id)
+            REFERENCES players(id)
+            ON DELETE CASCADE
+        ");
+
+        DB::statement("
+            ALTER TABLE {$table}
+            ADD CONSTRAINT player_category_histories_category_id_foreign
+            FOREIGN KEY (category_id)
+            REFERENCES categories(id)
+            ON DELETE CASCADE
+        ");
+
+        DB::statement("
+            ALTER TABLE {$table}
+            ADD CONSTRAINT player_category_histories_previous_category_id_foreign
+            FOREIGN KEY (previous_category_id)
+            REFERENCES categories(id)
+            ON DELETE SET NULL
+        ");
+    }
+
+    private function dropForeignIfExists(string $table, string $constraint): void
+    {
+        $exists = DB::table('information_schema.TABLE_CONSTRAINTS')
+            ->where('CONSTRAINT_SCHEMA', DB::getDatabaseName())
+            ->where('TABLE_NAME', $table)
+            ->where('CONSTRAINT_NAME', $constraint)
+            ->where('CONSTRAINT_TYPE', 'FOREIGN KEY')
+            ->exists();
+
+        if ($exists) {
+            DB::statement(
+                "ALTER TABLE {$table} DROP FOREIGN KEY {$constraint}"
+            );
+        }
     }
 };
