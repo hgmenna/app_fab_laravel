@@ -15,10 +15,12 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use App\Models\Category;
+use App\Models\GeneralRanking;
 
 class TournamentRegistrationForm
 {
-    public static function configure(Schema $schema, $tournament): Schema
+    public static function configure(Schema $schema, ?Tournament $tournament): Schema
     {
         return $schema
             ->components([
@@ -38,7 +40,75 @@ class TournamentRegistrationForm
 
                 Select::make('player_id')
                 ->label('Jugador')
-                ->relationship('player', 'full_name')
+                ->relationship(
+                    name: 'player',
+                    titleAttribute: 'full_name',
+                    modifyQueryUsing: function ($query) use ($tournament) {
+                        if (! $tournament) {
+                            return $query->whereRaw('1 = 0');
+                        }
+
+                        $enabledCategoryIds = collect($tournament->categories ?? [])
+                            ->map(fn ($id) => (int) $id)
+                            ->filter()
+                            ->values();
+
+                        if ($enabledCategoryIds->isEmpty()) {
+                            return $query->whereRaw('1 = 0');
+                        }
+
+                        $enabledCategories = Category::query()
+                            ->whereIn('id', $enabledCategoryIds)
+                            ->get(['id', 'code']);
+
+                        /*
+                        * Master y Nacional se validan contra el Ranking General vigente.
+                        */
+                        $rankingCodes = $enabledCategories
+                            ->whereIn('code', ['M', 'N'])
+                            ->pluck('code')
+                            ->values();
+
+                        /*
+                        * Las demás categorías se validan contra la categoría
+                        * permanente del jugador.
+                        */
+                        $permanentCategoryIds = $enabledCategories
+                            ->whereNotIn('code', ['M', 'N'])
+                            ->pluck('id')
+                            ->map(fn ($id) => (int) $id)
+                            ->values();
+
+                        /*
+                        * Regla obligatoria para todos:
+                        * solamente jugadores habilitados para competir.
+                        */
+                        $query->where('is_enabled_to_compete', true);
+
+                        $query->where(function ($q) use ($rankingCodes, $permanentCategoryIds) {
+                            $hasCondition = false;
+
+                            if ($permanentCategoryIds->isNotEmpty()) {
+                                $q->whereIn('category_id', $permanentCategoryIds);
+                                $hasCondition = true;
+                            }
+
+                            if ($rankingCodes->isNotEmpty()) {
+                                $rankingQuery = GeneralRanking::query()
+                                    ->select('player_id')
+                                    ->whereIn('category', $rankingCodes);
+
+                                if ($hasCondition) {
+                                    $q->orWhereIn('id', $rankingQuery);
+                                } else {
+                                    $q->whereIn('id', $rankingQuery);
+                                }
+                            }
+                        });
+
+                        return $query;
+                    }
+                )
                 ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
                 ->searchable(['last_name', 'first_name'])
                 ->preload()
