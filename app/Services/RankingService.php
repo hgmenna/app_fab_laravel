@@ -85,6 +85,12 @@ class RankingService
         $isSeasonClosed = $stage4Tournament
             && $stage4Tournament->end_date->year === $currentSeason;
 
+        // Límites reglamentarios configurables
+        $masterMaxRG = (int) config('ranking.master_max_rg', 16);
+        $nationalMinRG = $masterMaxRG + 1;
+        $nationalMaxRGNormal = (int) config('ranking.national_max_rg', 48);
+        $nationalMaxRGAfterStage4 = (int) config('ranking.national_max_rg_after_stage_4', 46);
+
         $previousSeason = $currentSeason - 1;
 
         $rankingAnterior = RankingHistory::where('season', $previousSeason)
@@ -232,60 +238,78 @@ class RankingService
                     })
                     ->values();
 
-                $primeros46 = $restoRanking->take(46);
-                $desde49 = $restoRanking->skip(46);
+                $primerosNacionalesBase = $restoRanking
+                    ->take($nationalMaxRGAfterStage4);
 
-                $rankingOrdenado = $primeros46
+                $desdeSiguiente = $restoRanking
+                    ->skip($nationalMaxRGAfterStage4);
+
+                $rankingOrdenado = $primerosNacionalesBase
                     ->concat([
                         $championItem,
                         $runnerUpItem,
                     ])
-                    ->concat($desde49)
+                    ->concat($desdeSiguiente)
                     ->values();
             }
         }
 
-        $nationalMaxRG = $isSeasonClosed ? 46 : 48;
+        $nationalMaxRG = ($isSeasonClosed && !$specialPosition)
+            ? $nationalMaxRGAfterStage4
+            : $nationalMaxRGNormal;
 
         // 6) Agregar RG y RC
-        $rankingFinal = $rankingOrdenado->map(function ($item, $index) use ($rankingOrdenado, $nationalMaxRG) {
+        $rankingFinal = $rankingOrdenado->map(function ($item, $index) use (
+            $rankingOrdenado,
+            $nationalMaxRG,
+            $masterMaxRG,
+            $nationalMinRG
+        ) {
+            $player = $item['player'];
 
-        $player = $item['player'];
+            // Ranking general
+            $item['RG'] = $index + 1;
 
-        // Ranking general
-        $item['RG'] = $index + 1;
+            // Calcular categoría según RG
+            if ($item['RG'] <= $masterMaxRG) {
+                $item['nivel'] = 'M';
+            } elseif (
+                $item['RG'] >= $nationalMinRG
+                && $item['RG'] <= $nationalMaxRG
+            ) {
+                $item['nivel'] = 'N';
+            } else {
+                $item['nivel'] = $player->category->code ?? null;
+            }
 
-        // Calcular nivel según RG
-        if ($item['RG'] <= 16) {
-            $item['nivel'] = 'M';
-        } elseif ($item['RG'] >= 17 && $item['RG'] <= $nationalMaxRG) {
-            $item['nivel'] = 'N';
-        } else {
-            $item['nivel'] = $player->category->code ?? null;
-        }
+            // Calcular RC dentro de cada categoría
+            $item['RC'] = $rankingOrdenado
+                ->map(function ($r, $i) use (
+                    $nationalMaxRG,
+                    $masterMaxRG,
+                    $nationalMinRG
+                ) {
+                    $rg = $i + 1;
 
-        // Calcular RC usando nivel
-        $item['RC'] = $rankingOrdenado
-            ->map(function ($r, $i) use ($nationalMaxRG) {
-                // calcular nivel para cada jugador
-                $rg = $i + 1;
+                    if ($rg <= $masterMaxRG) {
+                        $nivel = 'M';
+                    } elseif (
+                        $rg >= $nationalMinRG
+                        && $rg <= $nationalMaxRG
+                    ) {
+                        $nivel = 'N';
+                    } else {
+                        $nivel = $r['player']->category->code ?? null;
+                    }
 
-                if ($rg <= 16) {
-                    $nivel = 'M';
-                } elseif ($rg >= 17 && $rg <= $nationalMaxRG) {
-                    $nivel = 'N';
-                } else {
-                    $nivel = $r['player']->category->code ?? null;
-                }
-
-                return [
-                    'nivel' => $nivel,
-                    'index' => $i,
-                ];
-            })
-            ->filter(fn ($r) => $r['nivel'] === $item['nivel'])
-            ->pluck('index')
-            ->search($index) + 1;
+                    return [
+                        'nivel' => $nivel,
+                        'index' => $i,
+                    ];
+                })
+                ->filter(fn ($r) => $r['nivel'] === $item['nivel'])
+                ->pluck('index')
+                ->search($index) + 1;
 
             return $item;
         });
