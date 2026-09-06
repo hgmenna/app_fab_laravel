@@ -9,6 +9,7 @@ use App\Models\Tournament;
 use App\Models\TournamentRegistration;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use App\Models\RankingSpecialPosition;
 
 class RankingService
 {
@@ -29,7 +30,7 @@ class RankingService
 
         $torneos = collect();
 
-            foreach ([1, 2, 3, 4] as $stage) {
+        foreach ([1, 2, 3, 4] as $stage) {
             $torneo = Tournament::query()
                 ->whereHas('type', fn ($q) => $q->where('affects_ranking', true))
                 ->where('stage_number', $stage)
@@ -151,50 +152,143 @@ class RankingService
            return $a['previous_rank'] <=> $b['previous_rank'];
         })->values();
 
+        /*
+        |--------------------------------------------------------------------------
+        | Campeonato Argentino de Primera Categoría
+        |--------------------------------------------------------------------------
+        */
+
+        $specialPosition = null;
+
+        if ($isSeasonClosed) {
+            $specialPosition = RankingSpecialPosition::query()
+                ->where('season', $currentSeason)
+                ->first();
+        }
+
+        if ($specialPosition) {
+
+            $championId = (int) $specialPosition->champion_player_id;
+            $runnerUpId = (int) $specialPosition->runner_up_player_id;
+
+            $championItem = $rankingOrdenado
+                ->first(fn ($item) => (int) $item['player']->id === $championId);
+
+            $runnerUpItem = $rankingOrdenado
+                ->first(fn ($item) => (int) $item['player']->id === $runnerUpId);
+
+            if (!$championItem) {
+                $player = Player::query()
+                    ->with(['club.city.state.federation', 'category'])
+                    ->find($championId);
+
+                if ($player) {
+                    $championItem = [
+                        'player' => $player,
+                        'total' => 0,
+                        'total_penalties' => 0,
+                        'posiciones' => collect([0, 0, 0, 0]),
+                        'detalle' => collect([
+                            ['description' => null, 'ptos' => null],
+                            ['description' => null, 'ptos' => null],
+                            ['description' => null, 'ptos' => null],
+                            ['description' => null, 'ptos' => null],
+                        ]),
+                        'previous_rank' => $rankingAnterior[$player->id] ?? PHP_INT_MAX,
+                    ];
+                }
+            }
+
+            if (!$runnerUpItem) {
+                $player = Player::query()
+                    ->with(['club.city.state.federation', 'category'])
+                    ->find($runnerUpId);
+
+                if ($player) {
+                    $runnerUpItem = [
+                        'player' => $player,
+                        'total' => 0,
+                        'total_penalties' => 0,
+                        'posiciones' => collect([0, 0, 0, 0]),
+                        'detalle' => collect([
+                            ['description' => null, 'ptos' => null],
+                            ['description' => null, 'ptos' => null],
+                            ['description' => null, 'ptos' => null],
+                            ['description' => null, 'ptos' => null],
+                        ]),
+                        'previous_rank' => $rankingAnterior[$player->id] ?? PHP_INT_MAX,
+                    ];
+                }
+            }
+
+            if ($championItem && $runnerUpItem) {
+
+                $restoRanking = $rankingOrdenado
+                    ->reject(function ($item) use ($championId, $runnerUpId) {
+                        $playerId = (int) $item['player']->id;
+
+                        return $playerId === $championId
+                            || $playerId === $runnerUpId;
+                    })
+                    ->values();
+
+                $primeros46 = $restoRanking->take(46);
+                $desde49 = $restoRanking->skip(46);
+
+                $rankingOrdenado = $primeros46
+                    ->concat([
+                        $championItem,
+                        $runnerUpItem,
+                    ])
+                    ->concat($desde49)
+                    ->values();
+            }
+        }
+
         $nationalMaxRG = $isSeasonClosed ? 46 : 48;
 
         // 6) Agregar RG y RC
         $rankingFinal = $rankingOrdenado->map(function ($item, $index) use ($rankingOrdenado, $nationalMaxRG) {
 
-    $player = $item['player'];
+        $player = $item['player'];
 
-    // Ranking general
-    $item['RG'] = $index + 1;
+        // Ranking general
+        $item['RG'] = $index + 1;
 
-    // Calcular nivel según RG
-    if ($item['RG'] <= 16) {
-        $item['nivel'] = 'M';
-    } elseif ($item['RG'] >= 17 && $item['RG'] <= $nationalMaxRG) {
-        $item['nivel'] = 'N';
-    } else {
-        $item['nivel'] = $player->category->code ?? null;
-    }
+        // Calcular nivel según RG
+        if ($item['RG'] <= 16) {
+            $item['nivel'] = 'M';
+        } elseif ($item['RG'] >= 17 && $item['RG'] <= $nationalMaxRG) {
+            $item['nivel'] = 'N';
+        } else {
+            $item['nivel'] = $player->category->code ?? null;
+        }
 
-    // Calcular RC usando nivel
-    $item['RC'] = $rankingOrdenado
-        ->map(function ($r, $i) use ($nationalMaxRG) {
-            // calcular nivel para cada jugador
-            $rg = $i + 1;
+        // Calcular RC usando nivel
+        $item['RC'] = $rankingOrdenado
+            ->map(function ($r, $i) use ($nationalMaxRG) {
+                // calcular nivel para cada jugador
+                $rg = $i + 1;
 
-            if ($rg <= 16) {
-                $nivel = 'M';
-            } elseif ($rg >= 17 && $rg <= $nationalMaxRG) {
-                $nivel = 'N';
-            } else {
-                $nivel = $r['player']->category->code ?? null;
-            }
+                if ($rg <= 16) {
+                    $nivel = 'M';
+                } elseif ($rg >= 17 && $rg <= $nationalMaxRG) {
+                    $nivel = 'N';
+                } else {
+                    $nivel = $r['player']->category->code ?? null;
+                }
 
-            return [
-                'nivel' => $nivel,
-                'index' => $i,
-            ];
-        })
-        ->filter(fn ($r) => $r['nivel'] === $item['nivel'])
-        ->pluck('index')
-        ->search($index) + 1;
+                return [
+                    'nivel' => $nivel,
+                    'index' => $i,
+                ];
+            })
+            ->filter(fn ($r) => $r['nivel'] === $item['nivel'])
+            ->pluck('index')
+            ->search($index) + 1;
 
-        return $item;
-    });
+            return $item;
+        });
 
         // 7) Formato final para tabla
         $data =  $rankingFinal->map(function ($item) {
@@ -339,6 +433,28 @@ class RankingService
         if ($currentSeason !== $season) {
             throw new \RuntimeException(
                 "La temporada vigente es {$currentSeason}, no {$season}."
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Proteger el histórico del Campeonato Argentino
+        |--------------------------------------------------------------------------
+        |
+        | Las posiciones RG47 y RG48 del Campeonato Argentino son transitorias
+        | y no deben formar parte del RankingHistory de cierre de temporada.
+        |
+        | Por lo tanto, si ya fueron asignadas, impedimos regenerar el histórico.
+        |
+        */
+
+        if (
+            RankingSpecialPosition::query()
+                ->where('season', $season)
+                ->exists()
+        ) {
+            throw new \RuntimeException(
+                "No se puede regenerar el histórico {$season}: ya existen posiciones especiales del Campeonato Argentino."
             );
         }
 

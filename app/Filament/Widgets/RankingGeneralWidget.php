@@ -15,6 +15,13 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
 use Illuminate\Contracts\View\View;
+use App\Models\Player;
+use App\Models\RankingSpecialPosition;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use App\Services\RankingService;
+use Illuminate\Support\Facades\Auth;
 
 class RankingGeneralWidget extends TableWidget
 {
@@ -58,6 +65,89 @@ class RankingGeneralWidget extends TableWidget
             ->striped()
             ->extraAttributes(['class' => 'text-center'])
             ->headerActions([
+                Action::make('campeonatoArgentino')
+                    ->label('Campeonato Argentino')
+                    ->icon('heroicon-o-trophy')
+                    ->color('warning')
+                    ->visible(function (): bool {
+                        $user = Auth::user();
+
+                        return $user instanceof \App\Models\User
+                            && $user->hasRole('super-admin');
+                    })
+                    ->schema([
+                        TextInput::make('season')
+                            ->label('Temporada')
+                            ->numeric()
+                            ->required()
+                            ->default(function (): int {
+                                $latestRankingTournament = Tournament::query()
+                                    ->whereHas('type', fn ($q) => $q->where('affects_ranking', true))
+                                    ->whereIn('stage_number', [1, 2, 3, 4])
+                                    ->where('end_date', '<=', now())
+                                    ->orderByDesc('end_date')
+                                    ->first();
+
+                                return $latestRankingTournament?->end_date?->year ?? now()->year;
+                            })
+                            ->readOnly(),
+
+                        Select::make('champion_player_id')
+                            ->label('Campeón')
+                            ->options(
+                                Player::query()
+                                    ->orderBy('last_name')
+                                    ->orderBy('first_name')
+                                    ->get()
+                                    ->mapWithKeys(fn ($player) => [
+                                        $player->id => $player->last_name . ' ' . $player->first_name,
+                                    ])
+                                    ->all()
+                            )
+                            ->searchable()
+                            ->required(),
+
+                        Select::make('runner_up_player_id')
+                            ->label('Subcampeón')
+                            ->options(
+                                Player::query()
+                                    ->orderBy('last_name')
+                                    ->orderBy('first_name')
+                                    ->get()
+                                    ->mapWithKeys(fn ($player) => [
+                                        $player->id => $player->last_name . ' ' . $player->first_name,
+                                    ])
+                                    ->all()
+                            )
+                            ->searchable()
+                            ->required(),
+                    ])
+                    ->action(function (array $data): void {
+                        if ((int) $data['champion_player_id'] === (int) $data['runner_up_player_id']) {
+                            Notification::make()
+                                ->title('El campeón y el subcampeón no pueden ser el mismo jugador.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        RankingSpecialPosition::updateOrCreate(
+                            ['season' => (int) $data['season']],
+                            [
+                                'champion_player_id' => (int) $data['champion_player_id'],
+                                'runner_up_player_id' => (int) $data['runner_up_player_id'],
+                            ]
+                        );
+
+                        RankingService::syncGeneralRanking();
+
+                        Notification::make()
+                            ->title('Posiciones especiales guardadas correctamente.')
+                            ->success()
+                            ->send();
+                    }),
+
                 Action::make('descargarPdf')
                     ->label('Exportar PDF')
                     ->icon('heroicon-o-arrow-down-tray')
