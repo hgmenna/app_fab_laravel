@@ -7,6 +7,7 @@ use App\Models\PlayerCategoryPromotion;
 use App\Models\RankingHistory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PlayerCategoryPromotionService
 {
@@ -238,29 +239,30 @@ class PlayerCategoryPromotionService
     * el cambio en el historial de categorías.
     */
     public static function applyDuePromotions(): int
-    {
-        $promotions = PlayerCategoryPromotion::query()
-            ->with([
-                'player.category',
-                'previousCategory',
-                'newCategory',
-            ])
-            ->whereNull('applied_at')
-            ->whereDate('effective_date', '<=', today())
-            ->orderBy('effective_date')
-            ->orderBy('id')
-            ->get();
+{
+    $promotions = PlayerCategoryPromotion::query()
+        ->with([
+            'player.category',
+            'previousCategory',
+            'newCategory',
+        ])
+        ->whereNull('applied_at')
+        ->whereDate('effective_date', '<=', today())
+        ->orderBy('effective_date')
+        ->orderBy('id')
+        ->get();
 
-        if ($promotions->isEmpty()) {
-            return 0;
-        }
+    if ($promotions->isEmpty()) {
+        return 0;
+    }
 
-        $applied = 0;
+    $applied = 0;
 
-        DB::transaction(function () use ($promotions, &$applied) {
-            $historyService = new PlayerCategoryHistoryService();
+    foreach ($promotions as $promotion) {
+        try {
+            DB::transaction(function () use ($promotion, &$applied) {
+                $historyService = new PlayerCategoryHistoryService();
 
-            foreach ($promotions as $promotion) {
                 $player = $promotion->player;
                 $previousCategory = $promotion->previousCategory;
                 $newCategory = $promotion->newCategory;
@@ -272,13 +274,13 @@ class PlayerCategoryPromotionService
                 }
 
                 /*
-                * Protección:
-                * la categoría actual debe seguir siendo la misma categoría
-                * desde la cual se determinó el ascenso.
-                *
-                * Si fue modificada manualmente entre el cierre de temporada
-                * y la fecha efectiva, no sobrescribimos ese cambio.
-                */
+                 * Protección:
+                 * la categoría actual debe seguir siendo la misma categoría
+                 * desde la cual se determinó el ascenso.
+                 *
+                 * Si fue modificada manualmente entre el cierre de temporada
+                 * y la fecha efectiva, no sobrescribimos ese cambio.
+                 */
                 if ((int) $player->category_id !== (int) $previousCategory->id) {
                     throw new \RuntimeException(
                         "No se puede aplicar la promoción ID {$promotion->id} del jugador {$player->id}: "
@@ -302,9 +304,22 @@ class PlayerCategoryPromotionService
                 $promotion->save();
 
                 $applied++;
-            }
-        });
+            });
+        } catch (\Throwable $e) {
+            Log::warning(
+                'No se pudo aplicar una promoción de categoría.',
+                [
+                    'promotion_id' => $promotion->id,
+                    'player_id' => $promotion->player_id,
+                    'season' => $promotion->season,
+                    'error' => $e->getMessage(),
+                ]
+            );
 
-        return $applied;
+            continue;
+        }
     }
+
+    return $applied;
+}
 }
