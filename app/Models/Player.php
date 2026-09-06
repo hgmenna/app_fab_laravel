@@ -75,6 +75,16 @@ class Player extends Model
         return $this->hasMany(RankingHistory::class);
     }
 
+    public function categoryHistories()
+    {
+        return $this->hasMany(PlayerCategoryHistory::class);
+    }
+
+    public function categoryPromotions()
+    {
+        return $this->hasMany(PlayerCategoryPromotion::class);
+    }
+
 }
 
 

@@ -26,4 +26,17 @@ return [
 
     'national_max_rg_after_stage_4' => 46,
 
+    'promotion_map' => [
+        'S' => 'P',
+        'T' => 'S',
+        'PR' => 'T',
+    ],
+
+    'temporary_ranking_categories' => [
+        'M',
+        'N',
+    ],
+
+    'permanent_affiliation_category_for_temporary' => 'P',
+
 ];

@@ -10,14 +10,15 @@ use App\Models\TournamentRegistration;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use App\Models\RankingSpecialPosition;
+use App\Models\Category;
 
 class RankingService
 {
     /**
-     * Devuelve la colección formateada para el ranking general.
-     *
-     * @return \Illuminate\Support\Collection
-     */
+    * Devuelve la colección formateada para el ranking general.
+    *
+    * @return \Illuminate\Support\Collection
+    */
     public static function getGeneralRanking(?string $category = null, ?string $search = null): Collection
     {
         // 1) Últimos 4 torneos que afectan ranking
@@ -107,12 +108,12 @@ class RankingService
 
             // A. Suma total de puntos obtenidos en las 4 etapas
             $puntos_brutos = $ordenados->sum(fn ($r) => $r?->points ?? 0);
-            
+
             // B. Suma total de penalizaciones (multas)
             $multas = $ordenados->sum(fn ($r) => $r?->penalty_points ?? 0);
 
             // C. TOTAL NETO: El primer criterio de ordenación (Puntos - Multas)
-            $total_neto = $puntos_brutos - $multas;           
+            $total_neto = $puntos_brutos - $multas;
 
             return [
                 'player' => $player,
@@ -358,7 +359,7 @@ class RankingService
         });
 
         // --- APLICAR FILTROS MANUALMENTE ---
-    
+
         // Filtrar por Categoría (SelectFilter)
         if ($category) {
             $data = $data->where('category', $category);
@@ -368,7 +369,7 @@ class RankingService
         if ($search) {
             $search = strtolower($search);
             $data = $data->filter(function ($item) use ($search) {
-                return str_contains(strtolower($item['last_name'] ?? ''), $search) || 
+                return str_contains(strtolower($item['last_name'] ?? ''), $search) ||
                     str_contains(strtolower($item['club'] ?? ''), $search);
             });
         }
@@ -378,27 +379,227 @@ class RankingService
 
     public static function syncGeneralRanking(): void
     {
-        // Primero calculamos completamente el nuevo ranking.
-        // Todavía no modificamos general_rankings.
+        /*
+        * Guardamos el Ranking General actualmente publicado antes
+        * de calcular y reemplazarlo.
+        *
+        * Esto nos permite detectar cambios temporales de categoría:
+        * S -> N, N -> M, M -> N, N -> S, etc.
+        */
+        $previousRanking = GeneralRanking::query()
+            ->get()
+            ->keyBy('player_id');
+
+        /*
+        * Calculamos completamente el nuevo ranking.
+        * Todavía no modificamos general_rankings.
+        */
         $data = self::getGeneralRanking();
 
-        // Seguridad 1: nunca vaciar el ranking si el cálculo no produjo jugadores.
+        /*
+        * Seguridad 1:
+        * nunca vaciar el ranking si el cálculo no produjo jugadores.
+        */
         if ($data->isEmpty()) {
             throw new \RuntimeException(
                 'No se puede sincronizar el Ranking General porque el cálculo devolvió 0 jugadores.'
             );
         }
 
-        // Seguridad 2: todas las filas deben estar vinculadas a un jugador.
+        /*
+        * Seguridad 2:
+        * todas las filas deben estar vinculadas a un jugador.
+        */
         if ($data->contains(fn ($row) => empty($row['player_id']))) {
             throw new \RuntimeException(
                 'No se puede sincronizar el Ranking General porque existen filas sin player_id.'
             );
         }
 
-        // Sólo después de superar las validaciones reemplazamos el ranking.
-        // Si cualquier create() falla, la transacción revierte también el delete().
-        DB::transaction(function () use ($data) {
+        /*
+        * Determinamos la temporada vigente a partir del torneo de ranking
+        * finalizado más reciente.
+        */
+        $latestRankingTournament = Tournament::query()
+            ->whereHas(
+                'type',
+                fn ($q) => $q->where('affects_ranking', true)
+            )
+            ->whereIn('stage_number', [1, 2, 3, 4])
+            ->where('end_date', '<=', now())
+            ->orderByDesc('end_date')
+            ->first();
+
+        if (!$latestRankingTournament) {
+            throw new \RuntimeException(
+                'No se puede determinar la temporada vigente del Ranking General.'
+            );
+        }
+
+        $season = (int) \Carbon\Carbon::parse(
+            $latestRankingTournament->end_date
+        )->year;
+
+        /*
+        * La fecha efectiva del cambio temporal será la fecha en que
+        * efectivamente se sincroniza/publica el nuevo ranking.
+        *
+        * Usamos hora argentina independientemente del timezone general
+        * de Laravel, que actualmente está configurado en UTC.
+        */
+        $effectiveDate = now('America/Argentina/Buenos_Aires')
+            ->toDateString();
+
+        /*
+        * Cargamos jugadores y categorías una sola vez para evitar
+        * consultas repetitivas dentro de la transacción.
+        */
+        $playerIds = collect($data)
+            ->pluck('player_id')
+            ->merge($previousRanking->keys())
+            ->filter()
+            ->unique()
+            ->values();
+
+        $players = Player::query()
+            ->with('category')
+            ->whereIn('id', $playerIds)
+            ->get()
+            ->keyBy('id');
+
+        $categories = Category::query()
+            ->get()
+            ->keyBy('code');
+
+        DB::transaction(function () use (
+            $data,
+            $previousRanking,
+            $players,
+            $categories,
+            $season,
+            $effectiveDate
+        ) {
+            $historyService = new PlayerCategoryHistoryService();
+
+            /*
+            * Indexamos el nuevo ranking por jugador para poder detectar
+            * también jugadores que estaban antes y ahora ya no aparecen.
+            */
+            $newRanking = collect($data)->keyBy('player_id');
+
+            /*
+            * 1) Registrar cambios de categoría de todos los jugadores
+            * que aparecen en el nuevo ranking.
+            */
+            foreach ($newRanking as $playerId => $row) {
+                $player = $players->get($playerId);
+
+                if (!$player || !$player->category) {
+                    continue;
+                }
+
+                $newCategoryCode = $row['category'] ?? null;
+
+                if (!$newCategoryCode) {
+                    continue;
+                }
+
+                $newCategory = $categories->get($newCategoryCode);
+
+                if (!$newCategory) {
+                    throw new \RuntimeException(
+                        "No existe la categoría {$newCategoryCode}."
+                    );
+                }
+
+                /*
+                * Si el jugador ya estaba en el ranking, la categoría anterior
+                * es la categoría temporal que tenía publicada.
+                *
+                * Si entra por primera vez, usamos su categoría permanente
+                * de afiliación como origen.
+                */
+                $previousRow = $previousRanking->get($playerId);
+
+                if ($previousRow) {
+                    $previousCategoryCode = $previousRow->category;
+                    $previousCategory = $categories->get(
+                        $previousCategoryCode
+                    );
+                } else {
+                    $previousCategory = $player->category;
+                }
+
+                if (!$previousCategory) {
+                    throw new \RuntimeException(
+                        "No se pudo determinar la categoría anterior del jugador {$playerId}."
+                    );
+                }
+
+                if ((int) $previousCategory->id === (int) $newCategory->id) {
+                    continue;
+                }
+
+                $historyService->recordTemporaryRankingChange(
+                    player: $player,
+                    previousCategory: $previousCategory,
+                    newCategory: $newCategory,
+                    season: $season,
+                    effectiveDate: $effectiveDate,
+                    reason: 'Cambio temporal por actualización del Ranking General'
+                );
+            }
+
+            /*
+            * 2) Registrar jugadores que estaban en el ranking anterior
+            * pero desaparecen del nuevo ranking.
+            *
+            * En ese caso dejan de tener una categoría temporal de ranking
+            * y regresan a su categoría permanente de afiliación.
+            */
+            foreach ($previousRanking as $playerId => $previousRow) {
+                if ($newRanking->has($playerId)) {
+                    continue;
+                }
+
+                $player = $players->get($playerId);
+
+                if (!$player || !$player->category) {
+                    continue;
+                }
+
+                $previousCategory = $categories->get(
+                    $previousRow->category
+                );
+
+                $newCategory = $player->category;
+
+                if (!$previousCategory) {
+                    throw new \RuntimeException(
+                        "No existe la categoría {$previousRow->category}."
+                    );
+                }
+
+                if ((int) $previousCategory->id === (int) $newCategory->id) {
+                    continue;
+                }
+
+                $historyService->recordTemporaryRankingChange(
+                    player: $player,
+                    previousCategory: $previousCategory,
+                    newCategory: $newCategory,
+                    season: $season,
+                    effectiveDate: $effectiveDate,
+                    reason: 'Salida del Ranking General y retorno a categoría de afiliación'
+                );
+            }
+
+            /*
+            * Sólo después de validar y registrar los cambios reemplazamos
+            * completamente el Ranking General.
+            *
+            * Si cualquier operación falla, toda la transacción se revierte.
+            */
             GeneralRanking::query()->delete();
 
             foreach ($data as $row) {
@@ -525,8 +726,11 @@ class RankingService
                     'ptos_4'          => $row->ptos_4,
                 ]);
             }
+
+            PlayerCategoryPromotionService::determineSeasonPromotions($season);
+
         });
-    }   
+    }
 
 }
 

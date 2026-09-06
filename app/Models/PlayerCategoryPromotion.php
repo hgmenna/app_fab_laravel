@@ -4,24 +4,24 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class PlayerCategoryHistory extends Model
+class PlayerCategoryPromotion extends Model
 {
     protected $fillable = [
         'player_id',
         'season',
-        'category_id',
-        'change_type',
         'previous_category_id',
-        'source',
-        'tournament_id',
-        'ranking_id',
+        'new_category_id',
+        'promotion_type',
+        'final_rg',
+        'final_rc',
         'effective_date',
-        'reason',
+        'applied_at',
         'notes',
     ];
 
     protected $casts = [
         'effective_date' => 'date',
+        'applied_at' => 'datetime',
     ];
 
     public function player()
@@ -29,23 +29,13 @@ class PlayerCategoryHistory extends Model
         return $this->belongsTo(Player::class);
     }
 
-    public function category()
-    {
-        return $this->belongsTo(Category::class);
-    }
-
     public function previousCategory()
     {
         return $this->belongsTo(Category::class, 'previous_category_id');
     }
 
-    public function tournament()
+    public function newCategory()
     {
-        return $this->belongsTo(Tournament::class);
-    }
-
-    public function ranking()
-    {
-        return $this->belongsTo(Ranking5Quillas::class, 'ranking_id');
+        return $this->belongsTo(Category::class, 'new_category_id');
     }
 }
