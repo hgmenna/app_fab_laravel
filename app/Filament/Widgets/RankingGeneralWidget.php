@@ -22,6 +22,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use App\Services\RankingService;
 use Illuminate\Support\Facades\Auth;
+use Filament\Tables\Filters\Filter;
 
 class RankingGeneralWidget extends TableWidget
 {
@@ -208,21 +209,23 @@ class RankingGeneralWidget extends TableWidget
                     TextColumn::make('club')
                         ->label('Club')
                         ->alignment('center')
-                        ->searchable()
                         ->width('150px')
                         ->wrap()
-                        ->limit(20),
+                        ->limit(20)
+                        ->searchable(),
     
                     TextColumn::make('category')
                         ->label('Cat')
                         ->alignment('center')
                         ->limit(3)
-                        ->width('7px'),
+                        ->width('7px')
+                        ->searchable(),
 
                     TextColumn::make('fed')
                         ->label('Fed')
                         ->alignment('center')
-                        ->width('30px'),
+                        ->width('30px')
+                        ->searchable(),
 
                     TextColumn::make('previous_rank')
                         ->label('R. Ant')
@@ -278,6 +281,56 @@ class RankingGeneralWidget extends TableWidget
                         'T' => 'Tercera',
                         'PR' => 'Promocional'
                     ]),
+
+                SelectFilter::make('fed')
+                ->label('Federación')
+                ->options(
+                    GeneralRanking::query()
+                        ->whereNotNull('fed')
+                        ->where('fed', '<>', '')
+                        ->distinct()
+                        ->orderBy('fed')
+                        ->pluck('fed', 'fed')
+                        ->all()
+                )
+                ->searchable(),
+
+            SelectFilter::make('club')
+                ->label('Club')
+                ->options(
+                    GeneralRanking::query()
+                        ->whereNotNull('club')
+                        ->where('club', '<>', '')
+                        ->distinct()
+                        ->orderBy('club')
+                        ->pluck('club', 'club')
+                        ->all()
+                )
+                ->searchable(),
+
+            Filter::make('total_puntos')
+                ->label('Total de puntos')
+                ->schema([
+                    TextInput::make('min')
+                        ->label('Mínimo')
+                        ->numeric(),
+
+                    TextInput::make('max')
+                        ->label('Máximo')
+                        ->numeric(),
+                ])
+                ->query(function ($query, array $data) {
+                    return $query
+                        ->when(
+                            filled($data['min'] ?? null),
+                            fn ($query) => $query->where('total_puntos', '>=', $data['min'])
+                        )
+                        ->when(
+                            filled($data['max'] ?? null),
+                            fn ($query) => $query->where('total_puntos', '<=', $data['max'])
+                        );
+                }),
+
             ])
              /**
              * MODIFICACIÓN: Extraemos el estado de los filtros y la búsqueda 
