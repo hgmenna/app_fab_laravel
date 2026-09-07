@@ -1,4 +1,4 @@
-<div class="space-y-4">
+<div>
     @php
         $histories = $record->categoryHistories()
             ->with(['previousCategory', 'category'])
@@ -7,22 +7,43 @@
     @endphp
 
     @if ($histories->isEmpty())
-        <div class="text-sm text-gray-500">
+        <p style="color: #9ca3af; margin: 0;">
             No se encontraron registros de cambios de categoría.
-        </div>
+        </p>
     @else
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+        <div style="width: 100%; overflow-x: auto;">
+            <table style="
+                width: 100%;
+                min-width: 1050px;
+                border-collapse: collapse;
+                font-size: 14px;
+            ">
                 <thead>
-                    <tr class="border-b">
-                        <th class="px-3 py-2 text-left">Fecha carga</th>
-                        <th class="px-3 py-2 text-left">Fecha efectiva</th>
-                        <th class="px-3 py-2 text-left">Anterior</th>
-                        <th class="px-3 py-2 text-left">Nueva</th>
-                        <th class="px-3 py-2 text-left">Tipo</th>
-                        <th class="px-3 py-2 text-left">Estado</th>
-                        <th class="px-3 py-2 text-left">Motivo</th>
-                        <th class="px-3 py-2 text-left">Observaciones</th>
+                    <tr>
+                        <th style="padding: 10px 12px; text-align: left; white-space: nowrap; border-bottom: 1px solid #4b5563;">
+                            Fecha carga
+                        </th>
+                        <th style="padding: 10px 12px; text-align: left; white-space: nowrap; border-bottom: 1px solid #4b5563;">
+                            Fecha efectiva
+                        </th>
+                        <th style="padding: 10px 12px; text-align: left; white-space: nowrap; border-bottom: 1px solid #4b5563;">
+                            Anterior
+                        </th>
+                        <th style="padding: 10px 12px; text-align: left; white-space: nowrap; border-bottom: 1px solid #4b5563;">
+                            Nueva
+                        </th>
+                        <th style="padding: 10px 12px; text-align: left; white-space: nowrap; border-bottom: 1px solid #4b5563;">
+                            Tipo
+                        </th>
+                        <th style="padding: 10px 12px; text-align: left; white-space: nowrap; border-bottom: 1px solid #4b5563;">
+                            Estado
+                        </th>
+                        <th style="padding: 10px 12px; text-align: left; white-space: nowrap; border-bottom: 1px solid #4b5563;">
+                            Motivo
+                        </th>
+                        <th style="padding: 10px 12px; text-align: left; white-space: nowrap; border-bottom: 1px solid #4b5563;">
+                            Observaciones
+                        </th>
                     </tr>
                 </thead>
 
@@ -41,36 +62,36 @@
                             };
                         @endphp
 
-                        <tr class="border-b">
-                            <td class="px-3 py-2 whitespace-nowrap">
+                        <tr>
+                            <td style="padding: 12px; white-space: nowrap; border-bottom: 1px solid #374151;">
                                 {{ $history->created_at?->format('d/m/Y H:i') ?? '-' }}
                             </td>
 
-                            <td class="px-3 py-2 whitespace-nowrap">
+                            <td style="padding: 12px; white-space: nowrap; border-bottom: 1px solid #374151;">
                                 {{ $history->effective_date?->format('d/m/Y') ?? '-' }}
                             </td>
 
-                            <td class="px-3 py-2">
+                            <td style="padding: 12px; white-space: nowrap; border-bottom: 1px solid #374151;">
                                 {{ $history->previousCategory?->name ?? '-' }}
                             </td>
 
-                            <td class="px-3 py-2">
+                            <td style="padding: 12px; white-space: nowrap; border-bottom: 1px solid #374151;">
                                 {{ $history->category?->name ?? '-' }}
                             </td>
 
-                            <td class="px-3 py-2">
+                            <td style="padding: 12px; white-space: nowrap; border-bottom: 1px solid #374151;">
                                 {{ $type }}
                             </td>
 
-                            <td class="px-3 py-2">
+                            <td style="padding: 12px; white-space: nowrap; border-bottom: 1px solid #374151;">
                                 {{ $status }}
                             </td>
 
-                            <td class="px-3 py-2">
+                            <td style="padding: 12px; min-width: 180px; border-bottom: 1px solid #374151;">
                                 {{ $history->reason ?? '-' }}
                             </td>
 
-                            <td class="px-3 py-2">
+                            <td style="padding: 12px; min-width: 180px; border-bottom: 1px solid #374151;">
                                 {{ $history->notes ?? '-' }}
                             </td>
                         </tr>
