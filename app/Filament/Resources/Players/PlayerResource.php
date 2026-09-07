@@ -236,6 +236,26 @@ class PlayerResource extends Resource
             });
     }
 
+    public static function viewCategoryHistoryAction(): Action
+    {
+        return Action::make('viewCategoryHistory')
+            ->label('Historial de categorías')
+            ->icon('heroicon-o-clock')
+            ->color('info')
+            ->modalHeading(
+                fn (Player $record): string =>
+                    'Historial de categorías - '
+                    . $record->last_name . ', ' . $record->first_name
+            )
+            ->modalWidth('7xl')
+            ->modalContent(fn (Player $record) => view(
+                'jugadores.table.historial-categorias',
+                ['record' => $record]
+            ))
+            ->modalSubmitAction(false)
+            ->modalCancelAction(false);
+    }
+
     // Accion para almacenar Pago Afilicacion del año corriente
     public static function payMembershipAction(): Action
     {
