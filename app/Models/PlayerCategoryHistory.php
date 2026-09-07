@@ -16,12 +16,14 @@ class PlayerCategoryHistory extends Model
         'tournament_id',
         'ranking_id',
         'effective_date',
+        'applied_at',
         'reason',
         'notes',
     ];
 
     protected $casts = [
         'effective_date' => 'date',
+        'applied_at' => 'datetime',
     ];
 
     public function player()

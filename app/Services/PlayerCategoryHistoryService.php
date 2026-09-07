@@ -82,39 +82,39 @@ class PlayerCategoryHistoryService
     }
 
     /**
-     * Registrar cambio manual de categoría de afiliación.
+     * Crear un cambio manual de categoría.
+     *
+     * Puede quedar pendiente si la fecha efectiva es futura.
      */
     public function recordManualCategoryChange(
         Player $player,
-        Category $category,
-        ?string $notes = null
-    ): void {
-        $previousCategory = $player->category;
+        Category $previousCategory,
+        Category $newCategory,
+        CarbonInterface|string $effectiveDate,
+        string $reason,
+        ?string $notes = null,
+        bool $applied = false
+    ): PlayerCategoryHistory {
+        $effectiveDate = Carbon::parse($effectiveDate);
 
-        $this->createHistoryRecord(
+        return $this->createHistoryRecord(
             player: $player,
-            category: $category,
+            category: $newCategory,
             previousCategory: $previousCategory,
             source: 'manual',
             changeType: 'affiliation',
-            season: now()->year,
-            effectiveDate: now(),
-            reason: 'Cambio manual de categoría',
+            season: $effectiveDate->year,
+            effectiveDate: $effectiveDate,
+            reason: $reason,
             tournament: null,
             ranking: null,
-            notes: $notes ?? 'Cambio manual de categoría'
+            notes: $notes,
+            applied: $applied
         );
     }
 
     /**
      * Registrar cambio temporal producido por el Ranking General.
-     *
-     * Ejemplos:
-     * P -> N
-     * N -> M
-     * M -> N
-     * N -> P
-     * S -> N
      */
     public function recordTemporaryRankingChange(
         Player $player,
@@ -157,16 +157,10 @@ class PlayerCategoryHistoryService
             ranking: null,
             notes: null
         );
-
     }
 
     /**
      * Registrar cambio permanente de categoría de afiliación.
-     *
-     * Ejemplos:
-     * S -> P
-     * T -> S
-     * PR -> T
      */
     public function recordAffiliationChange(
         Player $player,
@@ -223,9 +217,10 @@ class PlayerCategoryHistoryService
         ?string $reason,
         ?Tournament $tournament,
         ?Ranking5Quillas $ranking,
-        ?string $notes
-    ): void {
-        PlayerCategoryHistory::create([
+        ?string $notes,
+        bool $applied = true
+    ): PlayerCategoryHistory {
+        return PlayerCategoryHistory::create([
             'player_id' => $player->id,
             'season' => $season,
             'category_id' => $category->id,
@@ -235,10 +230,9 @@ class PlayerCategoryHistoryService
             'tournament_id' => $tournament?->id,
             'ranking_id' => $ranking?->id,
             'effective_date' => $effectiveDate,
+            'applied_at' => $applied ? now() : null,
             'reason' => $reason,
             'notes' => $notes,
         ]);
-
     }
-
 }

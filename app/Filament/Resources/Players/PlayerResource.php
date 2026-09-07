@@ -28,6 +28,11 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Excel;
 use UnitEnum;
+use App\Services\PlayerCategoryChangeService;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use App\Filament\Resources\Players\RelationManagers\CategoryHistoriesRelationManager;
 
 class PlayerResource extends Resource
 {
@@ -51,7 +56,7 @@ class PlayerResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            CategoryHistoriesRelationManager::class,
         ];
     }
 
@@ -137,6 +142,98 @@ class PlayerResource extends Resource
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->stream();
         }, $title . ' - ' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    /**
+    * Acción para programar o aplicar un cambio manual
+    * de categoría permanente de afiliación.
+    */
+    public static function changeCategoryAction(): Action
+    {
+        return Action::make('changeCategory')
+            ->label('Cambiar categoría')
+            ->icon('heroicon-o-arrow-path')
+            ->color('warning')
+            ->visible(
+                fn () => Auth::user()?->hasPermissionTo('EditField') ?? false
+            )
+            ->schema([
+                Select::make('category_id')
+                    ->label('Nueva categoría')
+                    ->options(function () {
+                        $temporaryCodes = config(
+                            'ranking.temporary_ranking_categories',
+                            ['M', 'N']
+                        );
+
+                        return Category::query()
+                            ->whereNotIn('code', $temporaryCodes)
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->all();
+                    })
+                    ->required()
+                    ->searchable()
+                    ->preload(),
+
+                DatePicker::make('effective_date')
+                    ->label('Fecha efectiva')
+                    ->default(today())
+                    ->required()
+                    ->native(false),
+
+                Textarea::make('reason')
+                    ->label('Motivo')
+                    ->required()
+                    ->rows(3)
+                    ->maxLength(500),
+
+                Textarea::make('notes')
+                    ->label('Observaciones')
+                    ->rows(3)
+                    ->maxLength(1000),
+            ])
+            ->modalHeading('Cambio manual de categoría')
+            ->modalDescription(
+                'Si la fecha efectiva es futura, el cambio quedará pendiente '
+                . 'y se aplicará automáticamente cuando llegue esa fecha.'
+            )
+            ->modalSubmitActionLabel('Guardar cambio')
+            ->action(function (Player $record, array $data): void {
+                try {
+                    $newCategory = Category::findOrFail($data['category_id']);
+
+                    $history = PlayerCategoryChangeService::scheduleManualChange(
+                        player: $record,
+                        newCategory: $newCategory,
+                        effectiveDate: $data['effective_date'],
+                        reason: $data['reason'],
+                        notes: $data['notes'] ?? null
+                    );
+
+                    Notification::make()
+                        ->title(
+                            $history->applied_at
+                                ? 'Categoría actualizada'
+                                : 'Cambio de categoría programado'
+                        )
+                        ->body(
+                            $history->applied_at
+                                ? 'El cambio de categoría fue aplicado correctamente.'
+                                : 'El cambio quedó pendiente hasta '
+                                    . $history->effective_date->format('d/m/Y') . '.'
+                        )
+                        ->success()
+                        ->send();
+
+                } catch (\Throwable $e) {
+                    Notification::make()
+                        ->title('No se pudo realizar el cambio de categoría')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
     }
 
     // Accion para almacenar Pago Afilicacion del año corriente

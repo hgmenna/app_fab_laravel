@@ -12,3 +12,8 @@ Schedule::command('ranking:apply-category-promotions')
     ->dailyAt('00:05')
     ->timezone('America/Argentina/Buenos_Aires')
     ->withoutOverlapping();
+
+Schedule::command('player-categories:apply-due-changes')
+    ->dailyAt('00:10')
+    ->timezone('America/Argentina/Buenos_Aires')
+    ->withoutOverlapping();

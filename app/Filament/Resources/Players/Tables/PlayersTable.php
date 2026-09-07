@@ -146,6 +146,7 @@ class PlayersTable
                     GlobalViewAction::make(),
                     GlobalEditAction::make(),
                     GlobalDeleteAction::make(),
+                    PlayerResource::changeCategoryAction(),
                     Action::make('verTorneos')
                         ->label('Ver Torneos')
                         ->icon(Heroicon::Trophy)
