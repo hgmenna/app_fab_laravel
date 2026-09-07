@@ -54,13 +54,11 @@ class CategoryHistoriesRelationManager extends RelationManager
                 TextColumn::make('status')
                     ->label('Estado')
                     ->getStateUsing(function ($record): string {
-                        if ($record->source !== 'manual') {
+                        if (! in_array($record->source, ['manual', 'season_promotion'], true)) {
                             return 'Registrado';
                         }
 
-                        return $record->applied_at
-                            ? 'Aplicado'
-                            : 'Pendiente';
+                        return $record->applied_at ? 'Aplicado' : 'Pendiente';
                     })
                     ->badge()
                     ->color(

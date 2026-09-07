@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Category;
+use App\Models\PlayerCategoryHistory;
 use App\Models\PlayerCategoryPromotion;
 use App\Models\RankingHistory;
 use Carbon\Carbon;
@@ -72,8 +73,8 @@ class PlayerCategoryPromotionService
         }
 
         /*
-         * Cargamos las categorías por código para no depender de IDs fijos.
-         */
+        * Cargamos las categorías por código para no depender de IDs fijos.
+        */
         $requiredCodes = collect(array_keys($promotionMap))
             ->merge(array_values($promotionMap))
             ->push($firstCategoryCode)
@@ -86,7 +87,7 @@ class PlayerCategoryPromotionService
             ->keyBy('code');
 
         foreach ($requiredCodes as $code) {
-            if (!$categories->has($code)) {
+            if (! $categories->has($code)) {
                 throw new \RuntimeException(
                     "No existe la categoría con código {$code}."
                 );
@@ -114,20 +115,20 @@ class PlayerCategoryPromotionService
             foreach ($ranking as $row) {
                 $player = $row->player;
 
-                if (!$player || !$player->category) {
+                if (! $player || ! $player->category) {
                     continue;
                 }
 
                 /*
-                 * Esta es la categoría permanente de afiliación del jugador.
-                 */
+                * Esta es la categoría permanente de afiliación del jugador.
+                */
                 $currentCategoryCode = $player->category->code;
 
                 /*
-                 * Sólo las categorías inferiores participan de estas
-                 * reglas automáticas de ascenso.
-                 */
-                if (!array_key_exists($currentCategoryCode, $promotionMap)) {
+                * Sólo las categorías inferiores participan de estas
+                * reglas automáticas de ascenso.
+                */
+                if (! array_key_exists($currentCategoryCode, $promotionMap)) {
                     continue;
                 }
 
@@ -136,11 +137,11 @@ class PlayerCategoryPromotionService
                 $notes = null;
 
                 /*
-                 * REGLA 1 - prioridad máxima.
-                 *
-                 * Si S/T/PR terminó como M o N en el Ranking General,
-                 * asciende directamente a Primera.
-                 */
+                * REGLA 1 - prioridad máxima.
+                *
+                * Si S/T/PR terminó como M o N en el Ranking General,
+                * asciende directamente a Primera.
+                */
                 if (
                     in_array(
                         $row->category,
@@ -159,11 +160,11 @@ class PlayerCategoryPromotionService
                 }
 
                 /*
-                 * REGLA 2.
-                 *
-                 * Si no fue alcanzado por la regla anterior y terminó RC1
-                 * de su categoría permanente, asciende un nivel.
-                 */
+                * REGLA 2.
+                *
+                * Si no fue alcanzado por la regla anterior y terminó RC1
+                * de su categoría permanente, asciende un nivel.
+                */
                 elseif (
                     (int) $row->RC === 1
                     && $row->category === $currentCategoryCode
@@ -178,13 +179,13 @@ class PlayerCategoryPromotionService
                     );
                 }
 
-                if (!$newCategoryCode) {
+                if (! $newCategoryCode) {
                     continue;
                 }
 
                 $newCategory = $categories->get($newCategoryCode);
 
-                if (!$newCategory) {
+                if (! $newCategory) {
                     throw new \RuntimeException(
                         "No se encontró la categoría destino {$newCategoryCode}."
                     );
@@ -207,23 +208,65 @@ class PlayerCategoryPromotionService
                     ]
                 );
 
+                /*
+                * El ascenso ya está determinado al cierre de la temporada.
+                * Aunque todavía no modificamos players.category_id, dejamos
+                * registrado desde ahora el cambio futuro en el historial.
+                */
+                $historyService = new PlayerCategoryHistoryService;
+
+                $historyService->recordPendingSeasonPromotion(
+                    player: $player,
+                    previousCategory: $player->category,
+                    newCategory: $newCategory,
+                    season: $season,
+                    effectiveDate: $effectiveDate,
+                    reason: $notes,
+                    notes: sprintf(
+                        'Promoción determinada al cierre de la temporada %d. Aplicación efectiva: %s.',
+                        $season,
+                        $effectiveDate->format('d/m/Y')
+                    )
+                );
+
                 $determinedPlayerIds[] = $player->id;
             }
 
             /*
-             * Si se vuelve a determinar la misma temporada después de una
-             * corrección del ranking, eliminamos promociones pendientes que
-             * ya no correspondan.
-             *
-             * Nunca eliminamos promociones que ya hayan sido aplicadas.
-             */
+            * Si se vuelve a determinar la misma temporada después de una
+            * corrección del ranking, eliminamos promociones pendientes que
+            * ya no correspondan.
+            *
+            * Nunca eliminamos promociones que ya hayan sido aplicadas.
+            */
             $stalePromotions = PlayerCategoryPromotion::query()
                 ->where('season', $season)
                 ->whereNull('applied_at');
 
-            if (!empty($determinedPlayerIds)) {
-                $stalePromotions
-                    ->whereNotIn('player_id', $determinedPlayerIds);
+            if (! empty($determinedPlayerIds)) {
+                $stalePromotions->whereNotIn(
+                    'player_id',
+                    $determinedPlayerIds
+                );
+            }
+
+            /*
+            * Antes de eliminar promociones que dejaron de corresponder,
+            * eliminamos únicamente su historial pendiente asociado.
+            *
+            * Nunca tocamos historiales ya aplicados.
+            */
+            $stalePlayerIds = (clone $stalePromotions)
+                ->pluck('player_id');
+
+            if ($stalePlayerIds->isNotEmpty()) {
+                PlayerCategoryHistory::query()
+                    ->whereIn('player_id', $stalePlayerIds)
+                    ->where('season', $season)
+                    ->where('source', 'season_promotion')
+                    ->where('change_type', 'affiliation')
+                    ->whereNull('applied_at')
+                    ->delete();
             }
 
             $stalePromotions->delete();
@@ -233,93 +276,183 @@ class PlayerCategoryPromotionService
     }
 
     /**
-    * Aplica las promociones cuya fecha efectiva ya llegó.
-    *
-    * Actualiza la categoría permanente del jugador y registra
-    * el cambio en el historial de categorías.
-    */
-    public static function applyDuePromotions(): int
-{
-    $promotions = PlayerCategoryPromotion::query()
-        ->with([
-            'player.category',
-            'previousCategory',
-            'newCategory',
-        ])
-        ->whereNull('applied_at')
-        ->whereDate('effective_date', '<=', today())
-        ->orderBy('effective_date')
-        ->orderBy('id')
-        ->get();
+     * Sincroniza en el historial de categorías las promociones pendientes
+     * que ya fueron determinadas para una temporada.
+     *
+     * Este método NO modifica la categoría actual del jugador.
+     * Solamente garantiza que cada promoción pendiente tenga su
+     * correspondiente registro de historial también pendiente.
+     *
+     * Es útil, entre otros casos, para promociones determinadas antes
+     * de incorporar el registro inmediato del historial.
+     */
+    public static function syncPendingPromotionHistories(int $season): int
+    {
+        $promotions = PlayerCategoryPromotion::query()
+            ->with([
+                'player.category',
+                'previousCategory',
+                'newCategory',
+            ])
+            ->where('season', $season)
+            ->whereNull('applied_at')
+            ->orderBy('id')
+            ->get();
 
-    if ($promotions->isEmpty()) {
-        return 0;
-    }
+        if ($promotions->isEmpty()) {
+            return 0;
+        }
 
-    $applied = 0;
+        $historyService = new PlayerCategoryHistoryService;
+        $synced = 0;
 
-    foreach ($promotions as $promotion) {
-        try {
-            DB::transaction(function () use ($promotion, &$applied) {
-                $historyService = new PlayerCategoryHistoryService();
-
+        DB::transaction(function () use (
+            $promotions,
+            $historyService,
+            &$synced
+        ) {
+            foreach ($promotions as $promotion) {
                 $player = $promotion->player;
                 $previousCategory = $promotion->previousCategory;
                 $newCategory = $promotion->newCategory;
 
-                if (!$player || !$previousCategory || !$newCategory) {
+                if (! $player || ! $previousCategory || ! $newCategory) {
                     throw new \RuntimeException(
                         "La promoción ID {$promotion->id} tiene relaciones incompletas."
                     );
                 }
 
                 /*
-                 * Protección:
-                 * la categoría actual debe seguir siendo la misma categoría
-                 * desde la cual se determinó el ascenso.
-                 *
-                 * Si fue modificada manualmente entre el cierre de temporada
-                 * y la fecha efectiva, no sobrescribimos ese cambio.
-                 */
+                * La promoción todavía no fue aplicada, por lo que la categoría
+                * permanente del jugador debe seguir coincidiendo con la categoría
+                * de origen con la cual fue determinada.
+                */
                 if ((int) $player->category_id !== (int) $previousCategory->id) {
                     throw new \RuntimeException(
-                        "No se puede aplicar la promoción ID {$promotion->id} del jugador {$player->id}: "
-                        . 'su categoría actual ya no coincide con la categoría de origen.'
+                        "No se puede sincronizar la promoción ID {$promotion->id} del jugador {$player->id}: "
+                        .'su categoría actual ya no coincide con la categoría de origen.'
                     );
                 }
 
-                $historyService->recordAffiliationChange(
+                $historyService->recordPendingSeasonPromotion(
                     player: $player,
                     previousCategory: $previousCategory,
                     newCategory: $newCategory,
                     season: (int) $promotion->season,
                     effectiveDate: $promotion->effective_date,
-                    reason: $promotion->notes
+                    reason: $promotion->notes,
+                    notes: sprintf(
+                        'Promoción determinada al cierre de la temporada %d. Aplicación efectiva: %s.',
+                        $promotion->season,
+                        $promotion->effective_date->format('d/m/Y')
+                    )
                 );
 
-                $player->category_id = $newCategory->id;
-                $player->save();
+                $synced++;
+            }
+        });
 
-                $promotion->applied_at = now();
-                $promotion->save();
-
-                $applied++;
-            });
-        } catch (\Throwable $e) {
-            Log::warning(
-                'No se pudo aplicar una promoción de categoría.',
-                [
-                    'promotion_id' => $promotion->id,
-                    'player_id' => $promotion->player_id,
-                    'season' => $promotion->season,
-                    'error' => $e->getMessage(),
-                ]
-            );
-
-            continue;
-        }
+        return $synced;
     }
 
-    return $applied;
-}
+    /**
+     * Aplica las promociones cuya fecha efectiva ya llegó.
+     *
+     * Actualiza la categoría permanente del jugador y registra
+     * el cambio en el historial de categorías.
+     */
+    public static function applyDuePromotions(): int
+    {
+        $promotions = PlayerCategoryPromotion::query()
+            ->with([
+                'player.category',
+                'previousCategory',
+                'newCategory',
+            ])
+            ->whereNull('applied_at')
+            ->whereDate('effective_date', '<=', today())
+            ->orderBy('effective_date')
+            ->orderBy('id')
+            ->get();
+
+        if ($promotions->isEmpty()) {
+            return 0;
+        }
+
+        $applied = 0;
+
+        foreach ($promotions as $promotion) {
+            try {
+                DB::transaction(function () use ($promotion, &$applied) {
+                    $historyService = new PlayerCategoryHistoryService;
+
+                    $player = $promotion->player;
+                    $previousCategory = $promotion->previousCategory;
+                    $newCategory = $promotion->newCategory;
+
+                    if (! $player || ! $previousCategory || ! $newCategory) {
+                        throw new \RuntimeException(
+                            "La promoción ID {$promotion->id} tiene relaciones incompletas."
+                        );
+                    }
+
+                    /*
+                    * Protección:
+                    * la categoría actual debe seguir siendo la misma categoría
+                    * desde la cual se determinó el ascenso.
+                    *
+                    * Si fue modificada manualmente entre el cierre de temporada
+                    * y la fecha efectiva, no sobrescribimos ese cambio.
+                    */
+                    if ((int) $player->category_id !== (int) $previousCategory->id) {
+                        throw new \RuntimeException(
+                            "No se puede aplicar la promoción ID {$promotion->id} del jugador {$player->id}: "
+                            .'su categoría actual ya no coincide con la categoría de origen.'
+                        );
+                    }
+
+                    /*
+                    * La promoción ya fue registrada como pendiente cuando se
+                    * determinó al cierre de la temporada.
+                    *
+                    * Primero aplicamos realmente la nueva categoría al jugador.
+                    */
+                    $player->category_id = $newCategory->id;
+                    $player->save();
+
+                    /*
+                    * Marcamos como aplicado el mismo registro de historial.
+                    * No creamos una segunda fila.
+                    */
+                    $historyService->markSeasonPromotionHistoryApplied(
+                        player: $player,
+                        previousCategory: $previousCategory,
+                        newCategory: $newCategory,
+                        season: (int) $promotion->season,
+                        effectiveDate: $promotion->effective_date,
+                        reason: $promotion->notes
+                    );
+
+                    $promotion->applied_at = now();
+                    $promotion->save();
+
+                    $applied++;
+                });
+            } catch (\Throwable $e) {
+                Log::warning(
+                    'No se pudo aplicar una promoción de categoría.',
+                    [
+                        'promotion_id' => $promotion->id,
+                        'player_id' => $promotion->player_id,
+                        'season' => $promotion->season,
+                        'error' => $e->getMessage(),
+                    ]
+                );
+
+                continue;
+            }
+        }
+
+        return $applied;
+    }
 }

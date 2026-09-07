@@ -204,6 +204,108 @@ class PlayerCategoryHistoryService
     }
 
     /**
+     * Registrar o actualizar un ascenso de temporada todavía pendiente.
+     *
+     * Se crea cuando se determinan las promociones al cierre de la Etapa 4,
+     * aunque la categoría permanente recién cambie en la fecha efectiva.
+     */
+    public function recordPendingSeasonPromotion(
+        Player $player,
+        Category $previousCategory,
+        Category $newCategory,
+        int $season,
+        CarbonInterface|string $effectiveDate,
+        ?string $reason = null,
+        ?string $notes = null
+    ): PlayerCategoryHistory {
+        if ($previousCategory->id === $newCategory->id) {
+            throw new \RuntimeException(
+                "La categoría anterior y la nueva son iguales para el jugador {$player->id}."
+            );
+        }
+
+        $effectiveDate = Carbon::parse($effectiveDate);
+
+        $existingHistory = PlayerCategoryHistory::query()
+            ->where('player_id', $player->id)
+            ->where('season', $season)
+            ->where('source', 'season_promotion')
+            ->where('change_type', 'affiliation')
+            ->first();
+
+        if ($existingHistory?->applied_at) {
+            throw new \RuntimeException(
+                "No se puede volver a dejar pendiente el ascenso de temporada del jugador {$player->id}: el historial ya fue aplicado."
+            );
+        }
+
+        return PlayerCategoryHistory::updateOrCreate(
+            [
+                'player_id' => $player->id,
+                'season' => $season,
+                'source' => 'season_promotion',
+                'change_type' => 'affiliation',
+            ],
+            [
+                'previous_category_id' => $previousCategory->id,
+                'category_id' => $newCategory->id,
+                'tournament_id' => null,
+                'ranking_id' => null,
+                'effective_date' => $effectiveDate,
+                'applied_at' => null,
+                'reason' => $reason ?? 'Ascenso de categoría al cierre de temporada',
+                'notes' => $notes,
+            ]
+        );
+    }
+
+    /**
+     * Marcar como aplicado el mismo historial creado cuando se determinó
+     * el ascenso de temporada.
+     */
+    public function markSeasonPromotionHistoryApplied(
+        Player $player,
+        Category $previousCategory,
+        Category $newCategory,
+        int $season,
+        CarbonInterface|string $effectiveDate,
+        ?string $reason = null
+    ): PlayerCategoryHistory {
+        $effectiveDate = Carbon::parse($effectiveDate);
+
+        $history = PlayerCategoryHistory::query()
+            ->where('player_id', $player->id)
+            ->where('season', $season)
+            ->where('source', 'season_promotion')
+            ->where('change_type', 'affiliation')
+            ->where('previous_category_id', $previousCategory->id)
+            ->where('category_id', $newCategory->id)
+            ->first();
+
+        /*
+        * Protección para datos históricos anteriores a esta funcionalidad:
+        * si por alguna razón no existe el pendiente, lo creamos.
+        */
+        if (! $history) {
+            $history = $this->recordPendingSeasonPromotion(
+                player: $player,
+                previousCategory: $previousCategory,
+                newCategory: $newCategory,
+                season: $season,
+                effectiveDate: $effectiveDate,
+                reason: $reason
+            );
+        }
+
+        $history->effective_date = $effectiveDate;
+        $history->reason = $reason ?? $history->reason;
+        $history->applied_at = now();
+        $history->save();
+
+        return $history;
+    }
+
+    /**
      * Método centralizado para crear registros de historial.
      */
     private function createHistoryRecord(

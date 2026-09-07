@@ -50,7 +50,7 @@
                 <tbody>
                     @foreach ($histories as $history)
                         @php
-                            $status = $history->source === 'manual'
+                            $status = in_array($history->source, ['manual', 'season_promotion'], true)
                                 ? ($history->applied_at ? 'Aplicado' : 'Pendiente')
                                 : 'Registrado';
 
