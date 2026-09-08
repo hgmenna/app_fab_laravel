@@ -195,6 +195,11 @@ class PlayersTable
 
             ])
             ->headerActions([
+                 Action::make('categoryChangesReport')
+                    ->label('Cambios de categoría')
+                    ->icon('heroicon-o-arrows-right-left')
+                    ->color('info')
+                    ->url(fn (): string => PlayerResource::getUrl('category-changes-report')),
                 PlayerResource::exportarPdf(),
                 PlayerResource::importPlayers(),
             ]);

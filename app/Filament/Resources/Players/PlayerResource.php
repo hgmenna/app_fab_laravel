@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Players;
 
+use App\Filament\Resources\Players\Pages\CategoryChangesReport;
 use App\Filament\Resources\Players\Pages\CreatePlayer;
 use App\Filament\Resources\Players\Pages\EditPlayer;
 use App\Filament\Resources\Players\Pages\ListPlayers;
@@ -65,6 +66,7 @@ class PlayerResource extends Resource
         return [
             'index' => ListPlayers::route('/'),
             'create' => CreatePlayer::route('/create'),
+            'category-changes-report' => CategoryChangesReport::route('/category-changes-report'),
             'edit' => EditPlayer::route('/{record}/edit'),
         ];
     }
