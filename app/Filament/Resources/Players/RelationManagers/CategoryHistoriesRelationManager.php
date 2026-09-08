@@ -2,6 +2,10 @@
 
 namespace App\Filament\Resources\Players\RelationManagers;
 
+use App\Filament\Actions\GlobalActionGroup;
+use App\Filament\Actions\GlobalDeleteAction;
+use App\Filament\Actions\GlobalEditAction;
+use App\Filament\Actions\GlobalViewAction;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
@@ -87,6 +91,11 @@ class CategoryHistoriesRelationManager extends RelationManager
                 //
             ])
             ->recordActions([
+                GlobalActionGroup::make([
+                    GlobalViewAction::make(),
+                    GlobalEditAction::make(),
+                    GlobalDeleteAction::make(),
+                ])
                 //
             ])
             ->toolbarActions([
