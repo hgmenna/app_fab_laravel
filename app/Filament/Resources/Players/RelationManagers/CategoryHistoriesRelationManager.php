@@ -10,6 +10,10 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 
 class CategoryHistoriesRelationManager extends RelationManager
 {
@@ -20,7 +24,48 @@ class CategoryHistoriesRelationManager extends RelationManager
     public function form(Schema $schema): Schema
     {
         return $schema
-            ->components([]);
+            ->components([
+                TextInput::make('season')
+                    ->label('Temporada')
+                    ->numeric()
+                    ->disabled(),
+
+                Select::make('previous_category_id')
+                    ->label('Categoría anterior')
+                    ->relationship('previousCategory', 'name')
+                    ->disabled(),
+
+                Select::make('category_id')
+                    ->label('Categoría nueva')
+                    ->relationship('category', 'name')
+                    ->disabled(),
+
+                Select::make('source')
+                    ->label('Origen')
+                    ->options([
+                        'affiliation' => 'Afiliación',
+                        'ranking' => 'Ranking',
+                        'tournament' => 'Torneo',
+                        'manual' => 'Cambio manual',
+                        'season_promotion' => 'Ascenso de temporada',
+                    ])
+                    ->disabled(),
+
+                TextInput::make('change_type')
+                    ->label('Tipo')
+                    ->disabled(),
+
+                DatePicker::make('effective_date')
+                    ->label('Fecha efectiva'),
+
+                Textarea::make('reason')
+                    ->label('Motivo')
+                    ->rows(3),
+
+                Textarea::make('notes')
+                    ->label('Observaciones')
+                    ->rows(3),
+            ]);
     }
 
     public function table(Table $table): Table
