@@ -671,44 +671,63 @@ class RankingService
 
         foreach ([1, 2, 3, 4] as $stage) {
             $torneo = Tournament::query()
-                ->whereHas('type', fn ($q) => $q->where('affects_ranking', true))
+                ->whereHas(
+                    'type',
+                    fn ($q) => $q->where('affects_ranking', true)
+                )
                 ->where('stage_number', $stage)
+                ->whereYear('end_date', $season)
                 ->where('end_date', '<=', now())
                 ->orderByDesc('end_date')
                 ->first();
 
-            if ($torneo) {
-                $torneos->push($torneo);
+            if (!$torneo) {
+                throw new \RuntimeException(
+                    "No se puede cerrar la temporada {$season}: "
+                    . "la Etapa {$stage} no existe o todavía no está finalizada."
+                );
             }
+
+            $torneos->push($torneo);
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Verificación adicional del cierre
+        |--------------------------------------------------------------------------
+        |
+        | Para guardar RankingHistory deben existir las cuatro etapas de la
+        | temporada que se intenta cerrar.
+        |
+        | Esta validación es distinta del cálculo normal del Ranking General:
+        | durante una temporada el ranking puede contener etapas del año anterior,
+        | porque cada nueva etapa reemplaza a la misma etapa de la temporada previa.
+        |
+        */
 
         if ($torneos->count() !== 4) {
             throw new \RuntimeException(
-                'No se puede cerrar la temporada: no existen las 4 etapas finalizadas.'
+                "No se puede cerrar la temporada {$season}: "
+                . 'no existen las 4 etapas finalizadas.'
             );
         }
-
-        $latestTournament = $torneos
-            ->sortByDesc('end_date')
-            ->first();
-
-        $currentSeason = $latestTournament->end_date->year;
 
         $stage4Tournament = $torneos
             ->firstWhere('stage_number', 4);
 
-        if (
-            !$stage4Tournament ||
-            $stage4Tournament->end_date->year !== $currentSeason
-        ) {
+        if (!$stage4Tournament) {
             throw new \RuntimeException(
-                'No se puede cerrar la temporada: la Etapa 4 de la temporada vigente todavía no está finalizada.'
+                "No se puede cerrar la temporada {$season}: "
+                . 'la Etapa 4 todavía no está finalizada.'
             );
         }
 
+        $currentSeason = (int) $stage4Tournament->end_date->year;
+
         if ($currentSeason !== $season) {
             throw new \RuntimeException(
-                "La temporada vigente es {$currentSeason}, no {$season}."
+                "La Etapa 4 corresponde a la temporada {$currentSeason}, "
+                . "no a {$season}."
             );
         }
 
