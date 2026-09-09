@@ -9,6 +9,7 @@ use App\Models\Ranking5Quillas;
 use App\Models\Tournament;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 
 class PlayerCategoryHistoryService
 {
@@ -124,7 +125,7 @@ class PlayerCategoryHistoryService
         CarbonInterface|string|null $effectiveDate = null,
         ?string $reason = null
     ): void {
-        if ($previousCategory->id === $newCategory->id) {
+        if ((int) $previousCategory->id === (int) $newCategory->id) {
             return;
         }
 
@@ -132,15 +133,16 @@ class PlayerCategoryHistoryService
             ? Carbon::parse($effectiveDate)
             : now();
 
-        $lastHistory = PlayerCategoryHistory::query()
+        $duplicateExists = PlayerCategoryHistory::query()
             ->where('player_id', $player->id)
             ->where('season', $season)
             ->where('change_type', 'ranking')
-            ->orderByDesc('effective_date')
-            ->orderByDesc('id')
-            ->first();
+            ->where('previous_category_id', $previousCategory->id)
+            ->where('category_id', $newCategory->id)
+            ->whereDate('effective_date', $effectiveDate->toDateString())
+            ->exists();
 
-        if ($lastHistory?->category_id === $newCategory->id) {
+        if ($duplicateExists) {
             return;
         }
 
@@ -306,8 +308,95 @@ class PlayerCategoryHistoryService
     }
 
     /**
-     * Método centralizado para crear registros de historial.
+     * Obtener la categoría efectiva vigente del jugador.
+     *
+     * Considera solamente movimientos que ya fueron aplicados.
+     * Puede devolver una categoría temporal de ranking (M/N)
+     * o una categoría permanente.
+     *
+     * Si el jugador todavía no tiene un historial aplicable,
+     * utiliza su categoría actual de afiliación.
+    */
+    public function getEffectiveCategory(Player $player): ?Category
+    {
+        $lastHistory = PlayerCategoryHistory::query()
+            ->where('player_id', $player->id)
+            ->whereNotNull('applied_at')
+            ->whereIn('source', [
+                'affiliation',
+                'ranking',
+                'manual',
+                'season_promotion',
+            ])
+            ->with('category')
+            ->orderByDesc('effective_date')
+            ->orderByDesc('id')
+            ->first();
+
+        return $lastHistory?->category ?? $player->category;
+    }
+
+    /**
+     * Obtener la categoría permanente vigente del jugador.
+     *
+     * Master (M) y Nacional (N) son categorías temporales del
+     * Ranking General y no modifican players.category_id.
+     *
+     * Por lo tanto, la categoría permanente vigente es siempre
+     * la categoría de afiliación actualmente almacenada en Player.
      */
+    public function getPermanentCategory(Player $player): ?Category
+    {
+        return $player->category;
+    }
+
+    /**
+     * Obtener los jugadores cuya última categoría efectiva vigente
+     * es una categoría temporal del Ranking General (M o N).
+     *
+     * Durante la carga parcial de una etapa el GeneralRanking puede
+     * cambiar, pero el historial permanece intacto hasta que todos
+     * los resultados estén completos.
+     *
+     * Por eso este conjunto representa el estado oficial anterior
+     * que debemos conservar para detectar correctamente salidas de
+     * M/N al finalizar la carga de una nueva etapa.
+     */
+    public function getPlayersWithEffectiveTemporaryRankingCategory(): Collection
+    {
+        $latestHistories = PlayerCategoryHistory::query()
+            ->whereNotNull('applied_at')
+            ->whereIn('source', [
+                'affiliation',
+                'ranking',
+                'manual',
+                'season_promotion',
+            ])
+            ->with('category')
+            ->orderBy('player_id')
+            ->orderByDesc('effective_date')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('player_id');
+
+        return $latestHistories
+            ->filter(
+                fn (PlayerCategoryHistory $history): bool =>
+                    in_array(
+                        $history->category?->code,
+                        ['M', 'N'],
+                        true
+                    )
+            )
+            ->pluck('player_id')
+            ->filter()
+            ->unique()
+            ->values();
+    }
+
+    /**
+     * Método centralizado para crear registros de historial.
+    */
     private function createHistoryRecord(
         Player $player,
         Category $category,

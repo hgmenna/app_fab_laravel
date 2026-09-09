@@ -280,7 +280,7 @@ class RankingService
             ) {
                 $item['nivel'] = 'N';
             } else {
-                $item['nivel'] = $player->category->code ?? null;
+                $item['nivel'] = $player->category?->code;
             }
 
             // Calcular RC dentro de cada categoría
@@ -300,7 +300,7 @@ class RankingService
                     ) {
                         $nivel = 'N';
                     } else {
-                        $nivel = $r['player']->category->code ?? null;
+                        $nivel = $r['player']->category?->code;
                     }
 
                     return [
@@ -441,22 +441,53 @@ class RankingService
         )->year;
 
         /*
-        * La fecha efectiva del cambio temporal será la fecha en que
-        * efectivamente se sincroniza/publica el nuevo ranking.
+        * El Ranking General puede recalcularse mientras se están cargando
+        * los resultados de una etapa.
         *
-        * Usamos hora argentina independientemente del timezone general
-        * de Laravel, que actualmente está configurado en UTC.
+        * Sin embargo, los cambios temporales de categoría (M/N) solamente
+        * deben incorporarse al historial cuando TODOS los jugadores con
+        * inscripción aprobada tengan asignada una instancia/posición.
+        *
+        * Los ausentes o jugadores que abandonaron también deben tener una
+        * instancia asignada (AUSENTE / ABANDONO, 0 puntos), por lo que un
+        * tournament_instance_id NULL significa que ese resultado todavía
+        * no fue procesado.
         */
-        $effectiveDate = now('America/Argentina/Buenos_Aires')
-            ->toDateString();
+        $hasPendingStageResults = TournamentRegistration::query()
+            ->where('tournament_id', $latestRankingTournament->id)
+            ->where('status', 'aprobado')
+            ->whereNull('tournament_instance_id')
+            ->exists();
+
+        $stageResultsComplete = ! $hasPendingStageResults;
+
+        /*
+        * La fecha efectiva de los cambios temporales de categoría
+        * producidos por el Ranking General es la fecha de finalización
+        * de la etapa que origina la actualización.
+        *
+        * El historial se registra solamente cuando todos los resultados
+        * de la etapa están completos, pero reglamentariamente el cambio
+        * tiene vigencia desde end_date del torneo.
+        */
+        $effectiveDate = \Carbon\Carbon::parse(
+            $latestRankingTournament->end_date
+        )->toDateString();
 
         /*
         * Cargamos jugadores y categorías una sola vez para evitar
         * consultas repetitivas dentro de la transacción.
         */
+
+        $historyService = new PlayerCategoryHistoryService();
+
+        $temporaryRankingPlayerIds =
+            $historyService->getPlayersWithEffectiveTemporaryRankingCategory();
+
         $playerIds = collect($data)
             ->pluck('player_id')
             ->merge($previousRanking->keys())
+            ->merge($temporaryRankingPlayerIds)
             ->filter()
             ->unique()
             ->values();
@@ -477,7 +508,9 @@ class RankingService
             $players,
             $categories,
             $season,
-            $effectiveDate
+            $effectiveDate,
+            $stageResultsComplete,
+            $temporaryRankingPlayerIds
         ) {
             $historyService = new PlayerCategoryHistoryService();
 
@@ -488,110 +521,128 @@ class RankingService
             $newRanking = collect($data)->keyBy('player_id');
 
             /*
-            * 1) Registrar cambios de categoría de todos los jugadores
-            * que aparecen en el nuevo ranking.
+            * Los cambios temporales de categoría solamente se registran
+            * cuando todos los resultados de la etapa están cargados.
+            *
+            * Mientras la etapa esté incompleta, GeneralRanking puede seguir
+            * actualizándose normalmente, pero el historial no se modifica.
             */
-            foreach ($newRanking as $playerId => $row) {
-                $player = $players->get($playerId);
+            if ($stageResultsComplete) {
 
-                if (!$player || !$player->category) {
-                    continue;
-                }
+                /*
+                * 1) Registrar cambios de categoría de todos los jugadores
+                * que aparecen en el nuevo ranking.
+                */
+                foreach ($newRanking as $playerId => $row) {
+                    $player = $players->get($playerId);
 
-                $newCategoryCode = $row['category'] ?? null;
+                    if (!$player || !$player->category) {
+                        continue;
+                    }
 
-                if (!$newCategoryCode) {
-                    continue;
-                }
+                    $newCategoryCode = $row['category'] ?? null;
 
-                $newCategory = $categories->get($newCategoryCode);
+                    if (!$newCategoryCode) {
+                        continue;
+                    }
 
-                if (!$newCategory) {
-                    throw new \RuntimeException(
-                        "No existe la categoría {$newCategoryCode}."
+                    $newCategory = $categories->get($newCategoryCode);
+
+                    if (!$newCategory) {
+                        throw new \RuntimeException(
+                            "No existe la categoría {$newCategoryCode}."
+                        );
+                    }
+
+                    /*
+                    * La categoría anterior no se toma del GeneralRanking porque durante
+                    * la carga de una etapa ese ranking puede estar parcialmente actualizado.
+                    *
+                    * Se toma la última categoría efectiva registrada en el historial.
+                    * Si el jugador nunca tuvo un cambio registrado, se utiliza su
+                    * categoría permanente de afiliación.
+                    */
+                    $previousCategory = $historyService->getEffectiveCategory($player);
+
+                    if (!$previousCategory) {
+                        throw new \RuntimeException(
+                            "No se pudo determinar la categoría efectiva anterior del jugador {$playerId}."
+                        );
+                    }
+
+                    if ((int) $previousCategory->id === (int) $newCategory->id) {
+                        continue;
+                    }
+
+                    $historyService->recordTemporaryRankingChange(
+                        player: $player,
+                        previousCategory: $previousCategory,
+                        newCategory: $newCategory,
+                        season: $season,
+                        effectiveDate: $effectiveDate,
+                        reason: 'Cambio temporal por actualización del Ranking General'
                     );
                 }
 
                 /*
-                * Si el jugador ya estaba en el ranking, la categoría anterior
-                * es la categoría temporal que tenía publicada.
+                * 2) Registrar jugadores que tenían una categoría temporal
+                * M/N efectiva y que ya no aparecen en el nuevo ranking.
                 *
-                * Si entra por primera vez, usamos su categoría permanente
-                * de afiliación como origen.
+                * En ese caso dejan de tener una categoría temporal de ranking
+                * y regresan a su categoría permanente de afiliación.
                 */
-                $previousRow = $previousRanking->get($playerId);
+                foreach ($temporaryRankingPlayerIds as $playerId) {
+                    if ($newRanking->has($playerId)) {
+                        continue;
+                    }
 
-                if ($previousRow) {
-                    $previousCategoryCode = $previousRow->category;
-                    $previousCategory = $categories->get(
-                        $previousCategoryCode
-                    );
-                } else {
-                    $previousCategory = $player->category;
-                }
+                    $player = $players->get($playerId);
 
-                if (!$previousCategory) {
-                    throw new \RuntimeException(
-                        "No se pudo determinar la categoría anterior del jugador {$playerId}."
-                    );
-                }
+                    if (!$player || !$player->category) {
+                        continue;
+                    }
 
-                if ((int) $previousCategory->id === (int) $newCategory->id) {
-                    continue;
-                }
+                    /*
+                    * La categoría anterior se obtiene del último estado efectivo
+                    * registrado en el historial y no del GeneralRanking parcial.
+                    */
+                    $previousCategory = $historyService->getEffectiveCategory($player);
 
-                $historyService->recordTemporaryRankingChange(
-                    player: $player,
-                    previousCategory: $previousCategory,
-                    newCategory: $newCategory,
-                    season: $season,
-                    effectiveDate: $effectiveDate,
-                    reason: 'Cambio temporal por actualización del Ranking General'
-                );
-            }
+                    /*
+                    * Al dejar una categoría temporal M/N, el jugador vuelve a su
+                    * última categoría permanente vigente.
+                    *
+                    * Si no existe historial permanente aplicable, el servicio
+                    * utiliza la categoría actual de afiliación.
+                    */
+                    $newCategory = $historyService->getPermanentCategory($player);
 
-            /*
-            * 2) Registrar jugadores que estaban en el ranking anterior
-            * pero desaparecen del nuevo ranking.
-            *
-            * En ese caso dejan de tener una categoría temporal de ranking
-            * y regresan a su categoría permanente de afiliación.
-            */
-            foreach ($previousRanking as $playerId => $previousRow) {
-                if ($newRanking->has($playerId)) {
-                    continue;
-                }
+                    if (!$previousCategory) {
+                        throw new \RuntimeException(
+                            "No se pudo determinar la categoría efectiva anterior del jugador {$playerId}."
+                        );
+                    }
 
-                $player = $players->get($playerId);
+                    if (!$newCategory) {
+                        throw new \RuntimeException(
+                            "No se pudo determinar la categoría permanente del jugador {$playerId}."
+                        );
+                    }
 
-                if (!$player || !$player->category) {
-                    continue;
-                }
+                    if ((int) $previousCategory->id === (int) $newCategory->id) {
+                        continue;
+                    }
 
-                $previousCategory = $categories->get(
-                    $previousRow->category
-                );
-
-                $newCategory = $player->category;
-
-                if (!$previousCategory) {
-                    throw new \RuntimeException(
-                        "No existe la categoría {$previousRow->category}."
+                    $historyService->recordTemporaryRankingChange(
+                        player: $player,
+                        previousCategory: $previousCategory,
+                        newCategory: $newCategory,
+                        season: $season,
+                        effectiveDate: $effectiveDate,
+                        reason: 'Salida del Ranking General y retorno a categoría de afiliación'
                     );
                 }
 
-                if ((int) $previousCategory->id === (int) $newCategory->id) {
-                    continue;
-                }
-
-                $historyService->recordTemporaryRankingChange(
-                    player: $player,
-                    previousCategory: $previousCategory,
-                    newCategory: $newCategory,
-                    season: $season,
-                    effectiveDate: $effectiveDate,
-                    reason: 'Salida del Ranking General y retorno a categoría de afiliación'
-                );
             }
 
             /*
