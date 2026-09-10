@@ -81,6 +81,7 @@ class ClubsTable
             ->recordActions([
                 GlobalActionGroup::make([
                     ClubResource::viewAfiliatesAction(),
+                    ClubResource::locationAction(),
                     GlobalViewAction::make(),
                     GlobalEditAction::make(),
                     GlobalDeleteAction::make(),

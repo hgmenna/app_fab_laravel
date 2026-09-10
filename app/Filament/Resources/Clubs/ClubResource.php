@@ -138,4 +138,32 @@ class ClubResource extends Resource
                 ->modalSubmitAction(false)
                 ->modalCancelActionLabel('Cerrar');
     }
+
+    // Acción para abrir Google Maps mostrando la ubicación del Club
+    public static function locationAction(): Action
+    {
+        return Action::make('ubicacion')
+            ->label('Ubicación')
+            ->icon('heroicon-o-map-pin')
+            ->color('info')
+            ->url(function (Club $record): string {
+                $address = collect([
+                    $record->address,
+                    $record->city?->name,
+                    $record->city?->state?->name,
+                    $record->city?->state?->country?->name,
+                ])
+                    ->filter()
+                    ->implode(', ');
+
+                return 'https://www.google.com/maps/search/?api=1&query='
+                    . urlencode($address);
+            })
+            ->openUrlInNewTab()
+            ->visible(
+                fn (Club $record): bool =>
+                    filled($record->address)
+                    && filled($record->city?->name)
+            );
+    }
 }
