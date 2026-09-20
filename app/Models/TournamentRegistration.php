@@ -4,6 +4,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Validation\ValidationException;
+use App\Services\TournamentScoringService;
 
 class TournamentRegistration extends Model
 {
@@ -20,14 +21,18 @@ class TournamentRegistration extends Model
         'source',
         'notes',
         'tournament_instance_id',
+        'result_code',
+        'result_description',
+        'result_instance_value',
         'payment_file',
         'points',
-        'penalty_points',       
+        'penalty_points',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'checked_in' => 'boolean',
+        'result_instance_value' => 'integer',
     ];
 
     public function tournament()
@@ -151,16 +156,36 @@ class TournamentRegistration extends Model
 
     public function calculatePoints(): float
     {
-        $tournament = $this->tournament;
-        $type = $tournament?->type;
-        $instance = $this->tournamentInstance;
-        $player = $this->player;
+        $this->loadMissing([
+            'tournament.type',
+            'tournamentInstance',
+        ]);
 
-        if (! $type || ! $instance) {
-            return 0;
+        $tournament = $this->tournament;
+        $instance = $this->tournamentInstance;
+
+        if (! $tournament || ! $instance) {
+            return 0.0;
         }
 
-        return $instance->points * ($type->score_percentage / 100);
+        $rule = app(
+            TournamentScoringService::class
+        )->findRuleByTournamentInstance(
+            $tournament,
+            $instance
+        );
+
+        if (
+            ! $rule
+            || ! array_key_exists('points', $rule)
+        ) {
+            throw ValidationException::withMessages([
+                'tournament_instance_id' =>
+                'La posición seleccionada no tiene puntos configurados para este tipo de torneo.',
+            ]);
+        }
+
+        return (float) $rule['points'];
     }
 
     

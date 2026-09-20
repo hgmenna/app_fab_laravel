@@ -2,32 +2,41 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TournamentType extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'discipline_id',
         'name',
         'code',
         'is_official',
         'affects_ranking',
         'assigns_points',
-        'score_percentage',
+        'scoring_method',
+        'scoring_rules',
         'is_active',
-
     ];
 
     protected $casts = [
         'is_official' => 'boolean',
         'affects_ranking' => 'boolean',
         'assigns_points' => 'boolean',
-        'score_percentage' => 'decimal:2',
+        'scoring_rules' => 'array',
+        'is_active' => 'boolean',
     ];
 
-    public function tournaments()
+    public function discipline(): BelongsTo
+    {
+        return $this->belongsTo(Discipline::class);
+    }
+
+    public function tournaments(): HasMany
     {
         return $this->hasMany(Tournament::class);
     }
