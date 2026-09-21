@@ -59,8 +59,8 @@ class PlayerPerformance extends Page implements HasTable
                         'rows' => $rows,
                         'points' => $rows->sum(fn ($row) => (float) $row->points),
                         'generatedAt' => now()->format('d/m/Y H:i'),
-                        'logo' => FabPath::logo(),
-                        'footer_image' => FabPath::footer(),
+                        'logo' => is_file(FabPath::logo()) ? FabPath::logo() : public_path(config('fab.paths.logo')),
+                        'footer_image' => is_file(FabPath::footer()) ? FabPath::footer() : public_path(config('fab.paths.footer')),
                     ])->setPaper('a4', 'landscape');
 
                     return response()->streamDownload(
