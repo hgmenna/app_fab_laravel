@@ -19,6 +19,7 @@ use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class PlayersTable
 {
@@ -188,6 +189,28 @@ class PlayersTable
 
             ])
             ->headerActions([
+                Action::make('performanceFiltered')
+                    ->label('Desempeño de jugadores filtrados')
+                    ->icon('heroicon-o-chart-bar')
+                    ->color('info')
+                    ->action(function ($livewire) {
+                        // El filtro y la búsqueda actuales se evalúan sobre TODOS los jugadores,
+                        // incluyendo los que no aparecen en la página de resultados visible.
+                        $ids = $livewire->getFilteredTableQuery()
+                            ->pluck('players.id')
+                            ->map(fn ($id): int => (int) $id)
+                            ->unique()
+                            ->values()
+                            ->all();
+
+                        $report = (string) Str::uuid();
+                        session()->put("player-performance-reports.{$report}", [
+                            'user_id' => Auth::id(),
+                            'player_ids' => $ids,
+                        ]);
+
+                        return redirect(PlayerResource::getUrl('performance-all', ['report' => $report]));
+                    }),
                  Action::make('categoryChangesReport')
                     ->label('Cambios de categoría')
                     ->icon('heroicon-o-arrows-right-left')
