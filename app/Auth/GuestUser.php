@@ -8,7 +8,7 @@ use Spatie\Permission\Models\Role;
 class GuestUser extends User
 {
     protected $attributes = [
-        'name' => 'Invitado',
+        'name' => 'Público',
         'email' => 'guest@example.com',
     ];
 
