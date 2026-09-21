@@ -4,8 +4,13 @@
         .performance-filters label { display: block; font-size: .8rem; font-weight: 600; margin-bottom: .35rem; }
         .performance-filters input, .performance-filters select { width: 100%; background: rgba(127,127,127,.08); color: inherit; border: 1px solid rgba(127,127,127,.35); border-radius: .5rem; padding: .55rem; }
         .performance-filters select option { color: #111; }
-        .performance-filters select[multiple] { min-height: 7rem; }
-        .performance-filters .filter-hint { display: block; font-size: .75rem; opacity: .75; margin-top: .3rem; }
+        .performance-type-picker { position: relative; }
+        .performance-type-picker > button { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; min-height: 2.75rem; padding: .55rem .75rem; border: 1px solid rgba(127,127,127,.35); border-radius: .5rem; background: rgba(127,127,127,.08); color: inherit; text-align: left; cursor: pointer; }
+        .performance-type-options { position: absolute; z-index: 30; top: calc(100% + .3rem); left: 0; width: max(100%, 18rem); max-width: min(24rem, calc(100vw - 2rem)); max-height: 16rem; overflow-y: auto; padding: .35rem; border: 1px solid rgba(127,127,127,.35); border-radius: .5rem; background: #242427; color: #fff; box-shadow: 0 12px 24px rgba(0,0,0,.35); }
+        .performance-type-options label { display: flex; align-items: center; gap: .6rem; margin: 0; padding: .5rem; border-radius: .35rem; cursor: pointer; }
+        .performance-type-options label:hover { background: rgba(255,255,255,.12); }
+        .performance-type-options input { width: 1rem; height: 1rem; flex: none; margin: 0; }
+        .performance-type-options p { padding: .5rem; margin: 0; }
         .performance-filters .performance-checkbox { display: flex; align-items: center; gap: .55rem; padding: .7rem 0; }
         .performance-filters .performance-checkbox input { width: 1.1rem; height: 1.1rem; margin: 0; }
         .performance-filters .performance-checkbox label { margin: 0; cursor: pointer; }
@@ -40,13 +45,23 @@
             </select>
         </div>
         <div>
-            <label for="performance-type">Tipo de torneo</label>
-            <select id="performance-type" wire:model.live="typeIds" multiple size="5">
-                @foreach ($this->typeOptions() as $id => $name)
-                    <option value="{{ $id }}">{{ $name }}</option>
-                @endforeach
-            </select>
-            <small class="filter-hint">Sin selección: todos. Ctrl (o Cmd en Mac) para seleccionar varios.</small>
+            <span class="block text-sm font-semibold mb-1">Tipo de torneo</span>
+            <div class="performance-type-picker" x-data="{ open: false }" x-on:click.outside="open = false">
+                <button type="button" x-on:click="open = !open" x-bind:aria-expanded="open.toString()" aria-label="Seleccionar tipos de torneo">
+                    <span>{{ count($this->typeIds) ? count($this->typeIds) . ' tipos seleccionados' : 'Todos los tipos' }}</span>
+                    <span aria-hidden="true">⌄</span>
+                </button>
+                <div class="performance-type-options" x-show="open" x-cloak>
+                    @forelse ($this->typeOptions() as $id => $name)
+                        <label for="performance-type-{{ $id }}" wire:key="performance-type-{{ $id }}">
+                            <input id="performance-type-{{ $id }}" type="checkbox" value="{{ $id }}" wire:model.live="typeIds">
+                            <span>{{ $name }}</span>
+                        </label>
+                    @empty
+                        <p>Sin tipos de torneo para esta disciplina.</p>
+                    @endforelse
+                </div>
+            </div>
         </div>
         <div>
             <label for="performance-from">Desde</label>
