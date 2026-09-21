@@ -1,7 +1,15 @@
 <x-filament-panels::page>
+    <style>
+        .performance-summary, .performance-card { padding: 1rem 1.25rem; border: 1px solid rgba(127,127,127,.3); border-radius: .75rem; background: rgba(127,127,127,.08); line-height: 1.6; }
+        .performance-card { overflow-x: auto; }
+        .performance-card h2 { font-size: 1rem; font-weight: 600; margin-bottom: .75rem; }
+        .performance-card table { width: 100%; border-collapse: collapse; min-width: 450px; }
+        .performance-card th, .performance-card td { padding: .6rem .75rem; border-bottom: 1px solid rgba(127,127,127,.25); text-align: left; }
+        .performance-card th:last-child, .performance-card td:last-child { text-align: right; }
+    </style>
     @php($totals = $this->totals())
 
-    <div class="rounded-xl border border-gray-200 bg-white p-4 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900">
+    <div class="performance-summary">
         <strong>Jugadores seleccionados desde el listado: {{ $totals['players'] }}</strong>
         · {{ $totals['tournaments'] }} participaciones
         · {{ $totals['results'] }} resultados cargados
@@ -10,24 +18,24 @@
 
     {{ $this->table }}
 
-    <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-        <h2 class="mb-3 font-semibold">Resumen por jugador según los filtros</h2>
-        <table class="w-full text-sm">
+    <div class="performance-card">
+        <h2>Resumen por jugador según los filtros</h2>
+        <table>
             <thead>
-                <tr class="border-b text-left dark:border-gray-700">
-                    <th class="p-2">Jugador</th>
-                    <th class="p-2">Torneos</th>
-                    <th class="p-2">Resultados</th>
-                    <th class="p-2">Puntos</th>
+                <tr>
+                    <th>Jugador</th>
+                    <th>Torneos</th>
+                    <th>Resultados</th>
+                    <th>Puntos</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($this->playerSummaries() as $player)
-                    <tr class="border-b dark:border-gray-700">
-                        <td class="p-2">{{ $player['name'] }}</td>
-                        <td class="p-2">{{ $player['tournaments'] }}</td>
-                        <td class="p-2">{{ $player['results'] }}</td>
-                        <td class="p-2">{{ number_format($player['points'], 2, ',', '.') }}</td>
+                    <tr>
+                        <td>{{ $player['name'] }}</td>
+                        <td>{{ $player['tournaments'] }}</td>
+                        <td>{{ $player['results'] }}</td>
+                        <td>{{ number_format($player['points'], 2, ',', '.') }}</td>
                     </tr>
                 @endforeach
             </tbody>
