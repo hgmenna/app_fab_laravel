@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Players\Pages;
 
 use App\Filament\Resources\Players\PlayerResource;
+use App\Helpers\FabPath;
 use App\Models\Discipline;
 use App\Models\Player;
 use App\Models\TournamentRegistration;
@@ -31,6 +32,7 @@ class FilteredPlayerPerformance extends Page
     public string $typeId = '';
     public string $fromDate = '';
     public string $untilDate = '';
+    public bool $onlyParticipants = false;
 
     public function mount(string $report): void
     {
@@ -110,7 +112,10 @@ class FilteredPlayerPerformance extends Page
                 'points' => $rows->sum(fn (TournamentRegistration $row): float => (float) $row->points),
                 'rows' => $rows,
             ];
-        });
+        })->when(
+            $this->onlyParticipants,
+            fn ($summaries) => $summaries->filter(fn (array $player): bool => $player['tournaments'] > 0)->values()
+        );
 
         return [
             'players' => $summaries,
@@ -138,6 +143,8 @@ class FilteredPlayerPerformance extends Page
                         'players' => $report['players'],
                         'totals' => $report['totals'],
                         'generatedAt' => now()->format('d/m/Y H:i'),
+                        'logo' => is_file(FabPath::logo()) ? FabPath::logo() : public_path(config('fab.paths.logo')),
+                        'footer_image' => is_file(FabPath::footer()) ? FabPath::footer() : public_path(config('fab.paths.footer')),
                     ])->setPaper('a4', 'landscape');
 
                     return response()->streamDownload(

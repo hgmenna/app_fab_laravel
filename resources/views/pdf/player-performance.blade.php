@@ -2,9 +2,9 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    @include('pdf.partials.fab-report-header-styles')
     <style>
         body { font-family: DejaVu Sans, sans-serif; font-size: 9px; color: #222; }
-        h1 { font-size: 17px; margin-bottom: 4px; }
         .meta { color: #555; margin-bottom: 18px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #ddd; padding: 7px; text-align: left; }
@@ -14,8 +14,11 @@
     </style>
 </head>
 <body>
-    <h1>Desempeño de {{ $player->full_name }}</h1>
-    <div class="meta">Torneos finalizados · Emitido el {{ $generatedAt }}</div>
+    @include('pdf.partials.fab-report-header', [
+        'reportTitle' => 'Desempeño de jugador',
+        'reportSubtitle' => $player->full_name,
+    ])
+    <div class="meta">Torneos finalizados</div>
     <table>
         <thead>
             <tr>
