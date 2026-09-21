@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Players\Pages;
 
 use App\Filament\Resources\Players\PlayerResource;
+use App\Helpers\FabPath;
 use App\Models\Discipline;
 use App\Models\TournamentRegistration;
 use App\Models\TournamentType;
@@ -58,6 +59,8 @@ class PlayerPerformance extends Page implements HasTable
                         'rows' => $rows,
                         'points' => $rows->sum(fn ($row) => (float) $row->points),
                         'generatedAt' => now()->format('d/m/Y H:i'),
+                        'logo' => FabPath::logo(),
+                        'footer_image' => FabPath::footer(),
                     ])->setPaper('a4', 'landscape');
 
                     return response()->streamDownload(
