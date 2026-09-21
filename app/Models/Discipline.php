@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Discipline extends Model
 {
@@ -11,6 +13,7 @@ class Discipline extends Model
 
     protected $fillable = [
         'name',
+        'code',
         'short_name',
         'description',
         'scoring_rules',
@@ -22,19 +25,24 @@ class Discipline extends Model
         'active' => 'boolean',
     ];
 
-    public function players()
+    public function players(): BelongsToMany
     {
         return $this->belongsToMany(Player::class, 'player_discipline')
             ->withPivot('enabled_to_compete')
             ->withTimestamps();
     }
 
-    public function tournaments()
+    public function tournamentTypes(): HasMany
+    {
+        return $this->hasMany(TournamentType::class);
+    }
+
+    public function tournaments(): HasMany
     {
         return $this->hasMany(Tournament::class);
     }
 
-    public function memberships()
+    public function memberships(): HasMany
     {
         return $this->hasMany(Membership::class);
     }

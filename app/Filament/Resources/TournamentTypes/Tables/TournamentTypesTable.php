@@ -24,6 +24,10 @@ class TournamentTypesTable
                 TextColumn::make('name')
                     ->label('Nombre')
                     ->searchable(),
+                TextColumn::make('discipline.name')
+                    ->label('Disciplina')
+                    ->searchable()
+                    ->sortable(),
                 TextColumn::make('code')
                     ->label('Código')
                     ->searchable(),
@@ -36,13 +40,18 @@ class TournamentTypesTable
                 IconColumn::make('assigns_points')
                     ->label('Asigna puntos')
                     ->boolean(),
+                TextColumn::make('scoring_method')
+                    ->label('Método de puntuación')
+                    ->formatStateUsing(
+                        fn(?string $state): string => match ($state) {
+                            'position' => 'Posición o instancia',
+                            default => 'Sin configurar',
+                        }
+                    )
+                    ->badge(),
                 IconColumn::make('is_active')
                     ->label('Está activo')
                     ->boolean(),
-                TextColumn::make('score_percentage')
-                    ->label('Porcentaje de puntuación')
-                    ->formatStateUsing(fn (string $state): string => $state . '%')
-                    ->sortable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

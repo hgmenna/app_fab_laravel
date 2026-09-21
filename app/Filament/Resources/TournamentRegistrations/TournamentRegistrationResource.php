@@ -11,6 +11,7 @@ use App\Models\TournamentInstance;
 use App\Models\TournamentRegistration;
 use App\Services\RankingService;
 use App\Services\TournamentRegistrationPdfService;
+use App\Services\TournamentScoringService;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
@@ -166,58 +167,226 @@ class TournamentRegistrationResource extends Resource
             $livewire instanceof \Filament\Resources\Pages\ManageRelatedRecords;
     }
 
-   public static function AsignInstanceAction(): Action
-   {
-        return
-            Action::make('asignarInstancia')
-                    ->label('Asignar Posicion')
-                    ->visible(fn (?TournamentRegistration $record) => 
-                        Auth::user()?->can('EditField') && 
-                        $record?->tournament?->start_date < now()
-                    )
-                    ->disabled(fn (TournamentRegistration $record) => 
-                        ($record->tournament?->start_date > now()) &&
-                        (Auth::user()->name !== 'super-admin')
-                    )
-                    ->modalHeading('Asignar Posicion y calcular puntos')
-                    ->form([
-                        Select::make('tournament_instance_id')
-                            ->label('Instancia')
-                            ->options(
-                                TournamentInstance::pluck('description', 'id')->toArray()
-                            )
-                            ->nullable(), // permitir null
+    public static function AsignInstanceAction(): Action
+    {
+        return Action::make('asignarInstancia')
+            ->label('Asignar posición')
+            ->visible(
+                fn(?TournamentRegistration $record): bool =>
+                Auth::user()?->can('EditField')
+                    && $record?->tournament?->start_date < now()
+            )
+            ->disabled(
+                fn(TournamentRegistration $record): bool => ($record->tournament?->start_date > now())
+                    && (Auth::user()->name !== 'super-admin')
+            )
+            ->modalHeading('Asignar resultado y calcular puntos')
+            ->modalSubmitActionLabel('Guardar resultado')
+            ->fillForm(
+                fn(TournamentRegistration $record): array => [
+                    'tournament_instance_id' =>
+                    $record->tournament_instance_id,
 
-                        TextInput::make('penalty_points')
-                            ->label('Penalizacion')
-                            ->numeric()
-                            ->default(0)
-                            ->helperText('Puntos a descontar por inasistencia en Master/1ra.'),
-                    ])
-                    ->action(function (array $data, TournamentRegistration $record) {
+                    'result_code' =>
+                    $record->result_code,
 
-                        // Guardar instancia (puede ser null)
-                        $record->tournament_instance_id = $data['tournament_instance_id'] ?? null;
-                        $record->penalty_points = $data['penalty_points'] ?? 0; 
-                        $record->save();
+                    'penalty_points' =>
+                    $record->penalty_points ?? 0,
+                ]
+            )
+            ->form([
+                /*
+             * Los torneos que afectan al ranking continúan utilizando
+             * tournament_instances y tournament_instance_id.
+             */
+                Select::make('tournament_instance_id')
+                    ->label('Posición oficial')
+                    ->options(function (
+                        ?TournamentRegistration $record
+                    ): array {
+                        $tournament = $record?->tournament;
 
-                        // Recargar relaciones para evitar usar la instancia vieja en memoria
-                        $record->refresh();
-
-                        // Si no hay instancia, puntos = null
-                        if (! $record->tournament_instance_id) {
-                            $record->points = null;
-                        } else {
-                            $record->points = $record->calculatePoints();
-
+                        if (
+                            ! $tournament
+                            || ! $tournament->type?->affects_ranking
+                        ) {
+                            return [];
                         }
 
+                        $rules = app(
+                            TournamentScoringService::class
+                        )->getRules($tournament);
+
+                        return collect($rules)
+                            ->filter(
+                                fn(array $rule): bool =>
+                                ! empty($rule['tournament_instance_id']
+                                    ?? null)
+                            )
+                            ->mapWithKeys(function (array $rule): array {
+                                $instanceId = (int)
+                                $rule['tournament_instance_id'];
+
+                                $description =
+                                    $rule['description']
+                                    ?? 'Sin descripción';
+
+                                $points = $rule['points'] ?? 0;
+
+                                return [
+                                    $instanceId =>
+                                    "{$description} — {$points} puntos",
+                                ];
+                            })
+                            ->all();
+                    })
+                    ->searchable()
+                    ->preload()
+                    ->visible(
+                        fn(?TournamentRegistration $record): bool =>
+                        (bool) $record?->tournament?->type
+                            ?->affects_ranking
+                    )
+                    ->nullable(),
+
+                /*
+             * Los tipos que no afectan al ranking utilizan únicamente
+             * los resultados definidos en su propio array.
+             */
+                Select::make('result_code')
+                    ->label('Resultado')
+                    ->options(function (
+                        ?TournamentRegistration $record
+                    ): array {
+                        $tournament = $record?->tournament;
+
+                        if (
+                            ! $tournament
+                            || $tournament->type?->affects_ranking
+                        ) {
+                            return [];
+                        }
+
+                        $rules = app(
+                            TournamentScoringService::class
+                        )->getRules($tournament);
+
+                        return collect($rules)
+                            ->filter(
+                                fn(array $rule): bool =>
+                                filled($rule['code'] ?? null)
+                            )
+                            ->mapWithKeys(function (array $rule): array {
+                                $code = (string) $rule['code'];
+
+                                $description =
+                                    $rule['description']
+                                    ?? 'Sin descripción';
+
+                                $points = $rule['points'] ?? 0;
+
+                                return [
+                                    $code =>
+                                    "{$description} — {$points} puntos",
+                                ];
+                            })
+                            ->all();
+                    })
+                    ->searchable()
+                    ->preload()
+                    ->visible(
+                        fn(?TournamentRegistration $record): bool =>
+                        ! (bool) $record?->tournament?->type
+                            ?->affects_ranking
+                    )
+                    ->nullable(),
+
+                TextInput::make('penalty_points')
+                    ->label('Penalización')
+                    ->numeric()
+                    ->default(0)
+                    ->helperText(
+                        'Puntos a descontar por inasistencia en Master/1ra.'
+                    ),
+            ])
+            ->action(function (
+                array $data,
+                TournamentRegistration $record
+            ): void {
+                $record->loadMissing('tournament.type');
+
+                $affectsRanking = (bool)
+                $record->tournament?->type?->affects_ranking;
+
+                $record->penalty_points =
+                    $data['penalty_points'] ?? 0;
+
+                $service = app(
+                    TournamentScoringService::class
+                );
+
+                if ($affectsRanking) {
+                    $instanceId =
+                        $data['tournament_instance_id'] ?? null;
+
+                    /*
+                 * Se permite quitar una posición asignada.
+                 */
+                    if (! $instanceId) {
+                        $record->tournament_instance_id = null;
+                        $record->result_code = null;
+                        $record->result_description = null;
+                        $record->result_instance_value = null;
+                        $record->points = null;
                         $record->save();
-                        RankingService::syncGeneralRanking();
+                    } else {
+                        /*
+                     * Conserva tournament_instance_id para que el
+                     * Ranking General funcione sin modificaciones.
+                     */
+                        $service->assignByTournamentInstance(
+                            $record,
+                            (int) $instanceId
+                        );
                     }
-                )
-                ->color('primary');
-   }
+
+                    /*
+                 * El ranking se sincroniza únicamente si el tipo
+                 * de torneo realmente lo afecta.
+                 */
+                    RankingService::syncGeneralRanking();
+
+                    return;
+                }
+
+                $resultCode = $data['result_code'] ?? null;
+
+                /*
+             * Para torneos estadísticos también se permite quitar
+             * un resultado previamente asignado.
+             */
+                if (! $resultCode) {
+                    $record->tournament_instance_id = null;
+                    $record->result_code = null;
+                    $record->result_description = null;
+                    $record->result_instance_value = null;
+                    $record->points = null;
+                    $record->save();
+
+                    return;
+                }
+
+                /*
+             * Los torneos estadísticos guardan puntos y resultado,
+             * pero no ejecutan ninguna sincronización del ranking.
+             */
+                $service->assignByCode(
+                    $record,
+                    (string) $resultCode
+                );
+            })
+            ->color('primary');
+    }
 
     public static function afterSave($record): void
     {
