@@ -2,9 +2,9 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    @include('pdf.partials.fab-report-header-styles')
     <style>
         body { font-family: DejaVu Sans, sans-serif; font-size: 8px; color: #222; }
-        h1 { font-size: 16px; margin-bottom: 3px; }
         .meta { color: #555; margin-bottom: 14px; }
         .player { margin: 14px 0; }
         .player h2 { font-size: 11px; background: #eee; padding: 7px; margin: 0; }
@@ -17,11 +17,13 @@
     </style>
 </head>
 <body>
-    <h1>Desempeño de jugadores</h1>
+    @include('pdf.partials.fab-report-header', [
+        'reportTitle' => 'Desempeño de jugadores',
+        'reportSubtitle' => 'Informe de jugadores filtrados',
+    ])
     <div class="meta">
         {{ $totals['players'] }} jugadores · {{ $totals['tournaments'] }} participaciones ·
         {{ $totals['results'] }} resultados · {{ number_format((float) $totals['points'], 2, ',', '.') }} puntos
-        · Emitido el {{ $generatedAt }}
     </div>
 
     @forelse ($players as $player)
