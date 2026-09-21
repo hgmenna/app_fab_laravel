@@ -19,6 +19,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Locked;
 
 class FilteredPlayerPerformance extends Page implements HasTable
@@ -86,6 +87,9 @@ class FilteredPlayerPerformance extends Page implements HasTable
             ->query(fn (): Builder => TournamentRegistration::query()
                 ->whereIn('player_id', $this->playerIds)
                 ->whereHas('tournament', fn (Builder $query) => $query->whereDate('end_date', '<=', today()))
+                ->addSelect(['participant_count' => DB::table('tournament_registrations as participant_counts')
+                    ->selectRaw('COUNT(*)')
+                    ->whereColumn('participant_counts.tournament_id', 'tournament_registrations.tournament_id')])
                 ->with([
                     'player',
                     'tournament' => fn ($query) => $query->withCount('registrations')->with('type'),
@@ -104,7 +108,7 @@ class FilteredPlayerPerformance extends Page implements HasTable
                 TextColumn::make('tournament.name')->label('Torneo')->wrap(),
                 TextColumn::make('tournament.type.name')->label('Tipo')->wrap(),
                 TextColumn::make('tournament.end_date')->label('Fecha')->date('d/m/Y'),
-                TextColumn::make('tournament.registrations_count')->label('Inscriptos')->numeric(),
+                TextColumn::make('participant_count')->label('Inscriptos')->numeric(),
                 TextColumn::make('position')
                     ->label('Posición / resultado')
                     ->state(fn (TournamentRegistration $record): string =>
