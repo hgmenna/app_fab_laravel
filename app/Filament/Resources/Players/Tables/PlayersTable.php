@@ -148,18 +148,11 @@ class PlayersTable
                     GlobalDeleteAction::make(),
                     PlayerResource::changeCategoryAction(),
                     PlayerResource::viewCategoryHistoryAction(),
-                    Action::make('verTorneos')
-                        ->label('Ver Torneos')
+                    Action::make('verDesempeno')
+                        ->label('Desempeño en torneos')
                         ->icon(Heroicon::Trophy)
                         ->color('info')
-                        ->modalHeading('Historial de Torneos')
-                        ->modalWidth('5xl')
-                        // SOLUCIÓN: Usar el helper view() de Laravel y pasar el registro
-                        ->modalContent(fn ($record) => view(
-                            'jugadores.table.detalles-torneo',
-                            ['record' => $record]
-                        ))
-                        ->modalSubmitAction(false),
+                        ->url(fn ($record): string => PlayerResource::getUrl('performance', ['record' => $record])),
 
                     PlayerResource::payMemberShipAction(),
                     

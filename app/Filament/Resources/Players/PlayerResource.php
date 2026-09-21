@@ -6,6 +6,7 @@ use App\Filament\Resources\Players\Pages\CategoryChangesReport;
 use App\Filament\Resources\Players\Pages\CreatePlayer;
 use App\Filament\Resources\Players\Pages\EditPlayer;
 use App\Filament\Resources\Players\Pages\ListPlayers;
+use App\Filament\Resources\Players\Pages\PlayerPerformance;
 use App\Filament\Resources\Players\Schemas\PlayerForm;
 use App\Filament\Resources\Players\Tables\PlayersTable;
 use App\Helpers\FabPath;
@@ -67,6 +68,7 @@ class PlayerResource extends Resource
             'index' => ListPlayers::route('/'),
             'create' => CreatePlayer::route('/create'),
             'category-changes-report' => CategoryChangesReport::route('/category-changes-report'),
+            'performance' => PlayerPerformance::route('/{record}/performance'),
             'edit' => EditPlayer::route('/{record}/edit'),
         ];
     }
