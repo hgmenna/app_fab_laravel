@@ -17,7 +17,7 @@ class AssignGuestUser
             
             // ASIGNACIÓN NECESARIA: 
             // Filament requiere un string para el nombre del usuario [1, 2].
-            $guest->name = 'Invitado'; 
+            $guest->name = 'Público';
             
             // Opcional: puedes asignar un ID ficticio si algún recurso lo requiere
             $guest->id = 0; 
