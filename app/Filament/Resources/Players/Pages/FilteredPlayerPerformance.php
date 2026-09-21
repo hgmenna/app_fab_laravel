@@ -30,10 +30,12 @@ class FilteredPlayerPerformance extends Page
 
     public string $searchPlayer = '';
     public string $disciplineId = '';
-    public string $typeId = '';
+    public array $typeIds = [];
     public string $fromDate = '';
     public string $untilDate = '';
-    public bool $onlyParticipants = false;
+    public string $minPoints = '';
+    public string $maxPoints = '';
+    public bool $onlyParticipants = true;
 
     public function mount(string $report): void
     {
@@ -86,8 +88,8 @@ class FilteredPlayerPerformance extends Page
                 if ($this->disciplineId !== '') {
                     $tournament->where('discipline_id', $this->disciplineId);
                 }
-                if ($this->typeId !== '') {
-                    $tournament->where('tournament_type_id', $this->typeId);
+                if ($this->typeIds !== []) {
+                    $tournament->whereIn('tournament_type_id', $this->typeIds);
                 }
                 if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $this->fromDate)) {
                     $tournament->whereDate('end_date', '>=', $this->fromDate);
@@ -96,6 +98,10 @@ class FilteredPlayerPerformance extends Page
                     $tournament->whereDate('end_date', '<=', $this->untilDate);
                 }
             })
+            ->when($this->minPoints !== '' && is_numeric($this->minPoints),
+                fn (Builder $query) => $query->where('points', '>=', (float) $this->minPoints))
+            ->when($this->maxPoints !== '' && is_numeric($this->maxPoints),
+                fn (Builder $query) => $query->where('points', '<=', (float) $this->maxPoints))
             ->addSelect(['participant_count' => DB::table('tournament_registrations as participant_counts')
                 ->selectRaw('COUNT(*)')
                 ->whereColumn('participant_counts.tournament_id', 'tournament_registrations.tournament_id')])
