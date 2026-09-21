@@ -1,8 +1,10 @@
 <x-filament-panels::page>
     <style>
-        .performance-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
+        .performance-filters { display: grid; gap: 1.25rem; }
+        .performance-filter-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; align-items: end; }
+        .performance-filter-row > div { min-width: 0; }
         .performance-filters label { display: block; font-size: .8rem; font-weight: 600; margin-bottom: .35rem; }
-        .performance-filters input, .performance-filters select { width: 100%; background: rgba(127,127,127,.08); color: inherit; border: 1px solid rgba(127,127,127,.35); border-radius: .5rem; padding: .55rem; }
+        .performance-filters input, .performance-filters select { box-sizing: border-box; width: 100%; min-height: 2.75rem; background: rgba(127,127,127,.08); color: inherit; border: 1px solid rgba(127,127,127,.35); border-radius: .5rem; padding: .55rem; }
         .performance-filters select option { color: #111; }
         .performance-type-picker { position: relative; }
         .performance-type-picker > button { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; min-height: 2.75rem; padding: .55rem .75rem; border: 1px solid rgba(127,127,127,.35); border-radius: .5rem; background: rgba(127,127,127,.08); color: inherit; text-align: left; cursor: pointer; }
@@ -11,9 +13,11 @@
         .performance-type-options label:hover { background: rgba(255,255,255,.12); }
         .performance-type-options input { width: 1rem; height: 1rem; flex: none; margin: 0; }
         .performance-type-options p { padding: .5rem; margin: 0; }
-        .performance-filters .performance-checkbox { display: flex; align-items: center; gap: .55rem; padding: .7rem 0; }
-        .performance-filters .performance-checkbox input { width: 1.1rem; height: 1.1rem; margin: 0; }
+        .performance-filters .performance-checkbox { display: flex; align-items: center; gap: .55rem; min-height: 2.75rem; }
+        .performance-filters .performance-checkbox input { width: 1.1rem; height: 1.1rem; min-height: 0; flex: none; margin: 0; }
         .performance-filters .performance-checkbox label { margin: 0; cursor: pointer; }
+        @@media (max-width: 1100px) { .performance-filter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @@media (max-width: 640px) { .performance-filter-row { grid-template-columns: minmax(0, 1fr); } }
         .performance-totals { padding: 1rem 1.25rem; border: 1px solid rgba(127,127,127,.3); border-radius: .75rem; background: rgba(127,127,127,.08); }
         .performance-players { display: grid; gap: .75rem; }
         .performance-player { border: 1px solid rgba(127,127,127,.3); border-radius: .75rem; overflow: hidden; }
@@ -31,57 +35,61 @@
     </style>
 
     <div class="performance-filters">
-        <div>
-            <label for="performance-player-search">Jugador</label>
-            <input id="performance-player-search" type="search" wire:model.live.debounce.350ms="searchPlayer" placeholder="Buscar jugador">
-        </div>
-        <div>
-            <label for="performance-discipline">Disciplina</label>
-            <select id="performance-discipline" wire:model.live="disciplineId">
-                <option value="">Todas</option>
-                @foreach ($this->disciplineOptions() as $id => $name)
-                    <option value="{{ $id }}">{{ $name }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div>
-            <span class="block text-sm font-semibold mb-1">Tipo de torneo</span>
-            <div class="performance-type-picker" x-data="{ open: false }" x-on:click.outside="open = false">
-                <button type="button" x-on:click="open = !open" x-bind:aria-expanded="open.toString()" aria-label="Seleccionar tipos de torneo">
-                    <span>{{ count($this->typeIds) ? count($this->typeIds) . ' tipos seleccionados' : 'Todos los tipos' }}</span>
-                    <span aria-hidden="true">⌄</span>
-                </button>
-                <div class="performance-type-options" x-show="open" x-cloak>
-                    @forelse ($this->typeOptions() as $id => $name)
-                        <label for="performance-type-{{ $id }}" wire:key="performance-type-{{ $id }}">
-                            <input id="performance-type-{{ $id }}" type="checkbox" value="{{ $id }}" wire:model.live="typeIds">
-                            <span>{{ $name }}</span>
-                        </label>
-                    @empty
-                        <p>Sin tipos de torneo para esta disciplina.</p>
-                    @endforelse
+        <div class="performance-filter-row">
+            <div>
+                <label for="performance-player-search">Jugador</label>
+                <input id="performance-player-search" type="search" wire:model.live.debounce.350ms="searchPlayer" placeholder="Buscar jugador">
+            </div>
+            <div>
+                <label for="performance-discipline">Disciplina</label>
+                <select id="performance-discipline" wire:model.live="disciplineId">
+                    <option value="">Todas</option>
+                    @foreach ($this->disciplineOptions() as $id => $name)
+                        <option value="{{ $id }}">{{ $name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <span class="block text-sm font-semibold mb-1">Tipo de torneo</span>
+                <div class="performance-type-picker" x-data="{ open: false }" x-on:click.outside="open = false">
+                    <button type="button" x-on:click="open = !open" x-bind:aria-expanded="open.toString()" aria-label="Seleccionar tipos de torneo">
+                        <span>{{ count($this->typeIds) ? count($this->typeIds) . ' tipos seleccionados' : 'Todos los tipos' }}</span>
+                        <span aria-hidden="true">⌄</span>
+                    </button>
+                    <div class="performance-type-options" x-show="open" x-cloak>
+                        @forelse ($this->typeOptions() as $id => $name)
+                            <label for="performance-type-{{ $id }}" wire:key="performance-type-{{ $id }}">
+                                <input id="performance-type-{{ $id }}" type="checkbox" value="{{ $id }}" wire:model.live="typeIds">
+                                <span>{{ $name }}</span>
+                            </label>
+                        @empty
+                            <p>Sin tipos de torneo para esta disciplina.</p>
+                        @endforelse
+                    </div>
                 </div>
             </div>
+            <div class="performance-checkbox">
+                <input id="performance-only-participants" type="checkbox" wire:model.live="onlyParticipants">
+                <label for="performance-only-participants">Solo jugadores con participaciones</label>
+            </div>
         </div>
-        <div>
-            <label for="performance-from">Desde</label>
-            <input id="performance-from" type="date" wire:model.live="fromDate">
-        </div>
-        <div>
-            <label for="performance-until">Hasta</label>
-            <input id="performance-until" type="date" wire:model.live="untilDate">
-        </div>
-        <div>
-            <label for="performance-min-points">Puntos mínimos por participación</label>
-            <input id="performance-min-points" type="number" step="0.01" wire:model.live.debounce.350ms="minPoints" placeholder="Sin mínimo">
-        </div>
-        <div>
-            <label for="performance-max-points">Puntos máximos por participación</label>
-            <input id="performance-max-points" type="number" step="0.01" wire:model.live.debounce.350ms="maxPoints" placeholder="Sin máximo">
-        </div>
-        <div class="performance-checkbox">
-            <input id="performance-only-participants" type="checkbox" wire:model.live="onlyParticipants">
-            <label for="performance-only-participants">Solo jugadores con participaciones</label>
+        <div class="performance-filter-row">
+            <div>
+                <label for="performance-from">Desde</label>
+                <input id="performance-from" type="date" wire:model.live="fromDate">
+            </div>
+            <div>
+                <label for="performance-until">Hasta</label>
+                <input id="performance-until" type="date" wire:model.live="untilDate">
+            </div>
+            <div>
+                <label for="performance-min-points">Puntos mínimos por participación</label>
+                <input id="performance-min-points" type="number" step="0.01" wire:model.live.debounce.350ms="minPoints" placeholder="Sin mínimo">
+            </div>
+            <div>
+                <label for="performance-max-points">Puntos máximos por participación</label>
+                <input id="performance-max-points" type="number" step="0.01" wire:model.live.debounce.350ms="maxPoints" placeholder="Sin máximo">
+            </div>
         </div>
     </div>
 
