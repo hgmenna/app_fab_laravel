@@ -191,7 +191,7 @@ class PlayersTable
             ])
             ->headerActions([
                 Action::make('performanceFiltered')
-                    ->label('Desempeño de jugadores filtrados')
+                    ->label('Desempeño de jugadores')
                     ->icon('heroicon-o-chart-bar')
                     ->color('info')
                     ->action(function ($livewire) {
