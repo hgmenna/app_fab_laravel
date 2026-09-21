@@ -4,13 +4,13 @@ namespace App\Filament\Resources\Players\Pages;
 
 use App\Filament\Resources\Players\PlayerResource;
 use App\Models\Discipline;
-use App\Models\Player;
 use App\Models\TournamentRegistration;
 use App\Models\TournamentType;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Resources\Pages\Page;
+use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -22,16 +22,15 @@ use Illuminate\Database\Eloquent\Builder;
 class PlayerPerformance extends Page implements HasTable
 {
     use InteractsWithTable;
+    use InteractsWithRecord;
 
     protected static string $resource = PlayerResource::class;
 
     protected string $view = 'filament.resources.players.pages.player-performance';
 
-    public Player $record;
-
     public function mount(int|string $record): void
     {
-        $this->record = Player::query()->findOrFail($record);
+        $this->record = $this->resolveRecord($record);
     }
 
     public function getTitle(): string
