@@ -10,6 +10,7 @@ use App\Models\TournamentRegistration;
 use App\Models\TournamentType;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
+use Filament\Facades\Filament;
 use Filament\Resources\Pages\Page;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -37,9 +38,12 @@ class FilteredPlayerPerformance extends Page
     public function mount(string $report): void
     {
         $selection = session("player-performance-reports.{$report}");
+        $panelId = Filament::getCurrentPanel()?->getId();
 
         abort_unless(
-            is_array($selection) && ($selection['user_id'] ?? null) === Auth::id()
+            is_array($selection)
+                && ($selection['panel_id'] ?? null) === $panelId
+                && ($panelId === 'guest' || ($selection['user_id'] ?? null) === Auth::id())
                 && is_array($selection['player_ids'] ?? null),
             404
         );

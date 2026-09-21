@@ -10,6 +10,7 @@ use App\Filament\Resources\Players\PlayerResource;
 use App\Models\GeneralRanking;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
+use Filament\Facades\Filament;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -205,7 +206,8 @@ class PlayersTable
 
                         $report = (string) Str::uuid();
                         session()->put("player-performance-reports.{$report}", [
-                            'user_id' => Auth::id(),
+                            'panel_id' => Filament::getCurrentPanel()->getId(),
+                            'user_id' => Filament::getCurrentPanel()->getId() === 'guest' ? null : Auth::id(),
                             'player_ids' => $ids,
                         ]);
 
