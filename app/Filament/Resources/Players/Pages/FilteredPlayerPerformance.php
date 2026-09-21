@@ -21,7 +21,7 @@ class FilteredPlayerPerformance extends Page
 {
     protected static string $resource = PlayerResource::class;
 
-    protected static ?string $title = 'Desempeño de jugadores filtrados';
+    protected static ?string $title = 'Desempeño de jugadores';
 
     protected string $view = 'filament.resources.players.pages.filtered-player-performance';
 
