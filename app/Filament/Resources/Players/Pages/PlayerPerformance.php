@@ -46,12 +46,12 @@ class PlayerPerformance extends Page implements HasTable
                 ->label('Exportar PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->action(function () {
-                    $rows = $this->getFilteredTableQuery()->with([
+                    $rows = $this->getFilteredSortedTableQuery()->with([
                         'tournament' => fn ($query) => $query
                             ->withCount('registrations')
                             ->with(['type', 'discipline']),
                         'tournamentInstance',
-                    ])->orderByDesc('id')->get();
+                    ])->get();
 
                     $pdf = Pdf::loadView('pdf.player-performance', [
                         'player' => $this->record,
