@@ -60,7 +60,20 @@ class FilteredPlayerPerformance extends Page
 
     public function typeOptions(): array
     {
-        return TournamentType::query()->orderBy('name')->pluck('name', 'id')->all();
+        return TournamentType::query()
+            ->when($this->disciplineId !== '', fn (Builder $query) => $query->where(function (Builder $types): void {
+                $types->where('discipline_id', $this->disciplineId)
+                    ->orWhereHas('tournaments', fn (Builder $tournaments) =>
+                        $tournaments->where('discipline_id', $this->disciplineId));
+            }))
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    public function updatedDisciplineId(): void
+    {
+        $this->typeIds = [];
     }
 
     /**
