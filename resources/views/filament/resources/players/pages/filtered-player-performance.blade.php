@@ -4,6 +4,9 @@
         .performance-filters label { display: block; font-size: .8rem; font-weight: 600; margin-bottom: .35rem; }
         .performance-filters input, .performance-filters select { width: 100%; background: rgba(127,127,127,.08); color: inherit; border: 1px solid rgba(127,127,127,.35); border-radius: .5rem; padding: .55rem; }
         .performance-filters select option { color: #111; }
+        .performance-filters .performance-checkbox { display: flex; align-items: center; gap: .55rem; padding: .7rem 0; }
+        .performance-filters .performance-checkbox input { width: 1.1rem; height: 1.1rem; margin: 0; }
+        .performance-filters .performance-checkbox label { margin: 0; cursor: pointer; }
         .performance-totals { padding: 1rem 1.25rem; border: 1px solid rgba(127,127,127,.3); border-radius: .75rem; background: rgba(127,127,127,.08); }
         .performance-players { display: grid; gap: .75rem; }
         .performance-player { border: 1px solid rgba(127,127,127,.3); border-radius: .75rem; overflow: hidden; }
@@ -50,6 +53,10 @@
         <div>
             <label for="performance-until">Hasta</label>
             <input id="performance-until" type="date" wire:model.live="untilDate">
+        </div>
+        <div class="performance-checkbox">
+            <input id="performance-only-participants" type="checkbox" wire:model.live="onlyParticipants">
+            <label for="performance-only-participants">Solo jugadores con participaciones</label>
         </div>
     </div>
 
