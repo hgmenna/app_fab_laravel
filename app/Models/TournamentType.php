@@ -15,6 +15,8 @@ class TournamentType extends Model
         'discipline_id',
         'name',
         'code',
+        'participation_mode',
+        'has_handicap',
         'is_official',
         'affects_ranking',
         'assigns_points',
@@ -25,6 +27,7 @@ class TournamentType extends Model
 
     protected $casts = [
         'is_official' => 'boolean',
+        'has_handicap' => 'boolean',
         'affects_ranking' => 'boolean',
         'assigns_points' => 'boolean',
         'scoring_rules' => 'array',

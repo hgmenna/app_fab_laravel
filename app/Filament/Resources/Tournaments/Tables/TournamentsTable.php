@@ -54,6 +54,11 @@ class TournamentsTable
                 IconColumn::make('is_payment_enabled')
                     ->label('Pago')
                     ->alignCenter(),
+
+                IconColumn::make('registration_enabled')
+                    ->label('Inscripción habilitada')
+                    ->boolean()
+                    ->alignCenter(),
             ])->defaultSort('start_date', direction:'desc')
             ->recordActions([
                 GlobalActionGroup::make([

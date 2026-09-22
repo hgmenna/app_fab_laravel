@@ -20,6 +20,7 @@ class Tournament extends Model
         'scoring_rules',
         'registration_open_at',
         'registration_close_at',
+        'registration_enabled',
         'entry_fee',
         'venue_id',
         'notes',
@@ -34,6 +35,7 @@ class Tournament extends Model
         'end_date' => 'date',
         'registration_open_at' => 'datetime',
         'registration_close_at' => 'datetime',
+        'registration_enabled' => 'boolean',
         'scoring_rules' => 'array',
         'categories' => 'array',
         'is_payment_enabled' => 'boolean',
@@ -82,9 +84,22 @@ class Tournament extends Model
     public function scopeAvailableForRegistration($query)
     {
         return $query
-            ->where('registration_open_at', '<=', now())
-            ->where('registration_close_at', '>=', now())
+            ->where('registration_enabled', true)
+            ->whereDate('registration_open_at', '<=', today('America/Argentina/Buenos_Aires'))
+            ->whereDate('registration_close_at', '>=', today('America/Argentina/Buenos_Aires'))
             ->where('start_date', '>', now());
+    }
+
+    public function isRegistrationOpen(): bool
+    {
+        if (! $this->registration_enabled || ! $this->registration_open_at || ! $this->registration_close_at) {
+            return false;
+        }
+
+        $today = now('America/Argentina/Buenos_Aires')->toDateString();
+
+        return $this->registration_open_at->toDateString() <= $today
+            && $this->registration_close_at->toDateString() >= $today;
     }
 
     public function player() 
