@@ -57,13 +57,25 @@ class UpcomingTournamentsController extends Controller
 
                 $start = $tournament->start_date;
                 $end = $tournament->end_date;
+                $dayLabel = $start->format('j');
+
+                if ($end && ! $end->isSameDay($start)) {
+                    if ($start->format('Y-m') === $end->format('Y-m')) {
+                        $dayLabel .= '–' . $end->format('j');
+                    } else {
+                        $startYear = $start->year !== $end->year ? ' ' . $start->year : '';
+                        $endYear = $start->year !== $end->year ? ' ' . $end->year : '';
+
+                        $dayLabel = $start->format('j') . ' '
+                            . substr($monthNames[$start->month], 0, 3) . $startYear
+                            . ' – ' . $end->format('j') . ' '
+                            . substr($monthNames[$end->month], 0, 3) . $endYear;
+                    }
+                }
 
                 return [
                     'mes' => $monthNames[$start->month] . ' ' . $start->year,
-                    'fecha' => $start->format('d/m/Y')
-                        . ($end && ! $end->isSameDay($start)
-                            ? ' — ' . $end->format('d/m/Y')
-                            : ''),
+                    'fecha' => $dayLabel,
                     'torneo' => $tournament->name,
                     'disciplina' => $tournament->discipline?->name ?? '',
                     'categorias' => $categories,
