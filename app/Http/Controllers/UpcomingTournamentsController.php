@@ -59,8 +59,7 @@ class UpcomingTournamentsController extends Controller
                 $end = $tournament->end_date;
 
                 return [
-                    'mes' => $start->format('Y-m') . ' · '
-                        . $monthNames[$start->month] . ' ' . $start->year,
+                    'mes' => $monthNames[$start->month] . ' ' . $start->year,
                     'fecha' => $start->format('d/m/Y')
                         . ($end && ! $end->isSameDay($start)
                             ? ' — ' . $end->format('d/m/Y')
