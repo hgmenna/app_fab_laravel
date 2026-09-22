@@ -1,6 +1,9 @@
 <?php
 
+use App\Http\Controllers\UpcomingTournamentsController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/torneos-proximos.json', UpcomingTournamentsController::class);
 
 Route::get('/', function () {
     return view('welcome');
