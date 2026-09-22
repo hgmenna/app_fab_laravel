@@ -23,8 +23,11 @@ class UpcomingTournamentsController extends Controller
         $rows = Tournament::query()
             ->with([
                 'discipline:id,name',
-                'type:id,name,participation_mode,has_handicap',
-                'venue:id,name,address,lat,lng',
+                'type:id,name,participation_mode,has_handicap,is_official',
+                'venue:id,name,address,lat,lng,city_id',
+                'venue.city:id,state_id',
+                'venue.city.state:id,federation_id',
+                'venue.city.state.federation:id,short_name',
             ])
             ->withCount('registrations')
             ->whereDate('start_date', '>', today('America/Argentina/Buenos_Aires'))
@@ -82,6 +85,8 @@ class UpcomingTournamentsController extends Controller
                     'categorias' => $categories,
                     'club' => $club?->name ?? '',
                     'tipo' => $tournament->type?->name ?? '',
+                    'oficial' => (bool) $tournament->type?->is_official,
+                    'provincia' => $club?->city?->state?->federation?->short_name ?? '',
                     'modalidad' => match ($tournament->type?->participation_mode) {
                         'pairs' => 'Parejas',
                         default => 'Individual',
