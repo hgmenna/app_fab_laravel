@@ -31,6 +31,16 @@ class TournamentTypesTable
                 TextColumn::make('code')
                     ->label('Código')
                     ->searchable(),
+                TextColumn::make('participation_mode')
+                    ->label('Modalidad')
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'pairs' => 'Parejas',
+                        default => 'Individual',
+                    })
+                    ->badge(),
+                IconColumn::make('has_handicap')
+                    ->label('Hándicap')
+                    ->boolean(),
                 IconColumn::make('is_official')
                     ->label('Es oficial')
                     ->boolean(),

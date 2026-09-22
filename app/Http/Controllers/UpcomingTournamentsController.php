@@ -23,7 +23,7 @@ class UpcomingTournamentsController extends Controller
         $rows = Tournament::query()
             ->with([
                 'discipline:id,name',
-                'type:id,name',
+                'type:id,name,participation_mode,has_handicap',
                 'venue:id,name,address,lat,lng',
             ])
             ->withCount('registrations')
@@ -54,6 +54,7 @@ class UpcomingTournamentsController extends Controller
                     ['record' => $tournament->id],
                     panel: 'guest',
                 );
+                $registrationIsOpen = $tournament->isRegistrationOpen();
 
                 $start = $tournament->start_date;
                 $end = $tournament->end_date;
@@ -81,8 +82,22 @@ class UpcomingTournamentsController extends Controller
                     'categorias' => $categories,
                     'club' => $club?->name ?? '',
                     'tipo' => $tournament->type?->name ?? '',
+                    'modalidad' => match ($tournament->type?->participation_mode) {
+                        'pairs' => 'Parejas',
+                        default => 'Individual',
+                    },
+                    'handicap' => $tournament->type?->has_handicap ? 'Sí' : 'No',
                     'inscriptos' => $tournament->registrations_count,
-                    'inscripcion' => $registrationUrl . '||Inscribirse',
+                    'estado_inscripcion' => $registrationIsOpen ? 'Abierta' : 'Cerrada',
+                    'apertura_inscripcion' => $tournament->registration_enabled
+                        ? $tournament->registration_open_at?->format('d/m/Y') ?? ''
+                        : '',
+                    'cierre_inscripcion' => $tournament->registration_enabled
+                        ? $tournament->registration_close_at?->format('d/m/Y') ?? ''
+                        : '',
+                    'inscripcion' => $registrationIsOpen
+                        ? $registrationUrl . '||Inscribirse'
+                        : '',
                     'ubicacion' => $mapUrl ? $mapUrl . '||Ver ubicación' : '',
                 ];
             });

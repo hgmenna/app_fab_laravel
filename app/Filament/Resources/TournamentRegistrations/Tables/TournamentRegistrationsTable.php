@@ -179,10 +179,7 @@ class TournamentRegistrationsTable
                         if (!$t) return false; 
 
                         // 2. Validamos si las inscripciones están abiertas [104 de tu error]
-                        $now = now();
-                        $isOpen = ($t->registration_open_at <= $now && $t->registration_close_at >= $now);
-                        
-                        return !$isOpen;
+                        return ! $t->isRegistrationOpen();
                     })
                     ->mutateDataUsing(function (array $data, $livewire): array {
                         // 3. Si es "nested", aseguramos que el ID del torneo se asocie correctamente [2, 3]

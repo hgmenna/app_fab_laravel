@@ -16,6 +16,8 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
 
@@ -105,14 +107,35 @@ class TournamentForm
                             ->columnSpan(3)
                             ->required()
                             ->reactive(),
-        
-                            DatePicker::make('registration_open_at')
-                                ->label('Apertura de Inscripcion')
-                                ->columnSpan(3),
-            
-                            DatePicker::make('registration_close_at')
-                                ->label('Cierre de Inscripcion')
-                                ->columnSpan(3),
+
+                        Toggle::make('registration_enabled')
+                            ->label('Inscripción abierta')
+                            ->helperText('Habilita la inscripción pública durante el período indicado.')
+                            ->columnSpan(3)
+                            ->inline(false)
+                            ->live()
+                            ->default(false)
+                            ->afterStateUpdated(function (?bool $state, Set $set): void {
+                                if (! $state) {
+                                    $set('registration_open_at', null);
+                                    $set('registration_close_at', null);
+                                }
+                            }),
+
+                        DatePicker::make('registration_open_at')
+                            ->label('Apertura de inscripción')
+                            ->columnSpan(3)
+                            ->visible(fn (Get $get): bool => (bool) $get('registration_enabled'))
+                            ->required(fn (Get $get): bool => (bool) $get('registration_enabled'))
+                            ->beforeOrEqual('registration_close_at'),
+
+                        DatePicker::make('registration_close_at')
+                            ->label('Cierre de inscripción')
+                            ->columnSpan(3)
+                            ->visible(fn (Get $get): bool => (bool) $get('registration_enabled'))
+                            ->required(fn (Get $get): bool => (bool) $get('registration_enabled'))
+                            ->afterOrEqual('registration_open_at')
+                            ->beforeOrEqual('start_date'),
         
                         CheckboxList::make('categories')
                             ->label('Categorías habilitadas')
@@ -154,11 +177,12 @@ class TournamentForm
                                     TextInput::make('price')
                                         ->label('Precio')
                                         ->columnSpan(3)
-                                        ->numeric()
-                                        ->required(),
+                                        ->numeric(),
                                 ])
-                        ])->disabled(fn () => !Auth::user()->can('EditField')
-                    ),
+                        ])->disabled(fn (Get $get): bool =>
+                            ! (bool) $get('registration_enabled')
+                            || ! (Auth::user()?->can('EditField') ?? false)
+                        ),
 
                     Tab::make('Horarios')
 
@@ -196,9 +220,13 @@ class TournamentForm
                                         ->offColor('danger')
                                         ->columnSpan(1),
                                 ])
-                            ]),
+                            ])
+                        ->disabled(fn (Get $get): bool =>
+                            ! (bool) $get('registration_enabled')
+                            || ! (Auth::user()?->can('EditField') ?? false)
+                        ),
 
-                ])->disabled(fn () => !Auth::user()->can('EditField')),
+                ])->disabled(fn () => ! Auth::user()->can('EditField')),
 
         ]);
     }

@@ -77,7 +77,7 @@ class TournamentResource extends Resource
         return
             Action::make('manageRegistrations')
                 ->label(fn (Tournament $record): string =>
-                    $record->registration_close_at && $record->registration_close_at->isPast()
+                    ! $record->isRegistrationOpen()
                     ? 'Ver Inscriptos'
                     : 'Inscripciones')
                 //->label('Inscripciones')

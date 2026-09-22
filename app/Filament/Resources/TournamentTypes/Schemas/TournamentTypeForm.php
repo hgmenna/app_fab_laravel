@@ -42,6 +42,21 @@ class TournamentTypeForm
                     ->maxLength(50)
                     ->unique(ignoreRecord: true),
 
+                Select::make('participation_mode')
+                    ->label('Modalidad de participación')
+                    ->options([
+                        'individual' => 'Individual',
+                        'pairs' => 'Parejas',
+                    ])
+                    ->default('individual')
+                    ->native(false)
+                    ->required(),
+
+                Toggle::make('has_handicap')
+                    ->label('Con hándicap')
+                    ->helperText('Indica si este tipo de torneo utiliza hándicap.')
+                    ->default(false),
+
                 Toggle::make('is_official')
                     ->label('Es oficial')
                     ->required(),
