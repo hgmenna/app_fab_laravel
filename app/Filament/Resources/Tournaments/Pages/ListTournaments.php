@@ -9,12 +9,20 @@ use Filament\Resources\Pages\ListRecords;
 class ListTournaments extends ListRecords
 {
     protected static string $resource = TournamentResource::class;
+
     protected static ?string $title = 'Torneos';
+
+    public function mount(): void
+    {
+        parent::mount();
+
+        $this->tableSort = 'start_date:asc';
+    }
 
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make()->label('Nuevo Torneo'),        
+            CreateAction::make()->label('Nuevo Torneo'),
         ];
     }
 }
