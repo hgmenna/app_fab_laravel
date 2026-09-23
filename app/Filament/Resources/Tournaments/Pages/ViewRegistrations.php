@@ -58,6 +58,7 @@ class ViewRegistrations extends ViewRecord implements HasTable
                     ->badge($tournament->registrations()->count()),
 
                 ...$tournament->slots
+                    ->filter(fn ($slot) => $slot->starts_at !== null && $slot->max_players !== null)
                     ->mapWithKeys(fn ($slot) => [
                         'slot-' . $slot->id => Tab::make($slot->name)
                             ->modifyQueryUsing(fn (Builder $query) =>

@@ -158,6 +158,8 @@ class TournamentForm
                         ->schema([
                             Repeater::make('categoryPrices')
                                 ->label('Precios por Categoria')
+                                ->helperText('Opcional. Agregá filas solamente cuando el torneo tenga precios por categoría.')
+                                ->defaultItems(0)
                                 ->collapsible()
                                 ->columns(6)
                                 ->relationship('categoryPrices')
@@ -171,8 +173,7 @@ class TournamentForm
                                             return empty($enabled)
                                                 ? Category::pluck('name', 'id')
                                                 : Category::whereIn('id', $enabled)->pluck('name', 'id');
-                                        })
-                                        ->required(),
+                                        }),
         
                                     TextInput::make('price')
                                         ->label('Precio')
@@ -190,6 +191,8 @@ class TournamentForm
                         ->schema([
                             Repeater::make('slots')
                                 ->label('Horarios')
+                                ->helperText('Opcional. Agregá horarios solamente cuando el torneo los necesite.')
+                                ->defaultItems(0)
                                 ->grid(3)
                                 ->collapsible()
                                 ->columns(4)
@@ -202,7 +205,6 @@ class TournamentForm
                                     DateTimePicker::make('starts_at')
                                         ->label('Inicio')
                                         ->columnSpan(2)
-                                        ->required()
                                         ->native(false)
                                         ->minutesStep(30)
                                         ->secondsStep(60),
@@ -210,8 +212,7 @@ class TournamentForm
                                     TextInput::make('max_players')
                                         ->label('Máx. jugadores')
                                         ->columnSpan(1)
-                                        ->numeric()
-                                        ->required(),
+                                        ->numeric(),
 
                                     Toggle::make('is_active')
                                         ->label('Activo')
