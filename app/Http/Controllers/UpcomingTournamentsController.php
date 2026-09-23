@@ -101,9 +101,9 @@ class UpcomingTournamentsController extends Controller
                         ? $tournament->registration_close_at?->format('d/m/Y') ?? ''
                         : '',
                     'inscripcion' => $registrationIsOpen
-                        ? $registrationUrl . '||Inscribirse'
+                        ? $registrationUrl . '||Anotarse'
                         : '',
-                    'ubicacion' => $mapUrl ? $mapUrl . '||Ver ubicación' : '',
+                    'ubicacion' => $mapUrl ? $mapUrl . '||Mapa' : '',
                 ];
             });
 
