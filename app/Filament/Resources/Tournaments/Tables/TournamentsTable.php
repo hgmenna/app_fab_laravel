@@ -7,10 +7,13 @@ use App\Filament\Actions\GlobalDeleteAction;
 use App\Filament\Actions\GlobalEditAction;
 use App\Filament\Actions\GlobalViewAction;
 use App\Filament\Resources\Tournaments\TournamentResource;
+use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class TournamentsTable
 {
@@ -44,8 +47,8 @@ class TournamentsTable
                     ->label('Fin')
                     ->date()
                     ->sortable()
-                    ->alignCenter(),    
-    
+                    ->alignCenter(),
+
                 TextColumn::make('registrations_count')
                     ->label('Inscriptos')
                     ->counts('registrations')
@@ -59,7 +62,7 @@ class TournamentsTable
                     ->label('Inscripción habilitada')
                     ->boolean()
                     ->alignCenter(),
-            ])->defaultSort('start_date', direction:'desc')
+            ])->defaultSort('start_date', direction: 'asc')
             ->recordActions([
                 GlobalActionGroup::make([
                     GlobalViewAction::make(),
@@ -77,7 +80,28 @@ class TournamentsTable
                     ->relationship('type', 'name')
                     ->label('Tipo de Torneo')
                     ->searchable(),
+                Filter::make('start_date')
+                    ->label('Fecha de inicio')
+                    ->schema([
+                        DatePicker::make('from')
+                            ->label('Desde fecha')
+                            ->default(today('America/Argentina/Buenos_Aires')->toDateString())
+                            ->displayFormat('d/m/Y'),
+                        DatePicker::make('until')
+                            ->label('Hasta fecha')
+                            ->displayFormat('d/m/Y'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['from'] ?? null,
+                                fn (Builder $query, string $date): Builder => $query->whereDate('start_date', '>=', $date),
+                            )
+                            ->when(
+                                $data['until'] ?? null,
+                                fn (Builder $query, string $date): Builder => $query->whereDate('start_date', '<=', $date),
+                            );
+                    }),
             ]);
     }
-
 }
