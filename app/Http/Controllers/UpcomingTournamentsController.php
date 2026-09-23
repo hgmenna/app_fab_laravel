@@ -109,6 +109,11 @@ class UpcomingTournamentsController extends Controller
 
         return response()
             ->json(['data' => $rows])
-            ->header('Cache-Control', 'no-store, max-age=0');
+            ->withHeaders([
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0',
+                'Pragma' => 'no-cache',
+                'Expires' => '0',
+                'Access-Control-Allow-Origin' => '*',
+            ]);
     }
 }
