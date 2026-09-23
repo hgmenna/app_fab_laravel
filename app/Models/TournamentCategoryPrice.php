@@ -18,6 +18,7 @@ class TournamentCategoryPrice extends Model
     ];
 
     protected $casts = [
+        'category_id' => 'integer',
         'price' => 'decimal:2',
     ];
 
@@ -31,4 +32,3 @@ class TournamentCategoryPrice extends Model
         return $this->belongsTo(Category::class);
     }
 }
-

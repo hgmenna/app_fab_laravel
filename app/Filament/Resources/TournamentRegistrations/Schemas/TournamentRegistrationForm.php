@@ -156,6 +156,10 @@ class TournamentRegistrationForm
                     $user = Auth::user();
 
                     return $t->slots
+                        ->filter(fn (TournamentSlot $slot) =>
+                            $slot->starts_at !== null
+                            && $slot->max_players !== null
+                        )
                         ->when(
                             ($user?->name ?? null) !== 'super-admin', // El super-admin puede ver todos los horarios
                             fn ($slots) => $slots->filter(
@@ -180,7 +184,6 @@ class TournamentRegistrationForm
                             return [$slot->id => $label];
                         });
                 })
-                ->required()
                 ->live()
                 // 3. Deshabilitar opciones sin cupos de forma segura para usuarios que no son super-admin
                 ->disableOptionWhen(function (string $value) {
@@ -204,7 +207,17 @@ class TournamentRegistrationForm
 
                     if (!$t) return null;
 
-                    $noCupos = $t->slots->every(
+                    $configuredSlots = $t->slots->filter(
+                        fn (TournamentSlot $slot) =>
+                            $slot->starts_at !== null
+                            && $slot->max_players !== null
+                    );
+
+                    if ($configuredSlots->isEmpty()) {
+                        return 'Este torneo no utiliza horarios de inscripción.';
+                    }
+
+                    $noCupos = $configuredSlots->every(
                         fn (TournamentSlot $slot) => $slot->registrations()
                             ->where('status', '!=', 'denegado')
                             ->count() >= $slot->max_players

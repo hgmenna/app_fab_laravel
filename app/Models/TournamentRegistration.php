@@ -30,6 +30,7 @@ class TournamentRegistration extends Model
     ];
 
     protected $casts = [
+        'tournament_slot_id' => 'integer',
         'price' => 'decimal:2',
         'checked_in' => 'boolean',
         'result_instance_value' => 'integer',
@@ -191,4 +192,3 @@ class TournamentRegistration extends Model
     
 
 }
-

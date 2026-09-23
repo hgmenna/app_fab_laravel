@@ -135,7 +135,11 @@ class TournamentRegistrationsTable
                         $t = $tournament ?? (method_exists($livewire, 'getOwnerRecord') ? $livewire->getOwnerRecord() : null);
                         
                         // Si hay torneo, devolvemos sus slots; si no, un array vacío
-                        return $t ? $t->slots->pluck('name', 'id') : [];
+                        return $t
+                            ? $t->slots
+                                ->filter(fn ($slot) => $slot->starts_at !== null && $slot->max_players !== null)
+                                ->pluck('name', 'id')
+                            : [];
                 }),
                 SelectFilter::make('status')
                     ->label('Estado')
