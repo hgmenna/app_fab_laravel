@@ -14,14 +14,33 @@ trait AppliesPlayerFilters
     {
         // Filtro por categoría
         if (!empty($filters['category_id'])) {
-            $query->where('category_id', $filters['category_id']);
+            $categoryIds = $filters['category_id']['values'] ?? $filters['category_id'];
+            $query->whereIn('category_id', array_filter((array) $categoryIds));
+        }
+
+        if (!empty($filters['discipline_id'])) {
+            $disciplineValues = $filters['discipline_id']['values'] ?? $filters['discipline_id'];
+            $query->whereIn('discipline_id', array_filter((array) $disciplineValues));
         }
 
         // Filtro por federación
         if (!empty($filters['federation_id'])) {
-            $query->whereHas('club.city.state.federation', fn ($q) =>
-                $q->where('id', $filters['federation_id'])
-            );
+            $federationValues = $filters['federation_id']['values'] ?? $filters['federation_id'];
+            $federationIds = array_values(array_filter((array) $federationValues));
+
+            $query->where(function (Builder $affiliations) use ($federationIds): void {
+                $affiliations
+                    ->whereHas('discipline', fn (Builder $disciplines) => $disciplines
+                        ->where('affiliation_mode', 'direct')
+                        ->whereIn('direct_federation_id', $federationIds))
+                    ->orWhere(function (Builder $provincial) use ($federationIds): void {
+                        $provincial
+                            ->whereHas('discipline', fn (Builder $disciplines) => $disciplines
+                                ->where('affiliation_mode', 'provincial'))
+                            ->whereHas('club.city.state', fn (Builder $state) => $state
+                                ->whereIn('federation_id', $federationIds));
+                    });
+            });
         }
 
         // Trashed
@@ -43,6 +62,13 @@ trait AppliesPlayerFilters
                   )
                   ->orWhereHas('club.city.state.federation', fn($q) =>
                       $q->where('short_name', 'like', "%{$search}%")
+                  )
+                  ->orWhereHas('discipline', fn($q) =>
+                      $q->where('name', 'like', "%{$search}%")
+                        ->orWhereHas('directFederation', fn ($federation) =>
+                            $federation->where('short_name', 'like', "%{$search}%")
+                                ->orWhere('name', 'like', "%{$search}%")
+                        )
                   );
             });
         }

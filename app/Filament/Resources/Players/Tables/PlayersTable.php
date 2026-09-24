@@ -8,6 +8,7 @@ use App\Filament\Actions\GlobalEditAction;
 use App\Filament\Actions\GlobalViewAction;
 use App\Filament\Resources\Players\PlayerResource;
 use App\Models\GeneralRanking;
+use App\Models\Federation;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Facades\Filament;
@@ -19,6 +20,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
@@ -50,11 +52,9 @@ class PlayersTable
                     ->alignCenter()
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('club.city.state.federation.short_name')
-                    ->label('Federacion')
-                    ->alignCenter()
-                    ->searchable()
-                    ->sortable(),
+                TextColumn::make('discipline_affiliations')
+                    ->label('Disciplina / afiliación')
+                    ->state(fn ($record): string => $record->affiliationLabel()),
                 TextColumn::make('cant_torneos')
                     ->label('C/T')
                     ->alignCenter()
@@ -132,8 +132,36 @@ class PlayersTable
                     ->label('Categoria')
                     ->multiple(),
                 SelectFilter::make('federation_id')
-                    ->relationship('club.city.state.federation', 'short_name')
-                    ->label('Federacion')
+                    ->label('Federación de afiliación')
+                    ->options(fn (): array => Federation::query()
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->all())
+                    ->multiple()
+                    ->query(function (Builder $query, array $data): Builder {
+                        $federationIds = array_values(array_filter($data['values'] ?? []));
+
+                        if ($federationIds === []) {
+                            return $query;
+                        }
+
+                        return $query->where(function (Builder $affiliations) use ($federationIds): void {
+                            $affiliations
+                                ->whereHas('discipline', fn (Builder $disciplines) => $disciplines
+                                    ->where('affiliation_mode', 'direct')
+                                    ->whereIn('direct_federation_id', $federationIds))
+                                ->orWhere(function (Builder $provincial) use ($federationIds): void {
+                                    $provincial
+                                        ->whereHas('discipline', fn (Builder $disciplines) => $disciplines
+                                            ->where('affiliation_mode', 'provincial'))
+                                        ->whereHas('club.city.state', fn (Builder $state) => $state
+                                            ->whereIn('federation_id', $federationIds));
+                                });
+                        });
+                    }),
+                SelectFilter::make('discipline_id')
+                    ->relationship('discipline', 'name')
+                    ->label('Disciplina')
                     ->multiple(),
                 TernaryFilter::make('is_active')
                     ->label('Estado')

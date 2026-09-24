@@ -288,6 +288,7 @@ class PlayerResource extends Resource
                 // 1) Buscar membresía activa del año actual
                 $activeMembership = Membership::where('active', true)
                     ->where('year', now()->year)
+                    ->where('discipline_id', $record->discipline_id)
                     ->first();
 
                 if (!$activeMembership) {

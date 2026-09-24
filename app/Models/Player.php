@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Validation\ValidationException;
 
 class Player extends Model
 {
@@ -21,6 +22,7 @@ class Player extends Model
         'phone',
         'photo_path',
         'club_id',
+        'discipline_id',
         'category_id',
         'is_active',
         'is_enabled_to_compete',
@@ -33,6 +35,26 @@ class Player extends Model
         'is_enabled_to_compete' => 'boolean',
     ];
 
+    protected static function booted(): void
+    {
+        static::saving(function (Player $player): void {
+            if (! $player->discipline_id || ! $player->category_id) {
+                return;
+            }
+
+            $categoryMatchesDiscipline = Category::query()
+                ->whereKey($player->category_id)
+                ->where('discipline_id', $player->discipline_id)
+                ->exists();
+
+            if (! $categoryMatchesDiscipline) {
+                throw ValidationException::withMessages([
+                    'category_id' => 'La categoría seleccionada no pertenece a la disciplina del jugador.',
+                ]);
+            }
+        });
+    }
+
     public function club()
     {
         return $this->belongsTo(Club::class);
@@ -41,6 +63,11 @@ class Player extends Model
     public function category()
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function discipline()
+    {
+        return $this->belongsTo(Discipline::class);
     }
 
     public function registrations()
@@ -58,6 +85,24 @@ class Player extends Model
         return $this->belongsToMany(Discipline::class, 'player_discipline')
             ->withPivot('enabled_to_compete')
             ->withTimestamps();
+    }
+
+    public function affiliationLabel(): string
+    {
+        $this->loadMissing([
+            'discipline.directFederation',
+            'club.city.state.federation',
+        ]);
+
+        if (! $this->discipline) {
+            return 'Sin disciplina';
+        }
+
+        $federation = $this->discipline->federationForClub($this->club);
+        $disciplineName = $this->discipline->short_name ?: $this->discipline->name;
+        $federationName = $federation?->short_name ?: $federation?->name;
+
+        return $disciplineName.': '.($federationName ?: 'Sin federación');
     }
 
     public function memberships()
@@ -91,4 +136,3 @@ class Player extends Model
     }
 
 }
-

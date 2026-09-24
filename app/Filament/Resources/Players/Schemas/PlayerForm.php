@@ -10,6 +10,8 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
 
@@ -66,6 +68,16 @@ class PlayerForm
                     ->heading('Información Federativa')
                     ->columns(6)
                     ->schema([
+                        Select::make('discipline_id')
+                            ->relationship('discipline', 'name', fn ($query) => $query->where('active', true))
+                            ->label('Disciplina')
+                            ->helperText('La disciplina determina si la afiliación es provincial o directa a Federación Argentina.')
+                            ->preload()
+                            ->searchable()
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set) => $set('category_id', null))
+                            ->columnSpan(6),
                         Select::make('club_id')
                             ->relationship('club', 'name')
                             ->label('Club')
@@ -77,9 +89,14 @@ class PlayerForm
                             ->required()
                             ->searchable(),
                         Select::make('category_id')
-                            ->relationship('category', 'name')
+                            ->relationship(
+                                'category',
+                                'name',
+                                fn ($query, Get $get) => $query->where('discipline_id', $get('discipline_id'))
+                            )
                             ->label('Categoría')
                             ->columnSpan(4)
+                            ->disabled(fn (Get $get): bool => ! $get('discipline_id'))
                             ->required(),
                         Toggle::make('is_active')
                             ->label('Activo')

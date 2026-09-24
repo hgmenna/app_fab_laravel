@@ -46,7 +46,13 @@ class TournamentForm
                             ->label('Disciplina')
                             ->options(fn () => Discipline::orderBy('name')->pluck('name', 'id'))
                             ->columnSpan(4)
-                            ->searchable(),
+                            ->searchable()
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function (Set $set): void {
+                                $set('tournament_type_id', null);
+                                $set('categories', []);
+                            }),
         
                         Select::make('venue_id')
                             ->label('Club organizador')
@@ -57,9 +63,15 @@ class TournamentForm
                             ->native(false),
 
                         Select::make('tournament_type_id')
-                            ->relationship(name: 'type', titleAttribute: 'name')
+                            ->relationship(
+                                name: 'type',
+                                titleAttribute: 'name',
+                                modifyQueryUsing: fn ($query, Get $get) => $query
+                                    ->where('discipline_id', $get('discipline_id'))
+                            )
                             ->label('Tipo de torneo')
                             ->columnSpan(3)
+                            ->disabled(fn (Get $get): bool => ! $get('discipline_id'))
                             ->required(),
 
                         TextInput::make('stage_number')
@@ -141,7 +153,11 @@ class TournamentForm
                             ->label('Categorías habilitadas')
                             ->columnSpan(8)
                             ->columns(3)
-                            ->options(Category::pluck('name', 'id'))
+                            ->options(fn (Get $get) => Category::query()
+                                ->where('discipline_id', $get('discipline_id'))
+                                ->orderBy('order')
+                                ->pluck('name', 'id'))
+                            ->disabled(fn (Get $get): bool => ! $get('discipline_id'))
                             ->required(),
         
                             
@@ -169,9 +185,10 @@ class TournamentForm
                                         ->columnSpan(3)
                                         ->options(function (callable $get) {
                                             $enabled = $get('../../categories') ?? [];
+                                            $disciplineId = $get('../../discipline_id');
         
                                             return empty($enabled)
-                                                ? Category::pluck('name', 'id')
+                                                ? Category::where('discipline_id', $disciplineId)->pluck('name', 'id')
                                                 : Category::whereIn('id', $enabled)->pluck('name', 'id');
                                         }),
         

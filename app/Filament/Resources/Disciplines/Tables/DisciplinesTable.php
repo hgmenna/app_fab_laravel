@@ -30,6 +30,14 @@ class DisciplinesTable
                 IconColumn::make('active')
                     ->label('Activa')
                     ->boolean(),
+                TextColumn::make('affiliation_mode')
+                    ->label('Afiliación')
+                    ->formatStateUsing(fn (string $state): string => $state === 'direct'
+                        ? 'Directa nacional'
+                        : 'Provincial'),
+                TextColumn::make('directFederation.short_name')
+                    ->label('Federación directa')
+                    ->placeholder('Según club'),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
