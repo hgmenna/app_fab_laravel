@@ -97,8 +97,9 @@ class UpcomingTournamentsController extends Controller
                         default => 'Individual',
                     },
                     'handicap' => $tournament->type?->has_handicap ? 'Sí' : 'No',
-                    'inscriptos' => $participantCount,
+                    'inscriptos' => $registrationCount,
                     'inscripciones' => $registrationCount,
+                    'participantes' => $participantCount,
                     'unidad_inscripcion' => $tournament->type?->participation_mode === 'pairs'
                         ? 'Parejas'
                         : 'Jugadores',
