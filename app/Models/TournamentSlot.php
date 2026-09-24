@@ -38,7 +38,6 @@ class TournamentSlot extends Model
     {
         return $this->registrations()
             ->where('status', '!=', 'denegado')
-            ->get(['partner_player_id'])
-            ->sum(fn (TournamentRegistration $registration): int => $registration->partner_player_id ? 2 : 1);
+            ->count();
     }
 }

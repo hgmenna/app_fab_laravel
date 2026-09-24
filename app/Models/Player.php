@@ -48,6 +48,11 @@ class Player extends Model
         return $this->hasMany(TournamentRegistration::class);
     }
 
+    public function partnerRegistrations()
+    {
+        return $this->hasMany(TournamentRegistration::class, 'partner_player_id');
+    }
+
     public function disciplines()
     {
         return $this->belongsToMany(Discipline::class, 'player_discipline')
@@ -86,5 +91,4 @@ class Player extends Model
     }
 
 }
-
 

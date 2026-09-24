@@ -123,12 +123,11 @@ class TournamentRegistration extends Model
                             $registration->exists,
                             fn ($query) => $query->whereKeyNot($registration->getKey())
                         )
-                        ->get(['partner_player_id'])
-                        ->sum(fn (TournamentRegistration $item): int => $item->partner_player_id ? 2 : 1);
+                        ->count();
 
                     $requiredPlaces = $registration->status === 'denegado'
                         ? 0
-                        : ($isPairs ? 2 : 1);
+                        : 1;
 
                     if ($occupiedPlaces + $requiredPlaces > $slot->max_players) {
                         throw ValidationException::withMessages([

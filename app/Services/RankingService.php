@@ -53,6 +53,8 @@ class RankingService
             ->with([
                 'player.club.city.state.federation',
                 'player.category',
+                'partner.club.city.state.federation',
+                'partner.category',
                 'tournamentInstance',
             ])
             ->whereIn('tournament_id', $torneos)
@@ -61,6 +63,10 @@ class RankingService
         // 3) Jugadores con puntos en alguno de los torneos seleccionados
         $jugadores = Player::query()
             ->whereHas('registrations', function ($q) use ($torneos) {
+                $q->whereIn('tournament_id', $torneos)
+                    ->where('points', '>', 0);
+            })
+            ->orWhereHas('partnerRegistrations', function ($q) use ($torneos) {
                 $q->whereIn('tournament_id', $torneos)
                     ->where('points', '>', 0);
             })
@@ -101,7 +107,10 @@ class RankingService
         $ranking = $jugadores->map(function ($player) use ($regs, $torneos, $rankingAnterior) {
 
             // Inscripciones del jugador en los 4 torneos seleccionados
-            $items = $regs->where('player_id', $player->id);
+            $items = $regs->filter(fn (TournamentRegistration $registration): bool =>
+                (int) $registration->player_id === (int) $player->id
+                || (int) $registration->partner_player_id === (int) $player->id
+            );
 
             // Ordenar por el orden de los torneos seleccionados
             $ordenados = collect($torneos)->map(fn ($tid) => $items->firstWhere('tournament_id', $tid));

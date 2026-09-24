@@ -53,6 +53,7 @@ beforeEach(function () {
         $table->foreignId('player_id');
         $table->foreignId('partner_player_id')->nullable();
         $table->string('status')->default('pendiente');
+        $table->decimal('points', 8, 2)->nullable();
         $table->timestamps();
     });
 
@@ -95,21 +96,24 @@ afterEach(function () {
     Schema::dropIfExists('categories');
 });
 
-it('requires two different players and occupies two places for a pairs tournament', function () {
+it('requires two different players and occupies one team registration', function () {
     expect(fn () => TournamentRegistration::query()->create([
         'tournament_id' => 1,
         'tournament_slot_id' => 1,
         'player_id' => 1,
     ]))->toThrow(ValidationException::class);
 
-    TournamentRegistration::query()->create([
+    $registration = TournamentRegistration::query()->create([
         'tournament_id' => 1,
         'tournament_slot_id' => 1,
         'player_id' => 1,
         'partner_player_id' => 2,
+        'points' => 25,
     ]);
 
-    expect(TournamentSlot::query()->findOrFail(1)->occupiedPlaces())->toBe(2);
+    expect(TournamentSlot::query()->findOrFail(1)->occupiedPlaces())->toBe(1);
+    expect($registration->player->registrations()->sum('points'))->toEqual(25);
+    expect($registration->partner->partnerRegistrations()->sum('points'))->toEqual(25);
 });
 
 it('prevents either member of a pair from registering again', function () {
