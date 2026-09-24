@@ -33,7 +33,10 @@ class Ranking5QuillasService
 
     private function updatePlayerRanking(Player $player, $tournaments): void
     {
-        $regs = TournamentRegistration::where('player_id', $player->id)
+        $regs = TournamentRegistration::where(function ($query) use ($player) {
+            $query->where('player_id', $player->id)
+                ->orWhere('partner_player_id', $player->id);
+        })
             ->whereIn('tournament_id', $tournaments->pluck('id'))
             ->get()
             ->keyBy('tournament_id');

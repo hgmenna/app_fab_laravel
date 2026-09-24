@@ -93,8 +93,12 @@ class FilteredPlayerPerformance extends Page
             ->orderBy('first_name')
             ->get(['id', 'last_name', 'first_name']);
 
-        $rowsByPlayer = TournamentRegistration::query()
-            ->whereIn('player_id', $players->pluck('id'))
+        $rows = TournamentRegistration::query()
+            ->where(function (Builder $query) use ($players): void {
+                $playerIds = $players->pluck('id');
+                $query->whereIn('player_id', $playerIds)
+                    ->orWhereIn('partner_player_id', $playerIds);
+            })
             ->whereHas('tournament', function (Builder $tournament): void {
                 $tournament->whereDate('end_date', '<=', today());
 
@@ -120,20 +124,22 @@ class FilteredPlayerPerformance extends Page
                 ->whereColumn('participant_counts.tournament_id', 'tournament_registrations.tournament_id')])
             ->with(['tournament.type', 'tournamentInstance'])
             ->orderByDesc('id')
-            ->get()
-            ->groupBy('player_id');
+            ->get();
 
-        $summaries = $players->map(function (Player $player) use ($rowsByPlayer): array {
-            $rows = $rowsByPlayer->get($player->id, collect());
+        $summaries = $players->map(function (Player $player) use ($rows): array {
+            $playerRows = $rows->filter(fn (TournamentRegistration $registration): bool =>
+                (int) $registration->player_id === (int) $player->id
+                || (int) $registration->partner_player_id === (int) $player->id
+            );
 
             return [
                 'id' => $player->id,
                 'name' => $player->full_name,
-                'tournaments' => $rows->count(),
-                'results' => $rows->filter(fn (TournamentRegistration $row): bool =>
+                'tournaments' => $playerRows->count(),
+                'results' => $playerRows->filter(fn (TournamentRegistration $row): bool =>
                     $row->result_code !== null || $row->tournament_instance_id !== null)->count(),
-                'points' => $rows->sum(fn (TournamentRegistration $row): float => (float) $row->points),
-                'rows' => $rows,
+                'points' => $playerRows->sum(fn (TournamentRegistration $row): float => (float) $row->points),
+                'rows' => $playerRows,
             ];
         })->when(
             $this->onlyParticipants,

@@ -210,7 +210,7 @@ class TournamentForm
                                         ->secondsStep(60),
         
                                     TextInput::make('max_players')
-                                        ->label('Máx. jugadores')
+                                        ->label('Máx. inscripciones')
                                         ->columnSpan(1)
                                         ->numeric(),
 

@@ -255,7 +255,7 @@ class TournamentRegistrationForm
 
                         // 2. Obtener y filtrar los horarios (slots) del torneo
                         $user = Auth::user();
-                        $requiredPlaces = $t->type?->participation_mode === 'pairs' ? 2 : 1;
+                    $requiredPlaces = 1;
 
                         return $t->slots
                             ->filter(fn (TournamentSlot $slot) => $slot->starts_at !== null
@@ -294,7 +294,7 @@ class TournamentRegistrationForm
                             ->with('tournament.type')
                             ->find($value);
 
-                        $requiredPlaces = $slot?->tournament?->type?->participation_mode === 'pairs' ? 2 : 1;
+                    $requiredPlaces = 1;
 
                         return $slot
                             && $slot->max_players - $slot->occupiedPlaces() < $requiredPlaces;
@@ -318,7 +318,7 @@ class TournamentRegistrationForm
                             return 'Este torneo no utiliza horarios de inscripción.';
                         }
 
-                        $requiredPlaces = $t->type?->participation_mode === 'pairs' ? 2 : 1;
+                    $requiredPlaces = 1;
                         $noCupos = $configuredSlots->every(fn (TournamentSlot $slot) => $slot->max_players - $slot->occupiedPlaces() < $requiredPlaces
                         );
 

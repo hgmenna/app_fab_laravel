@@ -62,7 +62,9 @@ class PlayersTable
                     ->numeric()
                     ->getStateUsing(function ($record): string {
                         // 1. Obtenemos los registros y aplicamos el mismo filtro que en el Blade
-                        $registros = ($record->registrations ?? collect())->filter(function ($registro) {
+                        $registros = ($record->registrations ?? collect())
+                            ->concat($record->partnerRegistrations ?? collect())
+                            ->filter(function ($registro) {
                             return $registro->tournament?->end_date && $registro->tournament->end_date->isPast();
                         });
 
@@ -79,7 +81,9 @@ class PlayersTable
                     ->sortable(false)
                     ->getStateUsing(function ($record): string {
                         // 1. Obtenemos los registros y aplicamos el mismo filtro que en el Blade
-                        $registros = ($record->registrations ?? collect())->filter(function ($registro) {
+                        $registros = ($record->registrations ?? collect())
+                            ->concat($record->partnerRegistrations ?? collect())
+                            ->filter(function ($registro) {
                             return $registro->tournament?->end_date && $registro->tournament->end_date->isPast();
                         });
 

@@ -75,7 +75,10 @@ class PlayerPerformance extends Page implements HasTable
     {
         return $table
             ->query(fn (): Builder => TournamentRegistration::query()
-                ->where('player_id', $this->record->id)
+                ->where(function (Builder $query): void {
+                    $query->where('player_id', $this->record->id)
+                        ->orWhere('partner_player_id', $this->record->id);
+                })
                 ->whereHas('tournament', fn (Builder $query) => $query->whereDate('end_date', '<=', today()))
                 ->addSelect(['participant_count' => DB::table('tournament_registrations as participant_counts')
                     ->selectRaw('COUNT(*)')
