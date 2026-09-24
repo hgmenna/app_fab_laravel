@@ -41,12 +41,27 @@
 
             <div class="field-group">
                 <div class="label">Club / Categoría</div>
-                <div class="value">{{ $record->player->club->name }} - {{ $record->player->category->name }}</div>
+                <div class="value">
+                    {{ $record->player?->club?->name ?? 'Sin club' }}
+                    -
+                    {{ $record->player?->category?->name ?? 'Sin categoría' }}
+                </div>
             </div>
+
+            @if($record->partner)
+                <div class="field-group">
+                    <div class="label">Club / Categoría del segundo integrante</div>
+                    <div class="value">
+                        {{ $record->partner?->club?->name ?? 'Sin club' }}
+                        -
+                        {{ $record->partner?->category?->name ?? 'Sin categoría' }}
+                    </div>
+                </div>
+            @endif
 
             <div class="field-group">
                 <div class="label">Horario Seleccionado</div>
-                <div class="value">{{ $record->slot->name }}</div>
+                <div class="value">{{ $record->slot?->name ?? 'Sin horario asignado' }}</div>
             </div>
 
             @if($record->payment_file)

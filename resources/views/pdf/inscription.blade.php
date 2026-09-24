@@ -154,26 +154,36 @@
                             {{ $record->player->last_name }}, {{ $record->player->first_name }}
                         </div>
 
+                        <div class="label">Club del primer integrante</div>
+                        <div class="value">
+                            {{ $record->player?->club?->name ?? 'Sin club' }}
+                        </div>
+
+                        <div class="label">Categoría del primer integrante</div>
+                        <div class="value">
+                            {{ $record->player?->category?->name ?? 'Sin categoría' }}
+                        </div>
+
                         @if($record->partner)
                             <div class="label">Segundo integrante</div>
                             <div class="value">
                                 {{ $record->partner->last_name }}, {{ $record->partner->first_name }}
                             </div>
+
+                            <div class="label">Club del segundo integrante</div>
+                            <div class="value">
+                                {{ $record->partner?->club?->name ?? 'Sin club' }}
+                            </div>
+
+                            <div class="label">Categoría del segundo integrante</div>
+                            <div class="value">
+                                {{ $record->partner?->category?->name ?? 'Sin categoría' }}
+                            </div>
                         @endif
-
-                        <div class="label">Club</div>
-                        <div class="value">
-                            {{ $record->player->club->name }}
-                        </div>
-
-                        <div class="label">Categoría</div>
-                        <div class="value">
-                            {{ $record->player->category->name }}
-                        </div>
 
                         <div class="label">Horario</div>
                         <div class="value">
-                            {{ $record->slot->name }}
+                            {{ $record->slot?->name ?? 'Sin horario asignado' }}
                         </div>
 
                         <div class="label">Estado</div>
