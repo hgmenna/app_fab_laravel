@@ -1,10 +1,11 @@
 <?php
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Validation\ValidationException;
 use App\Services\TournamentScoringService;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\ValidationException;
 
 class TournamentRegistration extends Model
 {
@@ -14,6 +15,7 @@ class TournamentRegistration extends Model
         'tournament_id',
         'tournament_slot_id',
         'player_id',
+        'partner_player_id',
         'status',
         'price',
         'payment_status',
@@ -51,6 +53,11 @@ class TournamentRegistration extends Model
         return $this->belongsTo(Player::class);
     }
 
+    public function partner()
+    {
+        return $this->belongsTo(Player::class, 'partner_player_id');
+    }
+
     public function tournamentInstance()
     {
         return $this->belongsTo(TournamentInstance::class, 'tournament_instance_id');
@@ -58,9 +65,18 @@ class TournamentRegistration extends Model
 
     protected static function booted()
     {
-        static::creating(function (TournamentRegistration $registration) {
-            $tournament = Tournament::find($registration->tournament_id);
-            $player = Player::find($registration->player_id);
+        static::saving(function (TournamentRegistration $registration) {
+            if ($registration->exists && ! $registration->isDirty([
+                'tournament_id',
+                'player_id',
+                'partner_player_id',
+            ])) {
+                return;
+            }
+
+            $tournament = Tournament::query()
+                ->with('type')
+                ->find($registration->tournament_id);
 
             if (! $tournament) {
                 throw ValidationException::withMessages([
@@ -68,92 +84,161 @@ class TournamentRegistration extends Model
                 ]);
             }
 
-            if (! $player) {
+            $isPairs = $tournament->type?->participation_mode === 'pairs';
+
+            if (! $isPairs) {
+                $registration->partner_player_id = null;
+            }
+
+            if ($isPairs && ! $registration->partner_player_id) {
                 throw ValidationException::withMessages([
-                    'player_id' => 'El jugador seleccionado no existe.',
+                    'partner_player_id' => 'Debés seleccionar al segundo integrante de la pareja.',
                 ]);
             }
 
-            /*
-            * 1) El jugador debe estar habilitado para competir.
-            */
-            if (! $player->is_enabled_to_compete) {
+            if (
+                $registration->partner_player_id
+                && (int) $registration->player_id === (int) $registration->partner_player_id
+            ) {
                 throw ValidationException::withMessages([
-                    'player_id' => 'Este jugador no está habilitado para competir.',
+                    'partner_player_id' => 'Los integrantes de la pareja deben ser jugadores diferentes.',
                 ]);
             }
 
-            /*
-            * 2) Categorías habilitadas para este torneo.
-            */
-            $enabledCategoryIds = collect($tournament->categories ?? [])
-                ->map(fn ($id) => (int) $id)
-                ->filter()
-                ->values();
+            if ($registration->tournament_slot_id) {
+                $slot = TournamentSlot::query()
+                    ->where('tournament_id', $tournament->id)
+                    ->find($registration->tournament_slot_id);
 
-            if ($enabledCategoryIds->isEmpty()) {
-                throw ValidationException::withMessages([
-                    'player_id' => 'El torneo no tiene categorías habilitadas.',
-                ]);
+                if (! $slot) {
+                    throw ValidationException::withMessages([
+                        'tournament_slot_id' => 'El horario seleccionado no pertenece a este torneo.',
+                    ]);
+                }
+
+                if ($slot->max_players !== null) {
+                    $occupiedPlaces = $slot->registrations()
+                        ->where('status', '!=', 'denegado')
+                        ->when(
+                            $registration->exists,
+                            fn ($query) => $query->whereKeyNot($registration->getKey())
+                        )
+                        ->get(['partner_player_id'])
+                        ->sum(fn (TournamentRegistration $item): int => $item->partner_player_id ? 2 : 1);
+
+                    $requiredPlaces = $registration->status === 'denegado'
+                        ? 0
+                        : ($isPairs ? 2 : 1);
+
+                    if ($occupiedPlaces + $requiredPlaces > $slot->max_players) {
+                        throw ValidationException::withMessages([
+                            'tournament_slot_id' => 'El horario no tiene lugares suficientes para esta inscripción.',
+                        ]);
+                    }
+                }
             }
 
-            $enabledCategories = Category::query()
-                ->whereIn('id', $enabledCategoryIds)
-                ->get(['id', 'code']);
+            $players = collect([
+                'player_id' => $registration->player_id,
+                'partner_player_id' => $registration->partner_player_id,
+            ])->filter();
 
-            /*
-            * Master y Nacional se verifican contra el Ranking General vigente.
-            */
-            $rankingCodes = $enabledCategories
-                ->whereIn('code', ['M', 'N'])
-                ->pluck('code')
-                ->values();
+            foreach ($players as $field => $playerId) {
+                $player = Player::find($playerId);
 
-            /*
-            * Las demás categorías se verifican contra la categoría
-            * permanente del jugador.
-            */
-            $permanentCategoryIds = $enabledCategories
-                ->whereNotIn('code', ['M', 'N'])
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->values();
+                if (! $player) {
+                    throw ValidationException::withMessages([
+                        $field => 'El jugador seleccionado no existe.',
+                    ]);
+                }
 
-            $validByPermanentCategory = $permanentCategoryIds
-                ->contains((int) $player->category_id);
+                /*
+                * 1) El jugador debe estar habilitado para competir.
+                */
+                if (! $player->is_enabled_to_compete) {
+                    throw ValidationException::withMessages([
+                        $field => 'Este jugador no está habilitado para competir.',
+                    ]);
+                }
 
-            $validByRanking = false;
+                /*
+                * 2) Categorías habilitadas para este torneo.
+                */
+                $enabledCategoryIds = collect($tournament->categories ?? [])
+                    ->map(fn ($id) => (int) $id)
+                    ->filter()
+                    ->values();
 
-            if ($rankingCodes->isNotEmpty()) {
-                $validByRanking = GeneralRanking::query()
-                    ->where('player_id', $player->id)
-                    ->whereIn('category', $rankingCodes)
+                if ($enabledCategoryIds->isEmpty()) {
+                    throw ValidationException::withMessages([
+                        'player_id' => 'El torneo no tiene categorías habilitadas.',
+                    ]);
+                }
+
+                $enabledCategories = Category::query()
+                    ->whereIn('id', $enabledCategoryIds)
+                    ->get(['id', 'code']);
+
+                /*
+                * Master y Nacional se verifican contra el Ranking General vigente.
+                */
+                $rankingCodes = $enabledCategories
+                    ->whereIn('code', ['M', 'N'])
+                    ->pluck('code')
+                    ->values();
+
+                /*
+                * Las demás categorías se verifican contra la categoría
+                * permanente del jugador.
+                */
+                $permanentCategoryIds = $enabledCategories
+                    ->whereNotIn('code', ['M', 'N'])
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->values();
+
+                $validByPermanentCategory = $permanentCategoryIds
+                    ->contains((int) $player->category_id);
+
+                $validByRanking = false;
+
+                if ($rankingCodes->isNotEmpty()) {
+                    $validByRanking = GeneralRanking::query()
+                        ->where('player_id', $player->id)
+                        ->whereIn('category', $rankingCodes)
+                        ->exists();
+                }
+
+                if (! $validByPermanentCategory && ! $validByRanking) {
+                    throw ValidationException::withMessages([
+                        $field => 'El jugador no pertenece a una categoría habilitada para este torneo.',
+                    ]);
+                }
+
+                /*
+                * 3) Evitar que un jugador se inscriba dos veces
+                * en el mismo torneo.
+                */
+                $exists = self::query()
+                    ->where('tournament_id', $registration->tournament_id)
+                    ->where(function ($query) use ($playerId) {
+                        $query->where('player_id', $playerId)
+                            ->orWhere('partner_player_id', $playerId);
+                    })
+                    ->when(
+                        $registration->exists,
+                        fn ($query) => $query->whereKeyNot($registration->getKey())
+                    )
                     ->exists();
-            }
 
-            if (! $validByPermanentCategory && ! $validByRanking) {
-                throw ValidationException::withMessages([
-                    'player_id' => 'El jugador no pertenece a una categoría habilitada para este torneo.',
-                ]);
-            }
-
-            /*
-            * 3) Evitar que un jugador se inscriba dos veces
-            * en el mismo torneo.
-            */
-            $exists = self::query()
-                ->where('tournament_id', $registration->tournament_id)
-                ->where('player_id', $registration->player_id)
-                ->exists();
-
-            if ($exists) {
-                throw ValidationException::withMessages([
-                    'player_id' => 'Este jugador ya está inscripto en este torneo.',
-                ]);
+                if ($exists) {
+                    throw ValidationException::withMessages([
+                        $field => 'Este jugador ya está inscripto en este torneo.',
+                    ]);
+                }
             }
         });
     }
-
 
     public function calculatePoints(): float
     {
@@ -181,14 +266,10 @@ class TournamentRegistration extends Model
             || ! array_key_exists('points', $rule)
         ) {
             throw ValidationException::withMessages([
-                'tournament_instance_id' =>
-                'La posición seleccionada no tiene puntos configurados para este tipo de torneo.',
+                'tournament_instance_id' => 'La posición seleccionada no tiene puntos configurados para este tipo de torneo.',
             ]);
         }
 
         return (float) $rule['points'];
     }
-
-    
-
 }

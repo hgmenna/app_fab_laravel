@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Filament\Resources\Tournaments\TournamentResource;
 use App\Models\Category;
 use App\Models\Tournament;
+use App\Models\TournamentRegistration;
 use Illuminate\Http\JsonResponse;
 
 class UpcomingTournamentsController extends Controller
@@ -28,6 +29,7 @@ class UpcomingTournamentsController extends Controller
                 'venue.city:id,state_id',
                 'venue.city.state:id,federation_id',
                 'venue.city.state.federation:id,short_name',
+                'registrations:id,tournament_id,partner_player_id',
             ])
             ->withCount('registrations')
             ->whereDate('start_date', '>', today('America/Argentina/Buenos_Aires'))
@@ -46,10 +48,10 @@ class UpcomingTournamentsController extends Controller
 
                 if ($club?->lat !== null && $club?->lng !== null) {
                     $mapUrl = 'https://www.google.com/maps/search/?api=1&query='
-                        . $club->lat . ',' . $club->lng;
+                        .$club->lat.','.$club->lng;
                 } elseif ($club?->address) {
                     $mapUrl = 'https://www.google.com/maps/search/?api=1&query='
-                        . rawurlencode($club->address . ', ' . $club->name);
+                        .rawurlencode($club->address.', '.$club->name);
                 }
 
                 $registrationUrl = TournamentResource::getUrl(
@@ -58,6 +60,9 @@ class UpcomingTournamentsController extends Controller
                     panel: 'guest',
                 );
                 $registrationIsOpen = $tournament->isRegistrationOpen();
+                $registrationCount = $tournament->registrations->count();
+                $participantCount = $tournament->registrations
+                    ->sum(fn (TournamentRegistration $registration): int => $registration->partner_player_id ? 2 : 1);
 
                 $start = $tournament->start_date;
                 $end = $tournament->end_date;
@@ -65,20 +70,20 @@ class UpcomingTournamentsController extends Controller
 
                 if ($end && ! $end->isSameDay($start)) {
                     if ($start->format('Y-m') === $end->format('Y-m')) {
-                        $dayLabel .= '–' . $end->format('j');
+                        $dayLabel .= '–'.$end->format('j');
                     } else {
-                        $startYear = $start->year !== $end->year ? ' ' . $start->year : '';
-                        $endYear = $start->year !== $end->year ? ' ' . $end->year : '';
+                        $startYear = $start->year !== $end->year ? ' '.$start->year : '';
+                        $endYear = $start->year !== $end->year ? ' '.$end->year : '';
 
-                        $dayLabel = $start->format('j') . ' '
-                            . substr($monthNames[$start->month], 0, 3) . $startYear
-                            . ' – ' . $end->format('j') . ' '
-                            . substr($monthNames[$end->month], 0, 3) . $endYear;
+                        $dayLabel = $start->format('j').' '
+                            .substr($monthNames[$start->month], 0, 3).$startYear
+                            .' – '.$end->format('j').' '
+                            .substr($monthNames[$end->month], 0, 3).$endYear;
                     }
                 }
 
                 return [
-                    'mes' => $monthNames[$start->month] . ' ' . $start->year,
+                    'mes' => $monthNames[$start->month].' '.$start->year,
                     'fecha' => $dayLabel,
                     'torneo' => $tournament->name,
                     'disciplina' => $tournament->discipline?->name ?? '',
@@ -92,7 +97,11 @@ class UpcomingTournamentsController extends Controller
                         default => 'Individual',
                     },
                     'handicap' => $tournament->type?->has_handicap ? 'Sí' : 'No',
-                    'inscriptos' => $tournament->registrations_count,
+                    'inscriptos' => $participantCount,
+                    'inscripciones' => $registrationCount,
+                    'unidad_inscripcion' => $tournament->type?->participation_mode === 'pairs'
+                        ? 'Parejas'
+                        : 'Jugadores',
                     'estado_inscripcion' => $registrationIsOpen ? 'Abierta' : 'Cerrada',
                     'apertura_inscripcion' => $tournament->registration_enabled
                         ? $tournament->registration_open_at?->format('d/m/Y') ?? ''
@@ -101,9 +110,13 @@ class UpcomingTournamentsController extends Controller
                         ? $tournament->registration_close_at?->format('d/m/Y') ?? ''
                         : '',
                     'inscripcion' => $registrationIsOpen
-                        ? $registrationUrl . '||Anotarse'
+                        ? $registrationUrl.'||'.(
+                            $tournament->type?->participation_mode === 'pairs'
+                                ? 'Anotar pareja'
+                                : 'Anotarse'
+                        )
                         : '',
-                    'ubicacion' => $mapUrl ? $mapUrl . '||Mapa' : '',
+                    'ubicacion' => $mapUrl ? $mapUrl.'||Mapa' : '',
                 ];
             });
 

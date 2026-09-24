@@ -154,6 +154,13 @@
                             {{ $record->player->last_name }}, {{ $record->player->first_name }}
                         </div>
 
+                        @if($record->partner)
+                            <div class="label">Segundo integrante</div>
+                            <div class="value">
+                                {{ $record->partner->last_name }}, {{ $record->partner->first_name }}
+                            </div>
+                        @endif
+
                         <div class="label">Club</div>
                         <div class="value">
                             {{ $record->player->club->name }}
@@ -213,4 +220,3 @@
 
 </body>
 </html>
-

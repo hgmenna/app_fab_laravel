@@ -35,7 +35,7 @@ class TournamentRegistrationsTable
     {
         return $table
             ->columns([
-                 TextColumn::make('player.last_name')
+                TextColumn::make('player.last_name')
                     ->label('Apellido')
                     ->sortable()
                     ->searchable(),
@@ -44,6 +44,12 @@ class TournamentRegistrationsTable
                     ->label('Nombre')
                     ->sortable()
                     ->searchable(),
+
+                TextColumn::make('partner.full_name')
+                    ->label('Segundo integrante')
+                    ->placeholder('—')
+                    ->searchable(['last_name', 'first_name'])
+                    ->visible(fn () => $tournament?->type?->participation_mode === 'pairs'),
 
                 TextColumn::make('player.club.name')
                     ->label('Club')
@@ -65,7 +71,7 @@ class TournamentRegistrationsTable
                             ->where('last_name', $record->player?->last_name)
                             ->value('category') ?? '-';
                     }
-                ),
+                    ),
 
                 // Columna para el Ranking General (RG)
                 TextColumn::make('ranking_rg')
@@ -76,19 +82,19 @@ class TournamentRegistrationsTable
                             ->where('last_name', $record->player?->last_name)
                             ->value('RG') ?? '-';
                     }
-                ),
+                    ),
 
                 TextColumn::make('tournamentInstance.description')
                     ->label('Posicion')
                     ->visible(fn () => Auth::user()?->can('EditField')
-                ),
+                    ),
 
                 TextColumn::make('points')
                     ->label('Puntos')
                     ->visible(fn () => Auth::user()?->can('EditField'))
                     ->formatStateUsing(fn ($record) => $record->points !== null
-                        ? number_format($record->points, 2)
-                        : '—'),
+                            ? number_format($record->points, 2)
+                            : '—'),
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
@@ -117,7 +123,7 @@ class TournamentRegistrationsTable
                             ->toArray()
                     )
                     ->query(function ($query, $value) {
-                        if (!$value) {
+                        if (! $value) {
                             return; // 🔥 evita 500 cuando no hay filtro
                         }
 
@@ -133,14 +139,14 @@ class TournamentRegistrationsTable
                     ->options(function ($livewire) use ($tournament) {
                         // Buscamos el torneo: ya sea el pasado por parámetro o el de la página actual
                         $t = $tournament ?? (method_exists($livewire, 'getOwnerRecord') ? $livewire->getOwnerRecord() : null);
-                        
+
                         // Si hay torneo, devolvemos sus slots; si no, un array vacío
                         return $t
                             ? $t->slots
                                 ->filter(fn ($slot) => $slot->starts_at !== null && $slot->max_players !== null)
                                 ->pluck('name', 'id')
                             : [];
-                }),
+                    }),
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options(function () {
@@ -150,7 +156,7 @@ class TournamentRegistrationsTable
                             ->pluck('status', 'status')
                             ->map(fn ($state) => ucfirst($state)) // Capitaliza la primera letra para la vista
                             ->toArray();
-                }),
+                    }),
                 Filter::make('posicion_sin_asignar')
                     ->label('Sin posición asignada')
                     ->toggle()
@@ -158,10 +164,10 @@ class TournamentRegistrationsTable
                         return $query
                             ->where(function ($q) {
                                 $q->whereDoesntHave('tournamentInstance') // sin relación
-                                ->orWhereHas('tournamentInstance', function ($t) {
-                                    $t->whereNull('description')
-                                        ->orWhere('description', ''); // string vacío
-                                });
+                                    ->orWhereHas('tournamentInstance', function ($t) {
+                                        $t->whereNull('description')
+                                            ->orWhere('description', ''); // string vacío
+                                    });
                             });
                     }),
             ])
@@ -174,13 +180,17 @@ class TournamentRegistrationsTable
                     ->disabled(function ($livewire) use ($tournament) {
 
                         $user = Auth::user();
-                        if ($user?->name === 'super-admin') return false;
-                        
+                        if ($user?->name === 'super-admin') {
+                            return false;
+                        }
+
                         // 1. Resolvemos el torneo de forma dinámica [1, 2]
                         $t = $tournament ?? (method_exists($livewire, 'getOwnerRecord') ? $livewire->getOwnerRecord() : null);
-                        
+
                         // Si no hay torneo (vista general), no se permite crear sin elegir uno primero en el form
-                        if (!$t) return false; 
+                        if (! $t) {
+                            return false;
+                        }
 
                         // 2. Validamos si las inscripciones están abiertas [104 de tu error]
                         return ! $t->isRegistrationOpen();
@@ -190,6 +200,7 @@ class TournamentRegistrationsTable
                         if (method_exists($livewire, 'getOwnerRecord')) {
                             $data['tournament_id'] = $livewire->getOwnerRecord()->id;
                         }
+
                         return $data;
                     })
                     ->successNotificationTitle('Inscripción realizada con éxito')
@@ -197,7 +208,7 @@ class TournamentRegistrationsTable
                     ->after(function ($livewire) {
                         $livewire->dispatch('refreshTable');
                     }
-                ),
+                    ),
                 Action::make('exportarInscripcionesPdf')
                     ->label('Exportar PDF')
                     ->action(function ($livewire) {
@@ -221,90 +232,91 @@ class TournamentRegistrationsTable
                         // Pasar el slotId al método de exportación
                         return TournamentRegistrationResource::exportRegistrationsToPdf($tournament, $slotId, $statusFilter);
                     }
-                ),                                                                                                                                                 
+                    ),
             ])
             ->recordActions([
-                GlobalActionGroup::make([
-                    GlobalViewAction::make(),
-                    GlobalEditAction::make()
-                        ->visible(fn () => Auth::user()?->can('EditField'))
-                        ->after(function (Model $record) {
-                            $tournamentName = $record->tournament?->name ?? 'el torneo';
+                    GlobalActionGroup::make([
+                        GlobalViewAction::make(),
+                        GlobalEditAction::make()
+                            ->visible(fn () => Auth::user()?->can('EditField'))
+                            ->after(function (Model $record) {
+                                $tournamentName = $record->tournament?->name ?? 'el torneo';
 
-                            $emailDestino = Auth::user()->email ?? 'notificaciones@federacionargentinadebillar.org';
-                            Mail::to($emailDestino)->send(new TournamentRegistrationNotification($record, 'Actualizacion de inscripcion'));
-    
-                            AdminNotifier::send(
-                                null, 
-                                $record, 
-                                'modificó la inscripción de', 
-                                ['player.last_name', 'player.first_name'], 
-                                "el torneo {$tournamentName}"
-                            );
-                        }
-                    ),
-                    GlobalDeleteAction::make()
-                        ->visible(fn () => Auth::user()?->can('EditField'))
-                        ->after(function (Model $record) {
-                            $tournamentName = $record->tournament?->name ?? 'el torneo';
-    
-                            AdminNotifier::send(
-                                null, 
-                                $record, 
-                                'eliminó la inscripción de', 
-                                ['player.last_name', 'player.first_name'], 
-                                "el torneo {$tournamentName}"
-                            );
-                        })
-                        ->before(function (Model $record){
-                            $emailDestino = Auth::user()->email ?? 'notificaciones@federacionargentinadebillar.org';
-                            Mail::to($emailDestino)->send(
-                                new TournamentRegistrationNotification($record, 'Inscripción eliminada')
-                            );
-                        }),
-                    TournamentRegistrationResource::AsignInstanceAction(),
-                    Action::make('cambiarEstado')
-                        ->label('Cambiar Estado')
-                        ->icon(Heroicon::CurrencyDollar)
-                        ->schema([
-                            Select::make('status')
-                                ->label('Nuevo Estado')
-                                ->options([
-                                    'pendiente' => 'Pendiente',
-                                    'aprobado' => 'Aprobado',
-                                    'denegado' => 'Denegado',
-                                ])
-                                ->required(),
-                        ])
-                        ->action(function (Model $record, array $data): void {
-                            $record->update(['status' => $data['status']]);
-                            $record->load(['slot', 'player.club', 'player.category']);
-                            $mailDestino = Auth::user()->email ?? 'notificaciones@federacionargentinadebillar.org';
-                            Mail::to($mailDestino)
-                                ->send(new TournamentRegistrationNotification($record, 'Actualizacion de estado de inscripcion'));
+                                $emailDestino = Auth::user()->email ?? 'notificaciones@federacionargentinadebillar.org';
+                                Mail::to($emailDestino)->send(new TournamentRegistrationNotification($record, 'Actualizacion de inscripcion'));
 
-                            $tournamentName = $record->tournament?->name ?? 'el torneo';
+                                AdminNotifier::send(
+                                    null,
+                                    $record,
+                                    'modificó la inscripción de',
+                                    ['player.last_name', 'player.first_name'],
+                                    "el torneo {$tournamentName}"
+                                );
+                            }
+                            ),
+                        GlobalDeleteAction::make()
+                            ->visible(fn () => Auth::user()?->can('EditField'))
+                            ->after(function (Model $record) {
+                                $tournamentName = $record->tournament?->name ?? 'el torneo';
 
-                            AdminNotifier::send(
-                                null, 
-                                $record, 
-                                'Actualizó estado de la inscripción de', 
-                                ['player.last_name', 'player.first_name'], 
-                                "el torneo {$tournamentName}"
-                            );
-                        })
-                        ->visible(fn () => (Auth::user()?->can('UpdateStatusTournament') ?? false)
-                    ),
-                    Action::make('pdf')
-                        ->label('PDF')
-                        ->icon('heroicon-o-document')
-                        ->color('primary')
-                        ->action(function ($record) {
-                            $url = \App\Services\TournamentRegistrationPdfService::generate($record);
-                            return redirect()->to($url);
-                    }),
-                ]),
+                                AdminNotifier::send(
+                                    null,
+                                    $record,
+                                    'eliminó la inscripción de',
+                                    ['player.last_name', 'player.first_name'],
+                                    "el torneo {$tournamentName}"
+                                );
+                            })
+                            ->before(function (Model $record) {
+                                $emailDestino = Auth::user()->email ?? 'notificaciones@federacionargentinadebillar.org';
+                                Mail::to($emailDestino)->send(
+                                    new TournamentRegistrationNotification($record, 'Inscripción eliminada')
+                                );
+                            }),
+                        TournamentRegistrationResource::AsignInstanceAction(),
+                        Action::make('cambiarEstado')
+                            ->label('Cambiar Estado')
+                            ->icon(Heroicon::CurrencyDollar)
+                            ->schema([
+                                Select::make('status')
+                                    ->label('Nuevo Estado')
+                                    ->options([
+                                        'pendiente' => 'Pendiente',
+                                        'aprobado' => 'Aprobado',
+                                        'denegado' => 'Denegado',
+                                    ])
+                                    ->required(),
+                            ])
+                            ->action(function (Model $record, array $data): void {
+                                $record->update(['status' => $data['status']]);
+                                $record->load(['slot', 'player.club', 'player.category']);
+                                $mailDestino = Auth::user()->email ?? 'notificaciones@federacionargentinadebillar.org';
+                                Mail::to($mailDestino)
+                                    ->send(new TournamentRegistrationNotification($record, 'Actualizacion de estado de inscripcion'));
+
+                                $tournamentName = $record->tournament?->name ?? 'el torneo';
+
+                                AdminNotifier::send(
+                                    null,
+                                    $record,
+                                    'Actualizó estado de la inscripción de',
+                                    ['player.last_name', 'player.first_name'],
+                                    "el torneo {$tournamentName}"
+                                );
+                            })
+                            ->visible(fn () => (Auth::user()?->can('UpdateStatusTournament') ?? false)
+                            ),
+                        Action::make('pdf')
+                            ->label('PDF')
+                            ->icon('heroicon-o-document')
+                            ->color('primary')
+                            ->action(function ($record) {
+                                $url = \App\Services\TournamentRegistrationPdfService::generate($record);
+
+                                return redirect()->to($url);
+                            }),
+                    ]),
             ]
-        );
+            );
     }
 }
