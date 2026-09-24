@@ -114,6 +114,10 @@ it('requires two different players and occupies one team registration', function
     expect(TournamentSlot::query()->findOrFail(1)->occupiedPlaces())->toBe(1);
     expect($registration->player->registrations()->sum('points'))->toEqual(25);
     expect($registration->partner->partnerRegistrations()->sum('points'))->toEqual(25);
+
+    $registration->delete();
+
+    expect(TournamentRegistration::query()->whereKey($registration->id)->exists())->toBeFalse();
 });
 
 it('prevents either member of a pair from registering again', function () {

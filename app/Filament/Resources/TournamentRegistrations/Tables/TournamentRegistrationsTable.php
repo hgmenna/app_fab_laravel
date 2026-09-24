@@ -36,12 +36,12 @@ class TournamentRegistrationsTable
         return $table
             ->columns([
                 TextColumn::make('player.last_name')
-                    ->label('Apellido')
+                    ->label('Apellido 1')
                     ->sortable()
                     ->searchable(),
 
                 TextColumn::make('player.first_name')
-                    ->label('Nombre')
+                    ->label('Nombre 1')
                     ->sortable()
                     ->searchable(),
 
@@ -52,15 +52,26 @@ class TournamentRegistrationsTable
                     ->visible(fn () => $tournament?->type?->participation_mode === 'pairs'),
 
                 TextColumn::make('player.club.name')
-                    ->label('Club')
+                    ->label('Club 1')
                     ->limit(15)
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('player.category.name')
-                    ->label('Cat')
+                    ->label('Cat 1')
                     ->searchable()
                     ->sortable(),
+
+                TextColumn::make('partner.club.name')
+                    ->label('Club 2')
+                    ->placeholder('—')
+                    ->limit(15)
+                    ->visible(fn () => $tournament?->type?->participation_mode === 'pairs'),
+
+                TextColumn::make('partner.category.name')
+                    ->label('Cat 2')
+                    ->placeholder('—')
+                    ->visible(fn () => $tournament?->type?->participation_mode === 'pairs'),
 
                 // Columna para la Categoría del Ranking
                 TextColumn::make('ranking_category')
@@ -259,19 +270,42 @@ class TournamentRegistrationsTable
                             ->after(function (Model $record) {
                                 $tournamentName = $record->tournament?->name ?? 'el torneo';
 
-                                AdminNotifier::send(
-                                    null,
-                                    $record,
-                                    'eliminó la inscripción de',
-                                    ['player.last_name', 'player.first_name'],
-                                    "el torneo {$tournamentName}"
-                                );
+                                try {
+                                    AdminNotifier::send(
+                                        null,
+                                        $record,
+                                        'eliminó la inscripción de',
+                                        [
+                                            'player.last_name',
+                                            'player.first_name',
+                                            'partner.last_name',
+                                            'partner.first_name',
+                                        ],
+                                        "el torneo {$tournamentName}"
+                                    );
+                                } catch (\Throwable $exception) {
+                                    report($exception);
+                                }
                             })
                             ->before(function (Model $record) {
+                                $record->loadMissing([
+                                    'tournament',
+                                    'slot',
+                                    'player.club',
+                                    'player.category',
+                                    'partner.club',
+                                    'partner.category',
+                                ]);
+
                                 $emailDestino = Auth::user()->email ?? 'notificaciones@federacionargentinadebillar.org';
-                                Mail::to($emailDestino)->send(
-                                    new TournamentRegistrationNotification($record, 'Inscripción eliminada')
-                                );
+
+                                try {
+                                    Mail::to($emailDestino)->send(
+                                        new TournamentRegistrationNotification($record, 'Inscripción eliminada')
+                                    );
+                                } catch (\Throwable $exception) {
+                                    report($exception);
+                                }
                             }),
                         TournamentRegistrationResource::AsignInstanceAction(),
                         Action::make('cambiarEstado')
