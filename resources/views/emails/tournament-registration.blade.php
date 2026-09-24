@@ -32,6 +32,13 @@
                 <div class="value">{{ $record->player->last_name }}, {{ $record->player->first_name }}</div>
             </div>
 
+            @if($record->partner)
+                <div class="field-group">
+                    <div class="label">Segundo integrante</div>
+                    <div class="value">{{ $record->partner->last_name }}, {{ $record->partner->first_name }}</div>
+                </div>
+            @endif
+
             <div class="field-group">
                 <div class="label">Club / Categoría</div>
                 <div class="value">{{ $record->player->club->name }} - {{ $record->player->category->name }}</div>

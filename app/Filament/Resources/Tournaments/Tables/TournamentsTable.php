@@ -32,6 +32,11 @@ class TournamentsTable
                     ->sortable()
                     ->alignCenter(),
 
+                TextColumn::make('type.participation_mode')
+                    ->label('Modalidad')
+                    ->formatStateUsing(fn (?string $state): string => $state === 'pairs' ? 'Parejas' : 'Individual')
+                    ->alignCenter(),
+
                 TextColumn::make('venue.name')
                     ->label('Club organizador')
                     ->sortable()
@@ -50,8 +55,14 @@ class TournamentsTable
                     ->alignCenter(),
 
                 TextColumn::make('registrations_count')
-                    ->label('Inscriptos')
+                    ->label('Inscripciones')
                     ->counts('registrations')
+                    ->alignCenter(),
+
+                TextColumn::make('participants_count')
+                    ->label('Participantes')
+                    ->getStateUsing(fn ($record): int => $record->registrations
+                        ->sum(fn ($registration): int => $registration->partner_player_id ? 2 : 1))
                     ->alignCenter(),
 
                 IconColumn::make('is_payment_enabled')
@@ -62,7 +73,11 @@ class TournamentsTable
                     ->label('Inscripción habilitada')
                     ->boolean()
                     ->alignCenter(),
-            ])->defaultSort('start_date', direction: 'asc')
+            ])
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
+                'registrations:id,tournament_id,partner_player_id',
+            ]))
+            ->defaultSort('start_date', direction: 'asc')
             ->recordActions([
                 GlobalActionGroup::make([
                     GlobalViewAction::make(),

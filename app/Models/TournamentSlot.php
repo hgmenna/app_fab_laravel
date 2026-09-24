@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class TournamentSlot extends Model
 {
@@ -15,7 +15,7 @@ class TournamentSlot extends Model
         'starts_at',
         'max_players',
         'is_active',
-        
+
     ];
 
     protected $casts = [
@@ -32,5 +32,13 @@ class TournamentSlot extends Model
     public function registrations()
     {
         return $this->hasMany(TournamentRegistration::class, 'tournament_slot_id');
+    }
+
+    public function occupiedPlaces(): int
+    {
+        return $this->registrations()
+            ->where('status', '!=', 'denegado')
+            ->get(['partner_player_id'])
+            ->sum(fn (TournamentRegistration $registration): int => $registration->partner_player_id ? 2 : 1);
     }
 }

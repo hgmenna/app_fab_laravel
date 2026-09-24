@@ -2,20 +2,23 @@
 
 namespace App\Filament\Resources\Tournaments\Pages;
 
-use App\Filament\Resources\Tournaments\TournamentResource;
-use Filament\Resources\Pages\ManageRelatedRecords;
-use Filament\Tables\Table;
-use Filament\Schemas\Schema;
 use App\Filament\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
 use App\Filament\Resources\TournamentRegistrations\Tables\TournamentRegistrationsTable;
+use App\Filament\Resources\Tournaments\TournamentResource;
 use Filament\Pages\Enums\SubNavigationPosition;
+use Filament\Resources\Pages\ManageRelatedRecords;
 use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
+use Filament\Tables\Table;
 
 class ManageTournamentRegistrations extends ManageRelatedRecords
 {
     protected static string $resource = TournamentResource::class;
+
     protected static string $relationship = 'registrations';
-    protected static SubNavigationPosition|null $subNavigationPosition = SubNavigationPosition::Top;
+
+    protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
+
     protected static ?string $navigationLabel = 'Inscripciones';
 
     public function getTitle(): string
@@ -24,10 +27,8 @@ class ManageTournamentRegistrations extends ManageRelatedRecords
         $tournament = $this->getOwnerRecord();
 
         // Retornamos el título concatenado con el nombre del torneo
-        return "Listado de Inscriptos - " . $tournament->name;
+        return 'Listado de Inscripciones - '.$tournament->name;
     }
-
-
 
     public function form(Schema $schema): Schema
     {
@@ -45,18 +46,18 @@ class ManageTournamentRegistrations extends ManageRelatedRecords
     {
         $tournament = $this->getOwnerRecord();
 
-         // 1. Definimos la pestaña para "Todos" los inscritos
+        // 1. Definimos la pestaña para "Todos" los inscritos
         $tabs = [
-            'all' => Tab::make('Todos los Inscritos')
-                ->badge($tournament->registrations()->count())
-                // No aplicamos modifyQueryUsing para que no filtre por slot_id y muestre todo
+            'all' => Tab::make('Todas las inscripciones')
+                ->badge($tournament->registrations()->count()),
+            // No aplicamos modifyQueryUsing para que no filtre por slot_id y muestre todo
         ];
 
         // 2. Generamos las pestañas por cada slot (horario) como ya lo hacías
         $slotTabs = $tournament->slots
             ->filter(fn ($slot) => $slot->starts_at !== null && $slot->max_players !== null)
             ->mapWithKeys(function ($slot) {
-                $current = $slot->registrations()->count();
+                $current = $slot->occupiedPlaces();
                 $max = $slot->max_players;
 
                 return [
@@ -69,12 +70,11 @@ class ManageTournamentRegistrations extends ManageRelatedRecords
 
         // 3. Combinamos ambas partes: la pestaña general y las específicas
         return array_merge($tabs, $slotTabs);
-    } 
-    
-    public static function isNested($livewire): bool
-    {
-        return $livewire instanceof \Filament\Resources\RelationManagers\RelationManager || 
-            $livewire instanceof \Filament\Resources\Pages\ManageRelatedRecords;
     }
 
+    public static function isNested($livewire): bool
+    {
+        return $livewire instanceof \Filament\Resources\RelationManagers\RelationManager ||
+            $livewire instanceof \Filament\Resources\Pages\ManageRelatedRecords;
+    }
 }

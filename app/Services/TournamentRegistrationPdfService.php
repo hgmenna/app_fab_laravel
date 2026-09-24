@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
+use App\Helpers\FabPath;
+use App\Models\TournamentRegistration;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
-use App\Models\TournamentRegistration;
-use App\Helpers\FabPath;
 
 class TournamentRegistrationPdfService
 {
@@ -13,13 +13,17 @@ class TournamentRegistrationPdfService
     {
         // Nombre del archivo final
         $tournament = Str::slug($record->tournament->name);
-        $player = Str::slug($record->player->last_name . '-' . $record->player->first_name);
+        $player = Str::slug($record->player->last_name.'-'.$record->player->first_name);
+
+        if ($record->partner) {
+            $player .= '-y-'.Str::slug($record->partner->last_name.'-'.$record->partner->first_name);
+        }
         $fileName = "{$tournament}-{$player}.pdf";
 
         // Carpeta institucional donde guardamos PDFs generados
         $folder = FabPath::inscripciones();
 
-        if (!file_exists($folder)) {
+        if (! file_exists($folder)) {
             mkdir($folder, 0775, true);
         }
 
@@ -68,15 +72,15 @@ class TournamentRegistrationPdfService
         */
 
         $pdf = Pdf::loadView('pdf.inscription', [
-            'record'            => $record,
+            'record' => $record,
             'comprobanteImagen' => $comprobanteImagen,
-            'comprobantePdf'    => $comprobantePdf,
+            'comprobantePdf' => $comprobantePdf,
         ])
-        ->setPaper('A4', 'portrait')
-        ->setOption('margin-top', 10)
-        ->setOption('margin-bottom', 10)
-        ->setOption('margin-left', 10)
-        ->setOption('margin-right', 10);
+            ->setPaper('A4', 'portrait')
+            ->setOption('margin-top', 10)
+            ->setOption('margin-bottom', 10)
+            ->setOption('margin-left', 10)
+            ->setOption('margin-right', 10);
 
         $pdf->save($fullPath);
 
