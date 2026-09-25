@@ -57,11 +57,11 @@ trait InteractsWithTournamentRegulationModal
                     'minimum_distance' => 'DISTANCIA INSUFICIENTE',
                     default => 'BLOQUEADO',
                 };
-                $resultClasses = $rule === 'manual_distance_required'
-                    ? 'bg-warning-50 text-warning-700 ring-warning-600/20'
-                    : 'bg-danger-50 text-danger-700 ring-danger-600/20';
-
-                $categories = collect($conflict['shared_categories'] ?? [])->filter()->implode(', ') ?: 'No aplica';
+                $categoriesCollection = collect($conflict['shared_categories'] ?? [])->filter()->values();
+                $categories = $categoriesCollection->implode(', ') ?: 'Ninguna';
+                $categoryLabel = $categoriesCollection->count() === 1
+                    ? 'Categoría superpuesta'
+                    : 'Categorías superpuestas';
                 $distance = is_numeric($route['distance_km'] ?? null)
                     ? number_format((float) $route['distance_km'], 1, ',', '.').' km'
                     : ($isDistanceRule ? 'Pendiente' : 'No aplica');
@@ -76,43 +76,47 @@ trait InteractsWithTournamentRegulationModal
                     $conflict['end_date'] ?? null,
                 ]))) ?: 'Sin informar';
                 $mapsLink = ! empty($route['google_maps_url'])
-                    ? '<a class="font-semibold text-primary-600 underline hover:text-primary-500" href="'.e($route['google_maps_url']).'" target="_blank" rel="noopener noreferrer">Abrir ruta en Google Maps</a>'
+                    ? '<a style="color: #2563eb; font-weight: 700; text-decoration: underline;" href="'.e($route['google_maps_url']).'" target="_blank" rel="noopener noreferrer">Abrir ruta en Google Maps</a>'
                     : 'No aplica';
 
                 $rows = [
-                    ['Regla incumplida', $ruleLabel],
-                    ['Torneo en conflicto', $conflict['conflicting_tournament'] ?? 'Sin informar'],
-                    ['Fechas', $dates],
-                    ['Club / sede', $conflict['club'] ?? 'Sin informar'],
+                    ['Validación', $ruleLabel],
+                    ['Torneo existente', $conflict['conflicting_tournament'] ?? 'Sin informar'],
+                    ['Fecha del torneo', $dates],
+                    ['Club', $conflict['club'] ?? 'Sin informar'],
                     ['Provincia', $conflict['province'] ?? 'Sin informar'],
-                    ['Categorías superpuestas', $categories],
-                    ['Distancia real', $distance],
-                    ['Distancia mínima', $minimumDistance],
-                    ['Comprobante', $evidence],
+                    [$categoryLabel, $categories],
                 ];
 
                 if ($isDistanceRule) {
+                    $rows[] = ['Distancia real', $distance];
+                    $rows[] = ['Distancia mínima permitida', $minimumDistance];
+                    $rows[] = ['Comprobante de distancia', $evidence];
                     $rows[] = ['Dirección de origen', $route['origin_address'] ?? 'Sin informar'];
                     $rows[] = ['Dirección de destino', $route['destination_address'] ?? 'Sin informar'];
                 }
 
                 $tableRows = collect($rows)
-                    ->map(fn (array $row): string => '<tr class="border-b border-gray-200 last:border-0 dark:border-white/10">'
-                        .'<th scope="row" class="w-2/5 bg-gray-50 px-3 py-2 text-left text-sm font-semibold text-gray-700 dark:bg-white/5 dark:text-gray-200">'.e($row[0]).'</th>'
-                        .'<td class="px-3 py-2 text-sm text-gray-950 dark:text-white">'.e((string) $row[1]).'</td>'
+                    ->map(fn (array $row): string => '<tr>'
+                        .'<th scope="row" style="width: 42%; padding: 10px 12px; border: 1px solid #d1d5db; background: #f3f4f6; color: #1f2937; text-align: left; font-size: 14px; font-weight: 700; vertical-align: top;">'.e($row[0]).'</th>'
+                        .'<td style="padding: 10px 12px; border: 1px solid #d1d5db; background: #ffffff; color: #111827; font-size: 14px; font-weight: 600; vertical-align: top;">'.e((string) $row[1]).'</td>'
                         .'</tr>')
                     ->implode('');
 
                 $mapsRow = $isDistanceRule
-                    ? '<div class="border-t border-gray-200 px-3 py-2 text-sm dark:border-white/10">'.$mapsLink.'</div>'
+                    ? '<div style="padding: 10px 12px; border: 1px solid #d1d5db; border-top: 0; background: #eff6ff; font-size: 14px;">'.$mapsLink.'</div>'
                     : '';
 
-                return '<section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">'
-                    .'<div class="flex flex-wrap items-center justify-between gap-2 bg-gray-100 px-4 py-3 dark:bg-white/5">'
-                    .'<h3 class="font-bold text-gray-950 dark:text-white">Conflicto '.($index + 1).'</h3>'
-                    .'<span class="rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset '.$resultClasses.'">'.e($result).'</span>'
+                $resultStyle = $rule === 'manual_distance_required'
+                    ? 'background: #fef3c7; color: #92400e; border: 1px solid #f59e0b;'
+                    : 'background: #fee2e2; color: #991b1b; border: 1px solid #ef4444;';
+
+                return '<section style="margin-bottom: 18px; overflow: hidden; border: 2px solid #9ca3af; border-radius: 10px; background: #ffffff;">'
+                    .'<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; background: #e5e7eb;">'
+                    .'<h3 style="margin: 0; color: #111827; font-size: 16px; font-weight: 800;">Conflicto '.($index + 1).': '.e($conflict['conflicting_tournament'] ?? 'Torneo existente').'</h3>'
+                    .'<span style="'.$resultStyle.' border-radius: 9999px; padding: 5px 10px; font-size: 12px; font-weight: 800;">'.e($result).'</span>'
                     .'</div>'
-                    .'<div class="overflow-x-auto"><table class="w-full border-collapse">'.$tableRows.'</table></div>'
+                    .'<div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse;">'.$tableRows.'</table></div>'
                     .$mapsRow
                     .'</section>';
             })
@@ -123,11 +127,11 @@ trait InteractsWithTournamentRegulationModal
         : 'Corregir los datos o completar las verificaciones de distancia pendientes.';
 
         return new HtmlString(
-            '<div class="space-y-4">'
+            '<div>'
             .$cards
-            .'<div class="grid grid-cols-[auto_1fr] gap-x-3 rounded-lg bg-gray-100 p-4 text-sm dark:bg-white/5">'
-            .'<span class="font-bold text-gray-950 dark:text-white">Acción requerida</span>'
-            .'<span class="text-gray-700 dark:text-gray-200">'.e($instruction).'</span>'
+            .'<div style="display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 10px; padding: 12px; border: 1px solid #93c5fd; border-radius: 8px; background: #eff6ff; font-size: 14px;">'
+            .'<span style="color: #1e3a8a; font-weight: 800;">Acción requerida</span>'
+            .'<span style="color: #1f2937; font-weight: 600;">'.e($instruction).'</span>'
             .'</div>'
             .'</div>'
         );
