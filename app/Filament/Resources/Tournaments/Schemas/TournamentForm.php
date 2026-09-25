@@ -6,10 +6,14 @@ use App\Filament\Resources\Tournaments\TournamentResource;
 use App\Models\Category;
 use App\Models\Club;
 use App\Models\Discipline;
+use App\Models\Tournament;
 use App\Models\TournamentType;
+use App\Services\TournamentRegulationService;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -21,6 +25,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\HtmlString;
 
 class TournamentForm
 {
@@ -61,6 +66,8 @@ class TournamentForm
                                     ->columnSpan(4)
                                     ->searchable()
                                     ->required()
+                                    ->live()
+                                    ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', []))
                                     ->native(false),
 
                                 Select::make('tournament_type_id')
@@ -73,7 +80,9 @@ class TournamentForm
                                     ->label('Tipo de torneo')
                                     ->columnSpan(3)
                                     ->disabled(fn (Get $get): bool => ! $get('discipline_id'))
-                                    ->required(),
+                                    ->required()
+                                    ->live()
+                                    ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', [])),
 
                                 TextInput::make('stage_number')
                                     ->label('Etapa (1 a 4)')
@@ -111,6 +120,7 @@ class TournamentForm
                                     ->reactive()
                                     ->afterStateUpdated(function ($state, callable $set) {
                                         $set('end_date', $state);
+                                        $set('manual_route_checks', []);
                                     })
                                     ->minutesStep(30),
 
@@ -118,7 +128,8 @@ class TournamentForm
                                     ->label('Fecha fin')
                                     ->columnSpan(3)
                                     ->required()
-                                    ->reactive(),
+                                    ->reactive()
+                                    ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', [])),
 
                                 Toggle::make('registration_enabled')
                                     ->label('Inscripción abierta')
@@ -158,6 +169,8 @@ class TournamentForm
                                         ->orderBy('order')
                                         ->pluck('name', 'id'))
                                     ->disabled(fn (Get $get): bool => ! $get('discipline_id'))
+                                    ->live()
+                                    ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', []))
                                     ->required(),
 
                                 Toggle::make('is_payment_enabled')
@@ -183,6 +196,74 @@ class TournamentForm
                                     ->maxLength(2000)
                                     ->columnSpan(8),
                             ])->disabled(fn () => ! Auth::user()->can('EditField')),
+
+                        Tab::make('Verificación de distancias')
+                            ->visible(function (Get $get): bool {
+                                $typeId = $get('tournament_type_id');
+
+                                return $typeId && ! (bool) TournamentType::find($typeId)?->is_official;
+                            })
+                            ->schema([
+                                Repeater::make('manual_route_checks')
+                                    ->label('Distancias verificadas en Google Maps')
+                                    ->helperText('Agregá una fila por cada torneo coincidente indicado por la validación. Abrí la ruta, copiá la distancia mostrada y adjuntá una captura o PDF como comprobante.')
+                                    ->defaultItems(0)
+                                    ->collapsible()
+                                    ->columns(12)
+                                    ->schema([
+                                        Select::make('conflicting_tournament_id')
+                                            ->label('Torneo coincidente')
+                                            ->options(fn (Get $get): array => Tournament::query()
+                                                ->where('discipline_id', $get('../../discipline_id'))
+                                                ->whereNotIn('status', ['draft', 'cancelled'])
+                                                ->whereHas('type', fn ($query) => $query->where('is_official', false))
+                                                ->orderBy('start_date')
+                                                ->pluck('name', 'id')
+                                                ->all())
+                                            ->searchable()
+                                            ->preload()
+                                            ->distinct()
+                                            ->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                                            ->required()
+                                            ->live()
+                                            ->columnSpan(5),
+                                        Placeholder::make('route_link')
+                                            ->label('Consulta')
+                                            ->content(function (Get $get): HtmlString|string {
+                                                $origin = Club::find($get('../../venue_id'));
+                                                $existing = Tournament::with('venue.city.state.country')
+                                                    ->find($get('conflicting_tournament_id'));
+
+                                                if (! $origin || ! $existing?->venue) {
+                                                    return 'Seleccioná el club y el torneo coincidente.';
+                                                }
+
+                                                $url = app(TournamentRegulationService::class)
+                                                    ->googleMapsUrlForClubs($origin, $existing->venue);
+
+                                                return new HtmlString('<a href="'.e($url).'" target="_blank" rel="noopener" class="font-semibold text-primary-600 underline">Abrir ruta en Google Maps</a>');
+                                            })
+                                            ->columnSpan(3),
+                                        TextInput::make('distance_km')
+                                            ->label('Distancia mostrada (km)')
+                                            ->numeric()
+                                            ->minValue(0)
+                                            ->step(0.1)
+                                            ->suffix('km')
+                                            ->required()
+                                            ->columnSpan(4),
+                                        FileUpload::make('evidence_path')
+                                            ->label('Comprobante de Google Maps')
+                                            ->helperText('Captura de pantalla o archivo PDF donde pueda verse la distancia.')
+                                            ->disk('public_path')
+                                            ->directory('tournament-regulation-evidence')
+                                            ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp', 'application/pdf'])
+                                            ->maxSize(5120)
+                                            ->downloadable()
+                                            ->required()
+                                            ->columnSpanFull(),
+                                    ]),
+                            ])->disabled(fn (): bool => ! (Auth::user()?->can('EditField') ?? false)),
 
                         Tab::make('Precios por categoria')
                         // ───────────────────────────────── Precios por categoría

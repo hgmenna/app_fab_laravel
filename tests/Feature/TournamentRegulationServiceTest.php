@@ -9,7 +9,6 @@ use App\Models\State;
 use App\Models\Tournament;
 use App\Models\TournamentRegulationSetting;
 use App\Models\TournamentType;
-use App\Services\GoogleMapsRouteService;
 use App\Services\TournamentRegulationService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -102,6 +101,7 @@ beforeEach(function () {
         $table->string('status')->default('draft');
         $table->unsignedBigInteger('venue_id');
         $table->json('categories');
+        $table->json('manual_route_checks')->nullable();
         $table->timestamps();
     });
 
@@ -176,8 +176,7 @@ it('blocks every overlapping tournament when either type is exclusive', function
     $this->officialType->update(['exclusive_during_dates' => true]);
     regulationTournament(['tournament_type_id' => $this->officialType->id]);
 
-    $routes = Mockery::mock(GoogleMapsRouteService::class);
-    $result = (new TournamentRegulationService($routes))->evaluate(regulationCandidate([]));
+    $result = (new TournamentRegulationService)->evaluate(regulationCandidate([]));
 
     expect($result->passes())->toBeFalse()
         ->and($result->conflicts[0]['rule'])->toBe('exclusive_dates');
@@ -186,8 +185,7 @@ it('blocks every overlapping tournament when either type is exclusive', function
 it('blocks an official and a non official tournament in the same province and category', function () {
     regulationTournament(['tournament_type_id' => $this->officialType->id]);
 
-    $routes = Mockery::mock(GoogleMapsRouteService::class);
-    $result = (new TournamentRegulationService($routes))->evaluate(regulationCandidate([]));
+    $result = (new TournamentRegulationService)->evaluate(regulationCandidate([]));
 
     expect($result->passes())->toBeFalse()
         ->and($result->conflicts[0]['rule'])->toBe('official_same_state');
@@ -195,16 +193,27 @@ it('blocks an official and a non official tournament in the same province and ca
 
 it('blocks nearby non official tournaments using the driving distance', function () {
     regulationTournament([]);
-    $routes = Mockery::mock(GoogleMapsRouteService::class);
-    $routes->shouldReceive('distanceInMeters')->once()->andReturn([
-        'distance_meters' => 87400,
-        'origin_address' => 'Calle 2 200, Rosario, Santa Fe, Argentina',
-        'destination_address' => 'Calle 1 100, Rosario, Santa Fe, Argentina',
-    ]);
-
-    $result = (new TournamentRegulationService($routes))->evaluate(regulationCandidate([]));
+    $result = (new TournamentRegulationService)->evaluate(regulationCandidate([
+        'manual_route_checks' => [[
+            'conflicting_tournament_id' => 1,
+            'distance_km' => 87.4,
+            'evidence_path' => 'tournament-regulation-evidence/prueba.png',
+            'checked_by' => 1,
+            'checked_at' => now()->toIso8601String(),
+        ]],
+    ]));
 
     expect($result->passes())->toBeFalse()
         ->and($result->conflicts[0]['rule'])->toBe('minimum_distance')
         ->and($result->conflicts[0]['route']['distance_meters'])->toBe(87400);
+});
+
+it('requires a manual distance and evidence for every overlapping non official tournament', function () {
+    regulationTournament([]);
+
+    $result = (new TournamentRegulationService)->evaluate(regulationCandidate([]));
+
+    expect($result->passes())->toBeFalse()
+        ->and($result->conflicts[0]['rule'])->toBe('manual_distance_required')
+        ->and($result->conflicts[0]['route']['google_maps_url'])->toContain('google.com/maps/dir');
 });

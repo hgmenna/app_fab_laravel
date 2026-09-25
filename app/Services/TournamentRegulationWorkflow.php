@@ -13,6 +13,16 @@ class TournamentRegulationWorkflow
 
     public function validate(array $data, User $user, string $operation, ?Tournament $record = null): array
     {
+        $data['manual_route_checks'] = collect($data['manual_route_checks'] ?? [])
+            ->map(function (array $check) use ($user): array {
+                $check['checked_by'] = $user->id;
+                $check['checked_at'] = now()->toIso8601String();
+
+                return $check;
+            })
+            ->values()
+            ->all();
+
         $candidate = $record ? $record->replicate() : new Tournament;
         $candidate->forceFill($data);
         $candidate->exists = (bool) $record;

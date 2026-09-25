@@ -7,12 +7,9 @@ use App\Models\Tournament;
 use App\Models\TournamentRegulationSetting;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
-use RuntimeException;
 
 class TournamentRegulationService
 {
-    public function __construct(private readonly GoogleMapsRouteService $routes) {}
-
     public function evaluate(Tournament $candidate): TournamentRegulationEvaluation
     {
         $candidate->loadMissing(['type', 'venue.city.state.country', 'discipline']);
@@ -44,6 +41,7 @@ class TournamentRegulationService
             ->get();
 
         $conflicts = [];
+        $distanceChecks = [];
 
         foreach ($existingTournaments as $existing) {
             $sharedCategoryIds = $this->sharedCategoryIds($candidate, $existing);
@@ -85,27 +83,35 @@ class TournamentRegulationService
                 continue;
             }
 
-            try {
-                $route = $this->routes->distanceInMeters($candidate->venue, $existing->venue);
-                $minimumMeters = (int) round(((float) $setting->minimum_distance_km) * 1000);
+            $route = $this->manualRouteData($candidate, $existing);
+            $distanceChecks[] = $route;
 
-                if ($route['distance_meters'] < $minimumMeters) {
-                    $distance = number_format($route['distance_meters'] / 1000, 1, ',', '.');
-                    $minimum = number_format((float) $setting->minimum_distance_km, 1, ',', '.');
-                    $conflicts[] = $this->conflict(
-                        'minimum_distance',
-                        $existing,
-                        $sharedCategoryNames,
-                        "La distancia entre los clubes es {$distance} km y el mínimo configurado es {$minimum} km.",
-                        $route + ['minimum_distance_meters' => $minimumMeters]
-                    );
-                }
-            } catch (RuntimeException $exception) {
+            if (! $route['is_complete']) {
+                $reason = ! $route['addresses_complete']
+                    ? 'Uno de los clubes no tiene dirección postal, localidad y provincia completas.'
+                    : 'Abrí la ruta de Google Maps y completá la distancia junto con el comprobante en la pestaña «Verificación de distancias».';
                 $conflicts[] = $this->conflict(
-                    'distance_unavailable',
+                    'manual_distance_required',
                     $existing,
                     $sharedCategoryNames,
-                    'No se pudo verificar la distancia reglamentaria: '.$exception->getMessage()
+                    $reason,
+                    $route
+                );
+
+                continue;
+            }
+
+            $minimumMeters = (int) round(((float) $setting->minimum_distance_km) * 1000);
+
+            if ($route['distance_meters'] < $minimumMeters) {
+                $distance = number_format($route['distance_meters'] / 1000, 1, ',', '.');
+                $minimum = number_format((float) $setting->minimum_distance_km, 1, ',', '.');
+                $conflicts[] = $this->conflict(
+                    'minimum_distance',
+                    $existing,
+                    $sharedCategoryNames,
+                    "La distancia informada es {$distance} km y el mínimo configurado es {$minimum} km.",
+                    $route + ['minimum_distance_meters' => $minimumMeters]
                 );
             }
         }
@@ -114,7 +120,72 @@ class TournamentRegulationService
             'setting_id' => $setting?->id,
             'evaluated_at' => now()->toIso8601String(),
             'compared_tournaments' => $existingTournaments->pluck('id')->all(),
+            'distance_checks' => $distanceChecks,
         ]);
+    }
+
+    public function googleMapsUrl(Tournament $candidate, Tournament $existing): string
+    {
+        $candidate->loadMissing('venue.city.state.country');
+        $existing->loadMissing('venue.city.state.country');
+
+        return $this->googleMapsUrlForClubs($candidate->venue, $existing->venue);
+    }
+
+    public function googleMapsUrlForClubs($origin, $destination): string
+    {
+        return 'https://www.google.com/maps/dir/?'.http_build_query([
+            'api' => 1,
+            'origin' => $this->fullAddress($origin),
+            'destination' => $this->fullAddress($destination),
+            'travelmode' => 'driving',
+        ], '', '&', PHP_QUERY_RFC3986);
+    }
+
+    private function manualRouteData(Tournament $candidate, Tournament $existing): array
+    {
+        $check = collect($candidate->manual_route_checks ?? [])->first(
+            fn (array $item): bool => (int) ($item['conflicting_tournament_id'] ?? 0) === (int) $existing->id
+        );
+        $distanceKm = is_numeric($check['distance_km'] ?? null) ? (float) $check['distance_km'] : null;
+        $evidence = trim((string) ($check['evidence_path'] ?? ''));
+        $addressesComplete = $this->hasCompleteAddress($candidate->venue)
+            && $this->hasCompleteAddress($existing->venue);
+
+        return [
+            'verification_method' => 'Google Maps URL con carga manual',
+            'google_maps_url' => $this->googleMapsUrl($candidate, $existing),
+            'origin_address' => $this->fullAddress($candidate->venue),
+            'destination_address' => $this->fullAddress($existing->venue),
+            'distance_meters' => $distanceKm === null ? null : (int) round($distanceKm * 1000),
+            'distance_km' => $distanceKm,
+            'evidence_path' => $evidence ?: null,
+            'addresses_complete' => $addressesComplete,
+            'checked_by' => $check['checked_by'] ?? null,
+            'checked_at' => $check['checked_at'] ?? null,
+            'is_complete' => $addressesComplete && $distanceKm !== null && $distanceKm >= 0 && $evidence !== '',
+        ];
+    }
+
+    public function fullAddress($club): string
+    {
+        $club?->loadMissing('city.state.country');
+
+        return implode(', ', array_filter([
+            trim((string) $club?->address),
+            $club?->city?->name,
+            $club?->city?->state?->name,
+            $club?->city?->state?->country?->name ?: 'Argentina',
+        ]));
+    }
+
+    private function hasCompleteAddress($club): bool
+    {
+        $club?->loadMissing('city.state');
+
+        return trim((string) $club?->address) !== ''
+            && trim((string) $club?->city?->name) !== ''
+            && trim((string) $club?->city?->state?->name) !== '';
     }
 
     private function settingApplies(TournamentRegulationSetting $setting, ?CarbonInterface $date): bool

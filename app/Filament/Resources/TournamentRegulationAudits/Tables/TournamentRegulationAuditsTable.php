@@ -1,9 +1,12 @@
 <?php
+
 namespace App\Filament\Resources\TournamentRegulationAudits\Tables;
+
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+
 class TournamentRegulationAuditsTable
 {
     public static function configure(Table $table): Table
@@ -24,6 +27,17 @@ class TournamentRegulationAuditsTable
             TextColumn::make('override_reason')->label('Motivo')->wrap()->toggleable(),
             TextColumn::make('conflicts')->label('Incumplimientos')
                 ->formatStateUsing(fn ($state): string => collect($state ?? [])->pluck('message')->implode(' | '))->wrap(),
+            TextColumn::make('technical_details')
+                ->label('Distancias verificadas')
+                ->formatStateUsing(fn ($state): string => collect(data_get($state, 'distance_checks', []))
+                    ->map(function (array $check): string {
+                        $distance = isset($check['distance_km']) ? $check['distance_km'].' km' : 'Sin distancia';
+                        $evidence = $check['evidence_path'] ?? 'Sin comprobante';
+
+                        return $distance.' · '.$evidence;
+                    })->implode(' | '))
+                ->wrap()
+                ->toggleable(isToggledHiddenByDefault: true),
         ])->filters([SelectFilter::make('result')->label('Resultado')->options([
             'approved' => 'Aprobado', 'blocked' => 'Bloqueado', 'overridden' => 'Excepción autorizada',
         ])]);
