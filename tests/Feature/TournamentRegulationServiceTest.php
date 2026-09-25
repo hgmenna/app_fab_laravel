@@ -191,6 +191,42 @@ it('blocks an official and a non official tournament in the same province and ca
         ->and($result->conflicts[0]['rule'])->toBe('official_same_state');
 });
 
+it('allows two non exclusive official tournaments on the same dates regardless of province', function () {
+    regulationTournament(['tournament_type_id' => $this->officialType->id]);
+
+    $sameProvince = (new TournamentRegulationService)->evaluate(regulationCandidate([
+        'tournament_type_id' => $this->officialType->id,
+    ]));
+
+    $country = Country::query()->firstOrFail();
+    $otherState = State::query()->create([
+        'country_id' => $country->id,
+        'name' => 'Córdoba',
+        'is_active' => true,
+    ]);
+    $otherCity = City::query()->create([
+        'country_id' => $country->id,
+        'state_id' => $otherState->id,
+        'name' => 'Córdoba',
+        'is_active' => true,
+    ]);
+    $otherClub = Club::query()->create([
+        'name' => 'Club Córdoba',
+        'address' => 'Calle Córdoba 100',
+        'city_id' => $otherCity->id,
+    ]);
+
+    $differentProvince = (new TournamentRegulationService)->evaluate(regulationCandidate([
+        'tournament_type_id' => $this->officialType->id,
+        'venue_id' => $otherClub->id,
+    ]));
+
+    expect($sameProvince->passes())->toBeTrue()
+        ->and($sameProvince->conflicts)->toBeEmpty()
+        ->and($differentProvince->passes())->toBeTrue()
+        ->and($differentProvince->conflicts)->toBeEmpty();
+});
+
 it('blocks nearby non official tournaments using the driving distance', function () {
     regulationTournament([]);
     $result = (new TournamentRegulationService)->evaluate(regulationCandidate([
