@@ -83,7 +83,10 @@ class TournamentRegulationService
                 continue;
             }
 
-            $route = $this->manualRouteData($candidate, $existing);
+            $minimumMeters = (int) round(((float) $setting->minimum_distance_km) * 1000);
+            $route = $this->manualRouteData($candidate, $existing) + [
+                'minimum_distance_meters' => $minimumMeters,
+            ];
             $distanceChecks[] = $route;
 
             if (! $route['is_complete']) {
@@ -101,8 +104,6 @@ class TournamentRegulationService
                 continue;
             }
 
-            $minimumMeters = (int) round(((float) $setting->minimum_distance_km) * 1000);
-
             if ($route['distance_meters'] < $minimumMeters) {
                 $distance = number_format($route['distance_meters'] / 1000, 1, ',', '.');
                 $minimum = number_format((float) $setting->minimum_distance_km, 1, ',', '.');
@@ -111,7 +112,7 @@ class TournamentRegulationService
                     $existing,
                     $sharedCategoryNames,
                     "La distancia informada es {$distance} km y el mínimo configurado es {$minimum} km.",
-                    $route + ['minimum_distance_meters' => $minimumMeters]
+                    $route
                 );
             }
         }
@@ -219,6 +220,7 @@ class TournamentRegulationService
             'conflicting_tournament_id' => $existing->id,
             'conflicting_tournament' => $existing->name,
             'club' => $existing->venue?->name,
+            'province' => $existing->venue?->city?->state?->name,
             'start_date' => $existing->start_date?->format('d/m/Y'),
             'end_date' => ($existing->end_date ?: $existing->start_date)?->format('d/m/Y'),
             'shared_categories' => $categories,
