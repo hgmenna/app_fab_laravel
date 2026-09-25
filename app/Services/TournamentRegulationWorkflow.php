@@ -2,11 +2,10 @@
 
 namespace App\Services;
 
+use App\Exceptions\TournamentRegulationBlockedException;
 use App\Models\Tournament;
 use App\Models\TournamentRegulationAudit;
 use App\Models\User;
-use Filament\Notifications\Notification;
-use Illuminate\Validation\ValidationException;
 
 class TournamentRegulationWorkflow
 {
@@ -48,26 +47,18 @@ class TournamentRegulationWorkflow
 
         if (! $isSuperAdmin || ! $overrideRequested) {
             $this->audit($record, $user, $operation, 'blocked', false, null, $data, $evaluation);
-            $this->sendBlockedNotification($evaluation, $isSuperAdmin);
 
-            throw ValidationException::withMessages([
-                $isSuperAdmin ? 'regulatory_override' : 'name' => $evaluation->message(),
-            ]);
+            throw new TournamentRegulationBlockedException($evaluation, $isSuperAdmin);
         }
 
         if ($overrideReason === '') {
             $this->audit($record, $user, $operation, 'blocked', false, null, $data, $evaluation);
 
-            Notification::make()
-                ->danger()
-                ->title('No se puede autorizar la excepción')
-                ->body('Ingresá el motivo de fuerza mayor. La justificación es obligatoria y quedará registrada en la auditoría.')
-                ->persistent()
-                ->send();
-
-            throw ValidationException::withMessages([
-                'regulatory_override_reason' => 'El motivo de fuerza mayor es obligatorio para autorizar la excepción.',
-            ]);
+            throw new TournamentRegulationBlockedException(
+                $evaluation,
+                true,
+                'El motivo de fuerza mayor es obligatorio para autorizar la excepción.',
+            );
         }
 
         $data['regulatory_override'] = true;
@@ -76,26 +67,6 @@ class TournamentRegulationWorkflow
         $data['regulatory_override_at'] = now();
 
         return [$data, $evaluation, true];
-    }
-
-    private function sendBlockedNotification(
-        TournamentRegulationEvaluation $evaluation,
-        bool $isSuperAdmin,
-    ): void {
-        $details = collect($evaluation->conflicts)
-            ->map(fn (array $conflict): string => '• '.$conflict['message'])
-            ->implode("\n");
-
-        $instruction = $isSuperAdmin
-            ? 'Para continuar por fuerza mayor, activá «Autorizar excepción reglamentaria» e ingresá el motivo obligatorio.'
-            : 'Corregí los datos o completá las verificaciones solicitadas. El torneo no fue creado.';
-
-        Notification::make()
-            ->danger()
-            ->title('No se puede generar el torneo')
-            ->body($details."\n\n".$instruction)
-            ->persistent()
-            ->send();
     }
 
     public function audit(

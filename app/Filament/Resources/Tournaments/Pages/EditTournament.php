@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Tournaments\Pages;
 
+use App\Exceptions\TournamentRegulationBlockedException;
+use App\Filament\Resources\Tournaments\Pages\Concerns\InteractsWithTournamentRegulationModal;
 use App\Filament\Resources\Tournaments\TournamentResource;
 use App\Services\AdminNotifier;
 use App\Services\TournamentRegulationEvaluation;
@@ -14,6 +16,8 @@ use Illuminate\Support\Facades\Auth;
 
 class EditTournament extends EditRecord
 {
+    use InteractsWithTournamentRegulationModal;
+
     protected static string $resource = TournamentResource::class;
 
     protected static ?string $navigationLabel = 'Datos del torneo';
@@ -24,8 +28,12 @@ class EditTournament extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        [$data, $this->regulationEvaluation, $this->regulationOverridden] = app(TournamentRegulationWorkflow::class)
-            ->validate($data, Auth::user(), 'update', $this->record);
+        try {
+            [$data, $this->regulationEvaluation, $this->regulationOverridden] = app(TournamentRegulationWorkflow::class)
+                ->validate($data, Auth::user(), 'update', $this->record);
+        } catch (TournamentRegulationBlockedException $exception) {
+            $this->showRegulatoryConflictModal($exception);
+        }
 
         return $data;
     }
@@ -33,6 +41,7 @@ class EditTournament extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            $this->regulatoryConflictAction(),
             DeleteAction::make(),
             ForceDeleteAction::make(),
             RestoreAction::make(),

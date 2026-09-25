@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Tournaments\Pages;
 
+use App\Exceptions\TournamentRegulationBlockedException;
+use App\Filament\Resources\Tournaments\Pages\Concerns\InteractsWithTournamentRegulationModal;
 use App\Filament\Resources\Tournaments\TournamentResource;
 use App\Services\AdminNotifier;
 use App\Services\TournamentRegulationEvaluation;
@@ -11,6 +13,8 @@ use Illuminate\Support\Facades\Auth;
 
 class CreateTournament extends CreateRecord
 {
+    use InteractsWithTournamentRegulationModal;
+
     protected static string $resource = TournamentResource::class;
 
     private ?TournamentRegulationEvaluation $regulationEvaluation = null;
@@ -19,10 +23,19 @@ class CreateTournament extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        [$data, $this->regulationEvaluation, $this->regulationOverridden] = app(TournamentRegulationWorkflow::class)
-            ->validate($data, Auth::user(), 'create');
+        try {
+            [$data, $this->regulationEvaluation, $this->regulationOverridden] = app(TournamentRegulationWorkflow::class)
+                ->validate($data, Auth::user(), 'create');
+        } catch (TournamentRegulationBlockedException $exception) {
+            $this->showRegulatoryConflictModal($exception);
+        }
 
         return $data;
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [$this->regulatoryConflictAction()];
     }
 
     public static function getFormWidth(): string|int|null
