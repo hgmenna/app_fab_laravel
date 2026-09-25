@@ -30,7 +30,7 @@ class TournamentRegulationService
             ->with(['type', 'venue.city.state.country'])
             ->where('discipline_id', $candidate->discipline_id)
             ->when($candidate->getKey(), fn (Builder $query, $id) => $query->where('id', '!=', $id))
-            ->whereNotIn('status', ['draft', 'cancelled'])
+            ->where('status', '!=', 'cancelled')
             ->whereDate('start_date', '<=', $candidateEnd)
             ->where(function (Builder $query) use ($candidateStart): void {
                 $query->whereDate('end_date', '>=', $candidateStart)

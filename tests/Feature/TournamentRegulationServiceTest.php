@@ -217,3 +217,12 @@ it('requires a manual distance and evidence for every overlapping non official t
         ->and($result->conflicts[0]['rule'])->toBe('manual_distance_required')
         ->and($result->conflicts[0]['route']['google_maps_url'])->toContain('google.com/maps/dir');
 });
+
+it('validates against overlapping tournaments that are still drafts', function () {
+    regulationTournament(['status' => 'draft']);
+
+    $result = (new TournamentRegulationService())->evaluate(regulationCandidate([]));
+
+    expect($result->passes())->toBeFalse()
+        ->and($result->conflicts[0]['rule'])->toBe('manual_distance_required');
+});

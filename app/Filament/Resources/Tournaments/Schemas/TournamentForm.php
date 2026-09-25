@@ -215,7 +215,7 @@ class TournamentForm
                                             ->label('Torneo coincidente')
                                             ->options(fn (Get $get): array => Tournament::query()
                                                 ->where('discipline_id', $get('../../discipline_id'))
-                                                ->whereNotIn('status', ['draft', 'cancelled'])
+                                                ->where('status', '!=', 'cancelled')
                                                 ->whereHas('type', fn ($query) => $query->where('is_official', false))
                                                 ->orderBy('start_date')
                                                 ->pluck('name', 'id')
