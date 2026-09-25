@@ -48,17 +48,21 @@ trait InteractsWithTournamentRegulationModal
                 $rule = (string) ($conflict['rule'] ?? '');
                 $route = is_array($conflict['route'] ?? null) ? $conflict['route'] : [];
                 $isDistanceRule = in_array($rule, ['manual_distance_required', 'minimum_distance'], true);
+                $isQuotaRule = $rule === 'club_category_quota';
+                $quota = is_array($conflict['quota'] ?? null) ? $conflict['quota'] : [];
 
                 $ruleLabel = match ($rule) {
                     'exclusive_dates' => 'Exclusividad durante las fechas',
                     'official_same_state' => 'Torneo oficial en la misma provincia',
                     'manual_distance_required' => 'Verificación de distancia pendiente',
                     'minimum_distance' => 'Distancia mínima reglamentaria',
+                    'club_category_quota' => 'Cupo de torneos por club y categoría',
                     default => 'Validación reglamentaria',
                 };
                 $result = match ($rule) {
                     'manual_distance_required' => 'PENDIENTE DE VERIFICACIÓN',
                     'minimum_distance' => 'DISTANCIA INSUFICIENTE',
+                    'club_category_quota' => 'CUPO SUPERADO',
                     default => 'BLOQUEADO',
                 };
                 $categoriesCollection = collect($conflict['shared_categories'] ?? [])->filter()->values();
@@ -98,6 +102,18 @@ trait InteractsWithTournamentRegulationModal
                     $rows[] = ['Comprobante de distancia', $evidence];
                     $rows[] = ['Dirección de origen', $route['origin_address'] ?? 'Sin informar'];
                     $rows[] = ['Dirección de destino', $route['destination_address'] ?? 'Sin informar'];
+                }
+
+                if ($isQuotaRule) {
+                    $related = collect($quota['related_tournaments'] ?? [])
+                        ->map(fn (array $tournament): string => ($tournament['name'] ?? 'Torneo').' ('.($tournament['start_date'] ?? 'sin fecha').')')
+                        ->implode(' · ');
+                    $rows[] = ['Cantidad máxima permitida', $quota['maximum_allowed'] ?? 'Sin informar'];
+                    $rows[] = ['Período de control', isset($quota['period_months']) ? $quota['period_months'].' meses' : 'Sin informar'];
+                    $rows[] = ['Torneos activos en el período', $quota['active_tournaments'] ?? 'Sin informar'];
+                    $rows[] = ['Total incluyendo la solicitud', $quota['total_with_candidate'] ?? 'Sin informar'];
+                    $rows[] = ['Ventana evaluada', ($quota['period_start'] ?? 'Sin informar').' — '.($quota['period_end'] ?? 'Sin informar')];
+                    $rows[] = ['Torneos activos contabilizados', $related ?: 'Ninguno'];
                 }
 
                 $tableRows = collect($rows)

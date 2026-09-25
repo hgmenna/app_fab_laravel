@@ -88,6 +88,9 @@ beforeEach(function () {
         $table->decimal('minimum_distance_km', 8, 2)->nullable();
         $table->boolean('check_non_official_distance')->default(true);
         $table->boolean('block_non_official_against_official_same_state')->default(true);
+        $table->boolean('check_club_category_quota')->default(false);
+        $table->unsignedSmallInteger('max_non_official_tournaments_per_category')->nullable();
+        $table->unsignedSmallInteger('club_category_period_months')->nullable();
         $table->date('effective_from')->nullable();
         $table->date('effective_until')->nullable();
         $table->text('notes')->nullable();
@@ -294,4 +297,99 @@ it('validates against overlapping tournaments that are still drafts', function (
 
     expect($result->passes())->toBeFalse()
         ->and($result->conflicts[0]['rule'])->toBe('manual_distance_required');
+});
+
+it('blocks a club that exceeds the configured non official tournament quota for a category', function () {
+    TournamentRegulationSetting::query()->update([
+        'check_club_category_quota' => true,
+        'max_non_official_tournaments_per_category' => 2,
+        'club_category_period_months' => 6,
+    ]);
+    regulationTournament([
+        'name' => 'Primer torneo del club',
+        'venue_id' => $this->clubA->id,
+        'start_date' => '2027-01-10',
+        'end_date' => '2027-01-11',
+    ]);
+    regulationTournament([
+        'name' => 'Segundo torneo del club',
+        'venue_id' => $this->clubA->id,
+        'start_date' => '2027-04-10',
+        'end_date' => '2027-04-11',
+    ]);
+
+    $result = (new TournamentRegulationService)->evaluate(regulationCandidate([
+        'venue_id' => $this->clubA->id,
+        'start_date' => '2027-06-10',
+        'end_date' => '2027-06-11',
+    ]));
+
+    $conflict = collect($result->conflicts)->firstWhere('rule', 'club_category_quota');
+
+    expect($result->passes())->toBeFalse()
+        ->and($conflict)->not->toBeNull()
+        ->and($conflict['quota']['category'])->toBe('Primera')
+        ->and($conflict['quota']['maximum_allowed'])->toBe(2)
+        ->and($conflict['quota']['period_months'])->toBe(6)
+        ->and($conflict['quota']['active_tournaments'])->toBe(2)
+        ->and($conflict['quota']['total_with_candidate'])->toBe(3);
+});
+
+it('does not count official tournaments in the club category quota', function () {
+    TournamentRegulationSetting::query()->update([
+        'check_club_category_quota' => true,
+        'max_non_official_tournaments_per_category' => 1,
+        'club_category_period_months' => 6,
+    ]);
+    regulationTournament([
+        'name' => 'Torneo oficial del club',
+        'tournament_type_id' => $this->officialType->id,
+        'venue_id' => $this->clubA->id,
+        'start_date' => '2027-01-10',
+        'end_date' => '2027-01-11',
+    ]);
+
+    $result = (new TournamentRegulationService)->evaluate(regulationCandidate([
+        'venue_id' => $this->clubA->id,
+        'start_date' => '2027-04-10',
+        'end_date' => '2027-04-11',
+    ]));
+
+    expect($result->passes())->toBeTrue()
+        ->and($result->conflicts)->toBeEmpty()
+        ->and($result->technicalDetails['club_category_quota_checks'][0]['total_with_candidate'])->toBe(1);
+});
+
+it('releases the club category quota when a non official tournament has finished', function () {
+    TournamentRegulationSetting::query()->update([
+        'check_non_official_distance' => false,
+        'check_club_category_quota' => true,
+        'max_non_official_tournaments_per_category' => 1,
+        'club_category_period_months' => 6,
+    ]);
+    regulationTournament([
+        'name' => 'Torneo ya finalizado',
+        'venue_id' => $this->clubA->id,
+        'start_date' => '2026-08-10',
+        'end_date' => '2026-08-11',
+    ]);
+
+    $candidate = regulationCandidate([
+        'venue_id' => $this->clubA->id,
+        'start_date' => '2026-11-10',
+        'end_date' => '2026-11-11',
+    ]);
+    $afterFinished = (new TournamentRegulationService)->evaluate($candidate);
+
+    regulationTournament([
+        'name' => 'Torneo todavía activo',
+        'venue_id' => $this->clubA->id,
+        'start_date' => '2026-09-20',
+        'end_date' => '2026-12-20',
+    ]);
+    $withActiveTournament = (new TournamentRegulationService)->evaluate($candidate);
+
+    expect($afterFinished->passes())->toBeTrue()
+        ->and($afterFinished->conflicts)->toBeEmpty()
+        ->and(collect($withActiveTournament->conflicts)->pluck('rule'))->toContain('club_category_quota');
 });

@@ -73,6 +73,7 @@
                 'official_same_state' => 'Torneo oficial en la misma provincia',
                 'manual_distance_required' => 'Verificación de distancia pendiente',
                 'minimum_distance' => 'Distancia mínima reglamentaria',
+                'club_category_quota' => 'Cupo de torneos por club y categoría',
                 default => 'Validación reglamentaria',
             };
             $distance = is_numeric(data_get($route, 'distance_km'))
@@ -97,6 +98,23 @@
                     <tr><th>Dirección de origen</th><td>{{ data_get($route, 'origin_address', 'Sin informar') }}</td></tr>
                     <tr><th>Dirección de destino</th><td>{{ data_get($route, 'destination_address', 'Sin informar') }}</td></tr>
                     <tr><th>Comprobante</th><td>{{ data_get($route, 'evidence_path') ? 'Adjuntado' : 'Pendiente' }}</td></tr>
+                @endif
+                @if ($rule === 'club_category_quota')
+                    <tr><th>Cantidad máxima permitida</th><td>{{ data_get($conflict, 'quota.maximum_allowed', 'Sin informar') }}</td></tr>
+                    <tr><th>Período de control</th><td>{{ data_get($conflict, 'quota.period_months', 'Sin informar') }} meses</td></tr>
+                    <tr><th>Torneos activos en el período</th><td>{{ data_get($conflict, 'quota.active_tournaments', 'Sin informar') }}</td></tr>
+                    <tr><th>Total incluyendo la solicitud</th><td>{{ data_get($conflict, 'quota.total_with_candidate', 'Sin informar') }}</td></tr>
+                    <tr><th>Ventana evaluada</th><td>{{ data_get($conflict, 'quota.period_start', 'Sin informar') }} — {{ data_get($conflict, 'quota.period_end', 'Sin informar') }}</td></tr>
+                    <tr>
+                        <th>Torneos activos contabilizados</th>
+                        <td>
+                            @forelse (data_get($conflict, 'quota.related_tournaments', []) as $related)
+                                {{ data_get($related, 'name', 'Torneo') }} ({{ data_get($related, 'start_date', 'sin fecha') }}){{ ! $loop->last ? ' · ' : '' }}
+                            @empty
+                                Ninguno
+                            @endforelse
+                        </td>
+                    </tr>
                 @endif
                 <tr><th>Explicación</th><td>{{ data_get($conflict, 'message', 'Incumplimiento reglamentario') }}</td></tr>
             </table>

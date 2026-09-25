@@ -117,12 +117,159 @@ class TournamentRegulationService
             }
         }
 
+        [$quotaConflicts, $quotaChecks, $quotaTournamentIds] = $this->clubCategoryQuotaConflicts(
+            $candidate,
+            $setting,
+        );
+        $conflicts = [...$conflicts, ...$quotaConflicts];
+
         return new TournamentRegulationEvaluation($conflicts, [
             'setting_id' => $setting?->id,
             'evaluated_at' => now()->toIso8601String(),
-            'compared_tournaments' => $existingTournaments->pluck('id')->all(),
+            'compared_tournaments' => $existingTournaments->pluck('id')
+                ->merge($quotaTournamentIds)
+                ->unique()
+                ->values()
+                ->all(),
             'distance_checks' => $distanceChecks,
+            'club_category_quota_checks' => $quotaChecks,
         ]);
+    }
+
+    private function clubCategoryQuotaConflicts(
+        Tournament $candidate,
+        ?TournamentRegulationSetting $setting,
+    ): array {
+        $maximum = (int) ($setting?->max_non_official_tournaments_per_category ?? 0);
+        $periodMonths = (int) ($setting?->club_category_period_months ?? 0);
+
+        if (! $setting?->check_club_category_quota
+            || $maximum < 1
+            || $periodMonths < 1
+            || ! $candidate->start_date
+            || ! $candidate->venue_id
+            || (bool) $candidate->type?->is_official) {
+            return [[], [], []];
+        }
+
+        $candidateStart = $candidate->start_date->copy()->startOfDay();
+        $rangeStart = $candidateStart->copy()->subMonthsNoOverflow($periodMonths);
+        $rangeEnd = $candidateStart->copy()->addMonthsNoOverflow($periodMonths);
+
+        $clubTournaments = Tournament::query()
+            ->with('type')
+            ->where('discipline_id', $candidate->discipline_id)
+            ->where('venue_id', $candidate->venue_id)
+            ->when($candidate->getKey(), fn (Builder $query, $id) => $query->where('id', '!=', $id))
+            ->where('status', '!=', 'cancelled')
+            ->whereHas('type', fn (Builder $query) => $query->where('is_official', false))
+            ->where(function (Builder $query): void {
+                $query->whereDate('end_date', '>=', today('America/Argentina/Buenos_Aires'))
+                    ->orWhere(function (Builder $withoutEnd): void {
+                        $withoutEnd->whereNull('end_date')
+                            ->whereDate('start_date', '>=', today('America/Argentina/Buenos_Aires'));
+                    });
+            })
+            ->whereBetween('start_date', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+            ->orderBy('start_date')
+            ->get();
+
+        $categoryIds = collect($candidate->categories ?? [])->map(fn ($id): int => (int) $id)->unique();
+        $categoryNames = Category::query()->whereKey($categoryIds)->pluck('name', 'id');
+        $conflicts = [];
+        $checks = [];
+
+        foreach ($categoryIds as $categoryId) {
+            $matching = $clubTournaments
+                ->filter(fn (Tournament $tournament): bool => collect($tournament->categories ?? [])
+                    ->map(fn ($id): int => (int) $id)
+                    ->contains($categoryId))
+                ->values();
+
+            $windowStarts = $matching
+                ->pluck('start_date')
+                ->filter(fn ($date): bool => $date->lte($candidateStart))
+                ->push($candidateStart)
+                ->unique(fn ($date): string => $date->toDateString())
+                ->sort()
+                ->values();
+
+            $worstWindow = null;
+
+            foreach ($windowStarts as $windowStart) {
+                $windowEnd = $windowStart->copy()->addMonthsNoOverflow($periodMonths);
+
+                if ($candidateStart->lt($windowStart) || $candidateStart->gt($windowEnd)) {
+                    continue;
+                }
+
+                $tournamentsInWindow = $matching
+                    ->filter(fn (Tournament $tournament): bool => $tournament->start_date->betweenIncluded(
+                        $windowStart,
+                        $windowEnd,
+                    ))
+                    ->values();
+                $totalWithCandidate = $tournamentsInWindow->count() + 1;
+
+                if ($worstWindow === null || $totalWithCandidate > $worstWindow['total_with_candidate']) {
+                    $worstWindow = [
+                        'start' => $windowStart,
+                        'end' => $windowEnd,
+                        'tournaments' => $tournamentsInWindow,
+                        'total_with_candidate' => $totalWithCandidate,
+                    ];
+                }
+            }
+
+            if ($worstWindow === null) {
+                continue;
+            }
+
+            $categoryName = $categoryNames->get($categoryId, "Categoría {$categoryId}");
+            $relatedTournaments = $worstWindow['tournaments']
+                ->map(fn (Tournament $tournament): array => [
+                    'id' => $tournament->id,
+                    'name' => $tournament->name,
+                    'start_date' => $tournament->start_date?->format('d/m/Y'),
+                ])
+                ->all();
+            $check = [
+                'category_id' => $categoryId,
+                'category' => $categoryName,
+                'maximum_allowed' => $maximum,
+                'period_months' => $periodMonths,
+                'period_start' => $worstWindow['start']->format('d/m/Y'),
+                'period_end' => $worstWindow['end']->format('d/m/Y'),
+                'active_tournaments' => count($relatedTournaments),
+                'total_with_candidate' => $worstWindow['total_with_candidate'],
+                'related_tournaments' => $relatedTournaments,
+            ];
+            $checks[] = $check;
+
+            if ($worstWindow['total_with_candidate'] <= $maximum) {
+                continue;
+            }
+
+            $conflicts[] = [
+                'rule' => 'club_category_quota',
+                'conflicting_tournament_id' => data_get($relatedTournaments, '0.id'),
+                'conflicting_tournament' => 'Cupo del club para '.$categoryName,
+                'club' => $candidate->venue?->name,
+                'province' => $candidate->venue?->city?->state?->name,
+                'start_date' => $worstWindow['start']->format('d/m/Y'),
+                'end_date' => $worstWindow['end']->format('d/m/Y'),
+                'shared_categories' => [$categoryName],
+                'route' => [],
+                'quota' => $check,
+                'message' => "El club supera el máximo de {$maximum} torneos no oficiales activos de {$categoryName} permitido durante {$periodMonths} meses. Debe finalizar uno de los torneos contabilizados antes de solicitar otro.",
+            ];
+        }
+
+        return [
+            $conflicts,
+            $checks,
+            $clubTournaments->pluck('id')->all(),
+        ];
     }
 
     public function googleMapsUrl(Tournament $candidate, Tournament $existing): string
