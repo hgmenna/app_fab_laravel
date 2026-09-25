@@ -26,6 +26,7 @@ class TournamentRegulationWorkflow
             ->all();
 
         $candidate = $record ? $record->replicate() : new Tournament;
+        $candidate->unsetRelations();
         $candidate->forceFill($data);
         $candidate->exists = (bool) $record;
 

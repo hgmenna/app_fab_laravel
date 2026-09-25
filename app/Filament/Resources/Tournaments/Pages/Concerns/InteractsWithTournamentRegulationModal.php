@@ -8,10 +8,6 @@ use Illuminate\Support\HtmlString;
 
 trait InteractsWithTournamentRegulationModal
 {
-    public array $regulatoryModalConflicts = [];
-
-    public bool $regulatoryModalForSuperAdmin = false;
-
     protected function regulatoryConflictAction(): Action
     {
         return Action::make('regulatoryConflict')
@@ -23,22 +19,30 @@ trait InteractsWithTournamentRegulationModal
             ->modalIcon('heroicon-o-exclamation-triangle')
             ->modalIconColor('danger')
             ->modalWidth('3xl')
-            ->modalContent(fn (): HtmlString => $this->regulatoryModalContent())
+            ->modalContent(function (Action $action): HtmlString {
+                $arguments = $action->getArguments();
+
+                return $this->regulatoryModalContent(
+                    $arguments['conflicts'] ?? [],
+                    (bool) ($arguments['is_super_admin'] ?? false),
+                );
+            })
             ->modalSubmitAction(false)
             ->modalCancelActionLabel('Cerrar');
     }
 
     protected function showRegulatoryConflictModal(TournamentRegulationBlockedException $exception): never
     {
-        $this->regulatoryModalConflicts = $exception->evaluation->conflicts;
-        $this->regulatoryModalForSuperAdmin = $exception->isSuperAdmin;
-        $this->mountAction('regulatoryConflict');
+        $this->mountAction('regulatoryConflict', [
+            'conflicts' => $exception->evaluation->conflicts,
+            'is_super_admin' => $exception->isSuperAdmin,
+        ]);
         $this->halt();
     }
 
-    private function regulatoryModalContent(): HtmlString
+    private function regulatoryModalContent(array $conflicts, bool $isSuperAdmin): HtmlString
     {
-        $cards = collect($this->regulatoryModalConflicts)
+        $cards = collect($conflicts)
             ->values()
             ->map(function (array $conflict, int $index): string {
                 $rule = (string) ($conflict['rule'] ?? '');
@@ -122,7 +126,7 @@ trait InteractsWithTournamentRegulationModal
             })
             ->implode('');
 
-        $instruction = $this->regulatoryModalForSuperAdmin
+        $instruction = $isSuperAdmin
         ? 'Corregir los datos o autorizar una excepción por fuerza mayor e ingresar el motivo obligatorio.'
         : 'Corregir los datos o completar las verificaciones de distancia pendientes.';
 

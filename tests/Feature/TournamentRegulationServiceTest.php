@@ -9,7 +9,9 @@ use App\Models\State;
 use App\Models\Tournament;
 use App\Models\TournamentRegulationSetting;
 use App\Models\TournamentType;
+use App\Models\User;
 use App\Services\TournamentRegulationService;
+use App\Services\TournamentRegulationWorkflow;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
@@ -225,6 +227,35 @@ it('allows two non exclusive official tournaments on the same dates regardless o
         ->and($sameProvince->conflicts)->toBeEmpty()
         ->and($differentProvince->passes())->toBeTrue()
         ->and($differentProvince->conflicts)->toBeEmpty();
+});
+
+it('reloads the selected type and club when validating an edited tournament', function () {
+    regulationTournament([
+        'name' => 'Oficial existente',
+        'tournament_type_id' => $this->officialType->id,
+    ]);
+    $record = regulationTournament([
+        'name' => 'Torneo editado',
+        'tournament_type_id' => $this->nonOfficialType->id,
+        'start_date' => '2026-11-10',
+        'end_date' => '2026-11-12',
+        'venue_id' => $this->clubB->id,
+    ]);
+    $record->load(['type', 'venue.city.state.country']);
+
+    $data = $record->getAttributes();
+    $data['tournament_type_id'] = $this->officialType->id;
+    $data['start_date'] = '2026-10-10';
+    $data['end_date'] = '2026-10-12';
+
+    $user = Mockery::mock(User::class)->makePartial();
+    $user->shouldReceive('hasRole')->with('super-admin')->once()->andReturn(false);
+
+    [, $evaluation] = (new TournamentRegulationWorkflow(new TournamentRegulationService))
+        ->validate($data, $user, 'update', $record);
+
+    expect($evaluation->passes())->toBeTrue()
+        ->and($evaluation->conflicts)->toBeEmpty();
 });
 
 it('blocks nearby non official tournaments using the driving distance', function () {
