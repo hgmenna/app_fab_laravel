@@ -60,6 +60,11 @@ class Discipline extends Model
         return $this->hasMany(Tournament::class);
     }
 
+    public function tournamentRegulationSetting()
+    {
+        return $this->hasOne(TournamentRegulationSetting::class);
+    }
+
     public function memberships(): HasMany
     {
         return $this->hasMany(Membership::class);

@@ -1,8 +1,9 @@
 <?php
+
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class Tournament extends Model
 {
@@ -17,6 +18,10 @@ class Tournament extends Model
         'start_date',
         'end_date',
         'status',
+        'regulatory_override',
+        'regulatory_override_reason',
+        'regulatory_override_by',
+        'regulatory_override_at',
         'scoring_rules',
         'registration_open_at',
         'registration_close_at',
@@ -27,7 +32,7 @@ class Tournament extends Model
         'categories',
         'is_payment_enabled',
         'is_active',
-        'stage_number'
+        'stage_number',
     ];
 
     protected $casts = [
@@ -36,6 +41,8 @@ class Tournament extends Model
         'registration_open_at' => 'datetime',
         'registration_close_at' => 'datetime',
         'registration_enabled' => 'boolean',
+        'regulatory_override' => 'boolean',
+        'regulatory_override_at' => 'datetime',
         'scoring_rules' => 'array',
         'categories' => 'array',
         'is_payment_enabled' => 'boolean',
@@ -81,6 +88,16 @@ class Tournament extends Model
         return $this->belongsTo(Club::class, 'venue_id');
     }
 
+    public function regulationAudits()
+    {
+        return $this->hasMany(TournamentRegulationAudit::class);
+    }
+
+    public function regulatoryOverrideUser()
+    {
+        return $this->belongsTo(User::class, 'regulatory_override_by');
+    }
+
     public function scopeAvailableForRegistration($query)
     {
         return $query
@@ -102,10 +119,8 @@ class Tournament extends Model
             && $this->registration_close_at->toDateString() >= $today;
     }
 
-    public function player() 
+    public function player()
     {
         return $this->belongsTo(Player::class);
     }
-
-
 }

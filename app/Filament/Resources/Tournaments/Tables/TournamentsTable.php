@@ -73,6 +73,12 @@ class TournamentsTable
                     ->label('Inscripción habilitada')
                     ->boolean()
                     ->alignCenter(),
+
+                IconColumn::make('regulatory_override')
+                    ->label('Excepción reglamentaria')
+                    ->boolean()
+                    ->trueColor('warning')
+                    ->alignCenter(),
             ])
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
                 'registrations:id,tournament_id,partner_player_id',

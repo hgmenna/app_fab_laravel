@@ -18,6 +18,7 @@ class TournamentType extends Model
         'participation_mode',
         'has_handicap',
         'is_official',
+        'exclusive_during_dates',
         'affects_ranking',
         'assigns_points',
         'scoring_method',
@@ -27,6 +28,7 @@ class TournamentType extends Model
 
     protected $casts = [
         'is_official' => 'boolean',
+        'exclusive_during_dates' => 'boolean',
         'has_handicap' => 'boolean',
         'affects_ranking' => 'boolean',
         'assigns_points' => 'boolean',

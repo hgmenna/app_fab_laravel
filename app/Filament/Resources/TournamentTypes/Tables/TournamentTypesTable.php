@@ -16,7 +16,6 @@ use Filament\Tables\Table;
 
 class TournamentTypesTable
 {
-
     public static function configure(Table $table): Table
     {
         return $table
@@ -44,6 +43,9 @@ class TournamentTypesTable
                 IconColumn::make('is_official')
                     ->label('Es oficial')
                     ->boolean(),
+                IconColumn::make('exclusive_during_dates')
+                    ->label('Exclusivo')
+                    ->boolean(),
                 IconColumn::make('affects_ranking')
                     ->label('Afecta al ranking')
                     ->boolean(),
@@ -53,7 +55,7 @@ class TournamentTypesTable
                 TextColumn::make('scoring_method')
                     ->label('Método de puntuación')
                     ->formatStateUsing(
-                        fn(?string $state): string => match ($state) {
+                        fn (?string $state): string => match ($state) {
                             'position' => 'Posición o instancia',
                             default => 'Sin configurar',
                         }
@@ -82,7 +84,7 @@ class TournamentTypesTable
                     GlobalViewAction::make(),
                     GlobalEditAction::make(),
                     GlobalDeleteAction::make(),
-                ])
+                ]),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

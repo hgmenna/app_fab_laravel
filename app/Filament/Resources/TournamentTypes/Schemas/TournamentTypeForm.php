@@ -23,7 +23,7 @@ class TournamentTypeForm
                     ->relationship(
                         name: 'discipline',
                         titleAttribute: 'name',
-                        modifyQueryUsing: fn($query) => $query
+                        modifyQueryUsing: fn ($query) => $query
                             ->where('active', true)
                             ->orderBy('name')
                     )
@@ -59,6 +59,12 @@ class TournamentTypeForm
 
                 Toggle::make('is_official')
                     ->label('Es oficial')
+                    ->required(),
+
+                Toggle::make('exclusive_during_dates')
+                    ->label('Exclusivo durante sus fechas')
+                    ->helperText('Impide cualquier otro torneo de la misma disciplina durante fechas superpuestas.')
+                    ->default(false)
                     ->required(),
 
                 Toggle::make('assigns_points')
@@ -167,9 +173,8 @@ class TournamentTypeForm
                                     ->orderBy('id')
                                     ->get()
                                     ->mapWithKeys(
-                                        fn(TournamentInstance $instance): array => [
-                                            $instance->id =>
-                                            $instance->description,
+                                        fn (TournamentInstance $instance): array => [
+                                            $instance->id => $instance->description,
                                         ]
                                     )
                                     ->all();
@@ -180,12 +185,10 @@ class TournamentTypeForm
                             ->distinct()
                             ->disableOptionsWhenSelectedInSiblingRepeaterItems()
                             ->visible(
-                                fn(Get $get): bool =>
-                                (bool) $get('../../affects_ranking')
+                                fn (Get $get): bool => (bool) $get('../../affects_ranking')
                             )
                             ->required(
-                                fn(Get $get): bool =>
-                                (bool) $get('../../affects_ranking')
+                                fn (Get $get): bool => (bool) $get('../../affects_ranking')
                             )
                             ->afterStateUpdated(function (
                                 $state,
@@ -216,8 +219,7 @@ class TournamentTypeForm
                             ->maxLength(50)
                             ->distinct()
                             ->disabled(
-                                fn(Get $get): bool =>
-                                (bool) $get('../../affects_ranking')
+                                fn (Get $get): bool => (bool) $get('../../affects_ranking')
                             )
                             ->dehydrated()
                             ->columnSpan(2),
@@ -228,8 +230,7 @@ class TournamentTypeForm
                             ->required()
                             ->maxLength(255)
                             ->disabled(
-                                fn(Get $get): bool =>
-                                (bool) $get('../../affects_ranking')
+                                fn (Get $get): bool => (bool) $get('../../affects_ranking')
                             )
                             ->dehydrated()
                             ->columnSpan(3),
@@ -243,8 +244,7 @@ class TournamentTypeForm
                             ->minValue(0)
                             ->required()
                             ->disabled(
-                                fn(Get $get): bool =>
-                                (bool) $get('../../affects_ranking')
+                                fn (Get $get): bool => (bool) $get('../../affects_ranking')
                             )
                             ->dehydrated()
                             ->columnSpan(2),
@@ -263,13 +263,11 @@ class TournamentTypeForm
                     ->reorderable()
                     ->collapsible()
                     ->visible(
-                        fn(Get $get): bool =>
-                        (bool) $get('assigns_points')
+                        fn (Get $get): bool => (bool) $get('assigns_points')
                             && $get('scoring_method') === 'position'
                     )
                     ->required(
-                        fn(Get $get): bool =>
-                        (bool) $get('assigns_points')
+                        fn (Get $get): bool => (bool) $get('assigns_points')
                             && $get('scoring_method') === 'position'
                     )
                     ->columnSpanFull(),
