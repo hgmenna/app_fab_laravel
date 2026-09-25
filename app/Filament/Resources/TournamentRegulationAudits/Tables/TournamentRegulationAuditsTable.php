@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\TournamentRegulationAudits\Tables;
 
+use App\Services\TournamentRegulationAuditPdfService;
+use Filament\Actions\Action;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -38,6 +40,12 @@ class TournamentRegulationAuditsTable
                     })->implode(' | '))
                 ->wrap()
                 ->toggleable(isToggledHiddenByDefault: true),
+        ])->recordActions([
+            Action::make('downloadPdf')
+                ->label('Descargar informe')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('primary')
+                ->action(fn ($record) => app(TournamentRegulationAuditPdfService::class)->download($record)),
         ])->filters([SelectFilter::make('result')->label('Resultado')->options([
             'approved' => 'Aprobado', 'blocked' => 'Bloqueado', 'overridden' => 'Excepción autorizada',
         ])]);

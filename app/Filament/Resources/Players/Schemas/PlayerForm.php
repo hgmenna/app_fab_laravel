@@ -9,6 +9,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\ViewField;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
@@ -84,8 +85,7 @@ class PlayerForm
                             ->columnSpan(6)
                             ->preload()
                             ->live()
-                            ->createOptionForm(fn (Schema $schema) 
-                                => ClubForm::configure($schema))
+                            ->createOptionForm(fn (Schema $schema) => ClubForm::configure($schema))
                             ->required()
                             ->searchable(),
                         Select::make('category_id')
@@ -107,17 +107,24 @@ class PlayerForm
                             ->label('Habilitado')
                             ->inline(false)
                             ->columnSpan(1)
-                            ->disabled(fn () => !Auth::user()->can('EditField')),
-                         FileUpload::make('photo_path')
+                            ->disabled(fn () => ! Auth::user()->can('EditField')),
+                        FileUpload::make('photo_path')
                             ->label('Foto del jugador')
                             ->columnSpan(3)
-                            ->image() // valida que sea imagen
+                            ->image()
+                            ->helperText('Podés seleccionar una imagen o usar el botón «Tomar foto con cámara».')
+                            ->extraInputAttributes(['capture' => 'user'])
                             ->disk('public_path')
-                            ->directory('players') // carpeta donde se guarda
-                            ->visibility('public') // permite mostrarlo
-                            ->imageEditor() // opcional: editor integrado
-                            ->previewable(true) // muestra la miniatura
+                            ->directory('players')
+                            ->visibility('public')
+                            ->imageEditor()
+                            ->previewable(true)
                             ->default(null),
+                        ViewField::make('camera_capture')
+                            ->label('Cámara')
+                            ->view('filament.forms.components.player-camera-capture')
+                            ->dehydrated(false)
+                            ->columnSpan(3),
                         Textarea::make('notes')
                             ->default(null)
                             ->columnSpan(3),

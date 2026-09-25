@@ -6,6 +6,8 @@ use App\Exceptions\TournamentRegulationBlockedException;
 use App\Models\Tournament;
 use App\Models\TournamentRegulationAudit;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class TournamentRegulationWorkflow
 {
@@ -79,6 +81,12 @@ class TournamentRegulationWorkflow
         array $snapshot,
         TournamentRegulationEvaluation $evaluation,
     ): TournamentRegulationAudit {
+        [$snapshot, $conflicts, $technicalDetails] = $this->preserveEvidence(
+            $this->snapshot($snapshot),
+            $evaluation->conflicts,
+            $evaluation->technicalDetails,
+        );
+
         return TournamentRegulationAudit::create([
             'tournament_id' => $tournament?->id,
             'user_id' => $user->id,
@@ -86,10 +94,66 @@ class TournamentRegulationWorkflow
             'result' => $result,
             'overridden' => $overridden,
             'override_reason' => $overrideReason,
-            'tournament_snapshot' => $this->snapshot($snapshot),
-            'conflicts' => $evaluation->conflicts,
-            'technical_details' => $evaluation->technicalDetails,
+            'tournament_snapshot' => $snapshot,
+            'conflicts' => $conflicts,
+            'technical_details' => $technicalDetails,
         ]);
+    }
+
+    private function preserveEvidence(array $snapshot, array $conflicts, array $technicalDetails): array
+    {
+        $paths = collect();
+        $this->collectEvidencePaths($snapshot, $paths);
+        $this->collectEvidencePaths($conflicts, $paths);
+        $this->collectEvidencePaths($technicalDetails, $paths);
+
+        $disk = Storage::disk('public_path');
+        $folder = 'tournament-regulation-audits/'.Str::uuid();
+        $pathMap = [];
+
+        foreach ($paths->filter()->unique()->values() as $index => $sourcePath) {
+            if (! is_string($sourcePath) || ! $disk->exists($sourcePath)) {
+                continue;
+            }
+
+            $targetPath = $folder.'/'.($index + 1).'-'.basename($sourcePath);
+
+            if ($disk->copy($sourcePath, $targetPath)) {
+                $pathMap[$sourcePath] = $targetPath;
+            }
+        }
+
+        return [
+            $this->replaceEvidencePaths($snapshot, $pathMap),
+            $this->replaceEvidencePaths($conflicts, $pathMap),
+            $this->replaceEvidencePaths($technicalDetails, $pathMap),
+        ];
+    }
+
+    private function collectEvidencePaths(array $data, $paths): void
+    {
+        foreach ($data as $key => $value) {
+            if ($key === 'evidence_path' && is_string($value) && $value !== '') {
+                $paths->push($value);
+            }
+
+            if (is_array($value)) {
+                $this->collectEvidencePaths($value, $paths);
+            }
+        }
+    }
+
+    private function replaceEvidencePaths(array $data, array $pathMap): array
+    {
+        foreach ($data as $key => $value) {
+            if ($key === 'evidence_path' && is_string($value) && isset($pathMap[$value])) {
+                $data[$key] = $pathMap[$value];
+            } elseif (is_array($value)) {
+                $data[$key] = $this->replaceEvidencePaths($value, $pathMap);
+            }
+        }
+
+        return $data;
     }
 
     private function snapshot(array $data): array
