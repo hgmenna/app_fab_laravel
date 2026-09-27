@@ -116,11 +116,11 @@ class TournamentsTable
                         return $query
                             ->when(
                                 $data['from'] ?? null,
-                                fn (Builder $query, string $date): Builder => $query->whereDate('start_date', '>=', $date),
+                                fn (Builder $query, string $date): Builder => $query->whereDate('end_date', '>=', $date),
                             )
                             ->when(
                                 $data['until'] ?? null,
-                                fn (Builder $query, string $date): Builder => $query->whereDate('start_date', '<=', $date),
+                                fn (Builder $query, string $date): Builder => $query->whereDate('end_date', '<=', $date),
                             );
                     }),
             ]);
