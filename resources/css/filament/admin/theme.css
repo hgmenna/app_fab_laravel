@@ -26,3 +26,42 @@
     vertical-align: middle;
     color: #ffffff;
 }
+
+/* Tabla principal de torneos: todas las columnas dentro del ancho disponible. */
+.fab-tournaments-table .fi-ta-content-ctn {
+    overflow-x: hidden;
+}
+
+.fab-tournaments-table .fi-ta-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+}
+
+.fab-tournaments-table .fi-ta-header-cell,
+.fab-tournaments-table .fi-ta-cell {
+    padding-inline: clamp(0.2rem, 0.45vw, 0.55rem);
+    padding-block: clamp(0.35rem, 0.65vw, 0.7rem);
+    font-size: clamp(0.68rem, 0.7vw, 0.82rem);
+    line-height: 1.25;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    vertical-align: middle;
+}
+
+.fab-tournaments-table .fi-ta-header-cell,
+.fab-tournaments-table .fi-ta-header-cell-sort-btn {
+    justify-content: center;
+    text-align: center;
+}
+
+.fab-tournaments-table .fi-badge {
+    max-width: 100%;
+    padding-inline: clamp(0.25rem, 0.4vw, 0.5rem);
+    white-space: normal;
+    text-align: center;
+}
+
+.fab-tournaments-table .fi-ta-actions {
+    gap: 0.2rem;
+}

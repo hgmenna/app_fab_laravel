@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Tournament extends Model
 {
@@ -93,6 +94,13 @@ class Tournament extends Model
     public function regulationAudits()
     {
         return $this->hasMany(TournamentRegulationAudit::class);
+    }
+
+    public function latestSuccessfulRegulationAudit(): HasOne
+    {
+        return $this->hasOne(TournamentRegulationAudit::class)
+            ->whereIn('result', ['approved', 'overridden'])
+            ->latestOfMany();
     }
 
     public function regulatoryOverrideUser()

@@ -25,64 +25,97 @@ class TournamentsTable
                     ->label('Torneo')
                     ->searchable()
                     ->sortable()
-                    ->alignCenter(),
+                    ->wrap()
+                    ->width('16%'),
 
                 TextColumn::make('type.code')
                     ->label('Tipo')
                     ->sortable()
-                    ->alignCenter(),
+                    ->alignCenter()
+                    ->wrap()
+                    ->width('6%'),
 
                 TextColumn::make('type.participation_mode')
-                    ->label('Modalidad')
-                    ->formatStateUsing(fn (?string $state): string => $state === 'pairs' ? 'Parejas' : 'Individual')
-                    ->alignCenter(),
+                    ->label('Mod.')
+                    ->formatStateUsing(fn (?string $state): string => $state === 'pairs' ? 'Par' : 'Ind.')
+                    ->alignCenter()
+                    ->width('6%'),
 
                 TextColumn::make('venue.name')
-                    ->label('Club organizador')
+                    ->label('Club')
                     ->sortable()
-                    ->alignCenter(),
+                    ->wrap()
+                    ->width('14%'),
 
                 TextColumn::make('start_date')
                     ->label('Inicio')
-                    ->date()
+                    ->date('d/m/y')
                     ->sortable()
-                    ->alignCenter(),
+                    ->alignCenter()
+                    ->width('7%'),
 
                 TextColumn::make('end_date')
                     ->label('Fin')
-                    ->date()
+                    ->date('d/m/y')
                     ->sortable()
-                    ->alignCenter(),
+                    ->alignCenter()
+                    ->width('7%'),
 
                 TextColumn::make('registrations_count')
-                    ->label('Inscripciones')
+                    ->label('Insc.')
                     ->counts('registrations')
-                    ->alignCenter(),
+                    ->alignCenter()
+                    ->width('5%'),
 
                 TextColumn::make('participants_count')
-                    ->label('Participantes')
+                    ->label('Part.')
                     ->getStateUsing(fn ($record): int => $record->registrations
                         ->sum(fn ($registration): int => $registration->partner_player_id ? 2 : 1))
-                    ->alignCenter(),
+                    ->alignCenter()
+                    ->width('5%'),
 
                 IconColumn::make('is_payment_enabled')
                     ->label('Pago')
-                    ->alignCenter(),
+                    ->boolean()
+                    ->alignCenter()
+                    ->width('4%'),
 
                 IconColumn::make('registration_enabled')
-                    ->label('Inscripción habilitada')
+                    ->label('Insc. abierta')
                     ->boolean()
-                    ->alignCenter(),
+                    ->alignCenter()
+                    ->width('6%'),
 
                 IconColumn::make('regulatory_override')
-                    ->label('Excepción reglamentaria')
+                    ->label('Excep.')
                     ->boolean()
                     ->trueColor('warning')
-                    ->alignCenter(),
+                    ->alignCenter()
+                    ->width('5%'),
+
+                TextColumn::make('latestSuccessfulRegulationAudit.result')
+                    ->label('Estado')
+                    ->state(fn ($record): string => $record->latestSuccessfulRegulationAudit?->result ?? 'pending')
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'approved' => 'Aprobado',
+                        'overridden' => 'Excepción autorizada',
+                        default => 'Pendiente de verificación',
+                    })
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'approved' => 'success',
+                        'overridden' => 'warning',
+                        default => 'gray',
+                    })
+                    ->alignCenter()
+                    ->wrap()
+                    ->width('10%'),
             ])
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
                 'registrations:id,tournament_id,partner_player_id',
+                'latestSuccessfulRegulationAudit:id,tournament_id,result',
             ]))
+            ->extraAttributes(['class' => 'fab-tournaments-table'])
             ->defaultSort('start_date', direction: 'asc')
             ->recordActions([
                 GlobalActionGroup::make([
