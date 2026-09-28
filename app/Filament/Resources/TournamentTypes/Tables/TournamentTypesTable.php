@@ -12,6 +12,8 @@ use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 
 class TournamentTypesTable
@@ -80,6 +82,53 @@ class TournamentTypesTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('discipline_id')
+                    ->label('Disciplina')
+                    ->relationship('discipline', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->multiple(),
+                SelectFilter::make('participation_mode')
+                    ->label('Modalidad')
+                    ->options([
+                        'individual' => 'Individual',
+                        'pairs' => 'Parejas',
+                    ]),
+                TernaryFilter::make('has_handicap')
+                    ->label('Hándicap')
+                    ->placeholder('Todos')
+                    ->trueLabel('Con hándicap')
+                    ->falseLabel('Sin hándicap'),
+                TernaryFilter::make('is_official')
+                    ->label('Carácter')
+                    ->placeholder('Todos')
+                    ->trueLabel('Oficiales')
+                    ->falseLabel('No oficiales'),
+                TernaryFilter::make('exclusive_during_dates')
+                    ->label('Exclusividad')
+                    ->placeholder('Todos')
+                    ->trueLabel('Exclusivos')
+                    ->falseLabel('No exclusivos'),
+                TernaryFilter::make('affects_ranking')
+                    ->label('Afecta al ranking')
+                    ->placeholder('Todos')
+                    ->trueLabel('Sí')
+                    ->falseLabel('No'),
+                TernaryFilter::make('assigns_points')
+                    ->label('Asigna puntos')
+                    ->placeholder('Todos')
+                    ->trueLabel('Sí')
+                    ->falseLabel('No'),
+                SelectFilter::make('scoring_method')
+                    ->label('Método de puntuación')
+                    ->options([
+                        'position' => 'Posición o instancia',
+                    ]),
+                TernaryFilter::make('is_active')
+                    ->label('Estado')
+                    ->placeholder('Todos')
+                    ->trueLabel('Activos')
+                    ->falseLabel('Inactivos'),
             ])
             ->recordActions([
                 GlobalActionGroup::make([
