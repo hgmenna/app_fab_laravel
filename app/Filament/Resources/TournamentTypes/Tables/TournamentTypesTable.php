@@ -29,31 +29,32 @@ class TournamentTypesTable
                     ->sortable(),
                 TextColumn::make('code')
                     ->label('Código')
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('participation_mode')
-                    ->label('Modalidad')
+                    ->label('Mod')
                     ->formatStateUsing(fn (?string $state): string => match ($state) {
-                        'pairs' => 'Parejas',
-                        default => 'Individual',
+                        'pairs' => 'Par',
+                        default => 'Ind',
                     })
                     ->badge(),
                 IconColumn::make('has_handicap')
-                    ->label('Hándicap')
+                    ->label('Hánd')
                     ->boolean(),
                 IconColumn::make('is_official')
-                    ->label('Es oficial')
+                    ->label('Oficial')
                     ->boolean(),
                 IconColumn::make('exclusive_during_dates')
                     ->label('Exclusivo')
                     ->boolean(),
                 IconColumn::make('affects_ranking')
-                    ->label('Afecta al ranking')
+                    ->label('Af ran')
                     ->boolean(),
                 IconColumn::make('assigns_points')
-                    ->label('Asigna puntos')
+                    ->label('As. ptos')
                     ->boolean(),
                 TextColumn::make('scoring_method')
-                    ->label('Método de puntuación')
+                    ->label('Método')
                     ->formatStateUsing(
                         fn (?string $state): string => match ($state) {
                             'position' => 'Posición o instancia',
@@ -62,8 +63,9 @@ class TournamentTypesTable
                     )
                     ->badge(),
                 IconColumn::make('is_active')
-                    ->label('Está activo')
-                    ->boolean(),
+                    ->label('Activo')
+                    ->boolean()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
