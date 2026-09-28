@@ -7,9 +7,62 @@ use App\Models\Tournament;
 use App\Models\TournamentRegulationSetting;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class TournamentRegulationService
 {
+    public function distanceVerificationTournaments(Tournament $candidate): Collection
+    {
+        $candidate->loadMissing(['type', 'venue.city.state.country']);
+        $setting = TournamentRegulationSetting::query()
+            ->where('discipline_id', $candidate->discipline_id)
+            ->where('enabled', true)
+            ->first();
+
+        if ($setting && ! $this->settingApplies($setting, $candidate->start_date)) {
+            $setting = null;
+        }
+
+        if (! $setting?->check_non_official_distance
+            || ! $candidate->start_date
+            || ! $candidate->discipline_id
+            || (bool) $candidate->type?->is_official
+            || (bool) $candidate->type?->exclusive_during_dates) {
+            return collect();
+        }
+
+        $candidateEnd = $candidate->end_date ?: $candidate->start_date;
+        $categoryIds = collect($candidate->categories ?? [])->map(fn ($id): int => (int) $id)->unique();
+
+        if ($categoryIds->isEmpty()) {
+            return collect();
+        }
+
+        return Tournament::query()
+            ->with(['type', 'venue'])
+            ->where('discipline_id', $candidate->discipline_id)
+            ->when($candidate->getKey(), fn (Builder $query, $id) => $query->where('id', '!=', $id))
+            ->where('status', '!=', 'cancelled')
+            ->whereHas('type', fn (Builder $query) => $query
+                ->where('is_official', false)
+                ->where('exclusive_during_dates', false))
+            ->whereDate('start_date', '<=', $candidateEnd)
+            ->where(function (Builder $query) use ($candidate): void {
+                $query->whereDate('end_date', '>=', $candidate->start_date)
+                    ->orWhere(function (Builder $withoutEnd) use ($candidate): void {
+                        $withoutEnd->whereNull('end_date')
+                            ->whereDate('start_date', '>=', $candidate->start_date);
+                    });
+            })
+            ->orderBy('start_date')
+            ->get()
+            ->filter(fn (Tournament $tournament): bool => collect($tournament->categories ?? [])
+                ->map(fn ($id): int => (int) $id)
+                ->intersect($categoryIds)
+                ->isNotEmpty())
+            ->values();
+    }
+
     public function evaluate(Tournament $candidate): TournamentRegulationEvaluation
     {
         $candidate->loadMissing(['type', 'venue.city.state.country', 'discipline']);

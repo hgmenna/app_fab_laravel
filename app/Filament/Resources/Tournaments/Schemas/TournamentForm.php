@@ -213,13 +213,33 @@ class TournamentForm
                                     ->schema([
                                         Select::make('conflicting_tournament_id')
                                             ->label('Torneo coincidente')
-                                            ->options(fn (Get $get): array => Tournament::query()
-                                                ->where('discipline_id', $get('../../discipline_id'))
-                                                ->where('status', '!=', 'cancelled')
-                                                ->whereHas('type', fn ($query) => $query->where('is_official', false))
-                                                ->orderBy('start_date')
-                                                ->pluck('name', 'id')
-                                                ->all())
+                                            ->options(function (Get $get, ?Tournament $record): array {
+                                                $candidate = (new Tournament)->forceFill([
+                                                    'discipline_id' => $get('../../discipline_id'),
+                                                    'tournament_type_id' => $get('../../tournament_type_id'),
+                                                    'venue_id' => $get('../../venue_id'),
+                                                    'start_date' => $get('../../start_date'),
+                                                    'end_date' => $get('../../end_date'),
+                                                    'categories' => $get('../../categories') ?? [],
+                                                    'status' => $get('../../status') ?? 'draft',
+                                                ]);
+
+                                                if ($record) {
+                                                    $candidate->setAttribute('id', $record->id);
+                                                    $candidate->exists = true;
+                                                }
+
+                                                return app(TournamentRegulationService::class)
+                                                    ->distanceVerificationTournaments($candidate)
+                                                    ->mapWithKeys(fn (Tournament $tournament): array => [
+                                                        $tournament->id => implode(' · ', array_filter([
+                                                            $tournament->name,
+                                                            $tournament->start_date?->format('d/m/Y'),
+                                                            $tournament->venue?->name,
+                                                        ])),
+                                                    ])
+                                                    ->all();
+                                            })
                                             ->searchable()
                                             ->preload()
                                             ->distinct()

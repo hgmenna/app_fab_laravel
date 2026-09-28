@@ -196,6 +196,76 @@ it('blocks an official and a non official tournament in the same province and ca
         ->and($result->conflicts[0]['rule'])->toBe('official_same_state');
 });
 
+it('allows an official and a non official tournament in different provinces without distance verification', function () {
+    regulationTournament(['tournament_type_id' => $this->officialType->id]);
+    $country = Country::query()->firstOrFail();
+    $otherState = State::query()->create([
+        'country_id' => $country->id,
+        'name' => 'Entre Ríos',
+        'is_active' => true,
+    ]);
+    $otherCity = City::query()->create([
+        'country_id' => $country->id,
+        'state_id' => $otherState->id,
+        'name' => 'Paraná',
+        'is_active' => true,
+    ]);
+    $otherClub = Club::query()->create([
+        'name' => 'Club Paraná',
+        'address' => 'Calle Paraná 100',
+        'city_id' => $otherCity->id,
+    ]);
+    $candidate = regulationCandidate(['venue_id' => $otherClub->id]);
+
+    $result = (new TournamentRegulationService)->evaluate($candidate);
+    $distanceOptions = (new TournamentRegulationService)->distanceVerificationTournaments($candidate);
+
+    expect($result->passes())->toBeTrue()
+        ->and($result->conflicts)->toBeEmpty()
+        ->and($result->technicalDetails['distance_checks'])->toBeEmpty()
+        ->and($distanceOptions)->toBeEmpty();
+});
+
+it('lists only non official tournaments actually involved in distance verification', function () {
+    $official = regulationTournament([
+        'name' => 'Oficial superpuesto',
+        'tournament_type_id' => $this->officialType->id,
+    ]);
+    $outsideDates = regulationTournament([
+        'name' => 'No oficial fuera de fecha',
+        'start_date' => '2026-12-01',
+        'end_date' => '2026-12-02',
+    ]);
+    $otherCategory = Category::query()->create([
+        'discipline_id' => $this->discipline->id,
+        'name' => 'Segunda',
+        'code' => 'S',
+        'order' => 2,
+    ]);
+    $differentCategory = regulationTournament([
+        'name' => 'No oficial de otra categoría',
+        'categories' => [$otherCategory->id],
+    ]);
+    $firstInvolved = regulationTournament([
+        'name' => 'Primer no oficial involucrado',
+        'start_date' => '2026-10-10',
+        'end_date' => '2026-10-12',
+    ]);
+    $secondInvolved = regulationTournament([
+        'name' => 'Segundo no oficial involucrado',
+        'start_date' => '2026-10-12',
+        'end_date' => '2026-10-13',
+    ]);
+
+    $options = (new TournamentRegulationService)
+        ->distanceVerificationTournaments(regulationCandidate([]));
+
+    expect($options->pluck('id')->all())->toBe([$firstInvolved->id, $secondInvolved->id])
+        ->and($options->pluck('id'))->not->toContain($official->id)
+        ->and($options->pluck('id'))->not->toContain($outsideDates->id)
+        ->and($options->pluck('id'))->not->toContain($differentCategory->id);
+});
+
 it('allows two non exclusive official tournaments on the same dates regardless of province', function () {
     regulationTournament(['tournament_type_id' => $this->officialType->id]);
 
