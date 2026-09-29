@@ -32,7 +32,9 @@ class TournamentsTable
                     ->searchable()
                     ->sortable()
                     ->wrap()
-                    ->width('16%'),
+                    ->width('14rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-tournament'])
+                    ->extraCellAttributes(['class' => 'fab-col-tournament']),
 
                 ImageColumn::make('flyer_path')
                     ->label('Flyer')
@@ -49,21 +51,13 @@ class TournamentsTable
                     )
                     ->width('6%'),
 
-                TextColumn::make('discipline.name')
-                    ->label('Disc.')
-                    ->sortable()
-                    ->searchable()
-                    ->wrap()
-                    ->width('6.5rem')
-                    ->extraHeaderAttributes(['class' => 'fab-col-discipline'])
-                    ->extraCellAttributes(['class' => 'fab-col-discipline']),
-
-                ViewColumn::make('type_and_mode')
-                    ->label('Tipo / Mod.')
-                    ->view('filament.tables.columns.tournament-type-mode')
+                ViewColumn::make('sport_details')
+                    ->label('Datos')
+                    ->view('filament.tables.columns.tournament-sport-details')
                     ->sortable(['tournament_type_id'])
-                    ->alignCenter()
-                    ->width('10%'),
+                    ->width('9rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-sport-details'])
+                    ->extraCellAttributes(['class' => 'fab-col-sport-details']),
 
                 ViewColumn::make('conditions')
                     ->label('Of. / Hand.')
@@ -77,7 +71,9 @@ class TournamentsTable
                     ->label('Sede')
                     ->sortable()
                     ->wrap()
-                    ->width('14%'),
+                    ->width('12rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-venue'])
+                    ->extraCellAttributes(['class' => 'fab-col-venue']),
 
                 ImageColumn::make('publication_logo')
                     ->label('Fed.')
@@ -131,19 +127,13 @@ class TournamentsTable
                     ->extraHeaderAttributes(['class' => 'fab-col-registrations'])
                     ->extraCellAttributes(['class' => 'fab-col-registrations']),
 
-                IconColumn::make('is_payment_enabled')
-                    ->label('$')
-                    ->boolean()
+                ViewColumn::make('registration_options')
+                    ->label('Pago / Insc.')
+                    ->view('filament.tables.columns.tournament-registration-options')
                     ->alignCenter()
-                    ->tooltip('Pago habilitado')
-                    ->width('4%'),
-
-                IconColumn::make('registration_enabled')
-                    ->label('Inscr. abierta')
-                    ->boolean()
-                    ->alignCenter()
-                    ->tooltip('Inscripción habilitada')
-                    ->width('7%'),
+                    ->width('7rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-registration-options'])
+                    ->extraCellAttributes(['class' => 'fab-col-registration-options']),
 
                 IconColumn::make('regulatory_override')
                     ->label('Excep.')

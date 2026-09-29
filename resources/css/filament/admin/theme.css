@@ -71,9 +71,19 @@
     gap: 0.2rem;
 }
 
-.fab-tournaments-table .fab-col-discipline {
-    width: 6.5rem !important;
-    min-width: 6.5rem;
+.fab-tournaments-table .fab-col-tournament {
+    width: 14rem !important;
+    min-width: 14rem;
+}
+
+.fab-tournaments-table .fab-col-sport-details {
+    width: 9rem !important;
+    min-width: 9rem;
+}
+
+.fab-tournaments-table .fab-col-venue {
+    width: 12rem !important;
+    min-width: 12rem;
 }
 
 .fab-tournaments-table .fab-col-registrations {
@@ -90,6 +100,11 @@
 .fab-tournaments-table .fab-col-status {
     width: 8.5rem !important;
     min-width: 8.5rem;
+}
+
+.fab-tournaments-table .fab-col-registration-options {
+    width: 7rem !important;
+    min-width: 7rem;
 }
 
 .fab-tournaments-table .fi-ta-table thead tr > th:last-child,
