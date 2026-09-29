@@ -299,7 +299,7 @@ class TournamentForm
                                     ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                                     ->maxSize(10240)
                                     ->directory('tournaments/flyers')
-                                    ->disk('public')
+                                    ->disk('public_path')
                                     ->visibility('public')
                                     ->imageEditor()
                                     ->previewable()

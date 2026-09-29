@@ -30,6 +30,7 @@ class FederationsTable
                     ->searchable(),
                 ImageColumn::make('logo_path')
                     ->label('Logo')
+                    ->disk('public_path')
                     ->alignCenter()
                     ->square(50),
                 TextColumn::make('created_at')

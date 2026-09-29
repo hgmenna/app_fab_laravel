@@ -66,11 +66,11 @@ class UpcomingTournamentsController extends Controller
                 $participantCount = $tournament->registrations
                     ->sum(fn (TournamentRegistration $registration): int => $registration->partner_player_id ? 2 : 1);
                 $flyerUrl = $tournament->flyer_path
-                    ? Storage::disk('public')->url($tournament->flyer_path)
+                    ? Storage::disk('public_path')->url($tournament->flyer_path)
                     : '';
                 $publicationLogoPath = $tournament->publicationLogoPath();
                 $publicationLogoUrl = $publicationLogoPath
-                    ? Storage::disk('public')->url($publicationLogoPath)
+                    ? Storage::disk('public_path')->url($publicationLogoPath)
                     : '';
 
                 $start = $tournament->start_date;

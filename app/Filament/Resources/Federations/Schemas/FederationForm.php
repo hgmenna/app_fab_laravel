@@ -33,6 +33,7 @@ class FederationForm
                 ->default(null),
             FileUpload::make('logo_path')
                 ->label('Logo')
+                ->disk('public_path')
                 ->image() // valida que sea imagen
                 ->directory('logos/federations') // carpeta donde se guarda
                 ->visibility('public') // permite mostrarlo

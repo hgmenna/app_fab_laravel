@@ -166,6 +166,7 @@ class ClubForm
                     FileUpload::make('logo_path')
                         ->default(null)
                         ->label('Logo')
+                        ->disk('public_path')
                         ->columnSpan(3)
                         ->image() // valida que sea imagen
                         ->directory('logos/clubs') // carpeta donde se guarda

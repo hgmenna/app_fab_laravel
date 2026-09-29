@@ -28,6 +28,7 @@ class ClubsTable
             ->columns([
                 ImageColumn::make('logo_path')
                     ->label('Logo')
+                    ->disk('public_path')
                     ->square(40),
                 TextColumn::make('name')
                     ->label('Nombre')
