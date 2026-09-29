@@ -54,7 +54,9 @@ class TournamentsTable
                     ->sortable()
                     ->searchable()
                     ->wrap()
-                    ->width('7%'),
+                    ->width('6.5rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-discipline'])
+                    ->extraCellAttributes(['class' => 'fab-col-discipline']),
 
                 ViewColumn::make('type_and_mode')
                     ->label('Tipo / Mod.')
@@ -67,7 +69,9 @@ class TournamentsTable
                     ->label('Of. / Hand.')
                     ->view('filament.tables.columns.tournament-conditions')
                     ->alignCenter()
-                    ->width('8%'),
+                    ->width('6.5rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-conditions'])
+                    ->extraCellAttributes(['class' => 'fab-col-conditions']),
 
                 TextColumn::make('venue.name')
                     ->label('Sede')
@@ -123,7 +127,9 @@ class TournamentsTable
                     ->counts('registrations')
                     ->alignCenter()
                     ->tooltip('Inscriptos')
-                    ->width('5%'),
+                    ->width('4.5rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-registrations'])
+                    ->extraCellAttributes(['class' => 'fab-col-registrations']),
 
                 IconColumn::make('is_payment_enabled')
                     ->label('$')
@@ -163,7 +169,9 @@ class TournamentsTable
                     })
                     ->alignCenter()
                     ->wrap()
-                    ->width('10%'),
+                    ->width('8.5rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-status'])
+                    ->extraCellAttributes(['class' => 'fab-col-status']),
 
             ])
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([

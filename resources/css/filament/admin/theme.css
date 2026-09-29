@@ -47,7 +47,8 @@
     font-size: clamp(0.68rem, 0.7vw, 0.82rem);
     line-height: 1.25;
     white-space: normal;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+    word-break: normal;
     vertical-align: middle;
 }
 
@@ -61,6 +62,8 @@
     max-width: 100%;
     padding-inline: clamp(0.25rem, 0.4vw, 0.5rem);
     white-space: normal;
+    overflow-wrap: normal;
+    word-break: normal;
     text-align: center;
 }
 
@@ -68,20 +71,58 @@
     gap: 0.2rem;
 }
 
-.fab-tournaments-table .fi-ta-header-cell-discipline-name,
-.fab-tournaments-table .fi-ta-cell-discipline-name {
-    min-width: 6rem;
+.fab-tournaments-table .fab-col-discipline {
+    width: 6.5rem !important;
+    min-width: 6.5rem;
 }
 
-.fab-tournaments-table .fi-ta-header-cell-registrations-count,
-.fab-tournaments-table .fi-ta-cell-registrations-count {
-    min-width: 4rem;
+.fab-tournaments-table .fab-col-registrations {
+    width: 4.5rem !important;
+    min-width: 4.5rem;
     white-space: nowrap;
 }
 
-.fab-tournaments-table .fi-ta-header-cell-conditions,
-.fab-tournaments-table .fi-ta-cell-conditions {
-    min-width: 6rem;
+.fab-tournaments-table .fab-col-conditions {
+    width: 6.5rem !important;
+    min-width: 6.5rem;
+}
+
+.fab-tournaments-table .fab-col-status {
+    width: 8.5rem !important;
+    min-width: 8.5rem;
+}
+
+.fab-tournaments-table .fi-ta-table thead tr > th:last-child,
+.fab-tournaments-table .fi-ta-cell:has(> .fi-ta-actions) {
+    position: sticky;
+    right: 0;
+    width: 3.5rem;
+    min-width: 3.5rem;
+    max-width: 3.5rem;
+    background-color: #ffffff;
+    box-shadow: -0.35rem 0 0.65rem rgb(15 23 42 / 12%);
+}
+
+.fab-tournaments-table .fi-ta-table thead tr > th:last-child {
+    z-index: 30;
+    background-color: var(--color-red-500);
+    padding-inline: 0.25rem;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.fab-tournaments-table .fi-ta-cell:has(> .fi-ta-actions) {
+    z-index: 20;
+    padding: 0.25rem;
+}
+
+.fab-tournaments-table .fi-ta-cell:has(> .fi-ta-actions) .fi-ta-actions {
+    justify-content: center;
+}
+
+.dark .fab-tournaments-table .fi-ta-cell:has(> .fi-ta-actions) {
+    background-color: #18181b;
+    box-shadow: -0.35rem 0 0.65rem rgb(0 0 0 / 35%);
 }
 
 /* En móvil y tablet todas las columnas permanecen disponibles mediante desplazamiento táctil. */
@@ -122,35 +163,4 @@
         gap: 0.15rem;
     }
 
-    .fab-tournaments-table .fi-ta-table thead tr > th:last-child,
-    .fab-tournaments-table .fi-ta-cell:has(> .fi-ta-actions) {
-        position: sticky;
-        right: 0;
-        min-width: 2.75rem;
-        width: 2.75rem;
-        max-width: 2.75rem;
-        background-color: #ffffff;
-        box-shadow: -0.35rem 0 0.65rem rgb(15 23 42 / 12%);
-    }
-
-    .fab-tournaments-table .fi-ta-table thead tr > th:last-child {
-        z-index: 30;
-        background-color: var(--color-red-500);
-        padding-inline: 0.2rem;
-        text-align: center;
-    }
-
-    .fab-tournaments-table .fi-ta-cell:has(> .fi-ta-actions) {
-        z-index: 20;
-        padding: 0.2rem;
-    }
-
-    .fab-tournaments-table .fi-ta-cell:has(> .fi-ta-actions) .fi-ta-actions {
-        justify-content: center;
-    }
-
-    .dark .fab-tournaments-table .fi-ta-cell:has(> .fi-ta-actions) {
-        background-color: #18181b;
-        box-shadow: -0.35rem 0 0.65rem rgb(0 0 0 / 35%);
-    }
 }
