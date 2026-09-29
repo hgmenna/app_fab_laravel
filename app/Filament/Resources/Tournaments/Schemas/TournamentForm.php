@@ -294,7 +294,9 @@ class TournamentForm
                             ->schema([
                                 FileUpload::make('flyer_path')
                                     ->label('Flyer del torneo')
-                                    ->helperText('Subí la imagen preparada por el club. Formatos admitidos: JPG, PNG o WebP; máximo 10 MB.')
+                                    ->helperText('Pegá la imagen desde el portapapeles con Ctrl+V, arrastrala o seleccionala desde el dispositivo. Formatos: JPG, PNG o WebP; máximo 10 MB.')
+                                    ->placeholder('Pegá el flyer con Ctrl+V o hacé clic para seleccionar una imagen')
+                                    ->pasteable()
                                     ->image()
                                     ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
                                     ->maxSize(10240)
