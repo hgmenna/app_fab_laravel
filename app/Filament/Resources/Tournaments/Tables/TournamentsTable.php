@@ -90,26 +90,30 @@ class TournamentsTable
                     )
                     ->width('5%'),
 
-                TextColumn::make('categories')
+                ViewColumn::make('categories')
                     ->label('Cat.')
-                    ->state(function (Tournament $record): string {
+                    ->state(function (Tournament $record): array {
                         static $categories;
 
                         $categories ??= Category::query()
-                            ->get(['id', 'code', 'name'])
+                            ->get(['id', 'code', 'name', 'order'])
                             ->keyBy('id');
 
                         return collect($record->categories ?? [])
-                            ->map(function ($id) use ($categories): ?string {
-                                $category = $categories->get($id);
-
-                                return $category?->code ?: $category?->name;
-                            })
+                            ->map(fn ($id) => $categories->get($id))
                             ->filter()
-                            ->implode(', ');
+                            ->sortBy(fn (Category $category) => [
+                                $category->order ?? PHP_INT_MAX,
+                                $category->name,
+                            ])
+                            ->map(fn (Category $category): string => $category->code ?: $category->name)
+                            ->values()
+                            ->all();
                     })
-                    ->wrap()
-                    ->width('14%'),
+                    ->view('filament.tables.columns.tournament-categories')
+                    ->width('14rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-categories'])
+                    ->extraCellAttributes(['class' => 'fab-col-categories']),
 
                 ViewColumn::make('dates')
                     ->label('Fechas')

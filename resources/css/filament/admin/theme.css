@@ -107,6 +107,11 @@
     min-width: 7rem;
 }
 
+.fab-tournaments-table .fab-col-categories {
+    width: 14rem !important;
+    min-width: 14rem;
+}
+
 .fab-tournaments-table .fi-ta-table thead tr > th:last-child,
 .fab-tournaments-table .fi-ta-cell:has(> .fi-ta-actions) {
     position: sticky;
