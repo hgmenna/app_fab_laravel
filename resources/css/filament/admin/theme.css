@@ -66,14 +66,18 @@
     gap: 0.2rem;
 }
 
-/*
- * La visibilidad de columnas se define en TournamentsTable. En pantallas
- * pequeñas evitamos partir palabras letra por letra y compactamos las tres
- * columnas esenciales junto con el menú de acciones.
- */
-@media (max-width: 767px) {
+/* En móvil y tablet todas las columnas permanecen disponibles mediante desplazamiento táctil. */
+@media (max-width: 1023px) {
+    .fab-tournaments-table .fi-ta-content-ctn {
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
     .fab-tournaments-table .fi-ta-table {
         table-layout: auto;
+        width: max-content;
+        min-width: 72rem;
     }
 
     .fab-tournaments-table .fi-ta-header-cell,
@@ -86,28 +90,42 @@
         hyphens: none;
     }
 
-    .fab-tournaments-table .fi-ta-header-cell:first-child,
-    .fab-tournaments-table .fi-ta-cell:first-child {
-        width: 48% !important;
-        min-width: 8.5rem;
+    .fab-tournaments-table .fi-ta-header-cell:nth-child(1),
+    .fab-tournaments-table .fi-ta-cell:nth-child(1) {
+        min-width: 12rem;
+    }
+
+    .fab-tournaments-table .fi-ta-header-cell:nth-child(4),
+    .fab-tournaments-table .fi-ta-cell:nth-child(4) {
+        min-width: 10rem;
     }
 
     .fab-tournaments-table .fi-ta-header-cell-sort-btn {
         gap: 0.15rem;
     }
 
-    .fab-tournaments-table .fi-ta-actions .fi-btn {
-        min-width: 2rem;
-        padding: 0.4rem;
+    .fab-tournaments-table .fi-ta-actions-header-cell,
+    .fab-tournaments-table .fi-ta-cell:has(> .fi-ta-actions) {
+        position: sticky;
+        right: 0;
+        min-width: 3.25rem;
+        width: 3.25rem;
+        background-color: #ffffff;
+        box-shadow: -0.35rem 0 0.65rem rgb(15 23 42 / 12%);
     }
-}
 
-@media (min-width: 768px) and (max-width: 1023px) {
-    .fab-tournaments-table .fi-ta-header-cell,
-    .fab-tournaments-table .fi-ta-cell {
-        padding-inline: 0.35rem;
-        font-size: 0.72rem;
-        overflow-wrap: break-word;
-        word-break: normal;
+    .fab-tournaments-table .fi-ta-actions-header-cell {
+        z-index: 30;
+        background-color: var(--color-red-500);
+    }
+
+    .fab-tournaments-table .fi-ta-cell:has(> .fi-ta-actions) {
+        z-index: 20;
+        padding: 0.35rem;
+    }
+
+    .dark .fab-tournaments-table .fi-ta-cell:has(> .fi-ta-actions) {
+        background-color: #18181b;
+        box-shadow: -0.35rem 0 0.65rem rgb(0 0 0 / 35%);
     }
 }
