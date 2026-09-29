@@ -129,6 +129,7 @@ class TournamentsTable
                     ->iconButton()
                     ->tooltip('Acciones'),
             ])
+            ->recordActionsColumnLabel('Acc.')
             ->filters([
                 SelectFilter::make('discipline_id')
                     ->relationship('discipline', 'name')
