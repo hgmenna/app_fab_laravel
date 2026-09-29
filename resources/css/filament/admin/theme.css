@@ -108,15 +108,15 @@
 }
 
 .fab-tournaments-table .fab-col-categories {
-    width: 6rem !important;
-    min-width: 6rem;
-    max-width: 6rem;
+    width: 4.5rem !important;
+    min-width: 4.5rem;
+    max-width: 4.5rem;
 }
 
 .fab-tournaments-table .fab-col-categories > .fi-ta-col,
 .fab-tournaments-table .fab-col-categories .fi-ta-grid {
-    width: 6rem;
-    max-width: 6rem;
+    width: 4.5rem;
+    max-width: 4.5rem;
 }
 
 .fab-tournaments-table .fab-col-flyer,

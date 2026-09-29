@@ -116,7 +116,7 @@ class TournamentsTable
                             ->all();
                     })
                     ->view('filament.tables.columns.tournament-categories')
-                    ->width('6rem')
+                    ->width('4.5rem')
                     ->extraHeaderAttributes(['class' => 'fab-col-categories'])
                     ->extraCellAttributes(['class' => 'fab-col-categories']),
 

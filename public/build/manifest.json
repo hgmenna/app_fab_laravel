@@ -1,6 +1,6 @@
 {
   "resources/css/app.css": {
-    "file": "assets/app-G3fSr7-v.css",
+    "file": "assets/app-DDVpg28w.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
@@ -9,7 +9,7 @@
     ]
   },
   "resources/css/filament/admin/theme.css": {
-    "file": "assets/theme-BueVvApH.css",
+    "file": "assets/theme-CWMcSL5t.css",
     "src": "resources/css/filament/admin/theme.css",
     "isEntry": true,
     "name": "theme",
