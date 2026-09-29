@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Tournament;
 use App\Models\TournamentRegistration;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Storage;
 
 class UpcomingTournamentsController extends Controller
 {
@@ -24,11 +25,12 @@ class UpcomingTournamentsController extends Controller
         $rows = Tournament::query()
             ->with([
                 'discipline:id,name',
-                'type:id,name,participation_mode,has_handicap,is_official',
+                'type:id,name,participation_mode,has_handicap,is_official,publication_logo_source,publication_federation_id',
+                'type.publicationFederation:id,name,logo_path',
                 'venue:id,name,address,lat,lng,city_id',
                 'venue.city:id,state_id',
                 'venue.city.state:id,federation_id',
-                'venue.city.state.federation:id,short_name',
+                'venue.city.state.federation:id,name,short_name,logo_path',
                 'registrations:id,tournament_id,partner_player_id',
             ])
             ->withCount('registrations')
@@ -63,6 +65,13 @@ class UpcomingTournamentsController extends Controller
                 $registrationCount = $tournament->registrations->count();
                 $participantCount = $tournament->registrations
                     ->sum(fn (TournamentRegistration $registration): int => $registration->partner_player_id ? 2 : 1);
+                $flyerUrl = $tournament->flyer_path
+                    ? Storage::disk('public')->url($tournament->flyer_path)
+                    : '';
+                $publicationLogoPath = $tournament->publicationLogoPath();
+                $publicationLogoUrl = $publicationLogoPath
+                    ? Storage::disk('public')->url($publicationLogoPath)
+                    : '';
 
                 $start = $tournament->start_date;
                 $end = $tournament->end_date;
@@ -118,6 +127,12 @@ class UpcomingTournamentsController extends Controller
                         )
                         : '',
                     'ubicacion' => $mapUrl ? $mapUrl.'||Mapa' : '',
+                    'flyer' => $flyerUrl ? $flyerUrl.'||'.$flyerUrl : '',
+                    'flyer_url' => $flyerUrl,
+                    'logo_publicacion' => $publicationLogoUrl
+                        ? $publicationLogoUrl.'||'.$publicationLogoUrl
+                        : '',
+                    'logo_publicacion_url' => $publicationLogoUrl,
                 ];
             });
 

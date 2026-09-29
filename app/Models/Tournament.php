@@ -12,6 +12,7 @@ class Tournament extends Model
 
     protected $fillable = [
         'name',
+        'flyer_path',
         'discipline_id',
         'tournament_type_id',
         'federation_id',
@@ -106,6 +107,24 @@ class Tournament extends Model
     public function regulatoryOverrideUser()
     {
         return $this->belongsTo(User::class, 'regulatory_override_by');
+    }
+
+    public function publicationLogoPath(): ?string
+    {
+        $this->loadMissing([
+            'type.publicationFederation',
+            'venue.city.state.federation',
+        ]);
+
+        if (! $this->type?->is_official) {
+            return null;
+        }
+
+        return match ($this->type->publication_logo_source) {
+            'national_federation' => $this->type->publicationFederation?->logo_path,
+            'venue_federation' => $this->venue?->city?->state?->federation?->logo_path,
+            default => null,
+        };
     }
 
     public function scopeAvailableForRegistration($query)

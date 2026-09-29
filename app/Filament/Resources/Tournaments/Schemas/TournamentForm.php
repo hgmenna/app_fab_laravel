@@ -289,6 +289,47 @@ class TournamentForm
                                     ]),
                             ])->disabled(fn (): bool => ! (Auth::user()?->can('EditField') ?? false)),
 
+                        Tab::make('Publicación')
+                            ->columns(12)
+                            ->schema([
+                                FileUpload::make('flyer_path')
+                                    ->label('Flyer del torneo')
+                                    ->helperText('Subí la imagen preparada por el club. Formatos admitidos: JPG, PNG o WebP; máximo 10 MB.')
+                                    ->image()
+                                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
+                                    ->maxSize(10240)
+                                    ->directory('tournaments/flyers')
+                                    ->disk('public')
+                                    ->visibility('public')
+                                    ->imageEditor()
+                                    ->previewable()
+                                    ->downloadable()
+                                    ->openable()
+                                    ->columnSpan(8),
+
+                                Placeholder::make('publication_logo_information')
+                                    ->label('Logo institucional')
+                                    ->content(function (Get $get): string {
+                                        $type = TournamentType::find($get('tournament_type_id'));
+
+                                        if (! $type?->is_official) {
+                                            return 'Sin logo: el torneo es no oficial.';
+                                        }
+
+                                        if ($type->publication_logo_source === 'national_federation') {
+                                            return 'Se utilizará el logo de '
+                                                .($type->publicationFederation?->name ?? 'la federación nacional configurada en el tipo de torneo').'.';
+                                        }
+
+                                        $club = Club::with('city.state.federation')->find($get('venue_id'));
+
+                                        return 'Se utilizará el logo de '
+                                            .($club?->city?->state?->federation?->name ?? 'la federación provincial correspondiente al club organizador').'.';
+                                    })
+                                    ->columnSpan(4),
+                            ])
+                            ->disabled(fn () => ! Auth::user()->can('EditField')),
+
                         Tab::make('Precios por categoria')
                         // ───────────────────────────────── Precios por categoría
                             ->schema([

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\TournamentTypes\Schemas;
 
 use App\Models\Discipline;
+use App\Models\Federation;
 use App\Models\TournamentInstance;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
@@ -10,6 +11,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class TournamentTypeForm
@@ -59,7 +61,34 @@ class TournamentTypeForm
 
                 Toggle::make('is_official')
                     ->label('Es oficial')
+                    ->live()
+                    ->afterStateUpdated(function (?bool $state, Set $set): void {
+                        $set('publication_logo_source', $state ? 'venue_federation' : 'none');
+                        $set('publication_federation_id', null);
+                    })
                     ->required(),
+
+                Select::make('publication_logo_source')
+                    ->label('Logo para la publicación')
+                    ->options([
+                        'venue_federation' => 'Federación provincial del club organizador',
+                        'national_federation' => 'Federación nacional seleccionada',
+                    ])
+                    ->helperText('El logo se incorpora automáticamente junto al flyer del torneo.')
+                    ->visible(fn (Get $get): bool => (bool) $get('is_official'))
+                    ->required(fn (Get $get): bool => (bool) $get('is_official'))
+                    ->live()
+                    ->native(false),
+
+                Select::make('publication_federation_id')
+                    ->label('Federación nacional')
+                    ->options(fn (): array => Federation::query()->orderBy('name')->pluck('name', 'id')->all())
+                    ->searchable()
+                    ->preload()
+                    ->visible(fn (Get $get): bool => (bool) $get('is_official')
+                        && $get('publication_logo_source') === 'national_federation')
+                    ->required(fn (Get $get): bool => (bool) $get('is_official')
+                        && $get('publication_logo_source') === 'national_federation'),
 
                 Toggle::make('exclusive_during_dates')
                     ->label('Exclusivo durante sus fechas')

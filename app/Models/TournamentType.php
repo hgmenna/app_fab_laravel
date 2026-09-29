@@ -18,6 +18,8 @@ class TournamentType extends Model
         'participation_mode',
         'has_handicap',
         'is_official',
+        'publication_logo_source',
+        'publication_federation_id',
         'exclusive_during_dates',
         'affects_ranking',
         'assigns_points',
@@ -44,5 +46,10 @@ class TournamentType extends Model
     public function tournaments(): HasMany
     {
         return $this->hasMany(Tournament::class);
+    }
+
+    public function publicationFederation(): BelongsTo
+    {
+        return $this->belongsTo(Federation::class, 'publication_federation_id');
     }
 }
