@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Countries\Pages;
 
 use App\Filament\Resources\Countries\CountryResource;
+use App\Services\AdminNotifier;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
@@ -15,12 +16,17 @@ class EditCountry extends EditRecord
     {
         return [
             ViewAction::make(),
-            DeleteAction::make(),
+            AdminNotifier::notifyAction(DeleteAction::make(), $this, 'eliminó', ['name']),
         ];
     }
 
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('index');
+    }
+
+    protected function afterSave(): void
+    {
+        AdminNotifier::send($this, $this->record, 'actualizó', ['name']);
     }
 }

@@ -48,9 +48,9 @@ class EditTournament extends EditRecord
     {
         return [
             $this->regulatoryConflictAction(),
-            DeleteAction::make(),
-            ForceDeleteAction::make(),
-            RestoreAction::make(),
+            AdminNotifier::notifyAction(DeleteAction::make(), $this, 'eliminó', ['name']),
+            AdminNotifier::notifyAction(ForceDeleteAction::make(), $this, 'eliminó definitivamente', ['name']),
+            AdminNotifier::notifyAction(RestoreAction::make(), $this, 'restauró', ['name']),
         ];
     }
 

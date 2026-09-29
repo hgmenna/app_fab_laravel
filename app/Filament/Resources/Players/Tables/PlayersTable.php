@@ -7,8 +7,9 @@ use App\Filament\Actions\GlobalDeleteAction;
 use App\Filament\Actions\GlobalEditAction;
 use App\Filament\Actions\GlobalViewAction;
 use App\Filament\Resources\Players\PlayerResource;
-use App\Models\GeneralRanking;
 use App\Models\Federation;
+use App\Models\GeneralRanking;
+use App\Services\AdminNotifier;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Facades\Filament;
@@ -19,8 +20,8 @@ use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
@@ -31,7 +32,7 @@ class PlayersTable
         return $table
             ->defaultSort('last_name', 'asc')
             ->columns([
-                
+
                 TextColumn::make('last_name')
                     ->label('Apellido')
                     ->alignCenter()
@@ -65,8 +66,8 @@ class PlayersTable
                         $registros = ($record->registrations ?? collect())
                             ->concat($record->partnerRegistrations ?? collect())
                             ->filter(function ($registro) {
-                            return $registro->tournament?->end_date && $registro->tournament->end_date->isPast();
-                        });
+                                return $registro->tournament?->end_date && $registro->tournament->end_date->isPast();
+                            });
 
                         // 2. Si no hay torneos disputados, devolvemos 0
                         if ($registros->isEmpty()) {
@@ -75,7 +76,7 @@ class PlayersTable
 
                         return $registros->count();
                     }),
-                 TextColumn::make('promedio_puntos')
+                TextColumn::make('promedio_puntos')
                     ->label('Prom Ptos')
                     ->alignCenter()
                     ->sortable(false)
@@ -84,8 +85,8 @@ class PlayersTable
                         $registros = ($record->registrations ?? collect())
                             ->concat($record->partnerRegistrations ?? collect())
                             ->filter(function ($registro) {
-                            return $registro->tournament?->end_date && $registro->tournament->end_date->isPast();
-                        });
+                                return $registro->tournament?->end_date && $registro->tournament->end_date->isPast();
+                            });
 
                         // 2. Si no hay torneos disputados, devolvemos 0
                         if ($registros->isEmpty()) {
@@ -93,7 +94,7 @@ class PlayersTable
                         }
 
                         // 3. Calculamos el promedio (o el porcentaje si tienes un campo de puntos máximos)
-                        $promedio = $registros->avg('points'); 
+                        $promedio = $registros->avg('points');
 
                         return number_format($promedio, 2);
                     }),
@@ -179,7 +180,7 @@ class PlayersTable
                 GlobalActionGroup::make([
                     GlobalViewAction::make(),
                     GlobalEditAction::make(),
-                    GlobalDeleteAction::make(),
+                    AdminNotifier::notifyAction(GlobalDeleteAction::make(), null, 'eliminó', ['last_name', 'first_name'], 'Jugadores'),
                     PlayerResource::changeCategoryAction(),
                     PlayerResource::viewCategoryHistoryAction(),
                     Action::make('verDesempeno')
@@ -189,7 +190,7 @@ class PlayersTable
                         ->url(fn ($record): string => PlayerResource::getUrl('performance', ['record' => $record])),
 
                     PlayerResource::payMemberShipAction(),
-                    
+
                 ]),
             ])
             ->toolbarActions([
@@ -209,6 +210,12 @@ class PlayersTable
                     ->visible(fn () => Auth::user()?->hasPermissionTo('EditField'))
                     ->action(function (Collection $records) {
                         $records->each->update(['is_active' => false]);
+                        AdminNotifier::sendBulk(
+                            $records,
+                            'desactivó',
+                            ['last_name', 'first_name'],
+                            'Jugadores',
+                        );
                     }),
 
                 BulkAction::make('activar')
@@ -218,6 +225,12 @@ class PlayersTable
                     ->visible(fn () => Auth::user()?->hasPermissionTo('EditField'))
                     ->action(function (Collection $records) {
                         $records->each->update(['is_active' => true]);
+                        AdminNotifier::sendBulk(
+                            $records,
+                            'activó',
+                            ['last_name', 'first_name'],
+                            'Jugadores',
+                        );
                     }),
 
             ])
@@ -245,7 +258,7 @@ class PlayersTable
 
                         return redirect(PlayerResource::getUrl('performance-all', ['report' => $report]));
                     }),
-                 Action::make('categoryChangesReport')
+                Action::make('categoryChangesReport')
                     ->label('Cambios de categoría')
                     ->icon('heroicon-o-arrows-right-left')
                     ->color('info')
@@ -254,5 +267,4 @@ class PlayersTable
                 PlayerResource::importPlayers(),
             ]);
     }
-
 }

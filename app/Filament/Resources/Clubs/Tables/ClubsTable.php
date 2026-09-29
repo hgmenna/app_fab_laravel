@@ -7,6 +7,7 @@ use App\Filament\Actions\GlobalDeleteAction;
 use App\Filament\Actions\GlobalEditAction;
 use App\Filament\Actions\GlobalViewAction;
 use App\Filament\Resources\Clubs\ClubResource;
+use App\Services\AdminNotifier;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -48,7 +49,7 @@ class ClubsTable
                     ->label('Federación')
                     ->sortable()
                     ->searchable(),
-                 TextColumn::make('players_count')
+                TextColumn::make('players_count')
                     ->label('Afil')
                     ->counts('players')
                     ->sortable(),
@@ -85,7 +86,7 @@ class ClubsTable
                     ClubResource::locationAction(),
                     GlobalViewAction::make(),
                     GlobalEditAction::make(),
-                    GlobalDeleteAction::make(),
+                    AdminNotifier::notifyAction(GlobalDeleteAction::make(), null, 'eliminó', ['name'], 'Clubes'),
                 ]),
             ])
             ->headerActions([
@@ -96,16 +97,16 @@ class ClubsTable
                     ->action(function ($livewire) {
                         // Obtenemos los registros filtrados desde el componente Livewire
                         $records = $livewire->getFilteredTableQuery()->get();
-                        
+
                         // Invocamos el método estático del Resource
                         return ClubResource::exportToPdf($records, 'Listado de Clubes');
                     }),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                    ForceDeleteBulkAction::make(),
-                    RestoreBulkAction::make(),
+                    AdminNotifier::notifyBulkAction(DeleteBulkAction::make(), 'eliminó', ['name'], 'Clubes'),
+                    AdminNotifier::notifyBulkAction(ForceDeleteBulkAction::make(), 'eliminó definitivamente', ['name'], 'Clubes'),
+                    AdminNotifier::notifyBulkAction(RestoreBulkAction::make(), 'restauró', ['name'], 'Clubes'),
                 ]),
             ]);
     }

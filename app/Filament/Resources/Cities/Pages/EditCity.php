@@ -3,9 +3,9 @@
 namespace App\Filament\Resources\Cities\Pages;
 
 use App\Filament\Resources\Cities\CityResource;
+use App\Services\AdminNotifier;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
-use App\Services\AdminNotifier;
 
 class EditCity extends EditRecord
 {
@@ -14,7 +14,7 @@ class EditCity extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
+            AdminNotifier::notifyAction(DeleteAction::make(), $this, 'eliminó', ['name']),
         ];
     }
 

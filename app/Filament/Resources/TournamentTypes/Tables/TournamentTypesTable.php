@@ -6,6 +6,7 @@ use App\Filament\Actions\GlobalActionGroup;
 use App\Filament\Actions\GlobalDeleteAction;
 use App\Filament\Actions\GlobalEditAction;
 use App\Filament\Actions\GlobalViewAction;
+use App\Services\AdminNotifier;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ForceDeleteBulkAction;
@@ -134,14 +135,14 @@ class TournamentTypesTable
                 GlobalActionGroup::make([
                     GlobalViewAction::make(),
                     GlobalEditAction::make(),
-                    GlobalDeleteAction::make(),
+                    AdminNotifier::notifyAction(GlobalDeleteAction::make(), null, 'eliminó', ['name'], 'Tipos de torneo'),
                 ]),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                    ForceDeleteBulkAction::make(),
-                    RestoreBulkAction::make(),
+                    AdminNotifier::notifyBulkAction(DeleteBulkAction::make(), 'eliminó', ['name'], 'Tipos de torneo'),
+                    AdminNotifier::notifyBulkAction(ForceDeleteBulkAction::make(), 'eliminó definitivamente', ['name'], 'Tipos de torneo'),
+                    AdminNotifier::notifyBulkAction(RestoreBulkAction::make(), 'restauró', ['name'], 'Tipos de torneo'),
                 ]),
             ]);
     }

@@ -3,9 +3,9 @@
 namespace App\Filament\Resources\Users\Pages;
 
 use App\Filament\Resources\Users\UserResource;
+use App\Services\AdminNotifier;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
-use App\Services\AdminNotifier;
 
 class EditUser extends EditRecord
 {
@@ -14,7 +14,7 @@ class EditUser extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
+            AdminNotifier::notifyAction(DeleteAction::make(), $this, 'eliminó', ['name']),
         ];
     }
 

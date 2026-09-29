@@ -3,24 +3,47 @@
 namespace App\Filament\Resources\TournamentRegistrations\Pages;
 
 use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
+use App\Mail\TournamentRegistrationNotification;
+use App\Services\AdminNotifier;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Resources\Concerns\HasTabs;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Support\Facades\Mail;
 
 class EditTournamentRegistration extends EditRecord
 {
     use HasTabs;
+
     protected static string $resource = TournamentRegistrationResource::class;
+
     protected static ?string $title = 'Inscripción';
 
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
-            ForceDeleteAction::make(),
-            RestoreAction::make(),
+            AdminNotifier::notifyAction(
+                DeleteAction::make(),
+                $this,
+                'eliminó la inscripción de',
+                ['player.last_name', 'player.first_name', 'partner.last_name', 'partner.first_name'],
+                'Inscripciones a torneos',
+            ),
+            AdminNotifier::notifyAction(
+                ForceDeleteAction::make(),
+                $this,
+                'eliminó definitivamente la inscripción de',
+                ['player.last_name', 'player.first_name', 'partner.last_name', 'partner.first_name'],
+                'Inscripciones a torneos',
+            ),
+            AdminNotifier::notifyAction(
+                RestoreAction::make(),
+                $this,
+                'restauró la inscripción de',
+                ['player.last_name', 'player.first_name', 'partner.last_name', 'partner.first_name'],
+                'Inscripciones a torneos',
+            ),
         ];
     }
 
@@ -34,4 +57,20 @@ class EditTournamentRegistration extends EditRecord
         return session('pdf_url') ?? null;
     }
 
+    protected function afterSave(): void
+    {
+        $tournamentName = $this->record->tournament?->name ?? 'el torneo';
+
+        Mail::to(AdminNotifier::recipientEmails())
+            ->send(new TournamentRegistrationNotification($this->record, 'Actualización de inscripción'));
+
+        AdminNotifier::send(
+            $this,
+            $this->record,
+            'modificó la inscripción de',
+            ['player.last_name', 'player.first_name', 'partner.last_name', 'partner.first_name'],
+            "el torneo {$tournamentName}",
+            false,
+        );
+    }
 }

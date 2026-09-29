@@ -6,6 +6,7 @@ use App\Filament\Actions\GlobalActionGroup;
 use App\Filament\Actions\GlobalDeleteAction;
 use App\Filament\Actions\GlobalEditAction;
 use App\Filament\Actions\GlobalViewAction;
+use App\Services\AdminNotifier;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\TextColumn;
@@ -39,18 +40,18 @@ class StatesTable
                     ->sortable(),
             ])
             ->filters([
-                //php
+                // php
             ])
             ->recordActions([
                 GlobalActionGroup::make([
                     GlobalViewAction::make(),
                     GlobalEditAction::make(),
-                    GlobalDeleteAction::make(),
-                ])
+                    AdminNotifier::notifyAction(GlobalDeleteAction::make(), null, 'eliminó', ['name'], 'Provincias'),
+                ]),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    AdminNotifier::notifyBulkAction(DeleteBulkAction::make(), 'eliminó', ['name'], 'Provincias'),
                 ]),
             ]);
     }

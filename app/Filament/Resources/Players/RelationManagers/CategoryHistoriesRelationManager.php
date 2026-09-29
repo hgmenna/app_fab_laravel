@@ -6,14 +6,15 @@ use App\Filament\Actions\GlobalActionGroup;
 use App\Filament\Actions\GlobalDeleteAction;
 use App\Filament\Actions\GlobalEditAction;
 use App\Filament\Actions\GlobalViewAction;
-use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Schemas\Schema;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Table;
+use App\Services\AdminNotifier;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 
 class CategoryHistoriesRelationManager extends RelationManager
 {
@@ -138,9 +139,22 @@ class CategoryHistoriesRelationManager extends RelationManager
             ->recordActions([
                 GlobalActionGroup::make([
                     GlobalViewAction::make(),
-                    GlobalEditAction::make(),
-                    GlobalDeleteAction::make(),
-                ])
+                    GlobalEditAction::make()
+                        ->after(fn ($record) => AdminNotifier::send(
+                            null,
+                            $record,
+                            'actualizó',
+                            ['effective_date', 'category.name'],
+                            'Historial de categorías',
+                        )),
+                    AdminNotifier::notifyAction(
+                        GlobalDeleteAction::make(),
+                        null,
+                        'eliminó',
+                        ['effective_date', 'category.name'],
+                        'Historial de categorías',
+                    ),
+                ]),
                 //
             ])
             ->toolbarActions([

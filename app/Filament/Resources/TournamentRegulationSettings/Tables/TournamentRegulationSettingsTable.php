@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TournamentRegulationSettings\Tables;
 
+use App\Services\AdminNotifier;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
@@ -23,6 +24,15 @@ class TournamentRegulationSettingsTable
             IconColumn::make('enabled')->label('Activo')->boolean(),
             TextColumn::make('effective_from')->label('Desde')->date('d/m/Y'),
             TextColumn::make('effective_until')->label('Hasta')->date('d/m/Y'),
-        ])->recordActions([EditAction::make(), DeleteAction::make()]);
+        ])->recordActions([
+            EditAction::make(),
+            AdminNotifier::notifyAction(
+                DeleteAction::make(),
+                null,
+                'eliminó',
+                ['discipline.name'],
+                'Configuración reglamentaria',
+            ),
+        ]);
     }
 }

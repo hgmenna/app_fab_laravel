@@ -6,12 +6,13 @@ use App\Filament\Actions\GlobalActionGroup;
 use App\Filament\Actions\GlobalDeleteAction;
 use App\Filament\Actions\GlobalEditAction;
 use App\Filament\Actions\GlobalViewAction;
+use App\Services\AdminNotifier;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Filament\Actions\Action;
 
 class FederationsTable
 {
@@ -56,20 +57,20 @@ class FederationsTable
                         ->modalContent(fn ($record) => view(
                             'federaciones.table.table-clubes', // Nombre de vista corregido
                             [
-                                'record' => $record->load(['states.cities.clubs' => function($query) {
-                                    $query->withCount('players'); 
-                                }])
+                                'record' => $record->load(['states.cities.clubs' => function ($query) {
+                                    $query->withCount('players');
+                                }]),
                             ]
                         ))
                         ->modalSubmitAction(false),
                     GlobalViewAction::make(),
                     GlobalEditAction::make(),
-                    GlobalDeleteAction::make(),
+                    AdminNotifier::notifyAction(GlobalDeleteAction::make(), null, 'eliminó', ['name'], 'Federaciones'),
                 ]),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    AdminNotifier::notifyBulkAction(DeleteBulkAction::make(), 'eliminó', ['name'], 'Federaciones'),
                 ]),
             ]);
     }

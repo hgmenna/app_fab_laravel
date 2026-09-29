@@ -3,9 +3,9 @@
 namespace App\Filament\Resources\Disciplines\Pages;
 
 use App\Filament\Resources\Disciplines\DisciplineResource;
+use App\Services\AdminNotifier;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
-use App\Services\AdminNotifier;
 
 class EditDiscipline extends EditRecord
 {
@@ -14,7 +14,7 @@ class EditDiscipline extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
+            AdminNotifier::notifyAction(DeleteAction::make(), $this, 'eliminó', ['name']),
         ];
     }
 

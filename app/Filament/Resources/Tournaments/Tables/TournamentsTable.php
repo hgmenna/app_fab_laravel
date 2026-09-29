@@ -7,6 +7,7 @@ use App\Filament\Actions\GlobalDeleteAction;
 use App\Filament\Actions\GlobalEditAction;
 use App\Filament\Actions\GlobalViewAction;
 use App\Filament\Resources\Tournaments\TournamentResource;
+use App\Services\AdminNotifier;
 use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -121,7 +122,7 @@ class TournamentsTable
                 GlobalActionGroup::make([
                     GlobalViewAction::make(),
                     GlobalEditAction::make(),
-                    GlobalDeleteAction::make(),
+                    AdminNotifier::notifyAction(GlobalDeleteAction::make(), null, 'eliminó', ['name'], 'Torneos'),
                     TournamentResource::inscriptionsAction(),
                     TournamentResource::resumenAction(),
                 ]),

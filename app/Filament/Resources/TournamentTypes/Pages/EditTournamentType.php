@@ -3,11 +3,11 @@
 namespace App\Filament\Resources\TournamentTypes\Pages;
 
 use App\Filament\Resources\TournamentTypes\TournamentTypeResource;
+use App\Services\AdminNotifier;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Resources\Pages\EditRecord;
-use App\Services\AdminNotifier;
 
 class EditTournamentType extends EditRecord
 {
@@ -16,9 +16,9 @@ class EditTournamentType extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
-            ForceDeleteAction::make(),
-            RestoreAction::make(),
+            AdminNotifier::notifyAction(DeleteAction::make(), $this, 'eliminó', ['name']),
+            AdminNotifier::notifyAction(ForceDeleteAction::make(), $this, 'eliminó definitivamente', ['name']),
+            AdminNotifier::notifyAction(RestoreAction::make(), $this, 'restauró', ['name']),
         ];
     }
 
