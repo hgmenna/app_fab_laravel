@@ -7,14 +7,18 @@ use App\Filament\Actions\GlobalDeleteAction;
 use App\Filament\Actions\GlobalEditAction;
 use App\Filament\Actions\GlobalViewAction;
 use App\Filament\Resources\Tournaments\TournamentResource;
+use App\Models\Category;
+use App\Models\Tournament;
 use App\Services\AdminNotifier;
 use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Storage;
 
 class TournamentsTable
 {
@@ -48,6 +52,21 @@ class TournamentsTable
                     ->wrap()
                     ->width('14%'),
 
+                TextColumn::make('categories')
+                    ->label('Categorías')
+                    ->state(function (Tournament $record): string {
+                        static $categoryNames;
+
+                        $categoryNames ??= Category::query()->pluck('name', 'id');
+
+                        return collect($record->categories ?? [])
+                            ->map(fn ($id) => $categoryNames->get($id))
+                            ->filter()
+                            ->implode(', ');
+                    })
+                    ->wrap()
+                    ->width('14%'),
+
                 TextColumn::make('start_date')
                     ->label('Inicio')
                     ->date('d/m/y')
@@ -63,15 +82,8 @@ class TournamentsTable
                     ->width('7%'),
 
                 TextColumn::make('registrations_count')
-                    ->label('Insc.')
+                    ->label('Inscriptos')
                     ->counts('registrations')
-                    ->alignCenter()
-                    ->width('5%'),
-
-                TextColumn::make('participants_count')
-                    ->label('Part.')
-                    ->getStateUsing(fn ($record): int => $record->registrations
-                        ->sum(fn ($registration): int => $registration->partner_player_id ? 2 : 1))
                     ->alignCenter()
                     ->width('5%'),
 
@@ -92,6 +104,7 @@ class TournamentsTable
                     ->boolean()
                     ->trueColor('warning')
                     ->alignCenter()
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->width('5%'),
 
                 TextColumn::make('latestSuccessfulRegulationAudit.result')
@@ -111,10 +124,40 @@ class TournamentsTable
                     ->alignCenter()
                     ->wrap()
                     ->width('10%'),
+
+                ImageColumn::make('publication_logo')
+                    ->label('Federación')
+                    ->state(fn (Tournament $record): ?string => $record->publicationLogoPath())
+                    ->disk('public_path')
+                    ->imageSize(40)
+                    ->square()
+                    ->alignCenter()
+                    ->url(
+                        fn (Tournament $record): ?string => filled($path = $record->publicationLogoPath())
+                            ? Storage::disk('public_path')->url($path)
+                            : null,
+                        shouldOpenInNewTab: true,
+                    ),
+
+                ImageColumn::make('flyer_path')
+                    ->label('Flyer')
+                    ->disk('public_path')
+                    ->imageWidth(56)
+                    ->imageHeight(40)
+                    ->alignCenter()
+                    ->extraImgAttributes(['class' => 'object-cover rounded-md'])
+                    ->url(
+                        fn (Tournament $record): ?string => filled($record->flyer_path)
+                            ? Storage::disk('public_path')->url($record->flyer_path)
+                            : null,
+                        shouldOpenInNewTab: true,
+                    ),
             ])
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
                 'registrations:id,tournament_id,partner_player_id',
                 'latestSuccessfulRegulationAudit',
+                'type.publicationFederation',
+                'venue.city.state.federation',
             ]))
             ->extraAttributes(['class' => 'fab-tournaments-table'])
             ->defaultSort('start_date', direction: 'asc')
