@@ -34,18 +34,21 @@ class TournamentsTable
                     ->sortable()
                     ->alignCenter()
                     ->wrap()
+                    ->visibleFrom('md')
                     ->width('6%'),
 
                 TextColumn::make('type.participation_mode')
                     ->label('Mod.')
                     ->formatStateUsing(fn (?string $state): string => $state === 'pairs' ? 'Par' : 'Ind.')
                     ->alignCenter()
+                    ->visibleFrom('lg')
                     ->width('6%'),
 
                 TextColumn::make('venue.name')
                     ->label('Club')
                     ->sortable()
                     ->wrap()
+                    ->visibleFrom('md')
                     ->width('14%'),
 
                 TextColumn::make('start_date')
@@ -60,12 +63,14 @@ class TournamentsTable
                     ->date('d/m/y')
                     ->sortable()
                     ->alignCenter()
+                    ->visibleFrom('md')
                     ->width('7%'),
 
                 TextColumn::make('registrations_count')
                     ->label('Insc.')
                     ->counts('registrations')
                     ->alignCenter()
+                    ->visibleFrom('md')
                     ->width('5%'),
 
                 TextColumn::make('participants_count')
@@ -73,18 +78,21 @@ class TournamentsTable
                     ->getStateUsing(fn ($record): int => $record->registrations
                         ->sum(fn ($registration): int => $registration->partner_player_id ? 2 : 1))
                     ->alignCenter()
+                    ->visibleFrom('lg')
                     ->width('5%'),
 
                 IconColumn::make('is_payment_enabled')
                     ->label('Pago')
                     ->boolean()
                     ->alignCenter()
+                    ->visibleFrom('lg')
                     ->width('4%'),
 
                 IconColumn::make('registration_enabled')
                     ->label('Insc. abierta')
                     ->boolean()
                     ->alignCenter()
+                    ->visibleFrom('lg')
                     ->width('6%'),
 
                 IconColumn::make('regulatory_override')
@@ -92,6 +100,7 @@ class TournamentsTable
                     ->boolean()
                     ->trueColor('warning')
                     ->alignCenter()
+                    ->visibleFrom('lg')
                     ->width('5%'),
 
                 TextColumn::make('latestSuccessfulRegulationAudit.result')
@@ -125,7 +134,9 @@ class TournamentsTable
                     AdminNotifier::notifyAction(GlobalDeleteAction::make(), null, 'eliminó', ['name'], 'Torneos'),
                     TournamentResource::inscriptionsAction(),
                     TournamentResource::resumenAction(),
-                ]),
+                ])
+                    ->iconButton()
+                    ->tooltip('Acciones'),
             ])
             ->filters([
                 SelectFilter::make('discipline_id')
