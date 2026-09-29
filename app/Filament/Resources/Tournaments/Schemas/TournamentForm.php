@@ -315,7 +315,10 @@ class TournamentForm
                                         $type = TournamentType::find($get('tournament_type_id'));
 
                                         if (! $type?->is_official) {
-                                            return 'Sin logo: el torneo es no oficial.';
+                                            $club = Club::with('city.state.federation')->find($get('venue_id'));
+
+                                            return 'Se utilizará el logo de '
+                                                .($club?->city?->state?->federation?->name ?? 'la federación correspondiente al club organizador').'.';
                                         }
 
                                         if ($type->publication_logo_source === 'national_federation') {

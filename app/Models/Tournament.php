@@ -117,7 +117,7 @@ class Tournament extends Model
         ]);
 
         if (! $this->type?->is_official) {
-            return null;
+            return $this->venue?->city?->state?->federation?->logo_path;
         }
 
         return match ($this->type->publication_logo_source) {

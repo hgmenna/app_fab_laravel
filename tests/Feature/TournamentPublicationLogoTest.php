@@ -34,8 +34,9 @@ function publicationTournament(bool $official, string $source): Tournament
     return $tournament;
 }
 
-it('does not publish a logo for a non official tournament', function () {
-    expect(publicationTournament(false, 'venue_federation')->publicationLogoPath())->toBeNull();
+it('uses the organizing club federation logo for a non official tournament', function () {
+    expect(publicationTournament(false, 'none')->publicationLogoPath())
+        ->toBe('logos/provincial.png');
 });
 
 it('uses the organizing club provincial federation logo', function () {
