@@ -15,6 +15,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ViewColumn;
+use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -32,7 +33,7 @@ class TournamentsTable
                     ->searchable()
                     ->sortable()
                     ->wrap()
-                    ->width('14rem')
+                    ->width('12rem')
                     ->extraHeaderAttributes(['class' => 'fab-col-tournament'])
                     ->extraCellAttributes(['class' => 'fab-col-tournament']),
 
@@ -49,13 +50,15 @@ class TournamentsTable
                             : null,
                         shouldOpenInNewTab: true,
                     )
-                    ->width('6%'),
+                    ->width('4.25rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-flyer'])
+                    ->extraCellAttributes(['class' => 'fab-col-flyer']),
 
                 ViewColumn::make('sport_details')
                     ->label('Datos')
                     ->view('filament.tables.columns.tournament-sport-details')
                     ->sortable(['tournament_type_id'])
-                    ->width('9rem')
+                    ->width('8rem')
                     ->extraHeaderAttributes(['class' => 'fab-col-sport-details'])
                     ->extraCellAttributes(['class' => 'fab-col-sport-details']),
 
@@ -63,7 +66,7 @@ class TournamentsTable
                     ->label('Of. / Hand.')
                     ->view('filament.tables.columns.tournament-conditions')
                     ->alignCenter()
-                    ->width('6.5rem')
+                    ->width('6rem')
                     ->extraHeaderAttributes(['class' => 'fab-col-conditions'])
                     ->extraCellAttributes(['class' => 'fab-col-conditions']),
 
@@ -71,7 +74,7 @@ class TournamentsTable
                     ->label('Sede')
                     ->sortable()
                     ->wrap()
-                    ->width('12rem')
+                    ->width('10rem')
                     ->extraHeaderAttributes(['class' => 'fab-col-venue'])
                     ->extraCellAttributes(['class' => 'fab-col-venue']),
 
@@ -88,7 +91,9 @@ class TournamentsTable
                             : null,
                         shouldOpenInNewTab: true,
                     )
-                    ->width('5%'),
+                    ->width('4.25rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-federation'])
+                    ->extraCellAttributes(['class' => 'fab-col-federation']),
 
                 ViewColumn::make('categories')
                     ->label('Cat.')
@@ -111,7 +116,7 @@ class TournamentsTable
                             ->all();
                     })
                     ->view('filament.tables.columns.tournament-categories')
-                    ->width('9rem')
+                    ->width('6rem')
                     ->extraHeaderAttributes(['class' => 'fab-col-categories'])
                     ->extraCellAttributes(['class' => 'fab-col-categories']),
 
@@ -120,14 +125,16 @@ class TournamentsTable
                     ->view('filament.tables.columns.tournament-dates')
                     ->sortable(['start_date'])
                     ->alignCenter()
-                    ->width('9%'),
+                    ->width('7rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-dates'])
+                    ->extraCellAttributes(['class' => 'fab-col-dates']),
 
                 TextColumn::make('registrations_count')
                     ->label('Insc.')
                     ->counts('registrations')
                     ->alignCenter()
                     ->tooltip('Inscriptos')
-                    ->width('4.5rem')
+                    ->width('4.25rem')
                     ->extraHeaderAttributes(['class' => 'fab-col-registrations'])
                     ->extraCellAttributes(['class' => 'fab-col-registrations']),
 
@@ -135,7 +142,7 @@ class TournamentsTable
                     ->label('Pago / Insc.')
                     ->view('filament.tables.columns.tournament-registration-options')
                     ->alignCenter()
-                    ->width('7rem')
+                    ->width('6rem')
                     ->extraHeaderAttributes(['class' => 'fab-col-registration-options'])
                     ->extraCellAttributes(['class' => 'fab-col-registration-options']),
 
@@ -163,7 +170,7 @@ class TournamentsTable
                     })
                     ->alignCenter()
                     ->wrap()
-                    ->width('8.5rem')
+                    ->width('7.5rem')
                     ->extraHeaderAttributes(['class' => 'fab-col-status'])
                     ->extraCellAttributes(['class' => 'fab-col-status']),
 
@@ -186,7 +193,7 @@ class TournamentsTable
                 ])
                     ->iconButton()
                     ->tooltip('Acciones'),
-            ])
+            ], position: RecordActionsPosition::BeforeColumns)
             ->recordActionsColumnLabel('Acc.')
             ->filters([
                 SelectFilter::make('discipline_id')
