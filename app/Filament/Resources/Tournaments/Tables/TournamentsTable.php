@@ -130,7 +130,7 @@ class TournamentsTable
                     ->extraCellAttributes(['class' => 'fab-col-dates']),
 
                 TextColumn::make('registrations_count')
-                    ->label('Insc.')
+                    ->label('# Insc')
                     ->counts('registrations')
                     ->alignCenter()
                     ->tooltip('Inscriptos')
@@ -147,7 +147,7 @@ class TournamentsTable
                     ->extraCellAttributes(['class' => 'fab-col-registration-options']),
 
                 IconColumn::make('regulatory_override')
-                    ->label('Excep.')
+                    ->label('Excep')
                     ->boolean()
                     ->trueColor('warning')
                     ->alignCenter()
