@@ -63,19 +63,11 @@ class TournamentsTable
                     ->alignCenter()
                     ->width('10%'),
 
-                IconColumn::make('type.is_official')
-                    ->label('Of.')
-                    ->boolean()
+                ViewColumn::make('conditions')
+                    ->label('Of. / Hand.')
+                    ->view('filament.tables.columns.tournament-conditions')
                     ->alignCenter()
-                    ->tooltip('Torneo oficial')
-                    ->width('4%'),
-
-                IconColumn::make('type.has_handicap')
-                    ->label('Hand.')
-                    ->boolean()
-                    ->alignCenter()
-                    ->tooltip('Con handicap')
-                    ->width('5%'),
+                    ->width('8%'),
 
                 TextColumn::make('venue.name')
                     ->label('Sede')
@@ -101,12 +93,18 @@ class TournamentsTable
                 TextColumn::make('categories')
                     ->label('Cat.')
                     ->state(function (Tournament $record): string {
-                        static $categoryNames;
+                        static $categories;
 
-                        $categoryNames ??= Category::query()->pluck('name', 'id');
+                        $categories ??= Category::query()
+                            ->get(['id', 'code', 'name'])
+                            ->keyBy('id');
 
                         return collect($record->categories ?? [])
-                            ->map(fn ($id) => $categoryNames->get($id))
+                            ->map(function ($id) use ($categories): ?string {
+                                $category = $categories->get($id);
+
+                                return $category?->code ?: $category?->name;
+                            })
                             ->filter()
                             ->implode(', ');
                     })

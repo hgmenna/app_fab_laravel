@@ -29,13 +29,15 @@
 
 /* Tabla principal de torneos: todas las columnas dentro del ancho disponible. */
 .fab-tournaments-table .fi-ta-content-ctn {
-    overflow-x: hidden;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 .fab-tournaments-table .fi-ta-table {
     width: 100%;
-    min-width: 0;
-    table-layout: fixed;
+    min-width: 84rem;
+    table-layout: auto;
 }
 
 .fab-tournaments-table .fi-ta-header-cell,
@@ -66,6 +68,22 @@
     gap: 0.2rem;
 }
 
+.fab-tournaments-table .fi-ta-header-cell-discipline-name,
+.fab-tournaments-table .fi-ta-cell-discipline-name {
+    min-width: 6rem;
+}
+
+.fab-tournaments-table .fi-ta-header-cell-registrations-count,
+.fab-tournaments-table .fi-ta-cell-registrations-count {
+    min-width: 4rem;
+    white-space: nowrap;
+}
+
+.fab-tournaments-table .fi-ta-header-cell-conditions,
+.fab-tournaments-table .fi-ta-cell-conditions {
+    min-width: 6rem;
+}
+
 /* En móvil y tablet todas las columnas permanecen disponibles mediante desplazamiento táctil. */
 @media (max-width: 1023px) {
     .fab-tournaments-table .fi-ta-content-ctn {
@@ -77,7 +95,7 @@
     .fab-tournaments-table .fi-ta-table {
         table-layout: auto;
         width: max-content;
-        min-width: 90rem;
+        min-width: 84rem;
     }
 
     .fab-tournaments-table .fi-ta-header-cell,
