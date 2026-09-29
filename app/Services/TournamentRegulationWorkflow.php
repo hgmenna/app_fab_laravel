@@ -6,12 +6,30 @@ use App\Exceptions\TournamentRegulationBlockedException;
 use App\Models\Tournament;
 use App\Models\TournamentRegulationAudit;
 use App\Models\User;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class TournamentRegulationWorkflow
 {
     public function __construct(private readonly TournamentRegulationService $regulations) {}
+
+    public function shouldRevalidateUpdate(array $data, Tournament $record): bool
+    {
+        if (! $record->relationLoaded('latestSuccessfulRegulationAudit')) {
+            $record->load('latestSuccessfulRegulationAudit');
+        }
+
+        if (! $record->latestSuccessfulRegulationAudit) {
+            return true;
+        }
+
+        return $this->dateValue($data['start_date'] ?? $record->start_date)
+                !== $this->dateValue($record->start_date)
+            || $this->dateValue($data['end_date'] ?? $record->end_date)
+                !== $this->dateValue($record->end_date);
+    }
 
     public function validate(array $data, User $user, string $operation, ?Tournament $record = null): array
     {
@@ -164,5 +182,18 @@ class TournamentRegulationWorkflow
             'slots',
             'scoring_rules',
         ])->all();
+    }
+
+    private function dateValue(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof CarbonInterface) {
+            return $value->toDateString();
+        }
+
+        return Carbon::parse($value)->toDateString();
     }
 }

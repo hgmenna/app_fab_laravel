@@ -28,8 +28,14 @@ class EditTournament extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $workflow = app(TournamentRegulationWorkflow::class);
+
+        if (! $workflow->shouldRevalidateUpdate($data, $this->record)) {
+            return $data;
+        }
+
         try {
-            [$data, $this->regulationEvaluation, $this->regulationOverridden] = app(TournamentRegulationWorkflow::class)
+            [$data, $this->regulationEvaluation, $this->regulationOverridden] = $workflow
                 ->validate($data, Auth::user(), 'update', $this->record);
         } catch (TournamentRegulationBlockedException $exception) {
             $this->showRegulatoryConflictModal($exception);
