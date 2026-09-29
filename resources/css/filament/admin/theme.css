@@ -77,7 +77,7 @@
     .fab-tournaments-table .fi-ta-table {
         table-layout: auto;
         width: max-content;
-        min-width: 76rem;
+        min-width: 80rem;
     }
 
     .fab-tournaments-table .fi-ta-header-cell,

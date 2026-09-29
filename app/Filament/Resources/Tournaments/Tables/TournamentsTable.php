@@ -12,12 +12,14 @@ use App\Models\Tournament;
 use App\Services\AdminNotifier;
 use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ViewColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Storage;
 
 class TournamentsTable
 {
@@ -32,6 +34,21 @@ class TournamentsTable
                     ->wrap()
                     ->width('16%'),
 
+                ImageColumn::make('flyer_path')
+                    ->label('Flyer')
+                    ->disk('public_path')
+                    ->imageWidth(50)
+                    ->imageHeight(38)
+                    ->alignCenter()
+                    ->extraImgAttributes(['class' => 'object-cover rounded-md'])
+                    ->url(
+                        fn (Tournament $record): ?string => filled($record->flyer_path)
+                            ? Storage::disk('public_path')->url($record->flyer_path)
+                            : null,
+                        shouldOpenInNewTab: true,
+                    )
+                    ->width('6%'),
+
                 ViewColumn::make('type_and_mode')
                     ->label('Tipo / Mod.')
                     ->view('filament.tables.columns.tournament-type-mode')
@@ -44,6 +61,21 @@ class TournamentsTable
                     ->sortable()
                     ->wrap()
                     ->width('14%'),
+
+                ImageColumn::make('publication_logo')
+                    ->label('Fed.')
+                    ->state(fn (Tournament $record): ?string => $record->publicationLogoPath())
+                    ->disk('public_path')
+                    ->imageSize(38)
+                    ->square()
+                    ->alignCenter()
+                    ->url(
+                        fn (Tournament $record): ?string => filled($path = $record->publicationLogoPath())
+                            ? Storage::disk('public_path')->url($path)
+                            : null,
+                        shouldOpenInNewTab: true,
+                    )
+                    ->width('5%'),
 
                 TextColumn::make('categories')
                     ->label('Cat.')
@@ -68,24 +100,25 @@ class TournamentsTable
                     ->width('9%'),
 
                 TextColumn::make('registrations_count')
-                    ->label('#')
+                    ->label('Insc.')
                     ->counts('registrations')
                     ->alignCenter()
                     ->tooltip('Inscriptos')
-                    ->width('4%'),
+                    ->width('5%'),
 
                 IconColumn::make('is_payment_enabled')
-                    ->label('Pago')
+                    ->label('$')
                     ->boolean()
                     ->alignCenter()
+                    ->tooltip('Pago habilitado')
                     ->width('4%'),
 
                 IconColumn::make('registration_enabled')
-                    ->label('Ab.')
+                    ->label('Inscr. abierta')
                     ->boolean()
                     ->alignCenter()
                     ->tooltip('Inscripción habilitada')
-                    ->width('6%'),
+                    ->width('7%'),
 
                 IconColumn::make('regulatory_override')
                     ->label('Excep.')
@@ -113,11 +146,6 @@ class TournamentsTable
                     ->wrap()
                     ->width('10%'),
 
-                ViewColumn::make('publication_media')
-                    ->label('Imgs.')
-                    ->view('filament.tables.columns.tournament-media')
-                    ->alignCenter()
-                    ->width('7%'),
             ])
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
                 'registrations:id,tournament_id,partner_player_id',
