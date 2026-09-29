@@ -113,7 +113,7 @@ class TournamentsTable
             ])
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
                 'registrations:id,tournament_id,partner_player_id',
-                'latestSuccessfulRegulationAudit:id,tournament_id,result',
+                'latestSuccessfulRegulationAudit',
             ]))
             ->extraAttributes(['class' => 'fab-tournaments-table'])
             ->defaultSort('start_date', direction: 'asc')
