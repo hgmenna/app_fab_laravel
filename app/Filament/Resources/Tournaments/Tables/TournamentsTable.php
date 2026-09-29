@@ -49,12 +49,33 @@ class TournamentsTable
                     )
                     ->width('6%'),
 
+                TextColumn::make('discipline.name')
+                    ->label('Disc.')
+                    ->sortable()
+                    ->searchable()
+                    ->wrap()
+                    ->width('7%'),
+
                 ViewColumn::make('type_and_mode')
                     ->label('Tipo / Mod.')
                     ->view('filament.tables.columns.tournament-type-mode')
                     ->sortable(['tournament_type_id'])
                     ->alignCenter()
                     ->width('10%'),
+
+                IconColumn::make('type.is_official')
+                    ->label('Of.')
+                    ->boolean()
+                    ->alignCenter()
+                    ->tooltip('Torneo oficial')
+                    ->width('4%'),
+
+                IconColumn::make('type.has_handicap')
+                    ->label('Hand.')
+                    ->boolean()
+                    ->alignCenter()
+                    ->tooltip('Con handicap')
+                    ->width('5%'),
 
                 TextColumn::make('venue.name')
                     ->label('Sede')
