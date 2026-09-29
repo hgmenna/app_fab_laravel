@@ -18,7 +18,7 @@
     </div>
 
     <div class="flex items-center gap-1.5" title="{{ $registration ? 'Inscripción habilitada' : 'Inscripción cerrada' }}">
-        <span class="w-8 font-semibold">I/HAB</span>
+        <span class="w-8 font-semibold">I/A</span>
         <x-filament::icon
             :icon="$registration ? 'heroicon-m-check-circle' : 'heroicon-m-x-circle'"
             @class([
