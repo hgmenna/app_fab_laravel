@@ -108,8 +108,8 @@
 }
 
 .fab-tournaments-table .fab-col-categories {
-    width: 14rem !important;
-    min-width: 14rem;
+    width: 9rem !important;
+    min-width: 9rem;
 }
 
 .fab-tournaments-table .fi-ta-table thead tr > th:last-child,
