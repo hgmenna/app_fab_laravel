@@ -192,6 +192,7 @@ class TournamentsTable
                     TournamentResource::resumenAction(),
                 ])
                     ->iconButton()
+                    ->dropdownPlacement('bottom-start')
                     ->tooltip('Acciones'),
             ], position: RecordActionsPosition::BeforeColumns)
             ->recordActionsColumnLabel('Acc.')
