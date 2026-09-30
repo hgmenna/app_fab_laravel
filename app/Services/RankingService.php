@@ -2,23 +2,21 @@
 
 namespace App\Services;
 
+use App\Models\Category;
 use App\Models\GeneralRanking;
 use App\Models\Player;
 use App\Models\RankingHistory;
+use App\Models\RankingSpecialPosition;
 use App\Models\Tournament;
 use App\Models\TournamentRegistration;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use App\Models\RankingSpecialPosition;
-use App\Models\Category;
 
 class RankingService
 {
     /**
-    * Devuelve la colección formateada para el ranking general.
-    *
-    * @return \Illuminate\Support\Collection
-    */
+     * Devuelve la colección formateada para el ranking general.
+     */
     public static function getGeneralRanking(?string $category = null, ?string $search = null): Collection
     {
         // 1) Últimos 4 torneos que afectan ranking
@@ -53,8 +51,8 @@ class RankingService
             ->with([
                 'player.club.city.state.federation',
                 'player.category',
-                'partner.club.city.state.federation',
-                'partner.category',
+                'participants.player.club.city.state.federation',
+                'participants.player.category',
                 'tournamentInstance',
             ])
             ->whereIn('tournament_id', $torneos)
@@ -62,11 +60,7 @@ class RankingService
 
         // 3) Jugadores con puntos en alguno de los torneos seleccionados
         $jugadores = Player::query()
-            ->whereHas('registrations', function ($q) use ($torneos) {
-                $q->whereIn('tournament_id', $torneos)
-                    ->where('points', '>', 0);
-            })
-            ->orWhereHas('partnerRegistrations', function ($q) use ($torneos) {
+            ->whereHas('tournamentRegistrationParticipations.registration', function ($q) use ($torneos) {
                 $q->whereIn('tournament_id', $torneos)
                     ->where('points', '>', 0);
             })
@@ -107,10 +101,11 @@ class RankingService
         $ranking = $jugadores->map(function ($player) use ($regs, $torneos, $rankingAnterior) {
 
             // Inscripciones del jugador en los 4 torneos seleccionados
-            $items = $regs->filter(fn (TournamentRegistration $registration): bool =>
-                (int) $registration->player_id === (int) $player->id
-                || (int) $registration->partner_player_id === (int) $player->id
-            );
+            $items = $regs->filter(fn (TournamentRegistration $registration): bool => in_array(
+                (int) $player->id,
+                $registration->participantIds(),
+                true,
+            ));
 
             // Ordenar por el orden de los torneos seleccionados
             $ordenados = collect($torneos)->map(fn ($tid) => $items->firstWhere('tournament_id', $tid));
@@ -165,7 +160,7 @@ class RankingService
                 }
             }
 
-           return $a['previous_rank'] <=> $b['previous_rank'];
+            return $a['previous_rank'] <=> $b['previous_rank'];
         })->values();
 
         /*
@@ -193,7 +188,7 @@ class RankingService
             $runnerUpItem = $rankingOrdenado
                 ->first(fn ($item) => (int) $item['player']->id === $runnerUpId);
 
-            if (!$championItem) {
+            if (! $championItem) {
                 $player = Player::query()
                     ->with(['club.city.state.federation', 'category'])
                     ->find($championId);
@@ -215,7 +210,7 @@ class RankingService
                 }
             }
 
-            if (!$runnerUpItem) {
+            if (! $runnerUpItem) {
                 $player = Player::query()
                     ->with(['club.city.state.federation', 'category'])
                     ->find($runnerUpId);
@@ -264,7 +259,7 @@ class RankingService
             }
         }
 
-        $nationalMaxRG = ($isSeasonClosed && !$specialPosition)
+        $nationalMaxRG = ($isSeasonClosed && ! $specialPosition)
             ? $nationalMaxRGAfterStage4
             : $nationalMaxRGNormal;
 
@@ -325,7 +320,7 @@ class RankingService
         });
 
         // 7) Formato final para tabla
-        $data =  $rankingFinal->map(function ($item) {
+        $data = $rankingFinal->map(function ($item) {
 
             $player = $item['player'];
 
@@ -339,7 +334,7 @@ class RankingService
                 'RG' => $item['RG'],
                 'RC' => $item['RC'],
 
-                //Datos deportivos
+                // Datos deportivos
                 'category' => $item['nivel'],
 
                 // Datos del jugador
@@ -439,7 +434,7 @@ class RankingService
             ->orderByDesc('end_date')
             ->first();
 
-        if (!$latestRankingTournament) {
+        if (! $latestRankingTournament) {
             throw new \RuntimeException(
                 'No se puede determinar la temporada vigente del Ranking General.'
             );
@@ -488,7 +483,7 @@ class RankingService
         * consultas repetitivas dentro de la transacción.
         */
 
-        $historyService = new PlayerCategoryHistoryService();
+        $historyService = new PlayerCategoryHistoryService;
 
         $temporaryRankingPlayerIds =
             $historyService->getPlayersWithEffectiveTemporaryRankingCategory();
@@ -513,7 +508,6 @@ class RankingService
 
         DB::transaction(function () use (
             $data,
-            $previousRanking,
             $players,
             $categories,
             $season,
@@ -521,7 +515,7 @@ class RankingService
             $stageResultsComplete,
             $temporaryRankingPlayerIds
         ) {
-            $historyService = new PlayerCategoryHistoryService();
+            $historyService = new PlayerCategoryHistoryService;
 
             /*
             * Indexamos el nuevo ranking por jugador para poder detectar
@@ -545,19 +539,19 @@ class RankingService
                 foreach ($newRanking as $playerId => $row) {
                     $player = $players->get($playerId);
 
-                    if (!$player || !$player->category) {
+                    if (! $player || ! $player->category) {
                         continue;
                     }
 
                     $newCategoryCode = $row['category'] ?? null;
 
-                    if (!$newCategoryCode) {
+                    if (! $newCategoryCode) {
                         continue;
                     }
 
                     $newCategory = $categories->get($newCategoryCode);
 
-                    if (!$newCategory) {
+                    if (! $newCategory) {
                         throw new \RuntimeException(
                             "No existe la categoría {$newCategoryCode}."
                         );
@@ -573,7 +567,7 @@ class RankingService
                     */
                     $previousCategory = $historyService->getEffectiveCategory($player);
 
-                    if (!$previousCategory) {
+                    if (! $previousCategory) {
                         throw new \RuntimeException(
                             "No se pudo determinar la categoría efectiva anterior del jugador {$playerId}."
                         );
@@ -607,7 +601,7 @@ class RankingService
 
                     $player = $players->get($playerId);
 
-                    if (!$player || !$player->category) {
+                    if (! $player || ! $player->category) {
                         continue;
                     }
 
@@ -626,13 +620,13 @@ class RankingService
                     */
                     $newCategory = $historyService->getPermanentCategory($player);
 
-                    if (!$previousCategory) {
+                    if (! $previousCategory) {
                         throw new \RuntimeException(
                             "No se pudo determinar la categoría efectiva anterior del jugador {$playerId}."
                         );
                     }
 
-                    if (!$newCategory) {
+                    if (! $newCategory) {
                         throw new \RuntimeException(
                             "No se pudo determinar la categoría permanente del jugador {$playerId}."
                         );
@@ -670,9 +664,6 @@ class RankingService
 
     /**
      * Guarda una fotografía del Ranking General al cierre de una temporada.
-     *
-     * @param int $season
-     * @return void
      */
     public static function saveSeasonRanking(int $season): void
     {
@@ -690,10 +681,10 @@ class RankingService
                 ->orderByDesc('end_date')
                 ->first();
 
-            if (!$torneo) {
+            if (! $torneo) {
                 throw new \RuntimeException(
                     "No se puede cerrar la temporada {$season}: "
-                    . "la Etapa {$stage} no existe o todavía no está finalizada."
+                    ."la Etapa {$stage} no existe o todavía no está finalizada."
                 );
             }
 
@@ -717,17 +708,17 @@ class RankingService
         if ($torneos->count() !== 4) {
             throw new \RuntimeException(
                 "No se puede cerrar la temporada {$season}: "
-                . 'no existen las 4 etapas finalizadas.'
+                .'no existen las 4 etapas finalizadas.'
             );
         }
 
         $stage4Tournament = $torneos
             ->firstWhere('stage_number', 4);
 
-        if (!$stage4Tournament) {
+        if (! $stage4Tournament) {
             throw new \RuntimeException(
                 "No se puede cerrar la temporada {$season}: "
-                . 'la Etapa 4 todavía no está finalizada.'
+                .'la Etapa 4 todavía no está finalizada.'
             );
         }
 
@@ -736,7 +727,7 @@ class RankingService
         if ($currentSeason !== $season) {
             throw new \RuntimeException(
                 "La Etapa 4 corresponde a la temporada {$currentSeason}, "
-                . "no a {$season}."
+                ."no a {$season}."
             );
         }
 
@@ -784,25 +775,25 @@ class RankingService
 
             foreach ($ranking as $row) {
                 RankingHistory::create([
-                    'season'          => $season,
-                    'player_id'       => $row->player_id,
-                    'RG'              => $row->RG,
-                    'RC'              => $row->RC,
-                    'category'        => $row->category,
-                    'last_name'       => $row->last_name,
-                    'first_name'      => $row->first_name,
-                    'club'            => $row->club,
-                    'fed'             => $row->fed,
-                    'total_puntos'    => $row->total_puntos,
+                    'season' => $season,
+                    'player_id' => $row->player_id,
+                    'RG' => $row->RG,
+                    'RC' => $row->RC,
+                    'category' => $row->category,
+                    'last_name' => $row->last_name,
+                    'first_name' => $row->first_name,
+                    'club' => $row->club,
+                    'fed' => $row->fed,
+                    'total_puntos' => $row->total_puntos,
                     'total_penalties' => $row->total_penalties,
-                    'pos_1'           => $row->pos_1,
-                    'ptos_1'          => $row->ptos_1,
-                    'pos_2'           => $row->pos_2,
-                    'ptos_2'          => $row->ptos_2,
-                    'pos_3'           => $row->pos_3,
-                    'ptos_3'          => $row->ptos_3,
-                    'pos_4'           => $row->pos_4,
-                    'ptos_4'          => $row->ptos_4,
+                    'pos_1' => $row->pos_1,
+                    'ptos_1' => $row->ptos_1,
+                    'pos_2' => $row->pos_2,
+                    'ptos_2' => $row->ptos_2,
+                    'pos_3' => $row->pos_3,
+                    'ptos_3' => $row->ptos_3,
+                    'pos_4' => $row->pos_4,
+                    'ptos_4' => $row->ptos_4,
                 ]);
             }
 
@@ -810,6 +801,4 @@ class RankingService
 
         });
     }
-
 }
-

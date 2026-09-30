@@ -34,13 +34,6 @@ class TournamentTypesTable
                     ->label('Código')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('participation_mode')
-                    ->label('Mod')
-                    ->formatStateUsing(fn (?string $state): string => match ($state) {
-                        'pairs' => 'Par',
-                        default => 'Ind',
-                    })
-                    ->badge(),
                 IconColumn::make('has_handicap')
                     ->label('Hánd')
                     ->boolean(),
@@ -89,12 +82,6 @@ class TournamentTypesTable
                     ->searchable()
                     ->preload()
                     ->multiple(),
-                SelectFilter::make('participation_mode')
-                    ->label('Modalidad')
-                    ->options([
-                        'individual' => 'Individual',
-                        'pairs' => 'Parejas',
-                    ]),
                 TernaryFilter::make('has_handicap')
                     ->label('Hándicap')
                     ->placeholder('Todos')

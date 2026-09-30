@@ -88,6 +88,11 @@ class Tournament extends Model
         return $this->hasMany(TournamentCategoryPrice::class);
     }
 
+    public function tournamentModalities()
+    {
+        return $this->hasMany(TournamentModality::class);
+    }
+
     public function venue()
     {
         return $this->belongsTo(Club::class, 'venue_id');

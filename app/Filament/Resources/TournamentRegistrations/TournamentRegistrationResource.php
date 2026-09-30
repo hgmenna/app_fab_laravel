@@ -7,7 +7,6 @@ use App\Filament\Resources\TournamentRegistrations\Pages\EditTournamentRegistrat
 use App\Filament\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
 use App\Filament\Resources\TournamentRegistrations\Tables\TournamentRegistrationsTable;
 use App\Models\GeneralRanking;
-use App\Models\TournamentInstance;
 use App\Models\TournamentRegistration;
 use App\Services\RankingService;
 use App\Services\TournamentRegistrationPdfService;
@@ -29,16 +28,17 @@ use UnitEnum;
 
 class TournamentRegistrationResource extends Resource
 {
-
     protected static ?string $model = TournamentRegistration::class;
+
     protected static string|UnitEnum|null $navigationGroup = 'Torneos';
+
     protected static ?string $navigationLabel = 'Inscripciones';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
     protected static ?string $title = 'Inscripciones';
-    protected static ?string $recordTitleAttribute = 'name';
 
+    protected static ?string $recordTitleAttribute = 'name';
 
     public static function form(Schema $schema): Schema
     {
@@ -82,7 +82,12 @@ class TournamentRegistrationResource extends Resource
         // 1. Obtener inscripciones usando la relación correcta 'slot' definida en el modelo [3]
         // Se usa $tournament->registrations() asumiendo que el modelo Tournament tiene esta relación [1]
         $query = $tournament->registrations()
-            ->with(['player.club', 'slot']);
+            ->with([
+                'participants.player.club.city.state',
+                'participants.player.category',
+                'tournamentModality.modality',
+                'slot',
+            ]);
 
         // Aplicar filtro por horario si esta seleccionado
         if ($slotId) {
@@ -95,32 +100,32 @@ class TournamentRegistrationResource extends Resource
         }
 
         $registrations = $query->get();
-        $totalGeneral = $registrations->count(); // Total de inscriptos
+        $totalGeneral = $registrations->count(); // Total de inscripciones
         $tournamentType = $tournament->type->short_name;
 
-        if($tournamentType !== 'CAB' && $tournament->venue !== null) {
+        if ($tournamentType !== 'CAB' && $tournament->venue !== null) {
             $logo = $tournament->venue->logo_path;
         }
 
         // 2. Procesar datos y Ranking (basado en fuentes [4-6])
-        $processed = $registrations->map(function ($reg) {
-            $player = $reg->player;
-            
-            // Búsqueda en el Ranking General (Fuente [4, 5])
-            $generalRanking = GeneralRanking::where('first_name', $player?->first_name)
-                ->where('last_name', $player?->last_name)
-                ->first();
+        $processed = $registrations->flatMap(function ($registration) {
+            return $registration->participants->map(function ($participant) use ($registration) {
+                $player = $participant->player;
+                $generalRanking = GeneralRanking::where('player_id', $player?->id)->first();
 
-            return (object)[
-                'last_name'        => $player->last_name,
-                'first_name'       => $player->first_name,
-                'club_display'     => $player->club->name ?? 'N/A',
-                'provincia_display' => $player->club?->city?->state?->name ?? 'N/A',
-                // Lógica solicitada: Si no hay ranking, usa la categoría del jugador [4]
-                'ranking_category' => $generalRanking?->category ?? $player->category?->code ?? '-',
-                'ranking_rg'       => Str::limit($generalRanking?->RG ?? 9999, 4), // 9999 para ordenar al final
-                'slot_name'        => $reg->slot->name ?? 'Sin Horario' // Usando relación 'slot' [3]
-            ];
+                return (object) [
+                    'last_name' => $player?->last_name ?? 'N/A',
+                    'first_name' => $player?->first_name ?? 'N/A',
+                    'club_display' => $player?->club?->name ?? 'N/A',
+                    'provincia_display' => $player?->club?->city?->state?->name ?? 'N/A',
+                    'ranking_category' => $generalRanking?->category ?? $player?->category?->code ?? '-',
+                    'ranking_rg' => Str::limit($generalRanking?->RG ?? 9999, 4),
+                    'slot_name' => implode(' · ', array_filter([
+                        $registration->tournamentModality?->modality?->name,
+                        $registration->slot?->name ?? 'Sin horario',
+                    ])),
+                ];
+            });
         });
 
         // 3. Ordenar por RG Ascendente y Agrupar por Horario (Slot)
@@ -137,14 +142,14 @@ class TournamentRegistrationResource extends Resource
 
         // 4. Generar PDF con la vista genérica (asegúrate de que use el encabezado de tabla solicitado)
         $pdf = Pdf::loadView('pdf.generic', [
-            'title'    => $tournament->name,
-            'subtitle' => $slotId ? 'Nomina de Jugadores por Horario': 'Nomina de Jugadores Inscriptos',
-            'date'     => now()->format('d/m/Y'),
-            'columns'  => $columns,
-            'groups'   => $grouped,
+            'title' => $tournament->name,
+            'subtitle' => $slotId ? 'Nomina de Jugadores por Horario' : 'Nomina de Jugadores Inscriptos',
+            'date' => now()->format('d/m/Y'),
+            'columns' => $columns,
+            'groups' => $grouped,
             'totalGeneral' => $totalGeneral, // Pasamos el total de inscriptos
-            'labelTotalGeneral' => 'Inscriptos',
-            'logo'     => public_path('images/logo.png'),
+            'labelTotalGeneral' => 'Inscripciones',
+            'logo' => public_path('images/logo.png'),
             'footer_image' => public_path('images/pie-pagina.png'),
         ])->setPaper('a4', 'portrait');
 
@@ -153,7 +158,7 @@ class TournamentRegistrationResource extends Resource
             ? "Inscripciones-{$tournament->name}-{$slotId}.pdf"
             : "Inscripciones-{$tournament->name}.pdf";
 
-        return response()->streamDownload(fn () => print($pdf->output()), $fileName);
+        return response()->streamDownload(fn () => print ($pdf->output()), $fileName);
     }
 
     public static function shouldRegisterNavigation(): bool
@@ -163,7 +168,7 @@ class TournamentRegistrationResource extends Resource
 
     public static function isNested($livewire): bool
     {
-        return $livewire instanceof \Filament\Resources\RelationManagers\RelationManager || 
+        return $livewire instanceof \Filament\Resources\RelationManagers\RelationManager ||
             $livewire instanceof \Filament\Resources\Pages\ManageRelatedRecords;
     }
 
@@ -172,26 +177,22 @@ class TournamentRegistrationResource extends Resource
         return Action::make('asignarInstancia')
             ->label('Asignar posición')
             ->visible(
-                fn(?TournamentRegistration $record): bool =>
-                Auth::user()?->can('EditField')
+                fn (?TournamentRegistration $record): bool => Auth::user()?->can('EditField')
                     && $record?->tournament?->start_date < now()
             )
             ->disabled(
-                fn(TournamentRegistration $record): bool => ($record->tournament?->start_date > now())
+                fn (TournamentRegistration $record): bool => ($record->tournament?->start_date > now())
                     && (Auth::user()->name !== 'super-admin')
             )
             ->modalHeading('Asignar resultado y calcular puntos')
             ->modalSubmitActionLabel('Guardar resultado')
             ->fillForm(
-                fn(TournamentRegistration $record): array => [
-                    'tournament_instance_id' =>
-                    $record->tournament_instance_id,
+                fn (TournamentRegistration $record): array => [
+                    'tournament_instance_id' => $record->tournament_instance_id,
 
-                    'result_code' =>
-                    $record->result_code,
+                    'result_code' => $record->result_code,
 
-                    'penalty_points' =>
-                    $record->penalty_points ?? 0,
+                    'penalty_points' => $record->penalty_points ?? 0,
                 ]
             )
             ->form([
@@ -219,8 +220,7 @@ class TournamentRegistrationResource extends Resource
 
                         return collect($rules)
                             ->filter(
-                                fn(array $rule): bool =>
-                                ! empty($rule['tournament_instance_id']
+                                fn (array $rule): bool => ! empty($rule['tournament_instance_id']
                                     ?? null)
                             )
                             ->mapWithKeys(function (array $rule): array {
@@ -234,8 +234,7 @@ class TournamentRegistrationResource extends Resource
                                 $points = $rule['points'] ?? 0;
 
                                 return [
-                                    $instanceId =>
-                                    "{$description} — {$points} puntos",
+                                    $instanceId => "{$description} — {$points} puntos",
                                 ];
                             })
                             ->all();
@@ -243,8 +242,7 @@ class TournamentRegistrationResource extends Resource
                     ->searchable()
                     ->preload()
                     ->visible(
-                        fn(?TournamentRegistration $record): bool =>
-                        (bool) $record?->tournament?->type
+                        fn (?TournamentRegistration $record): bool => (bool) $record?->tournament?->type
                             ?->affects_ranking
                     )
                     ->nullable(),
@@ -273,8 +271,7 @@ class TournamentRegistrationResource extends Resource
 
                         return collect($rules)
                             ->filter(
-                                fn(array $rule): bool =>
-                                filled($rule['code'] ?? null)
+                                fn (array $rule): bool => filled($rule['code'] ?? null)
                             )
                             ->mapWithKeys(function (array $rule): array {
                                 $code = (string) $rule['code'];
@@ -286,8 +283,7 @@ class TournamentRegistrationResource extends Resource
                                 $points = $rule['points'] ?? 0;
 
                                 return [
-                                    $code =>
-                                    "{$description} — {$points} puntos",
+                                    $code => "{$description} — {$points} puntos",
                                 ];
                             })
                             ->all();
@@ -295,8 +291,7 @@ class TournamentRegistrationResource extends Resource
                     ->searchable()
                     ->preload()
                     ->visible(
-                        fn(?TournamentRegistration $record): bool =>
-                        ! (bool) $record?->tournament?->type
+                        fn (?TournamentRegistration $record): bool => ! (bool) $record?->tournament?->type
                             ?->affects_ranking
                     )
                     ->nullable(),
@@ -393,9 +388,4 @@ class TournamentRegistrationResource extends Resource
         $url = TournamentRegistrationPdfService::generate($record);
         session()->flash('pdf_url', $url);
     }
-
-
-
-
-
 }

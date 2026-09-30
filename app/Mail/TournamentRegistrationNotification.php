@@ -21,7 +21,9 @@ class TournamentRegistrationNotification extends Mailable
     public function __construct(
         public TournamentRegistration $record,
         public string $action = 'Nueva Inscripcion'
-        ) {}
+    ) {
+        $this->record->loadMissing(['participants.player.club', 'participants.player.category', 'tournamentModality.modality']);
+    }
 
     /**
      * Get the message envelope.
@@ -29,7 +31,7 @@ class TournamentRegistrationNotification extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Notificacion de inscripcion: '. $this->action,
+            subject: 'Notificacion de inscripcion: '.$this->action,
         );
     }
 
@@ -57,7 +59,7 @@ class TournamentRegistrationNotification extends Mailable
                 ->as('comprobante-pago.png')
                 ->withMime('image/png');
         }
-        
+
         return $attachments;
     }
 }

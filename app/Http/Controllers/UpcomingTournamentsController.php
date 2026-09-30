@@ -29,13 +29,15 @@ class UpcomingTournamentsController extends Controller
         $rows = Tournament::query()
             ->with([
                 'discipline:id,name',
-                'type:id,name,participation_mode,has_handicap,is_official,publication_logo_source,publication_federation_id',
+                'type:id,name,has_handicap,is_official,publication_logo_source,publication_federation_id',
                 'type.publicationFederation:id,name,logo_path',
                 'venue:id,name,logo_path,address,lat,lng,city_id',
                 'venue.city:id,state_id',
                 'venue.city.state:id,federation_id',
                 'venue.city.state.federation:id,name,short_name,logo_path',
-                'registrations:id,tournament_id,partner_player_id',
+                'tournamentModalities.modality:id,name,players_per_registration',
+                'registrations:id,tournament_id,tournament_modality_id',
+                'registrations.participants:id,tournament_registration_id,player_id',
             ])
             ->withCount('registrations')
             ->whereDate('start_date', '>', today('America/Argentina/Buenos_Aires'))
@@ -81,8 +83,10 @@ class UpcomingTournamentsController extends Controller
                 );
                 $registrationIsOpen = $tournament->isRegistrationOpen();
                 $registrationCount = $tournament->registrations->count();
-                $participantCount = $tournament->registrations
-                    ->sum(fn (TournamentRegistration $registration): int => $registration->partner_player_id ? 2 : 1);
+                $participantCount = $tournament->registrations->sum(
+                    fn (TournamentRegistration $registration): int => $registration->participants->count()
+                );
+                $modalities = $tournament->tournamentModalities->pluck('modality.name')->filter()->implode(', ');
                 $flyerUrl = $tournament->flyer_path
                     ? Storage::disk('public_path')->url($tournament->flyer_path)
                     : '';
@@ -119,17 +123,12 @@ class UpcomingTournamentsController extends Controller
                     'tipo' => $tournament->type?->name ?? '',
                     'oficial' => (bool) $tournament->type?->is_official,
                     'provincia' => $club?->city?->state?->federation?->short_name ?? '',
-                    'modalidad' => match ($tournament->type?->participation_mode) {
-                        'pairs' => 'Parejas',
-                        default => 'Individual',
-                    },
+                    'modalidad' => $modalities,
                     'handicap' => $tournament->type?->has_handicap ? 'Sí' : 'No',
                     'inscriptos' => $registrationCount,
                     'inscripciones' => $registrationCount,
                     'participantes' => $participantCount,
-                    'unidad_inscripcion' => $tournament->type?->participation_mode === 'pairs'
-                        ? 'Parejas'
-                        : 'Jugadores',
+                    'unidad_inscripcion' => 'Inscripciones por modalidad',
                     'estado_inscripcion' => $registrationIsOpen ? 'Abierta' : 'Cerrada',
                     'apertura_inscripcion' => $tournament->registration_enabled
                         ? $tournament->registration_open_at?->format('d/m/Y') ?? ''
@@ -138,11 +137,7 @@ class UpcomingTournamentsController extends Controller
                         ? $tournament->registration_close_at?->format('d/m/Y') ?? ''
                         : '',
                     'inscripcion' => $registrationIsOpen
-                        ? $registrationUrl.'||'.(
-                            $tournament->type?->participation_mode === 'pairs'
-                                ? 'Anotar pareja'
-                                : 'Anotarse'
-                        )
+                        ? $registrationUrl.'||Anotarse'
                         : '',
                     'ubicacion' => $mapUrl ? $mapUrl.'||Mapa' : '',
                     'flyer' => $flyerUrl ? $flyerUrl.'||'.$flyerUrl : '',

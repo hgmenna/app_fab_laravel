@@ -28,36 +28,23 @@
             </div>
             
             <div class="field-group">
-                <div class="label">Jugador</div>
-                <div class="value">{{ $record->player->last_name }}, {{ $record->player->first_name }}</div>
+                <div class="label">Modalidad</div>
+                <div class="value">{{ $record->tournamentModality?->modality?->name ?? 'Sin modalidad' }}</div>
             </div>
 
-            @if($record->partner)
+            @foreach($record->participants as $participant)
                 <div class="field-group">
-                    <div class="label">Segundo integrante</div>
-                    <div class="value">{{ $record->partner->last_name }}, {{ $record->partner->first_name }}</div>
+                    <div class="label">Integrante {{ $loop->iteration }}</div>
+                    <div class="value">{{ $participant->player->full_name }}</div>
                 </div>
-            @endif
-
-            <div class="field-group">
-                <div class="label">Club / Categoría</div>
-                <div class="value">
-                    {{ $record->player?->club?->name ?? 'Sin club' }}
-                    -
-                    {{ $record->player?->category?->name ?? 'Sin categoría' }}
-                </div>
-            </div>
-
-            @if($record->partner)
                 <div class="field-group">
-                    <div class="label">Club / Categoría del segundo integrante</div>
+                    <div class="label">Club / Categoría</div>
                     <div class="value">
-                        {{ $record->partner?->club?->name ?? 'Sin club' }}
-                        -
-                        {{ $record->partner?->category?->name ?? 'Sin categoría' }}
+                        {{ $participant->player?->club?->name ?? 'Sin club' }} -
+                        {{ $participant->player?->category?->name ?? 'Sin categoría' }}
                     </div>
                 </div>
-            @endif
+            @endforeach
 
             <div class="field-group">
                 <div class="label">Horario Seleccionado</div>

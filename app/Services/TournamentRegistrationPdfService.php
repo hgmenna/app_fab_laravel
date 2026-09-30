@@ -11,13 +11,10 @@ class TournamentRegistrationPdfService
 {
     public static function generate(TournamentRegistration $record): string
     {
+        $record->loadMissing(['participants.player.club', 'participants.player.category', 'tournamentModality.modality']);
         // Nombre del archivo final
         $tournament = Str::slug($record->tournament->name);
-        $player = Str::slug($record->player->last_name.'-'.$record->player->first_name);
-
-        if ($record->partner) {
-            $player .= '-y-'.Str::slug($record->partner->last_name.'-'.$record->partner->first_name);
-        }
+        $player = $record->participants->map(fn ($participant) => Str::slug($participant->player->full_name))->implode('-y-');
         $fileName = "{$tournament}-{$player}.pdf";
 
         // Carpeta institucional donde guardamos PDFs generados

@@ -31,7 +31,7 @@ class CreateTournamentRegistration extends CreateRecord
             $this,
             $this->record,
             'inscribió a',
-            ['player.last_name', 'player.first_name'], // Datos del jugador (relación)
+            'participant_names',
             "el torneo {$tournamentName}",             // Recurso relacionado personalizado
             false,
         );

@@ -23,6 +23,8 @@ class CreateTournament extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $data['categories'] = $this->selectedCategoryIds();
+
         try {
             [$data, $this->regulationEvaluation, $this->regulationOverridden] = app(TournamentRegulationWorkflow::class)
                 ->validate($data, Auth::user(), 'create');
@@ -31,6 +33,16 @@ class CreateTournament extends CreateRecord
         }
 
         return $data;
+    }
+
+    private function selectedCategoryIds(): array
+    {
+        return collect($this->form->getRawState()['tournamentModalities'] ?? [])
+            ->flatMap(fn (array $modality): array => $modality['categories'] ?? [])
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     protected function getHeaderActions(): array

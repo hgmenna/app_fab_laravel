@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use App\Models\Player;
 use App\Models\Category;
+use App\Models\Player;
+use App\Models\Ranking5Quillas;
 use App\Models\Tournament;
 use App\Models\TournamentRegistration;
-use App\Models\Ranking5Quillas;
 
 class Ranking5QuillasService
 {
@@ -14,13 +14,12 @@ class Ranking5QuillasService
 
     public function recalculate(): void
     {
-        $tournaments = Tournament::whereHas('type', fn($q) =>
-            $q->where('affects_ranking', true)
+        $tournaments = Tournament::whereHas('type', fn ($q) => $q->where('affects_ranking', true)
         )
-        ->where('discipline_id', $this->disciplineId)
-        ->orderBy('start_date', 'desc')
-        ->take(4)
-        ->get();
+            ->where('discipline_id', $this->disciplineId)
+            ->orderBy('start_date', 'desc')
+            ->take(4)
+            ->get();
 
         $players = Player::all();
 
@@ -33,10 +32,7 @@ class Ranking5QuillasService
 
     private function updatePlayerRanking(Player $player, $tournaments): void
     {
-        $regs = TournamentRegistration::where(function ($query) use ($player) {
-            $query->where('player_id', $player->id)
-                ->orWhere('partner_player_id', $player->id);
-        })
+        $regs = TournamentRegistration::whereHas('participants', fn ($query) => $query->where('player_id', $player->id))
             ->whereIn('tournament_id', $tournaments->pluck('id'))
             ->get()
             ->keyBy('tournament_id');

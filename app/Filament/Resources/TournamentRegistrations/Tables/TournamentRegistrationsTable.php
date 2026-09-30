@@ -35,43 +35,17 @@ class TournamentRegistrationsTable
     {
         return $table
             ->columns([
-                TextColumn::make('player.last_name')
-                    ->label('Apellido 1')
-                    ->sortable()
-                    ->searchable(),
+                TextColumn::make('tournamentModality.modality.name')
+                    ->label('Modalidad')->badge()->sortable(),
 
-                TextColumn::make('player.first_name')
-                    ->label('Nombre 1')
-                    ->sortable()
-                    ->searchable(),
+                TextColumn::make('participants.player.full_name')
+                    ->label('Integrantes')->listWithLineBreaks()->bulleted()->searchable(['first_name', 'last_name']),
 
-                TextColumn::make('partner.full_name')
-                    ->label('Segundo integrante')
-                    ->placeholder('—')
-                    ->searchable(['last_name', 'first_name'])
-                    ->visible(fn () => $tournament?->type?->participation_mode === 'pairs'),
+                TextColumn::make('participants.player.club.name')
+                    ->label('Clubes')->listWithLineBreaks()->bulleted(),
 
-                TextColumn::make('player.club.name')
-                    ->label('Club 1')
-                    ->limit(15)
-                    ->searchable()
-                    ->sortable(),
-
-                TextColumn::make('player.category.name')
-                    ->label('Cat 1')
-                    ->searchable()
-                    ->sortable(),
-
-                TextColumn::make('partner.club.name')
-                    ->label('Club 2')
-                    ->placeholder('—')
-                    ->limit(15)
-                    ->visible(fn () => $tournament?->type?->participation_mode === 'pairs'),
-
-                TextColumn::make('partner.category.name')
-                    ->label('Cat 2')
-                    ->placeholder('—')
-                    ->visible(fn () => $tournament?->type?->participation_mode === 'pairs'),
+                TextColumn::make('participants.player.category.name')
+                    ->label('Categorías')->listWithLineBreaks()->bulleted(),
 
                 // Columna para la Categoría del Ranking
                 TextColumn::make('ranking_category')
@@ -138,7 +112,7 @@ class TournamentRegistrationsTable
                             return; // 🔥 evita 500 cuando no hay filtro
                         }
 
-                        $query->whereHas('player.category', function ($q) use ($value) {
+                        $query->whereHas('participants.player.category', function ($q) use ($value) {
                             $q->where('id', $value);
                         });
                     })
@@ -158,6 +132,10 @@ class TournamentRegistrationsTable
                                 ->pluck('name', 'id')
                             : [];
                     }),
+                SelectFilter::make('tournament_modality_id')
+                    ->label('Modalidad')
+                    ->options(fn () => $tournament?->tournamentModalities()->with('modality')->get()
+                        ->mapWithKeys(fn ($item) => [$item->id => $item->modality->name])->all() ?? []),
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options(function () {
@@ -260,7 +238,7 @@ class TournamentRegistrationsTable
                                 null,
                                 $record,
                                 'modificó la inscripción de',
-                                ['player.last_name', 'player.first_name'],
+                                'participant_names',
                                 "el torneo {$tournamentName}",
                                 false,
                             );
@@ -276,12 +254,7 @@ class TournamentRegistrationsTable
                                     null,
                                     $record,
                                     'eliminó la inscripción de',
-                                    [
-                                        'player.last_name',
-                                        'player.first_name',
-                                        'partner.last_name',
-                                        'partner.first_name',
-                                    ],
+                                    'participant_names',
                                     "el torneo {$tournamentName}",
                                     false,
                                 );
@@ -293,10 +266,8 @@ class TournamentRegistrationsTable
                             $record->loadMissing([
                                 'tournament',
                                 'slot',
-                                'player.club',
-                                'player.category',
-                                'partner.club',
-                                'partner.category',
+                                'participants.player.club',
+                                'participants.player.category',
                             ]);
 
                             try {
@@ -323,7 +294,7 @@ class TournamentRegistrationsTable
                         ])
                         ->action(function (Model $record, array $data): void {
                             $record->update(['status' => $data['status']]);
-                            $record->load(['slot', 'player.club', 'player.category']);
+                            $record->load(['slot', 'participants.player.club', 'participants.player.category']);
                             Mail::to(AdminNotifier::recipientEmails())
                                 ->send(new TournamentRegistrationNotification($record, 'Actualizacion de estado de inscripcion'));
 
@@ -333,7 +304,7 @@ class TournamentRegistrationsTable
                                 null,
                                 $record,
                                 'Actualizó estado de la inscripción de',
-                                ['player.last_name', 'player.first_name'],
+                                'participant_names',
                                 "el torneo {$tournamentName}",
                                 false,
                             );

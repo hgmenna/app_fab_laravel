@@ -1,6 +1,6 @@
 @php
     $record = $getRecord();
-    $mode = $record->type?->participation_mode === 'pairs' ? 'Parejas' : 'Individual';
+    $mode = $record->tournamentModalities->pluck('modality.name')->filter()->implode(', ') ?: 'Sin modalidad';
 @endphp
 
 <div class="flex flex-col items-start gap-1.5 text-xs leading-tight">

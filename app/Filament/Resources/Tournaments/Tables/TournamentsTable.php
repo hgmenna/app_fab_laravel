@@ -186,6 +186,7 @@ class TournamentsTable
             ])
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
                 'registrations:id,tournament_id,partner_player_id',
+                'tournamentModalities.modality:id,name',
                 'latestSuccessfulRegulationAudit',
                 'type.publicationFederation',
                 'venue.city.state.federation',

@@ -75,6 +75,11 @@ class Discipline extends Model
         return $this->hasMany(Category::class);
     }
 
+    public function modalities(): HasMany
+    {
+        return $this->hasMany(DisciplineModality::class);
+    }
+
     public function primaryPlayers(): HasMany
     {
         return $this->hasMany(Player::class);

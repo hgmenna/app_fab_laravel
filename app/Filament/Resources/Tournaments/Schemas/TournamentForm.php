@@ -6,6 +6,7 @@ use App\Filament\Resources\Tournaments\TournamentResource;
 use App\Models\Category;
 use App\Models\Club;
 use App\Models\Discipline;
+use App\Models\DisciplineModality;
 use App\Models\Tournament;
 use App\Models\TournamentType;
 use App\Services\TournamentRegulationService;
@@ -13,6 +14,7 @@ use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -58,6 +60,8 @@ class TournamentForm
                                     ->afterStateUpdated(function (Set $set): void {
                                         $set('tournament_type_id', null);
                                         $set('categories', []);
+                                        $set('tournamentModalities', []);
+                                        $set('manual_route_checks', []);
                                     }),
 
                                 Select::make('venue_id')
@@ -168,18 +172,7 @@ class TournamentForm
                                     ->afterOrEqual('registration_open_at')
                                     ->beforeOrEqual('start_date'),
 
-                                CheckboxList::make('categories')
-                                    ->label('Categorías habilitadas')
-                                    ->columnSpan(8)
-                                    ->columns(3)
-                                    ->options(fn (Get $get) => Category::query()
-                                        ->where('discipline_id', $get('discipline_id'))
-                                        ->orderBy('order')
-                                        ->pluck('name', 'id'))
-                                    ->disabled(fn (Get $get): bool => ! $get('discipline_id'))
-                                    ->live()
-                                    ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', []))
-                                    ->required(),
+                                Hidden::make('categories')->default([]),
 
                                 Toggle::make('is_payment_enabled')
                                     ->label('Requiere Pago')
@@ -371,78 +364,46 @@ class TournamentForm
                             ])
                             ->disabled(fn () => ! Auth::user()->can('EditField')),
 
-                        Tab::make('Precios por categoria')
-                        // ───────────────────────────────── Precios por categoría
+                        Tab::make('Modalidades')
                             ->schema([
-                                Repeater::make('categoryPrices')
-                                    ->label('Precios por Categoria')
-                                    ->helperText('Opcional. Agregá filas solamente cuando el torneo tenga precios por categoría.')
-                                    ->defaultItems(0)
-                                    ->collapsible()
-                                    ->columns(6)
-                                    ->relationship('categoryPrices')
-                                    ->schema([
-                                        Select::make('category_id')
-                                            ->label('Categoría')
-                                            ->columnSpan(3)
-                                            ->options(function (callable $get) {
-                                                $enabled = $get('../../categories') ?? [];
-                                                $disciplineId = $get('../../discipline_id');
-
-                                                return empty($enabled)
-                                                    ? Category::where('discipline_id', $disciplineId)->pluck('name', 'id')
-                                                    : Category::whereIn('id', $enabled)->pluck('name', 'id');
-                                            }),
-
-                                        TextInput::make('price')
-                                            ->label('Precio')
-                                            ->columnSpan(3)
-                                            ->numeric(),
-                                    ]),
-                            ])->disabled(fn (Get $get): bool => ! (bool) $get('registration_enabled')
-                                || ! (Auth::user()?->can('EditField') ?? false)
-                            ),
-
-                        Tab::make('Horarios')
-
-                        // ───────────────────────────────── Horarios
-                            ->schema([
-                                Repeater::make('slots')
-                                    ->label('Horarios')
-                                    ->helperText('Opcional. Agregá horarios solamente cuando el torneo los necesite.')
-                                    ->defaultItems(0)
-                                    ->grid(3)
-                                    ->collapsible()
-                                    ->columns(4)
-                                    ->relationship('slots')
-                                    ->schema([
-                                        TextInput::make('name')
-                                            ->label('Nombre')
-                                            ->columnSpan(4),
-
-                                        DateTimePicker::make('starts_at')
-                                            ->label('Inicio')
-                                            ->columnSpan(2)
-                                            ->native(false)
-                                            ->minutesStep(30)
-                                            ->secondsStep(60),
-
-                                        TextInput::make('max_players')
-                                            ->label('Máx. inscripciones')
-                                            ->columnSpan(1)
-                                            ->numeric(),
-
-                                        Toggle::make('is_active')
-                                            ->label('Activo')
-                                            ->inline(false)
-                                            ->onColor('success')
-                                            ->offColor('danger')
-                                            ->columnSpan(1),
-                                    ]),
-                            ])
-                            ->disabled(fn (Get $get): bool => ! (bool) $get('registration_enabled')
-                                || ! (Auth::user()?->can('EditField') ?? false)
-                            ),
+                                Repeater::make('tournamentModalities')
+                                    ->relationship('tournamentModalities')
+                                    ->label('Modalidades habilitadas')
+                                    ->helperText('Cada modalidad administra sus categorías, precios y horarios.')
+                                    ->minItems(1)->defaultItems(1)->collapsible()->live()
+                                    ->afterStateUpdated(function (?array $state, Set $set): void {
+                                        $categories = collect($state ?? [])->flatMap(
+                                            fn (array $item): array => $item['categories'] ?? []
+                                        )->unique()->values()->all();
+                                        $set('../categories', $categories);
+                                        $set('../manual_route_checks', []);
+                                    })->itemLabel(
+                                        fn (array $state): ?string => DisciplineModality::find($state['discipline_modality_id'] ?? null)?->name
+                                    )->schema([
+                                        Select::make('discipline_modality_id')->label('Modalidad')
+                                            ->options(fn (Get $get) => DisciplineModality::query()
+                                                ->where('discipline_id', $get('../../discipline_id'))->where('is_active', true)
+                                                ->orderBy('order')->pluck('name', 'id'))
+                                            ->required()->distinct()->searchable()->preload(),
+                                        CheckboxList::make('categories')->label('Categorías')
+                                            ->options(fn (Get $get) => Category::query()
+                                                ->where('discipline_id', $get('../../discipline_id'))->orderBy('order')->pluck('name', 'id'))
+                                            ->columns(3)->required()->live()->columnSpanFull(),
+                                        Repeater::make('categoryPrices')->relationship('categoryPrices')
+                                            ->label('Precios por categoría')->defaultItems(0)->columns(2)->schema([
+                                                Select::make('category_id')->label('Categoría')->options(fn (Get $get) => Category::whereIn('id', $get('../../categories') ?? [])->pluck('name', 'id'))->required(),
+                                                TextInput::make('price')->label('Precio')->numeric()->required(),
+                                            ])->columnSpanFull(),
+                                        Repeater::make('slots')->relationship('slots')->label('Horarios y cupos')
+                                            ->defaultItems(0)->columns(4)->schema([
+                                                TextInput::make('name')->label('Nombre')->columnSpan(1),
+                                                DateTimePicker::make('starts_at')->label('Inicio')->native(false)->columnSpan(2),
+                                                TextInput::make('max_players')->label('Máx. inscripciones')->numeric()->columnSpan(1),
+                                                Toggle::make('is_active')->label('Activo')->default(true),
+                                            ])->columnSpanFull(),
+                                    ])
+                                    ->columnSpanFull(),
+                            ]),
 
                     ])->disabled(fn () => ! Auth::user()->can('EditField')),
 

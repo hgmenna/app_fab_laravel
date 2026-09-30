@@ -2,9 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Category;
-use App\Models\Tournament;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class TournamentCategoryPrice extends Model
@@ -13,6 +10,7 @@ class TournamentCategoryPrice extends Model
 
     protected $fillable = [
         'tournament_id',
+        'tournament_modality_id',
         'category_id',
         'price',
     ];
@@ -22,6 +20,15 @@ class TournamentCategoryPrice extends Model
         'price' => 'decimal:2',
     ];
 
+    protected static function booted(): void
+    {
+        static::saving(function (self $price): void {
+            if ($price->tournament_modality_id) {
+                $price->tournament_id = TournamentModality::find($price->tournament_modality_id)?->tournament_id;
+            }
+        });
+    }
+
     public function tournament()
     {
         return $this->belongsTo(Tournament::class);
@@ -30,5 +37,10 @@ class TournamentCategoryPrice extends Model
     public function category()
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function tournamentModality()
+    {
+        return $this->belongsTo(TournamentModality::class);
     }
 }

@@ -13,9 +13,11 @@ class TournamentRegistration extends Model
 
     protected $fillable = [
         'tournament_id',
+        'tournament_modality_id',
         'tournament_slot_id',
         'player_id',
         'partner_player_id',
+        'player_ids',
         'status',
         'price',
         'payment_status',
@@ -36,11 +38,66 @@ class TournamentRegistration extends Model
         'price' => 'decimal:2',
         'checked_in' => 'boolean',
         'result_instance_value' => 'integer',
+        'player_ids' => 'array',
     ];
 
     public function tournament()
     {
         return $this->belongsTo(Tournament::class);
+    }
+
+    public function tournamentModality()
+    {
+        return $this->belongsTo(TournamentModality::class);
+    }
+
+    public function participants()
+    {
+        return $this->hasMany(TournamentRegistrationParticipant::class)->orderBy('position');
+    }
+
+    public function participantIds(): array
+    {
+        if ($this->relationLoaded('participants')) {
+            $ids = $this->participants->pluck('player_id')->map(fn ($id) => (int) $id)->all();
+
+            if ($ids !== []) {
+                return $ids;
+            }
+        } elseif ($this->exists) {
+            $ids = $this->participants()->pluck('player_id')->map(fn ($id) => (int) $id)->all();
+
+            if ($ids !== []) {
+                return $ids;
+            }
+        }
+
+        return collect($this->player_ids ?? [$this->player_id, $this->partner_player_id])
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    public function getParticipantNamesAttribute(): string
+    {
+        $participants = $this->relationLoaded('participants')
+            ? $this->participants
+            : ($this->exists ? $this->participants()->with('player')->get() : collect());
+
+        $names = $participants
+            ->map(fn (TournamentRegistrationParticipant $participant): ?string => $participant->player?->full_name)
+            ->filter()
+            ->implode(' / ');
+
+        if ($names !== '') {
+            return $names;
+        }
+
+        return collect([$this->player, $this->partner])
+            ->filter()
+            ->map(fn (Player $player): string => $player->full_name)
+            ->implode(' / ');
     }
 
     public function slot()
@@ -68,11 +125,19 @@ class TournamentRegistration extends Model
         static::saving(function (TournamentRegistration $registration) {
             if ($registration->exists && ! $registration->isDirty([
                 'tournament_id',
+                'tournament_modality_id',
+                'player_ids',
                 'player_id',
                 'partner_player_id',
             ])) {
                 return;
             }
+
+            $playerIds = collect($registration->player_ids ?? [$registration->player_id, $registration->partner_player_id])
+                ->filter()->map(fn ($id) => (int) $id)->unique()->values();
+            $registration->player_ids = $playerIds->all();
+            $registration->player_id = $playerIds->get(0);
+            $registration->partner_player_id = $playerIds->get(1);
 
             $tournament = Tournament::query()
                 ->with('type')
@@ -84,35 +149,29 @@ class TournamentRegistration extends Model
                 ]);
             }
 
-            $isPairs = $tournament->type?->participation_mode === 'pairs';
-
-            if (! $isPairs) {
-                $registration->partner_player_id = null;
-            }
-
-            if ($isPairs && ! $registration->partner_player_id) {
+            $configuration = TournamentModality::query()->with('modality')
+                ->where('tournament_id', $tournament->id)->find($registration->tournament_modality_id);
+            if (! $configuration) {
                 throw ValidationException::withMessages([
-                    'partner_player_id' => 'Debés seleccionar al segundo integrante de la pareja.',
+                    'tournament_modality_id' => 'Seleccioná una modalidad habilitada para el torneo.',
                 ]);
             }
-
-            if (
-                $registration->partner_player_id
-                && (int) $registration->player_id === (int) $registration->partner_player_id
-            ) {
+            $requiredPlayers = (int) $configuration->modality->players_per_registration;
+            if ($playerIds->count() !== $requiredPlayers) {
                 throw ValidationException::withMessages([
-                    'partner_player_id' => 'Los integrantes de la pareja deben ser jugadores diferentes.',
+                    'player_ids' => "La modalidad requiere exactamente {$requiredPlayers} integrante(s).",
                 ]);
             }
 
             if ($registration->tournament_slot_id) {
                 $slot = TournamentSlot::query()
                     ->where('tournament_id', $tournament->id)
+                    ->where('tournament_modality_id', $configuration->id)
                     ->find($registration->tournament_slot_id);
 
                 if (! $slot) {
                     throw ValidationException::withMessages([
-                        'tournament_slot_id' => 'El horario seleccionado no pertenece a este torneo.',
+                        'tournament_slot_id' => 'El horario seleccionado no pertenece a la modalidad elegida.',
                     ]);
                 }
 
@@ -137,10 +196,7 @@ class TournamentRegistration extends Model
                 }
             }
 
-            $players = collect([
-                'player_id' => $registration->player_id,
-                'partner_player_id' => $registration->partner_player_id,
-            ])->filter();
+            $players = $playerIds->mapWithKeys(fn (int $id, int $index) => ["player_ids.{$index}" => $id]);
 
             foreach ($players as $field => $playerId) {
                 $player = Player::find($playerId);
@@ -163,14 +219,14 @@ class TournamentRegistration extends Model
                 /*
                 * 2) Categorías habilitadas para este torneo.
                 */
-                $enabledCategoryIds = collect($tournament->categories ?? [])
+                $enabledCategoryIds = collect($configuration->categories ?? [])
                     ->map(fn ($id) => (int) $id)
                     ->filter()
                     ->values();
 
                 if ($enabledCategoryIds->isEmpty()) {
                     throw ValidationException::withMessages([
-                        'player_id' => 'El torneo no tiene categorías habilitadas.',
+                        'player_ids' => 'La modalidad no tiene categorías habilitadas.',
                     ]);
                 }
 
@@ -220,10 +276,8 @@ class TournamentRegistration extends Model
                 */
                 $exists = self::query()
                     ->where('tournament_id', $registration->tournament_id)
-                    ->where(function ($query) use ($playerId) {
-                        $query->where('player_id', $playerId)
-                            ->orWhere('partner_player_id', $playerId);
-                    })
+                    ->where('tournament_modality_id', $registration->tournament_modality_id)
+                    ->whereHas('participants', fn ($query) => $query->where('player_id', $playerId))
                     ->when(
                         $registration->exists,
                         fn ($query) => $query->whereKeyNot($registration->getKey())
@@ -232,9 +286,26 @@ class TournamentRegistration extends Model
 
                 if ($exists) {
                     throw ValidationException::withMessages([
-                        $field => 'Este jugador ya está inscripto en este torneo.',
+                        $field => 'Este jugador ya está inscripto en esta modalidad del torneo.',
                     ]);
                 }
+            }
+        });
+
+        static::saved(function (TournamentRegistration $registration): void {
+            if (! $registration->wasRecentlyCreated && ! $registration->wasChanged([
+                'tournament_id',
+                'tournament_modality_id',
+                'player_ids',
+                'player_id',
+                'partner_player_id',
+            ])) {
+                return;
+            }
+
+            $registration->participants()->delete();
+            foreach ($registration->player_ids ?? [] as $index => $playerId) {
+                $registration->participants()->create(['player_id' => $playerId, 'position' => $index + 1]);
             }
         });
     }

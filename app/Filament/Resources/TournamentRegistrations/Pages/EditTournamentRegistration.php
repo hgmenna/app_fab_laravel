@@ -27,21 +27,21 @@ class EditTournamentRegistration extends EditRecord
                 DeleteAction::make(),
                 $this,
                 'eliminó la inscripción de',
-                ['player.last_name', 'player.first_name', 'partner.last_name', 'partner.first_name'],
+                'participant_names',
                 'Inscripciones a torneos',
             ),
             AdminNotifier::notifyAction(
                 ForceDeleteAction::make(),
                 $this,
                 'eliminó definitivamente la inscripción de',
-                ['player.last_name', 'player.first_name', 'partner.last_name', 'partner.first_name'],
+                'participant_names',
                 'Inscripciones a torneos',
             ),
             AdminNotifier::notifyAction(
                 RestoreAction::make(),
                 $this,
                 'restauró la inscripción de',
-                ['player.last_name', 'player.first_name', 'partner.last_name', 'partner.first_name'],
+                'participant_names',
                 'Inscripciones a torneos',
             ),
         ];
@@ -68,7 +68,7 @@ class EditTournamentRegistration extends EditRecord
             $this,
             $this->record,
             'modificó la inscripción de',
-            ['player.last_name', 'player.first_name', 'partner.last_name', 'partner.first_name'],
+            'participant_names',
             "el torneo {$tournamentName}",
             false,
         );

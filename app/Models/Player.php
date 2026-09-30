@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 
 class Player extends Model
@@ -80,6 +80,11 @@ class Player extends Model
         return $this->hasMany(TournamentRegistration::class, 'partner_player_id');
     }
 
+    public function tournamentRegistrationParticipations()
+    {
+        return $this->hasMany(TournamentRegistrationParticipant::class);
+    }
+
     public function disciplines()
     {
         return $this->belongsToMany(Discipline::class, 'player_discipline')
@@ -134,5 +139,4 @@ class Player extends Model
     {
         return $this->hasMany(PlayerCategoryPromotion::class);
     }
-
 }

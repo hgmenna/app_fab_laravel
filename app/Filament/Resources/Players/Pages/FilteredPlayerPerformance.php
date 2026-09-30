@@ -29,12 +29,19 @@ class FilteredPlayerPerformance extends Page
     public array $playerIds = [];
 
     public string $searchPlayer = '';
+
     public string $disciplineId = '';
+
     public array $typeIds = [];
+
     public string $fromDate = '';
+
     public string $untilDate = '';
+
     public string $minPoints = '';
+
     public string $maxPoints = '';
+
     public bool $onlyParticipants = true;
 
     public function mount(string $report): void
@@ -63,8 +70,7 @@ class FilteredPlayerPerformance extends Page
         return TournamentType::query()
             ->when($this->disciplineId !== '', fn (Builder $query) => $query->where(function (Builder $types): void {
                 $types->where('discipline_id', $this->disciplineId)
-                    ->orWhereHas('tournaments', fn (Builder $tournaments) =>
-                        $tournaments->where('discipline_id', $this->disciplineId));
+                    ->orWhereHas('tournaments', fn (Builder $tournaments) => $tournaments->where('discipline_id', $this->disciplineId));
             }))
             ->orderBy('name')
             ->pluck('name', 'id')
@@ -94,11 +100,7 @@ class FilteredPlayerPerformance extends Page
             ->get(['id', 'last_name', 'first_name']);
 
         $rows = TournamentRegistration::query()
-            ->where(function (Builder $query) use ($players): void {
-                $playerIds = $players->pluck('id');
-                $query->whereIn('player_id', $playerIds)
-                    ->orWhereIn('partner_player_id', $playerIds);
-            })
+            ->whereHas('participants', fn (Builder $query) => $query->whereIn('player_id', $players->pluck('id')))
             ->whereHas('tournament', function (Builder $tournament): void {
                 $tournament->whereDate('end_date', '<=', today());
 
@@ -122,22 +124,22 @@ class FilteredPlayerPerformance extends Page
             ->addSelect(['participant_count' => DB::table('tournament_registrations as participant_counts')
                 ->selectRaw('COUNT(*)')
                 ->whereColumn('participant_counts.tournament_id', 'tournament_registrations.tournament_id')])
-            ->with(['tournament.type', 'tournamentInstance'])
+            ->with(['tournament.type', 'tournamentInstance', 'participants'])
             ->orderByDesc('id')
             ->get();
 
         $summaries = $players->map(function (Player $player) use ($rows): array {
-            $playerRows = $rows->filter(fn (TournamentRegistration $registration): bool =>
-                (int) $registration->player_id === (int) $player->id
-                || (int) $registration->partner_player_id === (int) $player->id
-            );
+            $playerRows = $rows->filter(fn (TournamentRegistration $registration): bool => in_array(
+                (int) $player->id,
+                $registration->participantIds(),
+                true,
+            ));
 
             return [
                 'id' => $player->id,
                 'name' => $player->full_name,
                 'tournaments' => $playerRows->count(),
-                'results' => $playerRows->filter(fn (TournamentRegistration $row): bool =>
-                    $row->result_code !== null || $row->tournament_instance_id !== null)->count(),
+                'results' => $playerRows->filter(fn (TournamentRegistration $row): bool => $row->result_code !== null || $row->tournament_instance_id !== null)->count(),
                 'points' => $playerRows->sum(fn (TournamentRegistration $row): float => (float) $row->points),
                 'rows' => $playerRows,
             ];
@@ -177,8 +179,8 @@ class FilteredPlayerPerformance extends Page
                     ])->setPaper('a4', 'landscape');
 
                     return response()->streamDownload(
-                        fn () => print($pdf->output()),
-                        'desempeno-jugadores-' . now()->format('Y-m-d') . '.pdf'
+                        fn () => print ($pdf->output()),
+                        'desempeno-jugadores-'.now()->format('Y-m-d').'.pdf'
                     );
                 }),
         ];

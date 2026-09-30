@@ -149,37 +149,23 @@
                     {{-- IZQUIERDA --}}
                     <td width="45%" valign="top" style="padding-right: 10px;">
 
-                        <div class="label">Jugador</div>
-                        <div class="value">
-                            {{ $record->player->last_name }}, {{ $record->player->first_name }}
-                        </div>
+                        <div class="label">Modalidad</div>
+                        <div class="value">{{ $record->tournamentModality?->modality?->name ?? 'Sin modalidad' }}</div>
 
-                        <div class="label">Club del primer integrante</div>
-                        <div class="value">
-                            {{ $record->player?->club?->name ?? 'Sin club' }}
-                        </div>
-
-                        <div class="label">Categoría del primer integrante</div>
-                        <div class="value">
-                            {{ $record->player?->category?->name ?? 'Sin categoría' }}
-                        </div>
-
-                        @if($record->partner)
-                            <div class="label">Segundo integrante</div>
+                        @foreach($record->participants as $participant)
+                            <div class="label">Integrante {{ $loop->iteration }}</div>
                             <div class="value">
-                                {{ $record->partner->last_name }}, {{ $record->partner->first_name }}
+                                {{ $participant->player->full_name }}
                             </div>
-
-                            <div class="label">Club del segundo integrante</div>
+                            <div class="label">Club</div>
                             <div class="value">
-                                {{ $record->partner?->club?->name ?? 'Sin club' }}
+                                {{ $participant->player?->club?->name ?? 'Sin club' }}
                             </div>
-
-                            <div class="label">Categoría del segundo integrante</div>
+                            <div class="label">Categoría</div>
                             <div class="value">
-                                {{ $record->partner?->category?->name ?? 'Sin categoría' }}
+                                {{ $participant->player?->category?->name ?? 'Sin categoría' }}
                             </div>
-                        @endif
+                        @endforeach
 
                         <div class="label">Horario</div>
                         <div class="value">

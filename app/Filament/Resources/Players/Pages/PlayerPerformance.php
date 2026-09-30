@@ -10,8 +10,8 @@ use App\Models\TournamentType;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
-use Filament\Resources\Pages\Page;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
+use Filament\Resources\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -23,8 +23,8 @@ use Illuminate\Support\Facades\DB;
 
 class PlayerPerformance extends Page implements HasTable
 {
-    use InteractsWithTable;
     use InteractsWithRecord;
+    use InteractsWithTable;
 
     protected static string $resource = PlayerResource::class;
 
@@ -37,7 +37,7 @@ class PlayerPerformance extends Page implements HasTable
 
     public function getTitle(): string
     {
-        return 'Desempeño: ' . $this->record->full_name;
+        return 'Desempeño: '.$this->record->full_name;
     }
 
     protected function getHeaderActions(): array
@@ -64,8 +64,8 @@ class PlayerPerformance extends Page implements HasTable
                     ])->setPaper('a4', 'landscape');
 
                     return response()->streamDownload(
-                        fn () => print($pdf->output()),
-                        'desempeno-jugador-' . $this->record->id . '.pdf'
+                        fn () => print ($pdf->output()),
+                        'desempeno-jugador-'.$this->record->id.'.pdf'
                     );
                 }),
         ];
@@ -75,10 +75,7 @@ class PlayerPerformance extends Page implements HasTable
     {
         return $table
             ->query(fn (): Builder => TournamentRegistration::query()
-                ->where(function (Builder $query): void {
-                    $query->where('player_id', $this->record->id)
-                        ->orWhere('partner_player_id', $this->record->id);
-                })
+                ->whereHas('participants', fn (Builder $query) => $query->where('player_id', $this->record->id))
                 ->whereHas('tournament', fn (Builder $query) => $query->whereDate('end_date', '<=', today()))
                 ->addSelect(['participant_count' => DB::table('tournament_registrations as participant_counts')
                     ->selectRaw('COUNT(*)')
@@ -97,8 +94,7 @@ class PlayerPerformance extends Page implements HasTable
                 TextColumn::make('participant_count')->label('Inscriptos')->numeric(),
                 TextColumn::make('position')
                     ->label('Posición / resultado')
-                    ->state(fn (TournamentRegistration $record): string =>
-                        $record->result_description
+                    ->state(fn (TournamentRegistration $record): string => $record->result_description
                         ?? $record->tournamentInstance?->description
                         ?? 'Sin resultado'),
                 TextColumn::make('points')->label('Puntos')->numeric(decimalPlaces: 2),
