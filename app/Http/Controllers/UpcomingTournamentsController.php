@@ -97,7 +97,7 @@ class UpcomingTournamentsController extends Controller
                     'torneo' => $tournament->name,
                     'disciplina' => $tournament->discipline?->name ?? '',
                     'categorias' => $categories,
-                    'club' => $club?->name ?? '',
+                    'club' => $club?->name ?? 'SIN ASIGNAR',
                     'tipo' => $tournament->type?->name ?? '',
                     'oficial' => (bool) $tournament->type?->is_official,
                     'provincia' => $club?->city?->state?->federation?->short_name ?? '',
