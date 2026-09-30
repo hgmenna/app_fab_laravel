@@ -44,7 +44,12 @@ return new class extends Migration
 
             Schema::table('tournament_category_price', function (Blueprint $table) {
                 $table->foreignId('tournament_modality_id')->nullable()->after('tournament_id')->constrained()->cascadeOnDelete();
-                $table->unique(['tournament_modality_id', 'category_id']);
+            });
+        }
+
+        if (! $this->indexExists('tournament_category_price', 'tcp_modality_category_unique')) {
+            Schema::table('tournament_category_price', function (Blueprint $table) {
+                $table->unique(['tournament_modality_id', 'category_id'], 'tcp_modality_category_unique');
             });
         }
 
@@ -152,7 +157,7 @@ return new class extends Migration
         });
         Schema::table('tournament_slots', fn (Blueprint $table) => $table->dropConstrainedForeignId('tournament_modality_id'));
         Schema::table('tournament_category_price', function (Blueprint $table): void {
-            $table->dropUnique(['tournament_modality_id', 'category_id']);
+            $table->dropUnique('tcp_modality_category_unique');
             $table->dropConstrainedForeignId('tournament_modality_id');
             $table->unique(['tournament_id', 'category_id']);
         });
