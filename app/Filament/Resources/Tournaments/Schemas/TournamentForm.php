@@ -83,7 +83,14 @@ class TournamentForm
                                     ->disabled(fn (Get $get): bool => ! $get('discipline_id'))
                                     ->required()
                                     ->live()
-                                    ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', [])),
+                                    ->afterStateUpdated(function ($state, Set $set): void {
+                                        $set('manual_route_checks', []);
+                                        $type = TournamentType::find($state);
+
+                                        if ($type && ! $type->is_official) {
+                                            $set('non_official_logo_source', 'venue_federation');
+                                        }
+                                    }),
 
                                 TextInput::make('stage_number')
                                     ->label('Etapa (1 a 4)')
@@ -310,6 +317,28 @@ class TournamentForm
                                     ->openable()
                                     ->columnSpan(8),
 
+                                Select::make('non_official_logo_source')
+                                    ->label('Logo para la publicación')
+                                    ->options([
+                                        'venue_club' => 'Club organizador',
+                                        'venue_federation' => 'Federación del club organizador',
+                                    ])
+                                    ->default('venue_federation')
+                                    ->helperText('La imagen se toma automáticamente del club o de su federación cuando se asigne la sede.')
+                                    ->visible(function (Get $get): bool {
+                                        $type = TournamentType::find($get('tournament_type_id'));
+
+                                        return $type && ! $type->is_official;
+                                    })
+                                    ->required(function (Get $get): bool {
+                                        $type = TournamentType::find($get('tournament_type_id'));
+
+                                        return $type && ! $type->is_official;
+                                    })
+                                    ->native(false)
+                                    ->live()
+                                    ->columnSpan(4),
+
                                 Placeholder::make('publication_logo_information')
                                     ->label('Logo institucional')
                                     ->content(function (Get $get): string {
@@ -317,6 +346,12 @@ class TournamentForm
 
                                         if (! $type?->is_official) {
                                             $club = Club::with('city.state.federation')->find($get('venue_id'));
+
+                                            if ($get('non_official_logo_source') === 'venue_club') {
+                                                return $club
+                                                    ? 'Se utilizará el logo de '.$club->name.'.'
+                                                    : 'Se utilizará el logo del club cuando se asigne la sede.';
+                                            }
 
                                             return 'Se utilizará el logo de '
                                                 .($club?->city?->state?->federation?->name ?? 'la federación correspondiente al club organizador').'.';

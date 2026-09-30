@@ -31,6 +31,7 @@ class Tournament extends Model
         'registration_enabled',
         'entry_fee',
         'venue_id',
+        'non_official_logo_source',
         'notes',
         'categories',
         'is_payment_enabled',
@@ -117,7 +118,10 @@ class Tournament extends Model
         ]);
 
         if (! $this->type?->is_official) {
-            return $this->venue?->city?->state?->federation?->logo_path;
+            return match ($this->non_official_logo_source ?: 'venue_federation') {
+                'venue_club' => $this->venue?->logo_path,
+                default => $this->venue?->city?->state?->federation?->logo_path,
+            };
         }
 
         return match ($this->type->publication_logo_source) {

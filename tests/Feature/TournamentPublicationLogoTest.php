@@ -7,7 +7,7 @@ use App\Models\State;
 use App\Models\Tournament;
 use App\Models\TournamentType;
 
-function publicationTournament(bool $official, string $source): Tournament
+function publicationTournament(bool $official, string $source, string $nonOfficialSource = 'venue_federation'): Tournament
 {
     $provincialFederation = new Federation(['name' => 'Federación Provincial', 'logo_path' => 'logos/provincial.png']);
     $nationalFederation = new Federation(['name' => 'Federación Argentina', 'logo_path' => 'logos/fab.png']);
@@ -18,7 +18,7 @@ function publicationTournament(bool $official, string $source): Tournament
     $city = new City;
     $city->setRelation('state', $state);
 
-    $club = new Club;
+    $club = new Club(['name' => 'Club Organizador', 'logo_path' => 'logos/club.png']);
     $club->setRelation('city', $city);
 
     $type = new TournamentType([
@@ -27,7 +27,7 @@ function publicationTournament(bool $official, string $source): Tournament
     ]);
     $type->setRelation('publicationFederation', $nationalFederation);
 
-    $tournament = new Tournament;
+    $tournament = new Tournament(['non_official_logo_source' => $nonOfficialSource]);
     $tournament->setRelation('type', $type);
     $tournament->setRelation('venue', $club);
 
@@ -37,6 +37,11 @@ function publicationTournament(bool $official, string $source): Tournament
 it('uses the organizing club federation logo for a non official tournament', function () {
     expect(publicationTournament(false, 'none')->publicationLogoPath())
         ->toBe('logos/provincial.png');
+});
+
+it('uses the organizing club logo when selected for a non official tournament', function () {
+    expect(publicationTournament(false, 'none', 'venue_club')->publicationLogoPath())
+        ->toBe('logos/club.png');
 });
 
 it('uses the organizing club provincial federation logo', function () {

@@ -27,7 +27,7 @@ class UpcomingTournamentsController extends Controller
                 'discipline:id,name',
                 'type:id,name,participation_mode,has_handicap,is_official,publication_logo_source,publication_federation_id',
                 'type.publicationFederation:id,name,logo_path',
-                'venue:id,name,address,lat,lng,city_id',
+                'venue:id,name,logo_path,address,lat,lng,city_id',
                 'venue.city:id,state_id',
                 'venue.city.state:id,federation_id',
                 'venue.city.state.federation:id,name,short_name,logo_path',
