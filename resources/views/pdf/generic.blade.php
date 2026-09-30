@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <style>
         /* 1. Márgenes de página para evitar solapamiento (Fuentes 1, 3, 5) */
-        @page { 
-            margin: 160px 30px 100px 30px; 
+        @page {
+            margin: 145px 30px 105px 30px;
         }
 
         body { font-family: 'Helvetica', sans-serif; font-size: 10px; color: #333; margin: 0; padding: 0; }
@@ -13,19 +13,19 @@
         /* 2. Encabezado Fijo (Se repite en todas las páginas) */
         header { 
             position: fixed; 
-            top: -130px; 
+            top: -120px;
             left: 0px; 
             right: 0px; 
-            height: 110px; 
+            height: 95px;
         }
 
         /* 3. Pie de Página Fijo */
         footer { 
             position: fixed; 
-            bottom: -70px; 
-            left: 0px; el
-            right: 0px; 
-            height: 80px; 
+            bottom: -85px;
+            left: 0;
+            right: 0;
+            height: 78px;
             text-align: center;
         }
 
@@ -36,7 +36,7 @@
         .title-cell { width: 60%; text-align: center; }
         .date-cell { width: 20%; text-align: right; font-size: 12px; }
 
-        .logo { max-height: 80px; width: auto; }
+        .logo { max-height: 68px; max-width: 105px; width: auto; }
         .main-title { font-size: 18px; font-weight: bold; text-transform: uppercase; margin: 0; }
         .sub-title { font-size: 12px; color: #555; margin-top: 5px; }
 
@@ -97,7 +97,20 @@
             font-size: 14px;
         }
 
-        .footer-image { width: 70%; height: auto; }
+        .footer-image { width: 100%; max-height: 35px; height: auto; }
+        .developer-footer {
+            width: 100%;
+            margin-top: 5px;
+            border-top: 1px solid #d1d5db;
+            padding-top: 4px;
+            color: #4b5563;
+            font-size: 7px;
+            line-height: 1.25;
+        }
+        .developer-footer td { border: 0; padding: 0; }
+        .developer-left { width: 54%; text-align: left; }
+        .developer-right { width: 46%; text-align: right; }
+        .developer-name, .system-name { font-weight: bold; color: #1f2937; }
     </style>
 </head>
 <body>
@@ -120,13 +133,28 @@
     </header>
 
     <footer>
-        @if(isset($footer_image)) <img src="{{ $footer_image }}" class="footer-image"> @endif
+        @if(!empty($footer_image))
+            <img src="{{ $footer_image }}" class="footer-image" alt="Federación Argentina de Billar">
+        @endif
+        <table class="developer-footer">
+            <tr>
+                <td class="developer-left">
+                    Desarrollo y Arquitectura de Software:
+                    <span class="developer-name">{{ $developer_name ?? 'Hernán Gabriel Menna' }}</span><br>
+                    {{ $developer_phone ?? '' }}@if(!empty($developer_phone) && !empty($developer_email)) · @endif{{ $developer_email ?? '' }}
+                </td>
+                <td class="developer-right">
+                    <span class="system-name">{{ $system_name ?? 'Sistema Administrativo Federación Argentina de Billar' }}</span><br>
+                    Versión {{ $system_version ?? config('app.version') }}
+                </td>
+            </tr>
+        </table>
     </footer>
 
     <main>
         @if(isset($groups))
             @foreach($groups as $slotName => $rows)
-                <div class="group-wrapper;">
+                <div class="group-wrapper">
                     <div class="group-header">{{ $slotName }}</div>
                     <table class="data-table">
                         <thead>

@@ -7,6 +7,7 @@ use App\Filament\Resources\TournamentRegistrations\Pages\CreateTournamentRegistr
 use App\Filament\Resources\TournamentRegistrations\Pages\EditTournamentRegistration;
 use App\Filament\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
 use App\Filament\Resources\TournamentRegistrations\Tables\TournamentRegistrationsTable;
+use App\Helpers\FabPath;
 use App\Models\GeneralRanking;
 use App\Models\TournamentRegistration;
 use App\Services\RankingService;
@@ -117,11 +118,14 @@ class TournamentRegistrationResource extends Resource
 
         $registrations = $query->get();
         $totalGeneral = $registrations->count(); // Total de inscripciones
-        $tournamentType = $tournament->type->short_name;
+        $publicationLogo = $tournament->publicationLogoPath();
+        $logo = filled($publicationLogo) ? FabPath::absolute($publicationLogo) : null;
 
-        if ($tournamentType !== 'CAB' && $tournament->venue !== null) {
-            $logo = $tournament->venue->logo_path;
+        if (! $logo || ! is_file($logo)) {
+            $logo = null;
         }
+
+        $footerImage = is_file(FabPath::footer()) ? FabPath::footer() : public_path('images/pie-pagina.png');
 
         // 2. Procesar datos y Ranking (basado en fuentes [4-6])
         $processed = $registrations->flatMap(function ($registration) {
@@ -165,8 +169,13 @@ class TournamentRegistrationResource extends Resource
             'groups' => $grouped,
             'totalGeneral' => $totalGeneral, // Pasamos el total de inscriptos
             'labelTotalGeneral' => 'Inscripciones',
-            'logo' => public_path('images/logo.png'),
-            'footer_image' => public_path('images/pie-pagina.png'),
+            'logo' => $logo,
+            'footer_image' => $footerImage,
+            'system_name' => 'Sistema Administrativo Federación Argentina de Billar',
+            'system_version' => config('app.version'),
+            'developer_name' => 'Hernán Gabriel Menna',
+            'developer_phone' => '+54 9 341 598 8191',
+            'developer_email' => 'hgmenna@hotmail.com',
         ])->setPaper('a4', 'portrait');
 
         // Nombre dinamico para el pdf
