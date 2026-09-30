@@ -37,6 +37,15 @@ class TournamentsTable
                     ->extraHeaderAttributes(['class' => 'fab-col-tournament'])
                     ->extraCellAttributes(['class' => 'fab-col-tournament']),
 
+                ViewColumn::make('dates')
+                    ->label('Inicio / Fin')
+                    ->view('filament.tables.columns.tournament-dates')
+                    ->sortable(['start_date'])
+                    ->alignCenter()
+                    ->width('7rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-dates'])
+                    ->extraCellAttributes(['class' => 'fab-col-dates']),
+
                 ImageColumn::make('flyer_path')
                     ->label('Flyer')
                     ->disk('public_path')
@@ -119,15 +128,6 @@ class TournamentsTable
                     ->width('4.5rem')
                     ->extraHeaderAttributes(['class' => 'fab-col-categories'])
                     ->extraCellAttributes(['class' => 'fab-col-categories']),
-
-                ViewColumn::make('dates')
-                    ->label('Fechas')
-                    ->view('filament.tables.columns.tournament-dates')
-                    ->sortable(['start_date'])
-                    ->alignCenter()
-                    ->width('7rem')
-                    ->extraHeaderAttributes(['class' => 'fab-col-dates'])
-                    ->extraCellAttributes(['class' => 'fab-col-dates']),
 
                 TextColumn::make('registrations_count')
                     ->label('# Insc')
