@@ -20,7 +20,11 @@ class UpcomingTournamentsController extends Controller
             10 => 'OCTUBRE', 11 => 'NOVIEMBRE', 12 => 'DICIEMBRE',
         ];
 
-        $categoryNames = Category::query()->pluck('name', 'id');
+        $categoriesByDiscipline = Category::query()
+            ->orderBy('order')
+            ->orderBy('name')
+            ->get(['id', 'discipline_id', 'name'])
+            ->groupBy('discipline_id');
 
         $rows = Tournament::query()
             ->with([
@@ -38,13 +42,27 @@ class UpcomingTournamentsController extends Controller
             ->orderBy('start_date')
             ->orderBy('id')
             ->get()
-            ->map(function (Tournament $tournament) use ($monthNames, $categoryNames): array {
+            ->map(function (Tournament $tournament) use ($monthNames, $categoriesByDiscipline): array {
                 $club = $tournament->venue;
 
-                $categories = collect($tournament->categories ?? [])
-                    ->map(fn ($id) => $categoryNames->get($id))
-                    ->filter()
-                    ->implode(', ');
+                $disciplineCategories = $categoriesByDiscipline
+                    ->get($tournament->discipline_id, collect());
+                $selectedCategoryIds = collect($tournament->categories ?? [])
+                    ->map(fn ($id): int => (int) $id)
+                    ->unique()
+                    ->values();
+                $allCategoryIds = $disciplineCategories
+                    ->pluck('id')
+                    ->map(fn ($id): int => (int) $id)
+                    ->values();
+                $includesEveryCategory = $allCategoryIds->isNotEmpty()
+                    && $selectedCategoryIds->sort()->values()->all() === $allCategoryIds->sort()->values()->all();
+                $categories = $includesEveryCategory
+                    ? 'Todas'
+                    : $selectedCategoryIds
+                        ->map(fn (int $id) => $disciplineCategories->firstWhere('id', $id)?->name)
+                        ->filter()
+                        ->implode(', ');
 
                 $mapUrl = null;
 
