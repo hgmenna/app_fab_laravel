@@ -5,6 +5,7 @@ namespace App\Filament\Resources\DisciplineModalities;
 use App\Filament\Actions\GlobalActionGroup;
 use App\Filament\Actions\GlobalDeleteAction;
 use App\Filament\Actions\GlobalEditAction;
+use App\Filament\Resources\Concerns\ScopesToUserDisciplines;
 use App\Filament\Resources\DisciplineModalities\Pages\CreateDisciplineModality;
 use App\Filament\Resources\DisciplineModalities\Pages\EditDisciplineModality;
 use App\Filament\Resources\DisciplineModalities\Pages\ListDisciplineModalities;
@@ -21,10 +22,13 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 use UnitEnum;
 
 class DisciplineModalityResource extends Resource
 {
+    use ScopesToUserDisciplines;
+
     protected static ?string $model = DisciplineModality::class;
 
     protected static string|UnitEnum|null $navigationGroup = 'Gestión Deportiva';
@@ -41,10 +45,11 @@ class DisciplineModalityResource extends Resource
     {
         return $schema->columns(2)->components([
             Select::make('discipline_id')
-                ->relationship('discipline', 'name')
+                ->relationship('discipline', 'name', fn ($query) => Auth::user()?->scopeDisciplineQuery($query, 'Create:DisciplineModality'))
                 ->label('Disciplina')
                 ->searchable()
                 ->preload()
+                ->default(fn () => Auth::user()?->defaultDisciplineId('Create:DisciplineModality'))
                 ->required(),
             TextInput::make('name')->label('Modalidad')->required()->maxLength(255),
             TextInput::make('code')->label('Código')->required()->maxLength(50),

@@ -26,6 +26,14 @@ class UsersTable
                 TextColumn::make('email_verified_at')
                     ->dateTime()
                     ->sortable(),
+                TextColumn::make('disciplineAssignments.discipline.name')
+                    ->label('Disciplinas')
+                    ->listWithLineBreaks()
+                    ->bulleted(),
+                TextColumn::make('disciplineAssignments.role.name')
+                    ->label('Roles por disciplina')
+                    ->listWithLineBreaks()
+                    ->bulleted(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

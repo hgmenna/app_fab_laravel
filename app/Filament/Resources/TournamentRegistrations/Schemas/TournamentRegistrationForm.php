@@ -22,7 +22,11 @@ class TournamentRegistrationForm
     public static function configure(Schema $schema, ?Tournament $tournament): Schema
     {
         return $schema->components([
-            Select::make('tournament_id')->label('Torneo')->relationship('tournament', 'name')->required()->live()
+            Select::make('tournament_id')->label('Torneo')->relationship(
+                'tournament',
+                'name',
+                fn ($query) => Auth::user()?->scopeDisciplineQuery($query, 'Create:TournamentRegistration'),
+            )->required()->live()
                 ->hidden(fn ($livewire): bool => $tournament !== null || $livewire instanceof \Filament\Resources\Pages\ManageRelatedRecords || method_exists($livewire, 'getOwnerRecord'))
                 ->afterStateUpdated(function (Set $set): void {
                     $set('tournament_modality_id', null);
@@ -61,7 +65,7 @@ class TournamentRegistrationForm
                 ->required(fn (Get $get, $livewire): bool => (self::resolveTournament($get, $livewire, $tournament)?->is_payment_enabled ?? false)
                     && ! (Auth::user()?->hasRole('super-admin') ?? false)),
             Select::make('status')->options(['pendiente' => 'Pendiente', 'aprobado' => 'Aprobado', 'rechazado' => 'Rechazado'])
-                ->default('pendiente')->disabled(fn (): bool => ! (Auth::user()?->can('UpdateStatusTournament') ?? false))->dehydrated(),
+                ->default('pendiente')->disabled(fn (): bool => ! (Auth::user()?->canGloballyOrInAnyDiscipline('UpdateStatusTournament') ?? false))->dehydrated(),
         ]);
     }
 

@@ -71,12 +71,12 @@ class TournamentRegistrationsTable
 
                 TextColumn::make('tournamentInstance.description')
                     ->label('Posicion')
-                    ->visible(fn () => Auth::user()?->can('EditField')
+                    ->visible(fn () => Auth::user()?->canGloballyOrInAnyDiscipline('EditField')
                     ),
 
                 TextColumn::make('points')
                     ->label('Puntos')
-                    ->visible(fn () => Auth::user()?->can('EditField'))
+                    ->visible(fn () => Auth::user()?->canGloballyOrInAnyDiscipline('EditField'))
                     ->formatStateUsing(fn ($record) => $record->points !== null
                             ? number_format($record->points, 2)
                             : '—'),
@@ -227,7 +227,7 @@ class TournamentRegistrationsTable
                 GlobalActionGroup::make([
                     GlobalViewAction::make(),
                     GlobalEditAction::make()
-                        ->visible(fn () => Auth::user()?->can('EditField'))
+                        ->visible(fn () => Auth::user()?->canGloballyOrInAnyDiscipline('EditField'))
                         ->after(function (Model $record) {
                             $tournamentName = $record->tournament?->name ?? 'el torneo';
 
@@ -245,7 +245,7 @@ class TournamentRegistrationsTable
                         }
                         ),
                     GlobalDeleteAction::make()
-                        ->visible(fn () => Auth::user()?->can('EditField'))
+                        ->visible(fn () => Auth::user()?->canGloballyOrInAnyDiscipline('EditField'))
                         ->after(function (Model $record) {
                             $tournamentName = $record->tournament?->name ?? 'el torneo';
 
@@ -309,7 +309,7 @@ class TournamentRegistrationsTable
                                 false,
                             );
                         })
-                        ->visible(fn () => (Auth::user()?->can('UpdateStatusTournament') ?? false)
+                        ->visible(fn () => (Auth::user()?->canGloballyOrInAnyDiscipline('UpdateStatusTournament') ?? false)
                         ),
                     Action::make('pdf')
                         ->label('PDF')

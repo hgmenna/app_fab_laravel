@@ -3,8 +3,10 @@
 namespace App\Filament\Resources\Users\Schemas;
 
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -24,17 +26,43 @@ class UserForm
                     ->required(),
                 Select::make('roles')
                     ->relationship('roles', 'name')
-                    ->label('Rol')
+                    ->label('Roles globales')
+                    ->helperText('Reservado para superadministradores y accesos generales sin límite de disciplina.')
                     ->multiple()
                     ->preload()
                     ->searchable(),
+                Repeater::make('disciplineAssignments')
+                    ->relationship('disciplineAssignments')
+                    ->label('Accesos por disciplina')
+                    ->helperText('El usuario puede tener varias disciplinas y un rol Shield diferente en cada una.')
+                    ->schema([
+                        Select::make('discipline_id')
+                            ->relationship('discipline', 'name', fn ($query) => $query->where('active', true)->orderBy('name'))
+                            ->label('Disciplina')
+                            ->required()
+                            ->distinct()
+                            ->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                            ->searchable()
+                            ->preload(),
+                        Select::make('role_id')
+                            ->relationship('role', 'name', fn ($query) => $query->where('guard_name', 'web')->where('name', '!=', 'super-admin')->orderBy('name'))
+                            ->label('Rol de Filament Shield')
+                            ->required()
+                            ->searchable()
+                            ->preload(),
+                        Toggle::make('is_active')->label('Activo')->default(true),
+                    ])
+                    ->columns(3)
+                    ->defaultItems(0)
+                    ->addActionLabel('Agregar disciplina')
+                    ->columnSpanFull(),
                 DateTimePicker::make('email_verified_at')
                     ->label('Fecha verificacion Mail'),
                 TextInput::make('password')
                     ->label('Contraseña')
                     ->password()
                     ->revealable() // Permite ver la clave mientras se escribe [6]
-                    
+
                     // 1. Visibilidad dinámica: Solo Super-Admin o el propio Usuario
                     ->visible(function (string $operation, ?Model $record) {
                         // En la creación, el campo debe ser visible para el administrador
@@ -58,7 +86,7 @@ class UserForm
 
                     // 3. Evita borrar la contraseña actual si el campo se deja vacío al editar
                     ->dehydrated(fn ($state) => filled($state)
-                ),
+                    ),
             ]);
     }
 }

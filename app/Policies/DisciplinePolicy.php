@@ -4,67 +4,67 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\Discipline;
+use App\Models\User;
+use App\Policies\Concerns\ChecksDisciplinePermissions;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class DisciplinePolicy
 {
-    use HandlesAuthorization;
-    
-    public function viewAny(AuthUser $authUser): bool
+    use ChecksDisciplinePermissions, HandlesAuthorization;
+
+    public function viewAny(User $authUser): bool
     {
-        return $authUser->can('ViewAny:Discipline');
+        return $this->allowsAny($authUser, 'ViewAny:Discipline');
     }
 
-    public function view(AuthUser $authUser, Discipline $discipline): bool
+    public function view(User $authUser, Discipline $discipline): bool
     {
-        return $authUser->can('View:Discipline');
+        return $this->allowsFor($authUser, 'View:Discipline', $discipline->id);
     }
 
-    public function create(AuthUser $authUser): bool
+    public function create(User $authUser): bool
     {
-        return $authUser->can('Create:Discipline');
+        return $this->allowsAny($authUser, 'Create:Discipline');
     }
 
-    public function update(AuthUser $authUser, Discipline $discipline): bool
+    public function update(User $authUser, Discipline $discipline): bool
     {
-        return $authUser->can('Update:Discipline');
+        return $this->allowsFor($authUser, 'Update:Discipline', $discipline->id);
     }
 
-    public function delete(AuthUser $authUser, Discipline $discipline): bool
+    public function delete(User $authUser, Discipline $discipline): bool
     {
-        return $authUser->can('Delete:Discipline');
+        return $this->allowsFor($authUser, 'Delete:Discipline', $discipline->id);
     }
 
-    public function restore(AuthUser $authUser, Discipline $discipline): bool
+    public function restore(User $authUser, Discipline $discipline): bool
     {
-        return $authUser->can('Restore:Discipline');
+        return $this->allowsFor($authUser, 'Restore:Discipline', $discipline->id);
     }
 
-    public function forceDelete(AuthUser $authUser, Discipline $discipline): bool
+    public function forceDelete(User $authUser, Discipline $discipline): bool
     {
-        return $authUser->can('ForceDelete:Discipline');
+        return $this->allowsFor($authUser, 'ForceDelete:Discipline', $discipline->id);
     }
 
-    public function forceDeleteAny(AuthUser $authUser): bool
+    public function forceDeleteAny(User $authUser): bool
     {
-        return $authUser->can('ForceDeleteAny:Discipline');
+        return $this->allowsAny($authUser, 'ForceDeleteAny:Discipline');
     }
 
-    public function restoreAny(AuthUser $authUser): bool
+    public function restoreAny(User $authUser): bool
     {
-        return $authUser->can('RestoreAny:Discipline');
+        return $this->allowsAny($authUser, 'RestoreAny:Discipline');
     }
 
-    public function replicate(AuthUser $authUser, Discipline $discipline): bool
+    public function replicate(User $authUser, Discipline $discipline): bool
     {
-        return $authUser->can('Replicate:Discipline');
+        return $this->allowsFor($authUser, 'Replicate:Discipline', $discipline->id);
     }
 
-    public function reorder(AuthUser $authUser): bool
+    public function reorder(User $authUser): bool
     {
-        return $authUser->can('Reorder:Discipline');
+        return $this->allowsAny($authUser, 'Reorder:Discipline');
     }
-
 }

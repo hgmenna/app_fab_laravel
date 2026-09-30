@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TournamentTypes;
 
+use App\Filament\Resources\Concerns\ScopesToUserDisciplines;
 use App\Filament\Resources\TournamentTypes\Pages\CreateTournamentType;
 use App\Filament\Resources\TournamentTypes\Pages\EditTournamentType;
 use App\Filament\Resources\TournamentTypes\Pages\ListTournamentTypes;
@@ -19,10 +20,16 @@ use UnitEnum;
 
 class TournamentTypeResource extends Resource
 {
+    use ScopesToUserDisciplines;
+
     protected static ?string $model = TournamentType::class;
+
     protected static string|UnitEnum|null $navigationGroup = 'Torneos';
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::ArrowDownOnSquareStack;
+
     protected static ?string $navigationLabel = 'Tipos de torneo';
+
     protected static ?int $navigationSort = 12;
 
     protected static ?string $recordTitleAttribute = 'name';
@@ -55,7 +62,7 @@ class TournamentTypeResource extends Resource
 
     public static function getRecordRouteBindingEloquentQuery(): Builder
     {
-        return parent::getRecordRouteBindingEloquentQuery()
+        return static::getEloquentQuery()
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);

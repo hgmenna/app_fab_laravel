@@ -3,32 +3,35 @@
 namespace App\Policies;
 
 use App\Models\DisciplineModality;
-use Illuminate\Foundation\Auth\User as AuthUser;
+use App\Models\User;
+use App\Policies\Concerns\ChecksDisciplinePermissions;
 
 class DisciplineModalityPolicy
 {
-    public function viewAny(AuthUser $user): bool
+    use ChecksDisciplinePermissions;
+
+    public function viewAny(User $user): bool
     {
-        return $user->can('EditField');
+        return $this->allowsAny($user, 'ViewAny:DisciplineModality') || $this->allowsAny($user, 'EditField');
     }
 
-    public function view(AuthUser $user, DisciplineModality $record): bool
+    public function view(User $user, DisciplineModality $record): bool
     {
-        return $user->can('EditField');
+        return $this->allowsFor($user, 'View:DisciplineModality', $record->discipline_id) || $this->allowsFor($user, 'EditField', $record->discipline_id);
     }
 
-    public function create(AuthUser $user): bool
+    public function create(User $user): bool
     {
-        return $user->can('EditField');
+        return $this->allowsAny($user, 'Create:DisciplineModality') || $this->allowsAny($user, 'EditField');
     }
 
-    public function update(AuthUser $user, DisciplineModality $record): bool
+    public function update(User $user, DisciplineModality $record): bool
     {
-        return $user->can('EditField');
+        return $this->allowsFor($user, 'Update:DisciplineModality', $record->discipline_id) || $this->allowsFor($user, 'EditField', $record->discipline_id);
     }
 
-    public function delete(AuthUser $user, DisciplineModality $record): bool
+    public function delete(User $user, DisciplineModality $record): bool
     {
-        return $user->can('EditField');
+        return $this->allowsFor($user, 'Delete:DisciplineModality', $record->discipline_id) || $this->allowsFor($user, 'EditField', $record->discipline_id);
     }
 }

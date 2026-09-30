@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Tournaments;
 
+use App\Filament\Resources\Concerns\ScopesToUserDisciplines;
 use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
 use App\Filament\Resources\Tournaments\Pages\CreateTournament;
 use App\Filament\Resources\Tournaments\Pages\EditTournament;
@@ -22,15 +23,21 @@ use UnitEnum;
 
 class TournamentResource extends Resource
 {
+    use ScopesToUserDisciplines;
+
     protected static ?string $model = Tournament::class;
+
     protected static string|UnitEnum|null $navigationGroup = 'Torneos';
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::CalendarDateRange;
+
     protected static ?int $navigationSort = 11;
+
     protected static ?string $navigationLabel = 'Gestion de Torneos';
+
     protected static ?string $relatedResource = TournamentRegistrationResource::class;
-    protected static SubNavigationPosition|null $subNavigationPosition = SubNavigationPosition::Top; 
 
-
+    protected static ?SubNavigationPosition $subNavigationPosition = SubNavigationPosition::Top;
 
     protected static ?string $recordTitleAttribute = 'name';
 
@@ -54,12 +61,12 @@ class TournamentResource extends Resource
     public static function getPages(): array
     {
         return [
-            
+
             'index' => ListTournaments::route('/'),
             'create' => CreateTournament::route('/create'),
             'edit' => EditTournament::route('/{record}/edit'),
             'registrations' => Pages\ManageTournamentRegistrations::route('/{record}/registrations'),
-            
+
         ];
     }
 
@@ -76,16 +83,15 @@ class TournamentResource extends Resource
     {
         return
             Action::make('manageRegistrations')
-                ->label(fn (Tournament $record): string =>
-                    ! $record->isRegistrationOpen()
+                ->label(fn (Tournament $record): string => ! $record->isRegistrationOpen()
                     ? 'Ver Inscriptos'
                     : 'Inscripciones')
-                //->label('Inscripciones')
+                // ->label('Inscripciones')
                 ->icon('heroicon-o-users')
                 ->color('info')
                 // Genera la URL usando el nombre de la página que registraste en getPages()
                 ->url(fn (Tournament $record): string => TournamentResource::getUrl('registrations', ['record' => $record])
-            );
+                );
     }
 
     public static function resumenAction(): Action
@@ -148,12 +154,9 @@ class TournamentResource extends Resource
                 ])->setPaper('a4', 'landscape');
 
                 return response()->streamDownload(
-                    fn () => print($pdf->output()),
+                    fn () => print ($pdf->output()),
                     "Resumen-{$record->name}.pdf"
                 );
             });
     }
-
-
-
 }

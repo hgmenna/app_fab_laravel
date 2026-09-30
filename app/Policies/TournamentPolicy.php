@@ -4,71 +4,71 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\Tournament;
+use App\Models\User;
+use App\Policies\Concerns\ChecksDisciplinePermissions;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class TournamentPolicy
 {
-    use HandlesAuthorization;
-    
-    public function viewAny(AuthUser $authUser): bool
+    use ChecksDisciplinePermissions, HandlesAuthorization;
+
+    public function viewAny(User $authUser): bool
     {
-        return $authUser->can('ViewAny:Tournament');
+        return $this->allowsAny($authUser, 'ViewAny:Tournament');
     }
 
-    public function view(AuthUser $authUser, Tournament $tournament): bool
+    public function view(User $authUser, Tournament $tournament): bool
     {
-        return $authUser->can('View:Tournament');
+        return $this->allowsFor($authUser, 'View:Tournament', $tournament->discipline_id);
     }
 
-    public function create(AuthUser $authUser): bool
+    public function create(User $authUser): bool
     {
-        return $authUser->can('Create:Tournament');
+        return $this->allowsAny($authUser, 'Create:Tournament');
     }
 
-    public function update(AuthUser $authUser, Tournament $tournament): bool
+    public function update(User $authUser, Tournament $tournament): bool
     {
-        if ($authUser->hasRole('federacion')) 
-        {
+        if ($authUser->hasRole('federacion')) {
             return $authUser->name === $tournament->venue?->city?->state?->federation?->short_name;
         }
-        return $authUser->can('Update:Tournament');
+
+        return $this->allowsFor($authUser, 'Update:Tournament', $tournament->discipline_id);
     }
 
-    public function delete(AuthUser $authUser, Tournament $tournament): bool
+    public function delete(User $authUser, Tournament $tournament): bool
     {
-        return $authUser->can('Delete:Tournament');
+        return $this->allowsFor($authUser, 'Delete:Tournament', $tournament->discipline_id);
     }
 
-    public function restore(AuthUser $authUser, Tournament $tournament): bool
+    public function restore(User $authUser, Tournament $tournament): bool
     {
-        return $authUser->can('Restore:Tournament');
+        return $this->allowsFor($authUser, 'Restore:Tournament', $tournament->discipline_id);
     }
 
-    public function forceDelete(AuthUser $authUser, Tournament $tournament): bool
+    public function forceDelete(User $authUser, Tournament $tournament): bool
     {
-        return $authUser->can('ForceDelete:Tournament');
+        return $this->allowsFor($authUser, 'ForceDelete:Tournament', $tournament->discipline_id);
     }
 
-    public function forceDeleteAny(AuthUser $authUser): bool
+    public function forceDeleteAny(User $authUser): bool
     {
-        return $authUser->can('ForceDeleteAny:Tournament');
+        return $this->allowsAny($authUser, 'ForceDeleteAny:Tournament');
     }
 
-    public function restoreAny(AuthUser $authUser): bool
+    public function restoreAny(User $authUser): bool
     {
-        return $authUser->can('RestoreAny:Tournament');
+        return $this->allowsAny($authUser, 'RestoreAny:Tournament');
     }
 
-    public function replicate(AuthUser $authUser, Tournament $tournament): bool
+    public function replicate(User $authUser, Tournament $tournament): bool
     {
-        return $authUser->can('Replicate:Tournament');
+        return $this->allowsFor($authUser, 'Replicate:Tournament', $tournament->discipline_id);
     }
 
-    public function reorder(AuthUser $authUser): bool
+    public function reorder(User $authUser): bool
     {
-        return $authUser->can('Reorder:Tournament');
+        return $this->allowsAny($authUser, 'Reorder:Tournament');
     }
-
 }

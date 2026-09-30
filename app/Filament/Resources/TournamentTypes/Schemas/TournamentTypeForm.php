@@ -13,6 +13,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Auth;
 
 class TournamentTypeForm
 {
@@ -27,10 +28,12 @@ class TournamentTypeForm
                         titleAttribute: 'name',
                         modifyQueryUsing: fn ($query) => $query
                             ->where('active', true)
+                            ->when(Auth::user(), fn ($query, $user) => $user->scopeDisciplineQuery($query, 'Create:TournamentType'))
                             ->orderBy('name')
                     )
                     ->searchable()
                     ->preload()
+                    ->default(fn () => Auth::user()?->defaultDisciplineId('Create:TournamentType'))
                     ->live()
                     ->required(),
 

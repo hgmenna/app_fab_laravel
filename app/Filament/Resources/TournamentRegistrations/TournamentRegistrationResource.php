@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TournamentRegistrations;
 
+use App\Filament\Resources\Concerns\ScopesToUserDisciplines;
 use App\Filament\Resources\TournamentRegistrations\Pages\CreateTournamentRegistration;
 use App\Filament\Resources\TournamentRegistrations\Pages\EditTournamentRegistration;
 use App\Filament\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
@@ -28,7 +29,22 @@ use UnitEnum;
 
 class TournamentRegistrationResource extends Resource
 {
+    use ScopesToUserDisciplines;
+
     protected static ?string $model = TournamentRegistration::class;
+
+    protected static function applyDisciplineScope(Builder $query, array $disciplineIds): Builder
+    {
+        return $query->whereHas(
+            'tournament',
+            fn (Builder $tournaments) => $tournaments->whereIn('discipline_id', $disciplineIds ?: [-1]),
+        );
+    }
+
+    protected static function disciplineViewPermission(): string
+    {
+        return 'ViewAny:Tournament';
+    }
 
     protected static string|UnitEnum|null $navigationGroup = 'Torneos';
 
@@ -68,7 +84,7 @@ class TournamentRegistrationResource extends Resource
 
     public static function getRecordRouteBindingEloquentQuery(): Builder
     {
-        return parent::getRecordRouteBindingEloquentQuery()
+        return static::getEloquentQuery()
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);
@@ -177,7 +193,7 @@ class TournamentRegistrationResource extends Resource
         return Action::make('asignarInstancia')
             ->label('Asignar posición')
             ->visible(
-                fn (?TournamentRegistration $record): bool => Auth::user()?->can('EditField')
+                fn (?TournamentRegistration $record): bool => Auth::user()?->canGloballyOrInAnyDiscipline('EditField')
                     && $record?->tournament?->start_date < now()
             )
             ->disabled(

@@ -4,72 +4,71 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\Player;
+use App\Models\User;
+use App\Policies\Concerns\ChecksDisciplinePermissions;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class PlayerPolicy
 {
-    use HandlesAuthorization;
-    
-    public function viewAny(AuthUser $authUser): bool
+    use ChecksDisciplinePermissions, HandlesAuthorization;
+
+    public function viewAny(User $authUser): bool
     {
-        return $authUser->can('ViewAny:Player');
+        return $this->allowsAny($authUser, 'ViewAny:Player');
     }
 
-    public function view(AuthUser $authUser, Player $player): bool
+    public function view(User $authUser, Player $player): bool
     {
-        return $authUser->can('View:Player');
+        return $this->allowsFor($authUser, 'View:Player', $player->discipline_id);
     }
 
-    public function create(AuthUser $authUser): bool
+    public function create(User $authUser): bool
     {
-        return $authUser->can('Create:Player');
+        return $this->allowsAny($authUser, 'Create:Player');
     }
 
-    public function update(AuthUser $authUser, Player $player): bool
+    public function update(User $authUser, Player $player): bool
     {
-        if ($authUser->hasRole('federacion')) 
-        {
+        if ($authUser->hasRole('federacion')) {
             return $authUser->name === $player->club?->city?->state?->federation?->short_name;
         }
 
-        return $authUser->can('Update:Player');
+        return $this->allowsFor($authUser, 'Update:Player', $player->discipline_id);
     }
 
-    public function delete(AuthUser $authUser, Player $player): bool
+    public function delete(User $authUser, Player $player): bool
     {
-        return $authUser->can('Delete:Player');
+        return $this->allowsFor($authUser, 'Delete:Player', $player->discipline_id);
     }
 
-    public function restore(AuthUser $authUser, Player $player): bool
+    public function restore(User $authUser, Player $player): bool
     {
-        return $authUser->can('Restore:Player');
+        return $this->allowsFor($authUser, 'Restore:Player', $player->discipline_id);
     }
 
-    public function forceDelete(AuthUser $authUser, Player $player): bool
+    public function forceDelete(User $authUser, Player $player): bool
     {
-        return $authUser->can('ForceDelete:Player');
+        return $this->allowsFor($authUser, 'ForceDelete:Player', $player->discipline_id);
     }
 
-    public function forceDeleteAny(AuthUser $authUser): bool
+    public function forceDeleteAny(User $authUser): bool
     {
-        return $authUser->can('ForceDeleteAny:Player');
+        return $this->allowsAny($authUser, 'ForceDeleteAny:Player');
     }
 
-    public function restoreAny(AuthUser $authUser): bool
+    public function restoreAny(User $authUser): bool
     {
-        return $authUser->can('RestoreAny:Player');
+        return $this->allowsAny($authUser, 'RestoreAny:Player');
     }
 
-    public function replicate(AuthUser $authUser, Player $player): bool
+    public function replicate(User $authUser, Player $player): bool
     {
-        return $authUser->can('Replicate:Player');
+        return $this->allowsFor($authUser, 'Replicate:Player', $player->discipline_id);
     }
 
-    public function reorder(AuthUser $authUser): bool
+    public function reorder(User $authUser): bool
     {
-        return $authUser->can('Reorder:Player');
+        return $this->allowsAny($authUser, 'Reorder:Player');
     }
-
 }

@@ -7,6 +7,7 @@ use App\Filament\Resources\Categories\Pages\EditCategory;
 use App\Filament\Resources\Categories\Pages\ListCategories;
 use App\Filament\Resources\Categories\Schemas\CategoryForm;
 use App\Filament\Resources\Categories\Tables\CategoriesTable;
+use App\Filament\Resources\Concerns\ScopesToUserDisciplines;
 use App\Models\Category;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -17,6 +18,8 @@ use UnitEnum;
 
 class CategoryResource extends Resource
 {
+    use ScopesToUserDisciplines;
+
     protected static ?string $model = Category::class;
 
     protected static string|UnitEnum|null $navigationGroup = 'Gestión Deportiva';

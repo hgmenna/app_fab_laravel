@@ -52,10 +52,11 @@ class TournamentForm
 
                                 Select::make('discipline_id')
                                     ->label('Disciplina')
-                                    ->options(fn () => Discipline::orderBy('name')->pluck('name', 'id'))
+                                    ->options(fn () => Auth::user()?->scopeDisciplineQuery(Discipline::query(), 'Create:Tournament')->orderBy('name')->pluck('name', 'id') ?? [])
                                     ->columnSpan(4)
                                     ->searchable()
                                     ->required()
+                                    ->default(fn () => Auth::user()?->defaultDisciplineId('Create:Tournament'))
                                     ->live()
                                     ->afterStateUpdated(function (Set $set): void {
                                         $set('tournament_type_id', null);
@@ -196,7 +197,7 @@ class TournamentForm
                                     ->required(fn (Get $get): bool => (bool) $get('regulatory_override'))
                                     ->maxLength(2000)
                                     ->columnSpan(8),
-                            ])->disabled(fn () => ! Auth::user()->can('EditField')),
+                            ])->disabled(fn () => ! Auth::user()->canGloballyOrInAnyDiscipline('EditField')),
 
                         Tab::make('Verificación de distancias')
                             ->visible(function (Get $get): bool {
@@ -288,7 +289,7 @@ class TournamentForm
                                             ->required()
                                             ->columnSpanFull(),
                                     ]),
-                            ])->disabled(fn (): bool => ! (Auth::user()?->can('EditField') ?? false)),
+                            ])->disabled(fn (): bool => ! (Auth::user()?->canGloballyOrInAnyDiscipline('EditField') ?? false)),
 
                         Tab::make('Publicación')
                             ->columns(12)
@@ -362,7 +363,7 @@ class TournamentForm
                                     })
                                     ->columnSpan(4),
                             ])
-                            ->disabled(fn () => ! Auth::user()->can('EditField')),
+                            ->disabled(fn () => ! Auth::user()->canGloballyOrInAnyDiscipline('EditField')),
 
                         Tab::make('Modalidades')
                             ->schema([
@@ -405,7 +406,7 @@ class TournamentForm
                                     ->columnSpanFull(),
                             ]),
 
-                    ])->disabled(fn () => ! Auth::user()->can('EditField')),
+                    ])->disabled(fn () => ! Auth::user()->canGloballyOrInAnyDiscipline('EditField')),
 
             ]);
     }

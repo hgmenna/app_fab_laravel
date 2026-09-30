@@ -3,35 +3,36 @@
 namespace App\Policies;
 
 use App\Models\Category;
+use App\Models\User;
+use App\Policies\Concerns\ChecksDisciplinePermissions;
 use Illuminate\Auth\Access\HandlesAuthorization;
-use Illuminate\Foundation\Auth\User as AuthUser;
 
 class CategoryPolicy
 {
-    use HandlesAuthorization;
+    use ChecksDisciplinePermissions, HandlesAuthorization;
 
-    public function viewAny(AuthUser $user): bool
+    public function viewAny(User $user): bool
     {
-        return $user->can('ViewAny:Category') || $user->can('EditField');
+        return $this->allowsAny($user, 'ViewAny:Category') || $this->allowsAny($user, 'EditField');
     }
 
-    public function view(AuthUser $user, Category $category): bool
+    public function view(User $user, Category $category): bool
     {
-        return $user->can('View:Category') || $user->can('EditField');
+        return $this->allowsFor($user, 'View:Category', $category->discipline_id) || $this->allowsFor($user, 'EditField', $category->discipline_id);
     }
 
-    public function create(AuthUser $user): bool
+    public function create(User $user): bool
     {
-        return $user->can('Create:Category') || $user->can('EditField');
+        return $this->allowsAny($user, 'Create:Category') || $this->allowsAny($user, 'EditField');
     }
 
-    public function update(AuthUser $user, Category $category): bool
+    public function update(User $user, Category $category): bool
     {
-        return $user->can('Update:Category') || $user->can('EditField');
+        return $this->allowsFor($user, 'Update:Category', $category->discipline_id) || $this->allowsFor($user, 'EditField', $category->discipline_id);
     }
 
-    public function delete(AuthUser $user, Category $category): bool
+    public function delete(User $user, Category $category): bool
     {
-        return $user->can('Delete:Category') || $user->can('EditField');
+        return $this->allowsFor($user, 'Delete:Category', $category->discipline_id) || $this->allowsFor($user, 'EditField', $category->discipline_id);
     }
 }

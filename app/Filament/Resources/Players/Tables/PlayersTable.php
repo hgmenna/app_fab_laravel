@@ -199,7 +199,7 @@ class PlayersTable
                     ->icon('heroicon-o-credit-card')
                     ->color('info')
                     ->requiresConfirmation()
-                    ->visible(fn () => (Auth::user()?->can('PayMembership') ?? false))
+                    ->visible(fn () => (Auth::user()?->canGloballyOrInAnyDiscipline('PayMembership') ?? false))
                     ->action(fn ($records) => PlayerResource::processPayMembership($records)),
 
                 BulkAction::make('desactivar')

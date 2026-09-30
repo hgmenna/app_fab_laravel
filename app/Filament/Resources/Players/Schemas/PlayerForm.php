@@ -70,11 +70,12 @@ class PlayerForm
                     ->columns(6)
                     ->schema([
                         Select::make('discipline_id')
-                            ->relationship('discipline', 'name', fn ($query) => $query->where('active', true))
+                            ->relationship('discipline', 'name', fn ($query) => Auth::user()?->scopeDisciplineQuery($query->where('active', true), 'Create:Player'))
                             ->label('Disciplina')
                             ->helperText('La disciplina determina si la afiliación es provincial o directa a Federación Argentina.')
                             ->preload()
                             ->searchable()
+                            ->default(fn () => Auth::user()?->defaultDisciplineId('Create:Player'))
                             ->required()
                             ->live()
                             ->afterStateUpdated(fn (Set $set) => $set('category_id', null))
@@ -107,7 +108,7 @@ class PlayerForm
                             ->label('Habilitado')
                             ->inline(false)
                             ->columnSpan(1)
-                            ->disabled(fn () => ! Auth::user()->can('EditField')),
+                            ->disabled(fn () => ! Auth::user()->canGloballyOrInAnyDiscipline('EditField')),
                         FileUpload::make('photo_path')
                             ->label('Foto del jugador')
                             ->columnSpan(3)

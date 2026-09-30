@@ -2,12 +2,14 @@
 
 namespace App\Filament\Resources\Players;
 
+use App\Filament\Resources\Concerns\ScopesToUserDisciplines;
 use App\Filament\Resources\Players\Pages\CategoryChangesReport;
 use App\Filament\Resources\Players\Pages\CreatePlayer;
 use App\Filament\Resources\Players\Pages\EditPlayer;
+use App\Filament\Resources\Players\Pages\FilteredPlayerPerformance;
 use App\Filament\Resources\Players\Pages\ListPlayers;
 use App\Filament\Resources\Players\Pages\PlayerPerformance;
-use App\Filament\Resources\Players\Pages\FilteredPlayerPerformance;
+use App\Filament\Resources\Players\RelationManagers\CategoryHistoriesRelationManager;
 use App\Filament\Resources\Players\Schemas\PlayerForm;
 use App\Filament\Resources\Players\Tables\PlayersTable;
 use App\Helpers\FabPath;
@@ -17,10 +19,14 @@ use App\Models\GeneralRanking;
 use App\Models\Membership;
 use App\Models\Player;
 use App\Services\AdminNotifier;
+use App\Services\PlayerCategoryChangeService;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -31,19 +37,21 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Excel;
 use UnitEnum;
-use App\Services\PlayerCategoryChangeService;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use App\Filament\Resources\Players\RelationManagers\CategoryHistoriesRelationManager;
 
 class PlayerResource extends Resource
 {
+    use ScopesToUserDisciplines;
+
     protected static ?string $model = Player::class;
+
     protected static string|UnitEnum|null $navigationGroup = 'Gestión Deportiva';
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::Users;
+
     protected static ?string $recordTitleAttribute = 'name';
+
     protected static ?string $navigationLabel = 'Jugadores';
+
     protected static ?int $navigationSort = 1;
 
     public static function form(Schema $schema): Schema
@@ -77,7 +85,7 @@ class PlayerResource extends Resource
 
     public static function getRecordRouteBindingEloquentQuery(): Builder
     {
-        return parent::getRecordRouteBindingEloquentQuery()
+        return static::getEloquentQuery()
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);
@@ -97,7 +105,7 @@ class PlayerResource extends Resource
         $columns = [
             ['label' => 'APELLIDO',  'field' => 'last_name',        'width' => 180],
             ['label' => 'NOMBRE',    'field' => 'first_name',       'width' => 180],
-            ['label' => 'PROVINCIA', 'field' => 'provincia_display','width' => 200],
+            ['label' => 'PROVINCIA', 'field' => 'provincia_display', 'width' => 200],
             ['label' => 'CAT',       'field' => 'ranking_category', 'width' => 120],
         ];
 
@@ -119,12 +127,12 @@ class PlayerResource extends Resource
 
             $category_display = $categoryName ?? ($row->category?->name ?? '-');
 
-            return (object)[
-                'last_name'        => $row->last_name,
-                'first_name'       => $row->first_name,
-                'provincia_display'=> $row->club?->city?->state?->name ?? 'N/A',
+            return (object) [
+                'last_name' => $row->last_name,
+                'first_name' => $row->first_name,
+                'provincia_display' => $row->club?->city?->state?->name ?? 'N/A',
                 'ranking_category' => $category_display,
-                'club_group'       => $row->club->name ?? 'SIN INSTITUCIÓN' // Para agrupar
+                'club_group' => $row->club->name ?? 'SIN INSTITUCIÓN', // Para agrupar
             ];
         });
 
@@ -133,27 +141,27 @@ class PlayerResource extends Resource
 
         // 5. CARGA DE VISTA Y CONFIGURACIÓN [3, 6]
         $pdf = Pdf::loadView('pdf.generic', [
-            'title'        => $title,
-            'subtitle'     => '',
-            'date'         => now()->format('d/m/Y'),
-            'columns'      => $columns,
-            'groups'       => $grouped, // Enviamos como grupos para repetir el TH [3]
+            'title' => $title,
+            'subtitle' => '',
+            'date' => now()->format('d/m/Y'),
+            'columns' => $columns,
+            'groups' => $grouped, // Enviamos como grupos para repetir el TH [3]
             'totalGeneral' => $totalPlayers,
             'labelTotalGeneral' => 'Afiliados',
-            'logo'         => FabPath::logo(),
+            'logo' => FabPath::logo(),
             'footer_image' => FabPath::footer(),
         ])->setPaper('a4', 'portrait'); // Orientación horizontal [6]
 
         // 6. DESCARGA MEDIANTE STREAM [6]
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->stream();
-        }, $title . ' - ' . now()->format('Y-m-d') . '.pdf');
+        }, $title.' - '.now()->format('Y-m-d').'.pdf');
     }
 
     /**
-    * Acción para programar o aplicar un cambio manual
-    * de categoría permanente de afiliación.
-    */
+     * Acción para programar o aplicar un cambio manual
+     * de categoría permanente de afiliación.
+     */
     public static function changeCategoryAction(): Action
     {
         return Action::make('changeCategory')
@@ -202,7 +210,7 @@ class PlayerResource extends Resource
             ->modalHeading('Cambio manual de categoría')
             ->modalDescription(
                 'Si la fecha efectiva es futura, el cambio quedará pendiente '
-                . 'y se aplicará automáticamente cuando llegue esa fecha.'
+                .'y se aplicará automáticamente cuando llegue esa fecha.'
             )
             ->modalSubmitActionLabel('Guardar cambio')
             ->action(function (Player $record, array $data): void {
@@ -227,7 +235,7 @@ class PlayerResource extends Resource
                             $history->applied_at
                                 ? 'El cambio de categoría fue aplicado correctamente.'
                                 : 'El cambio quedó pendiente hasta '
-                                    . $history->effective_date->format('d/m/Y') . '.'
+                                    .$history->effective_date->format('d/m/Y').'.'
                         )
                         ->success()
                         ->send();
@@ -249,9 +257,8 @@ class PlayerResource extends Resource
             ->icon('heroicon-o-clock')
             ->color('info')
             ->modalHeading(
-                fn (Player $record): string =>
-                    'Historial de categorías - '
-                    . $record->last_name . ', ' . $record->first_name
+                fn (Player $record): string => 'Historial de categorías - '
+                    .$record->last_name.', '.$record->first_name
             )
             ->modalWidth('7xl')
             ->modalContent(fn (Player $record) => view(
@@ -273,7 +280,7 @@ class PlayerResource extends Resource
             ->color('success')
             ->requiresConfirmation()
             ->modalHeading('Confirmar Pago de Afiliacion')
-            ->visible(fn () => $userAuth?->can('PayMembership') ?? false)
+            ->visible(fn () => $userAuth?->canGloballyOrInAnyDiscipline('PayMembership') ?? false)
             ->disabled(fn ($record) => $record?->is_enabled_to_compete)
             ->action(fn ($records) => static::processPayMembership($records));
     }
@@ -291,7 +298,7 @@ class PlayerResource extends Resource
                     ->where('discipline_id', $record->discipline_id)
                     ->first();
 
-                if (!$activeMembership) {
+                if (! $activeMembership) {
                     // Crear membresía activa automáticamente
                     $activeMembership = Membership::create([
                         'year' => now()->year,
@@ -309,11 +316,12 @@ class PlayerResource extends Resource
                 // 3) Si ya existe y está aprobada → habilitar y continuar
                 if ($playerMembership && $playerMembership->status === 'approved') {
                     $record->update(['is_enabled_to_compete' => true]);
+
                     continue;
                 }
 
                 // 4) Si no existe → crearla
-                if (!$playerMembership) {
+                if (! $playerMembership) {
                     $playerMembership = $record->memberships()->create([
                         'membership_id' => $activeMembership->id,
                         'club_id' => $record->club_id,
@@ -330,7 +338,7 @@ class PlayerResource extends Resource
                     'amount' => $activeMembership->amount,
                     'method' => 'manual',
                     'status' => 'pending',
-                    'external_reference' => 'MANUAL-' . uniqid(),
+                    'external_reference' => 'MANUAL-'.uniqid(),
                 ]);
 
                 // 6) Aprobar pago
@@ -374,17 +382,18 @@ class PlayerResource extends Resource
             ->action(function ($livewire) {
                 // Obtenemos los registros filtrados desde el componente Livewire
                 $records = $livewire->getFilteredTableQuery()->get();
-                
+
                 // Invocamos el método estático del Resource
                 return PlayerResource::exportToPdf($records, 'Listado de Jugadores');
             }
-        );
+            );
     }
 
     // Accion para importar Jugadores
     public static function importPlayers(): Action
     {
         $userAuth = Auth::user();
+
         return
             Action::make('importPlayers')
                 ->label('Importar jugadores')
@@ -405,6 +414,4 @@ class PlayerResource extends Resource
                 ->modalHeading('Importar jugadores desde Excel')
                 ->modalSubmitActionLabel('Importar');
     }
-
-
 }
