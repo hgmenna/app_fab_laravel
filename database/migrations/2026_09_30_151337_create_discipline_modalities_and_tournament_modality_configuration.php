@@ -78,11 +78,25 @@ return new class extends Migration
         if (! Schema::hasTable('tournament_registration_participants')) {
             Schema::create('tournament_registration_participants', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('tournament_registration_id')->constrained()->cascadeOnDelete();
-                $table->foreignId('player_id')->constrained()->cascadeOnDelete();
+                $table->foreignId('tournament_registration_id');
+                $table->foreignId('player_id');
                 $table->unsignedSmallInteger('position')->default(1);
                 $table->timestamps();
                 $table->unique(['tournament_registration_id', 'player_id'], 'registration_participant_unique');
+            });
+        }
+
+        if (! $this->foreignKeyExists('tournament_registration_participants', 'trp_registration_fk')) {
+            Schema::table('tournament_registration_participants', function (Blueprint $table) {
+                $table->foreign('tournament_registration_id', 'trp_registration_fk')
+                    ->references('id')->on('tournament_registrations')->cascadeOnDelete();
+            });
+        }
+
+        if (! $this->foreignKeyExists('tournament_registration_participants', 'trp_player_fk')) {
+            Schema::table('tournament_registration_participants', function (Blueprint $table) {
+                $table->foreign('player_id', 'trp_player_fk')
+                    ->references('id')->on('players')->cascadeOnDelete();
             });
         }
 
@@ -169,6 +183,13 @@ return new class extends Migration
     {
         return collect(Schema::getIndexes($table))->contains(
             fn (array $definition): bool => ($definition['name'] ?? null) === $index
+        );
+    }
+
+    private function foreignKeyExists(string $table, string $foreignKey): bool
+    {
+        return collect(Schema::getForeignKeys($table))->contains(
+            fn (array $definition): bool => ($definition['name'] ?? null) === $foreignKey
         );
     }
 };
