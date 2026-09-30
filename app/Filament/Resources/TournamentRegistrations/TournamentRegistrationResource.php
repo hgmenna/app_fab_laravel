@@ -122,7 +122,8 @@ class TournamentRegistrationResource extends Resource
         $logo = filled($publicationLogo) ? FabPath::absolute($publicationLogo) : null;
 
         if (! $logo || ! is_file($logo)) {
-            $logo = null;
+            $institutionalLogo = FabPath::logo();
+            $logo = is_file($institutionalLogo) ? $institutionalLogo : public_path('images/logo.png');
         }
 
         $footerImage = is_file(FabPath::footer()) ? FabPath::footer() : public_path('images/pie-pagina.png');
