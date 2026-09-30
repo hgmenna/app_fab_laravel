@@ -46,6 +46,14 @@ class TournamentsTable
                     ->extraHeaderAttributes(['class' => 'fab-col-dates'])
                     ->extraCellAttributes(['class' => 'fab-col-dates']),
 
+                ViewColumn::make('registration_dates')
+                    ->label('Apertura / Cierre')
+                    ->view('filament.tables.columns.tournament-registration-dates')
+                    ->alignCenter()
+                    ->width('7rem')
+                    ->extraHeaderAttributes(['class' => 'fab-col-dates'])
+                    ->extraCellAttributes(['class' => 'fab-col-dates']),
+
                 ImageColumn::make('flyer_path')
                     ->label('Flyer')
                     ->disk('public_path')
