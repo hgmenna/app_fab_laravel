@@ -89,6 +89,7 @@ class TournamentsTable
 
                 TextColumn::make('venue.name')
                     ->label('Sede')
+                    ->placeholder('A definir')
                     ->sortable()
                     ->wrap()
                     ->width('10rem')

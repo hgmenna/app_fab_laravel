@@ -28,7 +28,9 @@ class TournamentRegulationWorkflow
         return $this->dateValue($data['start_date'] ?? $record->start_date)
                 !== $this->dateValue($record->start_date)
             || $this->dateValue($data['end_date'] ?? $record->end_date)
-                !== $this->dateValue($record->end_date);
+                !== $this->dateValue($record->end_date)
+            || $this->nullableInteger($data['venue_id'] ?? $record->venue_id)
+                !== $this->nullableInteger($record->venue_id);
     }
 
     public function validate(array $data, User $user, string $operation, ?Tournament $record = null): array
@@ -195,5 +197,10 @@ class TournamentRegulationWorkflow
         }
 
         return Carbon::parse($value)->toDateString();
+    }
+
+    private function nullableInteger(mixed $value): ?int
+    {
+        return blank($value) ? null : (int) $value;
     }
 }

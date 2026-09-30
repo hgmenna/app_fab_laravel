@@ -26,6 +26,7 @@ class TournamentRegulationService
         if (! $setting?->check_non_official_distance
             || ! $candidate->start_date
             || ! $candidate->discipline_id
+            || ! $candidate->venue_id
             || (bool) $candidate->type?->is_official
             || (bool) $candidate->type?->exclusive_during_dates) {
             return collect();
@@ -43,6 +44,7 @@ class TournamentRegulationService
             ->where('discipline_id', $candidate->discipline_id)
             ->when($candidate->getKey(), fn (Builder $query, $id) => $query->where('id', '!=', $id))
             ->where('status', '!=', 'cancelled')
+            ->whereNotNull('venue_id')
             ->whereHas('type', fn (Builder $query) => $query
                 ->where('is_official', false)
                 ->where('exclusive_during_dates', false))
@@ -136,6 +138,10 @@ class TournamentRegulationService
                 continue;
             }
 
+            if (! $candidate->venue_id || ! $existing->venue_id) {
+                continue;
+            }
+
             $minimumMeters = (int) round(((float) $setting->minimum_distance_km) * 1000);
             $route = $this->manualRouteData($candidate, $existing) + [
                 'minimum_distance_meters' => $minimumMeters,
@@ -186,6 +192,7 @@ class TournamentRegulationService
                 ->all(),
             'distance_checks' => $distanceChecks,
             'club_category_quota_checks' => $quotaChecks,
+            'venue_pending' => ! $candidate->venue_id,
         ]);
     }
 

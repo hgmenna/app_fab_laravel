@@ -61,11 +61,12 @@ class TournamentForm
                                     }),
 
                                 Select::make('venue_id')
-                                    ->label('Club organizador')
+                                    ->label('Club organizador / sede')
+                                    ->helperText('Opcional. Podés definir la sede más adelante; al asignarla se ejecutarán los controles reglamentarios vinculados al club y su ubicación.')
                                     ->options(fn () => Club::orderBy('name')->pluck('name', 'id'))
                                     ->columnSpan(4)
                                     ->searchable()
-                                    ->required()
+                                    ->nullable()
                                     ->live()
                                     ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', []))
                                     ->native(false),

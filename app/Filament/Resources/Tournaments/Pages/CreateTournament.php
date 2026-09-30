@@ -55,7 +55,9 @@ class CreateTournament extends CreateRecord
                 $this->record,
                 Auth::user(),
                 'create',
-                $this->regulationOverridden ? 'overridden' : 'approved',
+                ! $this->record->venue_id
+                    ? 'pending'
+                    : ($this->regulationOverridden ? 'overridden' : 'approved'),
                 $this->regulationOverridden,
                 $this->record->regulatory_override_reason,
                 $this->record->getAttributes(),

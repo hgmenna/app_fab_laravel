@@ -360,6 +360,18 @@ it('requires a manual distance and evidence for every overlapping non official t
         ->and($result->conflicts[0]['province'])->toBe('Santa Fe');
 });
 
+it('allows scheduling a tournament without a venue and marks venue checks as pending', function () {
+    regulationTournament([]);
+
+    $result = (new TournamentRegulationService)->evaluate(regulationCandidate([
+        'venue_id' => null,
+    ]));
+
+    expect($result->passes())->toBeTrue()
+        ->and($result->technicalDetails['venue_pending'])->toBeTrue()
+        ->and($result->technicalDetails['distance_checks'])->toBeEmpty();
+});
+
 it('validates against overlapping tournaments that are still drafts', function () {
     regulationTournament(['status' => 'draft']);
 

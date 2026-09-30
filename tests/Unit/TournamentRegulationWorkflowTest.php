@@ -11,6 +11,7 @@ function approvedTournamentForUpdate(): Tournament
     $tournament = new Tournament([
         'start_date' => '2026-10-10',
         'end_date' => '2026-10-12',
+        'venue_id' => 10,
     ]);
 
     $tournament->setRelation(
@@ -44,6 +45,16 @@ it('revalidates an approved tournament when its end date changes', function () {
     $shouldRevalidate = app(TournamentRegulationWorkflow::class)->shouldRevalidateUpdate([
         'start_date' => '2026-10-10',
         'end_date' => '2026-10-13',
+    ], approvedTournamentForUpdate());
+
+    expect($shouldRevalidate)->toBeTrue();
+});
+
+it('revalidates an approved tournament when its venue is assigned or changed', function () {
+    $shouldRevalidate = app(TournamentRegulationWorkflow::class)->shouldRevalidateUpdate([
+        'start_date' => '2026-10-10',
+        'end_date' => '2026-10-12',
+        'venue_id' => 20,
     ], approvedTournamentForUpdate());
 
     expect($shouldRevalidate)->toBeTrue();
