@@ -81,7 +81,7 @@
         }
 
         .group-wrapper {
-            page-break-inside: avoid;
+            page-break-inside: auto;
             margin-bottom: 15px;
         }
 
@@ -97,7 +97,7 @@
             font-size: 14px;
         }
 
-        .footer-image { width: 100%; max-height: 35px; height: auto; }
+        .footer-image { width: 70%; max-height: 35px; height: auto; }
         .developer-footer {
             width: 100%;
             margin-top: 5px;
