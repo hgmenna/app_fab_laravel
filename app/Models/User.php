@@ -110,6 +110,17 @@ class User extends Authenticatable implements MustVerifyEmail
             : $this->can($permission);
     }
 
+    public function canGloballyOrForDiscipline(string $permission, int|string|null $disciplineId): bool
+    {
+        if ($this->hasRole('super-admin')) {
+            return true;
+        }
+
+        return $this->hasActiveDisciplineAssignments()
+            ? $this->hasDisciplinePermission($permission, $disciplineId)
+            : $this->can($permission);
+    }
+
     public function hasDisciplinePermission(string $permission, int|string|null $disciplineId): bool
     {
         return filled($disciplineId) && $this->disciplineAssignments()

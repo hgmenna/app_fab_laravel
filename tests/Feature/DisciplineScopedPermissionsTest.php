@@ -69,10 +69,12 @@ beforeEach(function () {
     DB::table('permissions')->insert([
         ['id' => 1, 'name' => 'ViewAny:Tournament', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()],
         ['id' => 2, 'name' => 'Update:Tournament', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()],
+        ['id' => 3, 'name' => 'AssignTournamentScore', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()],
     ]);
     DB::table('role_has_permissions')->insert([
         ['permission_id' => 1, 'role_id' => 1],
         ['permission_id' => 2, 'role_id' => 1],
+        ['permission_id' => 3, 'role_id' => 1],
         ['permission_id' => 1, 'role_id' => 2],
     ]);
     DB::table('discipline_user_roles')->insert([
@@ -97,6 +99,9 @@ it('allows different Shield roles in multiple disciplines without leaking update
         ->and($policy->update($user, Tournament::findOrFail(1)))->toBeTrue()
         ->and($policy->update($user, Tournament::findOrFail(2)))->toBeTrue()
         ->and($policy->update($user, Tournament::findOrFail(3)))->toBeFalse()
+        ->and($user->canGloballyOrForDiscipline('AssignTournamentScore', 1))->toBeTrue()
+        ->and($user->canGloballyOrForDiscipline('AssignTournamentScore', 2))->toBeTrue()
+        ->and($user->canGloballyOrForDiscipline('AssignTournamentScore', 3))->toBeFalse()
         ->and($policy->view($user, Tournament::findOrFail(4)))->toBeFalse();
 });
 

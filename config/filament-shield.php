@@ -232,6 +232,7 @@ return [
         'edit_field' => 'Permitir edicion de campo especifico',
         'pay_membership' => 'Permitir administrar pagos',
         'update_status_tournament' => 'Permitir modificacion del estado de inscripciones',
+        'assign_tournament_score' => 'Asignar puntuación en torneos',
     ],
 
     /*
