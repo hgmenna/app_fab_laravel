@@ -38,8 +38,10 @@ class TournamentRegistrationsTable
                 TextColumn::make('tournamentModality.modality.name')
                     ->label('Modalidad')->badge()->sortable(),
 
-                TextColumn::make('participants.player.full_name')
-                    ->label('Integrantes')->listWithLineBreaks()->bulleted()->searchable(['first_name', 'last_name']),
+                TextColumn::make('participant_names')
+                    ->label('Integrantes')
+                    ->getStateUsing(fn (TournamentRegistration $record): string => $record->participant_names ?: 'Sin integrantes')
+                    ->wrap(),
 
                 TextColumn::make('participants.player.club.name')
                     ->label('Clubes')->listWithLineBreaks()->bulleted(),
