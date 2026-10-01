@@ -41,6 +41,16 @@ class TournamentRegistrationsTable
                 TextColumn::make('participant_names')
                     ->label('Integrantes')
                     ->getStateUsing(fn (TournamentRegistration $record): string => $record->participant_names ?: 'Sin integrantes')
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query
+                        ->whereHas('participants.player', fn (Builder $players): Builder => $players
+                            ->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%"))
+                        ->orWhereHas('player', fn (Builder $player): Builder => $player
+                            ->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%"))
+                        ->orWhereHas('partner', fn (Builder $partner): Builder => $partner
+                            ->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")))
                     ->wrap(),
 
                 TextColumn::make('participants.player.club.name')
