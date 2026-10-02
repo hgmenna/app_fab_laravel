@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Tournament extends Model
@@ -31,6 +32,11 @@ class Tournament extends Model
         'registration_enabled',
         'entry_fee',
         'venue_id',
+        'venue_type',
+        'external_venue_name',
+        'external_venue_address',
+        'external_venue_city',
+        'external_venue_state_id',
         'non_official_logo_source',
         'notes',
         'categories',
@@ -98,6 +104,71 @@ class Tournament extends Model
         return $this->belongsTo(Club::class, 'venue_id');
     }
 
+    public function externalVenueState(): BelongsTo
+    {
+        return $this->belongsTo(State::class, 'external_venue_state_id');
+    }
+
+    public function hasAssignedVenue(): bool
+    {
+        return $this->venue_type === 'external'
+            ? filled($this->external_venue_name)
+            : $this->venue_type === 'club' && filled($this->venue_id);
+    }
+
+    public function venueName(): string
+    {
+        return $this->venue_type === 'external'
+            ? (string) ($this->external_venue_name ?: 'SIN ASIGNAR')
+            : (string) ($this->venue?->name ?: 'SIN ASIGNAR');
+    }
+
+    public function venueStateId(): ?int
+    {
+        return $this->venue_type === 'external'
+            ? $this->external_venue_state_id
+            : $this->venue?->city?->state_id;
+    }
+
+    public function venueStateName(): ?string
+    {
+        return $this->venue_type === 'external'
+            ? $this->externalVenueState?->name
+            : $this->venue?->city?->state?->name;
+    }
+
+    public function venueAddress(): string
+    {
+        $this->loadMissing(['venue.city.state.country', 'externalVenueState.country']);
+
+        if ($this->venue_type === 'external') {
+            return implode(', ', array_filter([
+                trim((string) $this->external_venue_address),
+                trim((string) $this->external_venue_city),
+                $this->externalVenueState?->name,
+                $this->externalVenueState?->country?->name ?: 'Argentina',
+            ]));
+        }
+
+        return implode(', ', array_filter([
+            trim((string) $this->venue?->address),
+            $this->venue?->city?->name,
+            $this->venue?->city?->state?->name,
+            $this->venue?->city?->state?->country?->name ?: 'Argentina',
+        ]));
+    }
+
+    public function hasCompleteVenueAddress(): bool
+    {
+        return $this->venue_type === 'external'
+            ? trim((string) $this->external_venue_address) !== ''
+                && trim((string) $this->external_venue_city) !== ''
+                && filled($this->external_venue_state_id)
+            : trim((string) $this->venue?->address) !== ''
+                && trim((string) $this->venue?->city?->name) !== ''
+                && trim((string) $this->venue?->city?->state?->name) !== '';
+    }
+
     public function regulationAudits()
     {
         return $this->hasMany(TournamentRegulationAudit::class);
@@ -120,18 +191,23 @@ class Tournament extends Model
         $this->loadMissing([
             'type.publicationFederation',
             'venue.city.state.federation',
+            'externalVenueState.federation',
         ]);
+
+        $venueFederationLogo = $this->venue_type === 'external'
+            ? $this->externalVenueState?->federation?->logo_path
+            : $this->venue?->city?->state?->federation?->logo_path;
 
         if (! $this->type?->is_official) {
             return match ($this->non_official_logo_source ?: 'venue_federation') {
-                'venue_club' => $this->venue?->logo_path,
-                default => $this->venue?->city?->state?->federation?->logo_path,
+                'venue_club' => $this->venue?->logo_path ?: $venueFederationLogo,
+                default => $venueFederationLogo,
             };
         }
 
         return match ($this->type->publication_logo_source) {
             'national_federation' => $this->type->publicationFederation?->logo_path,
-            'venue_federation' => $this->venue?->city?->state?->federation?->logo_path,
+            'venue_federation' => $venueFederationLogo,
             default => null,
         };
     }
