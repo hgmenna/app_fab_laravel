@@ -150,7 +150,7 @@ class TournamentRegulationService
 
             if (! $route['is_complete']) {
                 $reason = ! $route['addresses_complete']
-                    ? 'Uno de los clubes no tiene dirección postal, localidad y provincia completas.'
+                    ? 'Una de las sedes no tiene domicilio, localidad y provincia completos.'
                     : 'Abrí la ruta de Google Maps y completá la distancia junto con el comprobante en la pestaña «Verificación de distancias».';
                 $conflicts[] = $this->conflict(
                     'manual_distance_required',
