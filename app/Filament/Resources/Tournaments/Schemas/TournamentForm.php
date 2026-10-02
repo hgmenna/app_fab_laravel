@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Club;
 use App\Models\Discipline;
 use App\Models\DisciplineModality;
+use App\Models\State;
 use App\Models\Tournament;
 use App\Models\TournamentType;
 use App\Services\TournamentRegulationService;
@@ -65,16 +66,87 @@ class TournamentForm
                                         $set('manual_route_checks', []);
                                     }),
 
+                                Select::make('venue_type')
+                                    ->label('Tipo de sede')
+                                    ->options([
+                                        'club' => 'Club registrado',
+                                        'external' => 'Sede no registrada',
+                                        'unassigned' => 'Sin asignar',
+                                    ])
+                                    ->default('unassigned')
+                                    ->required()
+                                    ->live()
+                                    ->afterStateUpdated(function (?string $state, Set $set): void {
+                                        $set('manual_route_checks', []);
+
+                                        if ($state !== 'club') {
+                                            $set('venue_id', null);
+                                        }
+
+                                        if ($state !== 'external') {
+                                            $set('external_venue_name', null);
+                                            $set('external_venue_address', null);
+                                            $set('external_venue_city', null);
+                                            $set('external_venue_state_id', null);
+                                        }
+
+                                        if ($state === 'external') {
+                                            $set('non_official_logo_source', 'venue_federation');
+                                        }
+                                    })
+                                    ->native(false)
+                                    ->columnSpan(3),
+
                                 Select::make('venue_id')
                                     ->label('Club organizador / sede')
-                                    ->helperText('Opcional. Podés definir la sede más adelante; al asignarla se ejecutarán los controles reglamentarios vinculados al club y su ubicación.')
                                     ->options(fn () => Club::orderBy('name')->pluck('name', 'id'))
-                                    ->columnSpan(4)
+                                    ->columnSpan(5)
                                     ->searchable()
-                                    ->nullable()
+                                    ->required(fn (Get $get): bool => $get('venue_type') === 'club')
+                                    ->visible(fn (Get $get): bool => $get('venue_type') === 'club')
                                     ->live()
                                     ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', []))
                                     ->native(false),
+
+                                TextInput::make('external_venue_name')
+                                    ->label('Nombre de la sede')
+                                    ->placeholder('Casino, sede gubernamental u otra')
+                                    ->required(fn (Get $get): bool => $get('venue_type') === 'external')
+                                    ->visible(fn (Get $get): bool => $get('venue_type') === 'external')
+                                    ->maxLength(255)
+                                    ->live()
+                                    ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', []))
+                                    ->columnSpan(5),
+
+                                TextInput::make('external_venue_address')
+                                    ->label('Domicilio de la sede')
+                                    ->required(fn (Get $get): bool => $get('venue_type') === 'external')
+                                    ->visible(fn (Get $get): bool => $get('venue_type') === 'external')
+                                    ->maxLength(255)
+                                    ->live()
+                                    ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', []))
+                                    ->columnSpan(4),
+
+                                TextInput::make('external_venue_city')
+                                    ->label('Localidad')
+                                    ->required(fn (Get $get): bool => $get('venue_type') === 'external')
+                                    ->visible(fn (Get $get): bool => $get('venue_type') === 'external')
+                                    ->maxLength(255)
+                                    ->live()
+                                    ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', []))
+                                    ->columnSpan(4),
+
+                                Select::make('external_venue_state_id')
+                                    ->label('Provincia')
+                                    ->options(fn () => State::orderBy('name')->pluck('name', 'id'))
+                                    ->required(fn (Get $get): bool => $get('venue_type') === 'external')
+                                    ->visible(fn (Get $get): bool => $get('venue_type') === 'external')
+                                    ->searchable()
+                                    ->preload()
+                                    ->live()
+                                    ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', []))
+                                    ->native(false)
+                                    ->columnSpan(4),
 
                                 Select::make('tournament_type_id')
                                     ->relationship(
@@ -220,6 +292,11 @@ class TournamentForm
                                                     'discipline_id' => $get('../../discipline_id'),
                                                     'tournament_type_id' => $get('../../tournament_type_id'),
                                                     'venue_id' => $get('../../venue_id'),
+                                                    'venue_type' => $get('../../venue_type'),
+                                                    'external_venue_name' => $get('../../external_venue_name'),
+                                                    'external_venue_address' => $get('../../external_venue_address'),
+                                                    'external_venue_city' => $get('../../external_venue_city'),
+                                                    'external_venue_state_id' => $get('../../external_venue_state_id'),
                                                     'start_date' => $get('../../start_date'),
                                                     'end_date' => $get('../../end_date'),
                                                     'categories' => $get('../../categories') ?? [],
@@ -237,7 +314,7 @@ class TournamentForm
                                                         $tournament->id => implode(' · ', array_filter([
                                                             $tournament->name,
                                                             $tournament->start_date?->format('d/m/Y'),
-                                                            $tournament->venue?->name,
+                                                            $tournament->venueName(),
                                                         ])),
                                                     ])
                                                     ->all();
@@ -252,16 +329,25 @@ class TournamentForm
                                         Placeholder::make('route_link')
                                             ->label('Consulta')
                                             ->content(function (Get $get): HtmlString|string {
-                                                $origin = Club::find($get('../../venue_id'));
-                                                $existing = Tournament::with('venue.city.state.country')
-                                                    ->find($get('conflicting_tournament_id'));
+                                                $candidate = (new Tournament)->forceFill([
+                                                    'venue_id' => $get('../../venue_id'),
+                                                    'venue_type' => $get('../../venue_type'),
+                                                    'external_venue_name' => $get('../../external_venue_name'),
+                                                    'external_venue_address' => $get('../../external_venue_address'),
+                                                    'external_venue_city' => $get('../../external_venue_city'),
+                                                    'external_venue_state_id' => $get('../../external_venue_state_id'),
+                                                ]);
+                                                $existing = Tournament::with([
+                                                    'venue.city.state.country',
+                                                    'externalVenueState.country',
+                                                ])->find($get('conflicting_tournament_id'));
 
-                                                if (! $origin || ! $existing?->venue) {
-                                                    return 'Seleccioná el club y el torneo coincidente.';
+                                                if (! $candidate->hasAssignedVenue() || ! $existing?->hasAssignedVenue()) {
+                                                    return 'Seleccioná o completá ambas sedes.';
                                                 }
 
                                                 $url = app(TournamentRegulationService::class)
-                                                    ->googleMapsUrlForClubs($origin, $existing->venue);
+                                                    ->googleMapsUrl($candidate, $existing);
 
                                                 return new HtmlString('<a href="'.e($url).'" target="_blank" rel="noopener" class="font-semibold text-primary-600 underline">Abrir ruta en Google Maps</a>');
                                             })
@@ -313,10 +399,12 @@ class TournamentForm
 
                                 Select::make('non_official_logo_source')
                                     ->label('Logo para la publicación')
-                                    ->options([
-                                        'venue_club' => 'Club organizador',
-                                        'venue_federation' => 'Federación del club organizador',
-                                    ])
+                                    ->options(fn (Get $get): array => $get('venue_type') === 'external'
+                                        ? ['venue_federation' => 'Federación de la provincia de la sede']
+                                        : [
+                                            'venue_club' => 'Club organizador',
+                                            'venue_federation' => 'Federación del club organizador',
+                                        ])
                                     ->default('venue_federation')
                                     ->helperText('La imagen se toma automáticamente del club o de su federación cuando se asigne la sede.')
                                     ->visible(function (Get $get): bool {
@@ -340,6 +428,12 @@ class TournamentForm
 
                                         if (! $type?->is_official) {
                                             $club = Club::with('city.state.federation')->find($get('venue_id'));
+                                            $externalState = State::with('federation')->find($get('external_venue_state_id'));
+
+                                            if ($get('venue_type') === 'external') {
+                                                return 'Se utilizará el logo de '
+                                                    .($externalState?->federation?->name ?? 'la federación correspondiente a la provincia de la sede').'.';
+                                            }
 
                                             if ($get('non_official_logo_source') === 'venue_club') {
                                                 return $club
