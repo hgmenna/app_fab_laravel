@@ -90,7 +90,6 @@ class TournamentsTable
                 TextColumn::make('venue_display')
                     ->label('Sede')
                     ->state(fn (Tournament $record): string => $record->venueName())
-                    ->sortable()
                     ->wrap()
                     ->width('10rem')
                     ->extraHeaderAttributes(['class' => 'fab-col-venue'])
