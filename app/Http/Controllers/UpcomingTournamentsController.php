@@ -40,7 +40,7 @@ class UpcomingTournamentsController extends Controller
                 'registrations.participants:id,tournament_registration_id,player_id',
             ])
             ->withCount('registrations')
-            ->whereDate('start_date', '>', today('America/Argentina/Buenos_Aires'))
+            ->whereDate('end_date', '>=', today('America/Argentina/Buenos_Aires'))
             ->orderBy('start_date')
             ->orderBy('id')
             ->get()
