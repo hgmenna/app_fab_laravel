@@ -30,7 +30,13 @@ class TournamentRegulationWorkflow
             || $this->dateValue($data['end_date'] ?? $record->end_date)
                 !== $this->dateValue($record->end_date)
             || $this->nullableInteger($data['venue_id'] ?? $record->venue_id)
-                !== $this->nullableInteger($record->venue_id);
+                !== $this->nullableInteger($record->venue_id)
+            || ($data['venue_type'] ?? $record->venue_type) !== $record->venue_type
+            || ($data['external_venue_name'] ?? $record->external_venue_name) !== $record->external_venue_name
+            || ($data['external_venue_address'] ?? $record->external_venue_address) !== $record->external_venue_address
+            || ($data['external_venue_city'] ?? $record->external_venue_city) !== $record->external_venue_city
+            || $this->nullableInteger($data['external_venue_state_id'] ?? $record->external_venue_state_id)
+                !== $this->nullableInteger($record->external_venue_state_id);
     }
 
     public function validate(array $data, User $user, string $operation, ?Tournament $record = null): array
