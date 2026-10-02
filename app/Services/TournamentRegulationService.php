@@ -13,7 +13,7 @@ class TournamentRegulationService
 {
     public function distanceVerificationTournaments(Tournament $candidate): Collection
     {
-        $candidate->loadMissing(['type', 'venue.city.state.country']);
+        $candidate->loadMissing(['type', 'venue.city.state.country', 'externalVenueState.country']);
         $setting = TournamentRegulationSetting::query()
             ->where('discipline_id', $candidate->discipline_id)
             ->where('enabled', true)
@@ -26,7 +26,7 @@ class TournamentRegulationService
         if (! $setting?->check_non_official_distance
             || ! $candidate->start_date
             || ! $candidate->discipline_id
-            || ! $candidate->venue_id
+            || ! $candidate->hasAssignedVenue()
             || (bool) $candidate->type?->is_official
             || (bool) $candidate->type?->exclusive_during_dates) {
             return collect();
@@ -40,11 +40,10 @@ class TournamentRegulationService
         }
 
         return Tournament::query()
-            ->with(['type', 'venue'])
+            ->with(['type', 'venue', 'externalVenueState'])
             ->where('discipline_id', $candidate->discipline_id)
             ->when($candidate->getKey(), fn (Builder $query, $id) => $query->where('id', '!=', $id))
             ->where('status', '!=', 'cancelled')
-            ->whereNotNull('venue_id')
             ->whereHas('type', fn (Builder $query) => $query
                 ->where('is_official', false)
                 ->where('exclusive_during_dates', false))
@@ -58,6 +57,7 @@ class TournamentRegulationService
             })
             ->orderBy('start_date')
             ->get()
+            ->filter(fn (Tournament $tournament): bool => $tournament->hasAssignedVenue())
             ->filter(fn (Tournament $tournament): bool => collect($tournament->categories ?? [])
                 ->map(fn ($id): int => (int) $id)
                 ->intersect($categoryIds)
@@ -67,7 +67,7 @@ class TournamentRegulationService
 
     public function evaluate(Tournament $candidate): TournamentRegulationEvaluation
     {
-        $candidate->loadMissing(['type', 'venue.city.state.country', 'discipline']);
+        $candidate->loadMissing(['type', 'venue.city.state.country', 'externalVenueState.country', 'discipline']);
 
         $setting = TournamentRegulationSetting::query()
             ->where('discipline_id', $candidate->discipline_id)
@@ -82,7 +82,7 @@ class TournamentRegulationService
         $candidateEnd = $candidate->end_date ?: $candidateStart;
 
         $existingTournaments = Tournament::query()
-            ->with(['type', 'venue.city.state.country'])
+            ->with(['type', 'venue.city.state.country', 'externalVenueState.country'])
             ->where('discipline_id', $candidate->discipline_id)
             ->when($candidate->getKey(), fn (Builder $query, $id) => $query->where('id', '!=', $id))
             ->where('status', '!=', 'cancelled')
@@ -122,8 +122,8 @@ class TournamentRegulationService
 
             if ($setting?->block_non_official_against_official_same_state
                 && $candidateOfficial !== $existingOfficial
-                && $candidate->venue?->city?->state_id
-                && $candidate->venue?->city?->state_id === $existing->venue?->city?->state_id) {
+                && $candidate->venueStateId()
+                && $candidate->venueStateId() === $existing->venueStateId()) {
                 $conflicts[] = $this->conflict(
                     'official_same_state',
                     $existing,
@@ -138,7 +138,7 @@ class TournamentRegulationService
                 continue;
             }
 
-            if (! $candidate->venue_id || ! $existing->venue_id) {
+            if (! $candidate->hasAssignedVenue() || ! $existing->hasAssignedVenue()) {
                 continue;
             }
 
@@ -192,7 +192,7 @@ class TournamentRegulationService
                 ->all(),
             'distance_checks' => $distanceChecks,
             'club_category_quota_checks' => $quotaChecks,
-            'venue_pending' => ! $candidate->venue_id,
+            'venue_pending' => ! $candidate->hasAssignedVenue(),
         ]);
     }
 
@@ -334,10 +334,12 @@ class TournamentRegulationService
 
     public function googleMapsUrl(Tournament $candidate, Tournament $existing): string
     {
-        $candidate->loadMissing('venue.city.state.country');
-        $existing->loadMissing('venue.city.state.country');
-
-        return $this->googleMapsUrlForClubs($candidate->venue, $existing->venue);
+        return 'https://www.google.com/maps/dir/?'.http_build_query([
+            'api' => 1,
+            'origin' => $candidate->venueAddress(),
+            'destination' => $existing->venueAddress(),
+            'travelmode' => 'driving',
+        ], '', '&', PHP_QUERY_RFC3986);
     }
 
     public function googleMapsUrlForClubs($origin, $destination): string
@@ -357,14 +359,14 @@ class TournamentRegulationService
         );
         $distanceKm = is_numeric($check['distance_km'] ?? null) ? (float) $check['distance_km'] : null;
         $evidence = trim((string) ($check['evidence_path'] ?? ''));
-        $addressesComplete = $this->hasCompleteAddress($candidate->venue)
-            && $this->hasCompleteAddress($existing->venue);
+        $addressesComplete = $candidate->hasCompleteVenueAddress()
+            && $existing->hasCompleteVenueAddress();
 
         return [
             'verification_method' => 'Google Maps URL con carga manual',
             'google_maps_url' => $this->googleMapsUrl($candidate, $existing),
-            'origin_address' => $this->fullAddress($candidate->venue),
-            'destination_address' => $this->fullAddress($existing->venue),
+            'origin_address' => $candidate->venueAddress(),
+            'destination_address' => $existing->venueAddress(),
             'distance_meters' => $distanceKm === null ? null : (int) round($distanceKm * 1000),
             'distance_km' => $distanceKm,
             'evidence_path' => $evidence ?: null,
@@ -426,8 +428,8 @@ class TournamentRegulationService
             'rule' => $rule,
             'conflicting_tournament_id' => $existing->id,
             'conflicting_tournament' => $existing->name,
-            'club' => $existing->venue?->name,
-            'province' => $existing->venue?->city?->state?->name,
+            'club' => $existing->venueName(),
+            'province' => $existing->venueStateName(),
             'start_date' => $existing->start_date?->format('d/m/Y'),
             'end_date' => ($existing->end_date ?: $existing->start_date)?->format('d/m/Y'),
             'shared_categories' => $categories,
