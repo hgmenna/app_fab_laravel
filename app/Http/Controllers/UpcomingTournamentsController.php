@@ -35,6 +35,9 @@ class UpcomingTournamentsController extends Controller
                 'venue.city:id,state_id',
                 'venue.city.state:id,federation_id',
                 'venue.city.state.federation:id,name,short_name,logo_path',
+                'externalVenueState:id,name,country_id,federation_id',
+                'externalVenueState.country:id,name',
+                'externalVenueState.federation:id,name,short_name,logo_path',
                 'tournamentModalities.modality:id,name,players_per_registration',
                 'registrations:id,tournament_id,tournament_modality_id',
                 'registrations.participants:id,tournament_registration_id,player_id',
@@ -68,7 +71,10 @@ class UpcomingTournamentsController extends Controller
 
                 $mapUrl = null;
 
-                if ($club?->lat !== null && $club?->lng !== null) {
+                if ($tournament->venue_type === 'external' && $tournament->hasCompleteVenueAddress()) {
+                    $mapUrl = 'https://www.google.com/maps/search/?api=1&query='
+                        .rawurlencode($tournament->venueName().', '.$tournament->venueAddress());
+                } elseif ($club?->lat !== null && $club?->lng !== null) {
                     $mapUrl = 'https://www.google.com/maps/search/?api=1&query='
                         .$club->lat.','.$club->lng;
                 } elseif ($club?->address) {
@@ -119,10 +125,12 @@ class UpcomingTournamentsController extends Controller
                     'torneo' => $tournament->name,
                     'disciplina' => $tournament->discipline?->name ?? '',
                     'categorias' => $categories,
-                    'club' => $club?->name ?? 'SIN ASIGNAR',
+                    'club' => $tournament->venueName(),
                     'tipo' => $tournament->type?->name ?? '',
                     'oficial' => (bool) $tournament->type?->is_official,
-                    'provincia' => $club?->city?->state?->federation?->short_name ?? '',
+                    'provincia' => $tournament->venue_type === 'external'
+                        ? $tournament->externalVenueState?->federation?->short_name ?? $tournament->externalVenueState?->name ?? ''
+                        : $club?->city?->state?->federation?->short_name ?? '',
                     'modalidad' => $modalities,
                     'handicap' => $tournament->type?->has_handicap ? 'Sí' : 'No',
                     'inscriptos' => $registrationCount,
