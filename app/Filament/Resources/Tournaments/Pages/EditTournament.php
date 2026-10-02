@@ -77,7 +77,7 @@ class EditTournament extends EditRecord
                 $this->record,
                 Auth::user(),
                 'update',
-                ! $this->record->venue_id
+                ! $this->record->hasAssignedVenue()
                     ? 'pending'
                     : ($this->regulationOverridden ? 'overridden' : 'approved'),
                 $this->regulationOverridden,
