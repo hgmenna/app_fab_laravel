@@ -87,9 +87,9 @@ class TournamentsTable
                     ->extraHeaderAttributes(['class' => 'fab-col-conditions'])
                     ->extraCellAttributes(['class' => 'fab-col-conditions']),
 
-                TextColumn::make('venue.name')
+                TextColumn::make('venue_display')
                     ->label('Sede')
-                    ->placeholder('SIN ASIGNAR')
+                    ->state(fn (Tournament $record): string => $record->venueName())
                     ->sortable()
                     ->wrap()
                     ->width('10rem')
@@ -190,6 +190,7 @@ class TournamentsTable
                 'latestSuccessfulRegulationAudit',
                 'type.publicationFederation',
                 'venue.city.state.federation',
+                'externalVenueState.federation',
             ]))
             ->extraAttributes(['class' => 'fab-tournaments-table'])
             ->defaultSort('start_date', direction: 'asc')
