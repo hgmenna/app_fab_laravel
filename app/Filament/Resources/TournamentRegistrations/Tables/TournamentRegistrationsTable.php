@@ -14,10 +14,10 @@ use App\Models\TournamentRegistration;
 use App\Services\AdminNotifier;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
-use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Repeater\TableColumn;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -349,7 +349,7 @@ class TournamentRegistrationsTable
             ->icon('heroicon-o-list-bullet')
             ->color('primary')
             ->modalHeading('Asignación masiva de puntajes')
-            ->modalDescription('Elegí una posición y agregá todos los jugadores o parejas que recibirán el mismo puntaje.')
+            ->modalDescription('Elegí una posición y marcá los jugadores o parejas que recibirán el mismo puntaje.')
             ->modalSubmitActionLabel('Guardar todos los puntajes')
             ->modalWidth('7xl')
             ->visible(function ($livewire) use ($tournament): bool {
@@ -397,35 +397,28 @@ class TournamentRegistrationsTable
                     ->required(fn ($livewire): bool => ! (bool) self::resolveTournament($tournament, $livewire)?->type?->affects_ranking)
                     ->visible(fn ($livewire): bool => ! (bool) self::resolveTournament($tournament, $livewire)?->type?->affects_ranking),
 
-                Repeater::make('items')
-                    ->label('Jugadores o parejas')
-                    ->helperText('Cada inscripción puede aparecer una sola vez. Usá la penalización únicamente cuando corresponda.')
-                    ->schema([
-                        Select::make('registration_id')
-                            ->label('Jugador / pareja')
-                            ->options(fn ($livewire): array => self::registrationOptions(
-                                self::resolveTournament($tournament, $livewire)
-                            ))
-                            ->required()
-                            ->distinct()
-                            ->disableOptionsWhenSelectedInSiblingRepeaterItems()
-                            ->searchable()
-                            ->preload(),
-                        TextInput::make('penalty_points')
-                            ->label('Penalización')
-                            ->numeric()
-                            ->minValue(0)
-                            ->default(0)
-                            ->required(),
-                    ])
-                    ->table([
-                        TableColumn::make('Jugador / pareja')->markAsRequired(),
-                        TableColumn::make('Penalización')->width('12rem'),
-                    ])
-                    ->defaultItems(1)
+                Select::make('tournament_slot_id')
+                    ->label('Filtrar por horario')
+                    ->placeholder('Todos los horarios')
+                    ->options(fn ($livewire): array => self::slotOptions(
+                        self::resolveTournament($tournament, $livewire)
+                    ))
+                    ->native(false)
+                    ->live()
+                    ->afterStateUpdated(fn (Set $set) => $set('registration_ids', [])),
+
+                CheckboxList::make('registration_ids')
+                    ->label('Jugadores o parejas sin puntuación')
+                    ->options(fn (Get $get, $livewire): array => self::registrationOptions(
+                        self::resolveTournament($tournament, $livewire),
+                        filled($get('tournament_slot_id')) ? (int) $get('tournament_slot_id') : null,
+                    ))
+                    ->required()
                     ->minItems(1)
-                    ->reorderable(false)
-                    ->addActionLabel('Agregar jugador o pareja')
+                    ->searchable()
+                    ->bulkToggleable()
+                    ->columns(2)
+                    ->helperText('Marcá todas las inscripciones que obtuvieron la posición seleccionada.')
                     ->columnSpanFull(),
             ])
             ->action(function (array $data, $livewire) use ($tournament): void {
@@ -440,24 +433,34 @@ class TournamentRegistrationsTable
                     403,
                 );
 
-                $items = array_values($data['items'] ?? []);
-                $registrationIds = collect($items)
-                    ->pluck('registration_id')
+                $registrationIds = collect($data['registration_ids'] ?? [])
                     ->filter()
                     ->map(fn ($id): int => (int) $id)
                     ->values();
 
-                $approvedCount = $resolvedTournament->registrations()
+                $eligibleQuery = $resolvedTournament->registrations()
                     ->where('status', 'aprobado')
                     ->whereNull('points')
-                    ->whereKey($registrationIds)
-                    ->count();
+                    ->whereKey($registrationIds);
 
-                if ($approvedCount !== $registrationIds->unique()->count()) {
+                if (filled($data['tournament_slot_id'] ?? null)) {
+                    $eligibleQuery->where('tournament_slot_id', (int) $data['tournament_slot_id']);
+                }
+
+                $eligibleCount = $eligibleQuery->count();
+
+                if ($eligibleCount !== $registrationIds->unique()->count()) {
                     throw ValidationException::withMessages([
-                        'items' => 'Solo se pueden seleccionar inscripciones aprobadas y sin puntuación asignada.',
+                        'registration_ids' => 'Solo se pueden seleccionar inscripciones aprobadas, sin puntuación y pertenecientes al horario elegido.',
                     ]);
                 }
+
+                $items = $registrationIds
+                    ->map(fn (int $registrationId): array => [
+                        'registration_id' => $registrationId,
+                        'penalty_points' => 0,
+                    ])
+                    ->all();
 
                 app(\App\Services\TournamentScoringService::class)->assignBatch(
                     $resolvedTournament,
@@ -507,20 +510,48 @@ class TournamentRegistrationsTable
             ->all();
     }
 
-    private static function registrationOptions($tournament): array
+    private static function slotOptions($tournament): array
     {
         if (! $tournament) {
             return [];
         }
 
-        return $tournament->registrations()
+        return $tournament->slots()
+            ->with('tournamentModality.modality')
+            ->where('is_active', true)
+            ->orderBy('starts_at')
+            ->get()
+            ->mapWithKeys(function ($slot): array {
+                $modality = $slot->tournamentModality?->modality?->name;
+                $date = $slot->starts_at?->format('d/m/Y H:i');
+                $description = implode(' · ', array_filter([$modality, $date]));
+                $name = $slot->name ?: 'Horario #'.$slot->getKey();
+
+                return [$slot->getKey() => $description !== '' ? "{$name} — {$description}" : $name];
+            })
+            ->all();
+    }
+
+    private static function registrationOptions($tournament, ?int $slotId = null): array
+    {
+        if (! $tournament) {
+            return [];
+        }
+
+        $query = $tournament->registrations()
             ->where('status', 'aprobado')
             ->whereNull('points')
             ->with([
                 'participants.player.category',
                 'tournamentModality.modality',
-            ])
-            ->get()
+                'slot',
+            ]);
+
+        if ($slotId) {
+            $query->where('tournament_slot_id', $slotId);
+        }
+
+        return $query->get()
             ->sortBy(fn (TournamentRegistration $registration): string => $registration->participant_names)
             ->mapWithKeys(function (TournamentRegistration $registration): array {
                 $categories = $registration->participants
@@ -529,7 +560,8 @@ class TournamentRegistrationsTable
                     ->unique()
                     ->implode(' / ');
                 $modality = $registration->tournamentModality?->modality?->name;
-                $details = implode(' · ', array_filter([$modality, $categories]));
+                $slot = $registration->slot?->name;
+                $details = implode(' · ', array_filter([$modality, $categories, $slot]));
                 $label = $registration->participant_names ?: "Inscripción #{$registration->getKey()}";
 
                 return [
