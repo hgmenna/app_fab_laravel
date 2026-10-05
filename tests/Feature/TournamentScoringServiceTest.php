@@ -124,11 +124,12 @@ test('CAB asigna los puntos de su regla y conserva la posición oficial', functi
         ->and($registration->result_instance_value)->toBe(92)
         ->and((float) $registration->points)->toBe(75.0);
 
-    $tournament = Tournament::query()->findOrFail($tournamentId);
+    $rules = app(TournamentScoringService::class)
+        ->getRules(Tournament::query()->findOrFail($tournamentId));
 
-    expect($tournament->scoring_rules)->toHaveCount(1)
-        ->and($tournament->scoring_rules[0]['code'])->toBe('92')
-        ->and((float) $tournament->scoring_rules[0]['points'])->toBe(75.0);
+    expect($rules)->toHaveCount(1)
+        ->and($rules[0]['code'])->toBe('92')
+        ->and((float) $rules[0]['points'])->toBe(75.0);
 });
 
 test('un torneo estadístico guarda su resultado sin posición oficial', function () {
@@ -182,7 +183,7 @@ test('un torneo estadístico guarda su resultado sin posición oficial', functio
         ->and((float) $registration->points)->toBe(60.0);
 });
 
-test('el torneo conserva la copia de las reglas utilizadas', function () {
+test('los cambios de la tabla actualizan asignaciones anteriores y futuras', function () {
     $originalRules = [
         [
             'tournament_instance_id' => 1,
@@ -269,14 +270,18 @@ test('el torneo conserva la copia de las reglas utilizadas', function () {
     );
 
     $secondRegistration->refresh();
+    $firstRegistration = TournamentRegistration::query()
+        ->findOrFail($firstRegistrationId);
     $tournament = Tournament::query()->findOrFail($tournamentId);
 
-    expect((float) $secondRegistration->points)->toBe(75.0)
-        ->and($secondRegistration->result_description)->toBe('1°')
-        ->and((float) $tournament->scoring_rules[0]['points'])->toBe(75.0);
+    expect((float) $firstRegistration->points)->toBe(999.0)
+        ->and($firstRegistration->result_description)->toBe('1° modificada')
+        ->and((float) $secondRegistration->points)->toBe(999.0)
+        ->and($secondRegistration->result_description)->toBe('1° modificada')
+        ->and((float) $tournament->scoring_rules[0]['points'])->toBe(999.0);
 });
 
-test('incorpora posiciones nuevas sin modificar las reglas históricas del torneo', function () {
+test('utiliza siempre la tabla vigente del tipo de torneo', function () {
     $typeId = DB::table('tournament_types')->insertGetId([
         'name' => 'Circuito con nuevas posiciones',
         'code' => 'CNP',
@@ -328,8 +333,8 @@ test('incorpora posiciones nuevas sin modificar las reglas históricas del torne
     $rules = $service->getRules($tournament);
 
     expect($rules)->toHaveCount(2)
-        ->and($rules[0]['description'])->toBe('Campeón original')
-        ->and((float) $rules[0]['points'])->toBe(100.0)
+        ->and($rules[0]['description'])->toBe('Campeón actualizado')
+        ->and((float) $rules[0]['points'])->toBe(999.0)
         ->and($rules[1]['code'])->toBe('TERCERO');
 
     $service->assignByCode(
@@ -338,12 +343,9 @@ test('incorpora posiciones nuevas sin modificar las reglas históricas del torne
     );
 
     $registration = TournamentRegistration::query()->findOrFail($registrationId);
-    $tournament->refresh();
 
     expect((float) $registration->points)->toBe(50.0)
-        ->and($tournament->scoring_rules)->toHaveCount(2)
-        ->and((float) $tournament->scoring_rules[0]['points'])->toBe(100.0)
-        ->and($tournament->scoring_rules[1]['code'])->toBe('TERCERO');
+        ->and($registration->result_description)->toBe('Tercer puesto');
 });
 
 test('una regla inexistente no modifica la inscripción', function () {

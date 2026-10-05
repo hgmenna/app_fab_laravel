@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Models\Tournament;
 use App\Models\TournamentInstance;
 use App\Models\TournamentRegistration;
+use App\Models\TournamentType;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class TournamentScoringService
@@ -125,38 +127,80 @@ class TournamentScoringService
     /**
      * Obtiene las reglas aplicables al torneo.
      *
-     * Conserva la copia guardada en el torneo para las posiciones que ya
-     * existían y agrega las posiciones nuevas incorporadas posteriormente
-     * al tipo. Los valores históricos nunca se sobrescriben.
+     * La tabla del tipo de torneo es la fuente única de puntuaciones.
      */
     public function getRules(Tournament $tournament): array
     {
         $tournament->loadMissing('type');
 
-        $tournamentRules = $tournament->scoring_rules;
-
         $typeRules = $tournament->type?->scoring_rules;
 
-        if (! is_array($tournamentRules) || $tournamentRules === []) {
-            return is_array($typeRules) ? array_values($typeRules) : [];
+        return is_array($typeRules) ? array_values($typeRules) : [];
+    }
+
+    public function synchronizeTypeAssignments(TournamentType $type): void
+    {
+        $rules = is_array($type->scoring_rules)
+            ? array_values($type->scoring_rules)
+            : [];
+        $rulesByCode = collect($rules)->keyBy(
+            fn (array $rule): string => trim((string) ($rule['code'] ?? ''))
+        );
+        $rulesByInstance = collect($rules)
+            ->filter(fn (array $rule): bool => ! empty($rule['tournament_instance_id']))
+            ->keyBy(fn (array $rule): int => (int) $rule['tournament_instance_id']);
+
+        DB::transaction(function () use ($type, $rules, $rulesByCode, $rulesByInstance): void {
+            $tournamentIds = $type->tournaments()->pluck('id');
+
+            $type->tournaments()->update([
+                'scoring_rules' => $rules === [] ? null : json_encode($rules),
+            ]);
+
+            TournamentRegistration::query()
+                ->whereIn('tournament_id', $tournamentIds)
+                ->where(function ($query): void {
+                    $query->whereNotNull('tournament_instance_id')
+                        ->orWhereNotNull('result_code');
+                })
+                ->lockForUpdate()
+                ->get()
+                ->each(function (TournamentRegistration $registration) use ($type, $rulesByCode, $rulesByInstance): void {
+                    if ($registration->disqualified) {
+                        $registration->points = 0;
+                        $registration->saveQuietly();
+
+                        return;
+                    }
+
+                    $rule = $type->affects_ranking
+                        ? $rulesByInstance->get((int) $registration->tournament_instance_id)
+                        : $rulesByCode->get(trim((string) $registration->result_code));
+
+                    if (! $rule) {
+                        $registration->points = null;
+                        $registration->result_description = null;
+                        $registration->result_instance_value = null;
+                        $registration->saveQuietly();
+
+                        return;
+                    }
+
+                    $registration->result_code = (string) $rule['code'];
+                    $registration->result_description = (string) $rule['description'];
+                    $registration->result_instance_value = (int) $rule['instance_value'];
+                    $registration->points = (float) $rule['points'];
+                    $registration->saveQuietly();
+                });
+        });
+
+        if (
+            $type->affects_ranking
+            && Schema::hasTable('general_rankings')
+            && \App\Models\GeneralRanking::query()->exists()
+        ) {
+            RankingService::syncGeneralRanking();
         }
-
-        if (! is_array($typeRules) || $typeRules === []) {
-            return array_values($tournamentRules);
-        }
-
-        $rules = collect($tournamentRules)
-            ->keyBy(fn (array $rule): string => $this->ruleIdentity($rule));
-
-        foreach ($typeRules as $rule) {
-            $identity = $this->ruleIdentity($rule);
-
-            if (! $rules->has($identity)) {
-                $rules->put($identity, $rule);
-            }
-        }
-
-        return $rules->values()->all();
     }
 
     /**
@@ -359,12 +403,6 @@ class TournamentScoringService
             $rule,
             $instance
         ): TournamentRegistration {
-            $tournament = $registration->tournament;
-
-            if ($tournament) {
-                $this->persistRulesSnapshot($tournament);
-            }
-
             $registration->result_code =
                 (string) $rule['code'];
 
@@ -394,45 +432,5 @@ class TournamentScoringService
 
             return $registration->refresh();
         });
-    }
-
-    /**
-     * Guarda una fotografía de las reglas en el torneo cuando se asigna
-     * su primer resultado.
-     *
-     * Una vez creada, la fotografía no vuelve a sobrescribirse
-     * automáticamente.
-     */
-    private function persistRulesSnapshot(
-        Tournament $tournament
-    ): void {
-        $rules = $this->getRules($tournament);
-
-        if ($rules === []) {
-            throw ValidationException::withMessages([
-                'scoring_rules' => 'No se puede iniciar el torneo porque su tipo no tiene una tabla de puntuación configurada.',
-            ]);
-        }
-
-        if ($tournament->scoring_rules === $rules) {
-            return;
-        }
-
-        $tournament->scoring_rules = $rules;
-
-        /*
-     * saveQuietly evita ejecutar observadores o acciones secundarias
-     * que no corresponden al guardar la fotografía.
-     */
-        $tournament->saveQuietly();
-    }
-
-    private function ruleIdentity(array $rule): string
-    {
-        if (! empty($rule['tournament_instance_id'])) {
-            return 'instance:'.(int) $rule['tournament_instance_id'];
-        }
-
-        return 'code:'.trim((string) ($rule['code'] ?? ''));
     }
 }

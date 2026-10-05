@@ -38,6 +38,16 @@ class TournamentType extends Model
         'is_active' => 'boolean',
     ];
 
+    protected static function booted(): void
+    {
+        static::updated(function (self $type): void {
+            if ($type->wasChanged('scoring_rules')) {
+                app(\App\Services\TournamentScoringService::class)
+                    ->synchronizeTypeAssignments($type);
+            }
+        });
+    }
+
     public function discipline(): BelongsTo
     {
         return $this->belongsTo(Discipline::class);
