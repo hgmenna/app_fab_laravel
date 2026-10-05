@@ -276,6 +276,76 @@ test('el torneo conserva la copia de las reglas utilizadas', function () {
         ->and((float) $tournament->scoring_rules[0]['points'])->toBe(75.0);
 });
 
+test('incorpora posiciones nuevas sin modificar las reglas históricas del torneo', function () {
+    $typeId = DB::table('tournament_types')->insertGetId([
+        'name' => 'Circuito con nuevas posiciones',
+        'code' => 'CNP',
+        'assigns_points' => true,
+        'affects_ranking' => false,
+        'scoring_method' => 'position',
+        'scoring_rules' => json_encode([
+            [
+                'code' => 'CAMPEON',
+                'description' => 'Campeón actualizado',
+                'instance_value' => 1,
+                'points' => 999,
+            ],
+            [
+                'code' => 'TERCERO',
+                'description' => 'Tercer puesto',
+                'instance_value' => 3,
+                'points' => 50,
+            ],
+        ]),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $tournamentId = DB::table('tournaments')->insertGetId([
+        'tournament_type_id' => $typeId,
+        'name' => 'Torneo iniciado',
+        'scoring_rules' => json_encode([[
+            'code' => 'CAMPEON',
+            'description' => 'Campeón original',
+            'instance_value' => 1,
+            'points' => 100,
+        ]]),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $registrationId = DB::table('tournament_registrations')->insertGetId([
+        'tournament_id' => $tournamentId,
+        'points' => null,
+        'penalty_points' => 0,
+        'disqualified' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $service = app(TournamentScoringService::class);
+    $tournament = Tournament::query()->findOrFail($tournamentId);
+    $rules = $service->getRules($tournament);
+
+    expect($rules)->toHaveCount(2)
+        ->and($rules[0]['description'])->toBe('Campeón original')
+        ->and((float) $rules[0]['points'])->toBe(100.0)
+        ->and($rules[1]['code'])->toBe('TERCERO');
+
+    $service->assignByCode(
+        TournamentRegistration::query()->findOrFail($registrationId),
+        'TERCERO',
+    );
+
+    $registration = TournamentRegistration::query()->findOrFail($registrationId);
+    $tournament->refresh();
+
+    expect((float) $registration->points)->toBe(50.0)
+        ->and($tournament->scoring_rules)->toHaveCount(2)
+        ->and((float) $tournament->scoring_rules[0]['points'])->toBe(100.0)
+        ->and($tournament->scoring_rules[1]['code'])->toBe('TERCERO');
+});
+
 test('una regla inexistente no modifica la inscripción', function () {
     $typeId = DB::table('tournament_types')->insertGetId([
         'name' => 'Torneo Amistad',

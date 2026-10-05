@@ -125,8 +125,9 @@ class TournamentScoringService
     /**
      * Obtiene las reglas aplicables al torneo.
      *
-     * Primero utiliza la copia guardada en el torneo. Si el torneo todavía
-     * no posee una copia, utiliza las reglas actuales de su tipo.
+     * Conserva la copia guardada en el torneo para las posiciones que ya
+     * existían y agrega las posiciones nuevas incorporadas posteriormente
+     * al tipo. Los valores históricos nunca se sobrescriben.
      */
     public function getRules(Tournament $tournament): array
     {
@@ -134,17 +135,28 @@ class TournamentScoringService
 
         $tournamentRules = $tournament->scoring_rules;
 
-        if (is_array($tournamentRules) && $tournamentRules !== []) {
+        $typeRules = $tournament->type?->scoring_rules;
+
+        if (! is_array($tournamentRules) || $tournamentRules === []) {
+            return is_array($typeRules) ? array_values($typeRules) : [];
+        }
+
+        if (! is_array($typeRules) || $typeRules === []) {
             return array_values($tournamentRules);
         }
 
-        $typeRules = $tournament->type?->scoring_rules;
+        $rules = collect($tournamentRules)
+            ->keyBy(fn (array $rule): string => $this->ruleIdentity($rule));
 
-        if (! is_array($typeRules)) {
-            return [];
+        foreach ($typeRules as $rule) {
+            $identity = $this->ruleIdentity($rule);
+
+            if (! $rules->has($identity)) {
+                $rules->put($identity, $rule);
+            }
         }
 
-        return array_values($typeRules);
+        return $rules->values()->all();
     }
 
     /**
@@ -394,30 +406,33 @@ class TournamentScoringService
     private function persistRulesSnapshot(
         Tournament $tournament
     ): void {
-        if (
-            is_array($tournament->scoring_rules)
-            && $tournament->scoring_rules !== []
-        ) {
-            return;
-        }
+        $rules = $this->getRules($tournament);
 
-        $tournament->loadMissing('type');
-
-        $typeRules = $tournament->type?->scoring_rules;
-
-        if (! is_array($typeRules) || $typeRules === []) {
+        if ($rules === []) {
             throw ValidationException::withMessages([
                 'scoring_rules' => 'No se puede iniciar el torneo porque su tipo no tiene una tabla de puntuación configurada.',
             ]);
         }
 
-        $tournament->scoring_rules =
-            array_values($typeRules);
+        if ($tournament->scoring_rules === $rules) {
+            return;
+        }
+
+        $tournament->scoring_rules = $rules;
 
         /*
      * saveQuietly evita ejecutar observadores o acciones secundarias
      * que no corresponden al guardar la fotografía.
      */
         $tournament->saveQuietly();
+    }
+
+    private function ruleIdentity(array $rule): string
+    {
+        if (! empty($rule['tournament_instance_id'])) {
+            return 'instance:'.(int) $rule['tournament_instance_id'];
+        }
+
+        return 'code:'.trim((string) ($rule['code'] ?? ''));
     }
 }
