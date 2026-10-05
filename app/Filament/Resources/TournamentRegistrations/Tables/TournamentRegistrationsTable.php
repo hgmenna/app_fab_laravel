@@ -11,6 +11,7 @@ use App\Mail\TournamentRegistrationNotification;
 use App\Models\Category;
 use App\Models\GeneralRanking;
 use App\Models\TournamentRegistration;
+use App\Models\TournamentSlot;
 use App\Services\AdminNotifier;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
@@ -516,9 +517,16 @@ class TournamentRegistrationsTable
             return [];
         }
 
-        return $tournament->slots()
+        $registrationSlotIds = $tournament->registrations()
+            ->whereNotNull('tournament_slot_id')
+            ->pluck('tournament_slot_id');
+
+        return TournamentSlot::query()
+            ->where(function (Builder $query) use ($tournament, $registrationSlotIds): void {
+                $query->where('tournament_id', $tournament->getKey())
+                    ->orWhereIn('id', $registrationSlotIds);
+            })
             ->with('tournamentModality.modality')
-            ->where('is_active', true)
             ->orderBy('starts_at')
             ->get()
             ->mapWithKeys(function ($slot): array {
