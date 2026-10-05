@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Tournament;
-use App\Models\TournamentInstance;
 use App\Models\TournamentRegistration;
 use App\Models\TournamentType;
 use App\Services\TournamentScoringService;
@@ -320,7 +319,7 @@ test('una regla inexistente no modifica la inscripción', function () {
     $registration = TournamentRegistration::query()->findOrFail($registrationId);
 
     expect(
-        fn() => app(TournamentScoringService::class)
+        fn () => app(TournamentScoringService::class)
             ->assignByCode($registration, 'NO-EXISTE')
     )->toThrow(ValidationException::class);
 
@@ -332,4 +331,123 @@ test('una regla inexistente no modifica la inscripción', function () {
         ->and($registration->result_instance_value)->toBeNull()
         ->and($registration->points)->toBeNull()
         ->and($tournament->scoring_rules)->toBeNull();
+});
+
+test('asigna la misma posición a varias inscripciones en un solo paso', function () {
+    $typeId = DB::table('tournament_types')->insertGetId([
+        'name' => 'Circuito Argentino de Billar',
+        'code' => 'CAB',
+        'assigns_points' => true,
+        'affects_ranking' => true,
+        'scoring_method' => 'position',
+        'scoring_rules' => json_encode([[
+            'tournament_instance_id' => 1,
+            'code' => '73',
+            'description' => '5° al 8°',
+            'instance_value' => 73,
+            'points' => 30,
+        ]]),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $tournamentId = DB::table('tournaments')->insertGetId([
+        'tournament_type_id' => $typeId,
+        'name' => 'CAB - Etapa masiva',
+        'scoring_rules' => null,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $instanceId = DB::table('tournament_instances')->insertGetId([
+        'code' => '73',
+        'description' => '5° al 8°',
+        'instance' => 73,
+        'points' => 30,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $registrationIds = collect([0, 5])->map(fn (int $penalty): int => DB::table('tournament_registrations')->insertGetId([
+        'tournament_id' => $tournamentId,
+        'tournament_instance_id' => null,
+        'points' => null,
+        'penalty_points' => 0,
+        'disqualified' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]));
+
+    $updated = app(TournamentScoringService::class)->assignBatch(
+        Tournament::query()->findOrFail($tournamentId),
+        [
+            ['registration_id' => $registrationIds[0], 'penalty_points' => 0],
+            ['registration_id' => $registrationIds[1], 'penalty_points' => 5],
+        ],
+        $instanceId,
+    );
+
+    expect($updated)->toHaveCount(2);
+
+    $registrations = TournamentRegistration::query()
+        ->whereKey($registrationIds)
+        ->orderBy('id')
+        ->get();
+
+    expect($registrations[0]->tournament_instance_id)->toBe($instanceId)
+        ->and((float) $registrations[0]->points)->toBe(30.0)
+        ->and((float) $registrations[0]->penalty_points)->toBe(0.0)
+        ->and($registrations[1]->tournament_instance_id)->toBe($instanceId)
+        ->and((float) $registrations[1]->points)->toBe(30.0)
+        ->and((float) $registrations[1]->penalty_points)->toBe(5.0);
+});
+
+test('rechaza filas repetidas sin modificar ninguna inscripción', function () {
+    $typeId = DB::table('tournament_types')->insertGetId([
+        'name' => 'Campeonato Argentino',
+        'code' => 'ARG',
+        'assigns_points' => true,
+        'affects_ranking' => false,
+        'scoring_method' => 'position',
+        'scoring_rules' => json_encode([[
+            'code' => 'SEMIFINAL',
+            'description' => 'Semifinal',
+            'instance_value' => 5,
+            'points' => 60,
+        ]]),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $tournamentId = DB::table('tournaments')->insertGetId([
+        'tournament_type_id' => $typeId,
+        'name' => 'Argentino',
+        'scoring_rules' => null,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $registrationId = DB::table('tournament_registrations')->insertGetId([
+        'tournament_id' => $tournamentId,
+        'tournament_instance_id' => null,
+        'points' => null,
+        'penalty_points' => 0,
+        'disqualified' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    expect(fn () => app(TournamentScoringService::class)->assignBatch(
+        Tournament::query()->findOrFail($tournamentId),
+        [
+            ['registration_id' => $registrationId, 'penalty_points' => 0],
+            ['registration_id' => $registrationId, 'penalty_points' => 0],
+        ],
+        resultCode: 'SEMIFINAL',
+    ))->toThrow(ValidationException::class);
+
+    $registration = TournamentRegistration::query()->findOrFail($registrationId);
+
+    expect($registration->result_code)->toBeNull()
+        ->and($registration->points)->toBeNull();
 });

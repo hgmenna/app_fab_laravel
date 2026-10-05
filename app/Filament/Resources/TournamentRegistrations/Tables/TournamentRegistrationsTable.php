@@ -14,7 +14,10 @@ use App\Models\TournamentRegistration;
 use App\Services\AdminNotifier;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -26,6 +29,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 
 class TournamentRegistrationsTable
 {
@@ -210,6 +214,7 @@ class TournamentRegistrationsTable
                         $livewire->dispatch('refreshTable');
                     }
                     ),
+                self::bulkScoringAction($tournament),
                 Action::make('exportarInscripcionesPdf')
                     ->label('Exportar PDF')
                     ->action(function ($livewire) {
@@ -335,5 +340,200 @@ class TournamentRegistrationsTable
                 ]),
             ]
             );
+    }
+
+    private static function bulkScoringAction($tournament): Action
+    {
+        return Action::make('asignarPuntajesMasivos')
+            ->label('Asignar puntajes')
+            ->icon('heroicon-o-list-bullet')
+            ->color('primary')
+            ->modalHeading('Asignación masiva de puntajes')
+            ->modalDescription('Elegí una posición y agregá todos los jugadores o parejas que recibirán el mismo puntaje.')
+            ->modalSubmitActionLabel('Guardar todos los puntajes')
+            ->modalWidth('7xl')
+            ->visible(function ($livewire) use ($tournament): bool {
+                $resolvedTournament = self::resolveTournament($tournament, $livewire);
+
+                return $resolvedTournament
+                    && (bool) $resolvedTournament->type?->assigns_points
+                    && $resolvedTournament->type?->scoring_method === 'position'
+                    && (Auth::user()?->canGloballyOrForDiscipline(
+                        'AssignTournamentScore',
+                        $resolvedTournament->discipline_id,
+                    ) ?? false)
+                    && $resolvedTournament->start_date < now();
+            })
+            ->schema([
+                Select::make('tournament_instance_id')
+                    ->label('Posición oficial')
+                    ->options(function ($livewire) use ($tournament): array {
+                        $resolvedTournament = self::resolveTournament($tournament, $livewire);
+
+                        if (! $resolvedTournament?->type?->affects_ranking) {
+                            return [];
+                        }
+
+                        return self::scoringRuleOptions($resolvedTournament, true);
+                    })
+                    ->searchable()
+                    ->preload()
+                    ->required(fn ($livewire): bool => (bool) self::resolveTournament($tournament, $livewire)?->type?->affects_ranking)
+                    ->visible(fn ($livewire): bool => (bool) self::resolveTournament($tournament, $livewire)?->type?->affects_ranking),
+
+                Select::make('result_code')
+                    ->label('Resultado')
+                    ->options(function ($livewire) use ($tournament): array {
+                        $resolvedTournament = self::resolveTournament($tournament, $livewire);
+
+                        if (! $resolvedTournament || $resolvedTournament->type?->affects_ranking) {
+                            return [];
+                        }
+
+                        return self::scoringRuleOptions($resolvedTournament, false);
+                    })
+                    ->searchable()
+                    ->preload()
+                    ->required(fn ($livewire): bool => ! (bool) self::resolveTournament($tournament, $livewire)?->type?->affects_ranking)
+                    ->visible(fn ($livewire): bool => ! (bool) self::resolveTournament($tournament, $livewire)?->type?->affects_ranking),
+
+                Repeater::make('items')
+                    ->label('Jugadores o parejas')
+                    ->helperText('Cada inscripción puede aparecer una sola vez. Usá la penalización únicamente cuando corresponda.')
+                    ->schema([
+                        Select::make('registration_id')
+                            ->label('Jugador / pareja')
+                            ->options(fn ($livewire): array => self::registrationOptions(
+                                self::resolveTournament($tournament, $livewire)
+                            ))
+                            ->required()
+                            ->distinct()
+                            ->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                            ->searchable()
+                            ->preload(),
+                        TextInput::make('penalty_points')
+                            ->label('Penalización')
+                            ->numeric()
+                            ->minValue(0)
+                            ->default(0)
+                            ->required(),
+                    ])
+                    ->table([
+                        TableColumn::make('Jugador / pareja')->markAsRequired(),
+                        TableColumn::make('Penalización')->width('12rem'),
+                    ])
+                    ->defaultItems(1)
+                    ->minItems(1)
+                    ->reorderable(false)
+                    ->addActionLabel('Agregar jugador o pareja')
+                    ->columnSpanFull(),
+            ])
+            ->action(function (array $data, $livewire) use ($tournament): void {
+                $resolvedTournament = self::resolveTournament($tournament, $livewire);
+
+                abort_unless($resolvedTournament, 404);
+                abort_unless(
+                    Auth::user()?->canGloballyOrForDiscipline(
+                        'AssignTournamentScore',
+                        $resolvedTournament->discipline_id,
+                    ),
+                    403,
+                );
+
+                $items = array_values($data['items'] ?? []);
+                $registrationIds = collect($items)
+                    ->pluck('registration_id')
+                    ->filter()
+                    ->map(fn ($id): int => (int) $id)
+                    ->values();
+
+                $approvedCount = $resolvedTournament->registrations()
+                    ->where('status', 'aprobado')
+                    ->whereKey($registrationIds)
+                    ->count();
+
+                if ($approvedCount !== $registrationIds->unique()->count()) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Solo se pueden puntuar inscripciones aprobadas de este torneo.',
+                    ]);
+                }
+
+                app(\App\Services\TournamentScoringService::class)->assignBatch(
+                    $resolvedTournament,
+                    $items,
+                    isset($data['tournament_instance_id']) ? (int) $data['tournament_instance_id'] : null,
+                    $data['result_code'] ?? null,
+                );
+
+                if ($resolvedTournament->type?->affects_ranking) {
+                    \App\Services\RankingService::syncGeneralRanking();
+                }
+
+                $livewire->dispatch('refreshTable');
+            })
+            ->successNotificationTitle('Puntajes asignados correctamente');
+    }
+
+    private static function resolveTournament($tournament, $livewire)
+    {
+        $resolvedTournament = $tournament
+            ?? (method_exists($livewire, 'getOwnerRecord') ? $livewire->getOwnerRecord() : null);
+
+        if ($resolvedTournament instanceof Collection) {
+            $resolvedTournament = $resolvedTournament->first();
+        }
+
+        $resolvedTournament?->loadMissing('type');
+
+        return $resolvedTournament;
+    }
+
+    private static function scoringRuleOptions($tournament, bool $officialInstances): array
+    {
+        return collect(app(\App\Services\TournamentScoringService::class)->getRules($tournament))
+            ->filter(fn (array $rule): bool => $officialInstances
+                ? ! empty($rule['tournament_instance_id'] ?? null)
+                : filled($rule['code'] ?? null))
+            ->mapWithKeys(function (array $rule) use ($officialInstances): array {
+                $value = $officialInstances
+                    ? (int) $rule['tournament_instance_id']
+                    : (string) $rule['code'];
+                $description = $rule['description'] ?? 'Sin descripción';
+                $points = number_format((float) ($rule['points'] ?? 0), 2, ',', '.');
+
+                return [$value => "{$description} — {$points} puntos"];
+            })
+            ->all();
+    }
+
+    private static function registrationOptions($tournament): array
+    {
+        if (! $tournament) {
+            return [];
+        }
+
+        return $tournament->registrations()
+            ->where('status', 'aprobado')
+            ->with([
+                'participants.player.category',
+                'tournamentModality.modality',
+            ])
+            ->get()
+            ->sortBy(fn (TournamentRegistration $registration): string => $registration->participant_names)
+            ->mapWithKeys(function (TournamentRegistration $registration): array {
+                $categories = $registration->participants
+                    ->pluck('player.category.code')
+                    ->filter()
+                    ->unique()
+                    ->implode(' / ');
+                $modality = $registration->tournamentModality?->modality?->name;
+                $details = implode(' · ', array_filter([$modality, $categories]));
+                $label = $registration->participant_names ?: "Inscripción #{$registration->getKey()}";
+
+                return [
+                    $registration->getKey() => $details !== '' ? "{$label} — {$details}" : $label,
+                ];
+            })
+            ->all();
     }
 }
