@@ -135,7 +135,21 @@ class TournamentScoringService
 
         $typeRules = $tournament->type?->scoring_rules;
 
-        return is_array($typeRules) ? array_values($typeRules) : [];
+        if (! is_array($typeRules)) {
+            return [];
+        }
+
+        $rules = array_values($typeRules);
+
+        usort(
+            $rules,
+            fn (array $left, array $right): int => strnatcasecmp(
+                (string) ($right['code'] ?? ''),
+                (string) ($left['code'] ?? ''),
+            ),
+        );
+
+        return $rules;
     }
 
     public function synchronizeTypeAssignments(TournamentType $type): void

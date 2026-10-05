@@ -332,10 +332,14 @@ test('utiliza siempre la tabla vigente del tipo de torneo', function () {
     $tournament = Tournament::query()->findOrFail($tournamentId);
     $rules = $service->getRules($tournament);
 
+    $championRule = collect($rules)->firstWhere('code', 'CAMPEON');
+    $thirdPlaceRule = collect($rules)->firstWhere('code', 'TERCERO');
+
     expect($rules)->toHaveCount(2)
-        ->and($rules[0]['description'])->toBe('Campeón actualizado')
-        ->and((float) $rules[0]['points'])->toBe(999.0)
-        ->and($rules[1]['code'])->toBe('TERCERO');
+        ->and($rules[0]['code'])->toBe('TERCERO')
+        ->and($championRule['description'])->toBe('Campeón actualizado')
+        ->and((float) $championRule['points'])->toBe(999.0)
+        ->and($thirdPlaceRule['description'])->toBe('Tercer puesto');
 
     $service->assignByCode(
         TournamentRegistration::query()->findOrFail($registrationId),
@@ -346,6 +350,37 @@ test('utiliza siempre la tabla vigente del tipo de torneo', function () {
 
     expect((float) $registration->points)->toBe(50.0)
         ->and($registration->result_description)->toBe('Tercer puesto');
+});
+
+test('ordena las reglas por código de mayor a menor', function () {
+    $typeId = DB::table('tournament_types')->insertGetId([
+        'name' => 'Torneo ordenado',
+        'code' => 'ORD',
+        'assigns_points' => true,
+        'affects_ranking' => false,
+        'scoring_method' => 'position',
+        'scoring_rules' => json_encode(collect(['9', '100', '92'])->map(fn (string $code): array => [
+            'code' => $code,
+            'description' => "Código {$code}",
+            'instance_value' => (int) $code,
+            'points' => (int) $code,
+        ])->all()),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $tournamentId = DB::table('tournaments')->insertGetId([
+        'tournament_type_id' => $typeId,
+        'name' => 'Torneo ordenado',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $rules = app(TournamentScoringService::class)
+        ->getRules(Tournament::query()->findOrFail($tournamentId));
+
+    expect(collect($rules)->pluck('code')->all())
+        ->toBe(['100', '92', '9']);
 });
 
 test('una regla inexistente no modifica la inscripción', function () {
