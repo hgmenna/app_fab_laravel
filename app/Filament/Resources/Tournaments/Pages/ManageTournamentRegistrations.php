@@ -55,7 +55,7 @@ class ManageTournamentRegistrations extends ManageRelatedRecords
 
         // 2. Generamos las pestañas por cada slot (horario) como ya lo hacías
         $slotTabs = $tournament->slots
-            ->filter(fn ($slot) => $slot->starts_at !== null && $slot->max_players !== null)
+            ->filter(fn ($slot) => $slot->is_active && $slot->starts_at !== null && $slot->max_players !== null)
             ->mapWithKeys(function ($slot) {
                 $current = $slot->occupiedPlaces();
                 $max = $slot->max_players;
