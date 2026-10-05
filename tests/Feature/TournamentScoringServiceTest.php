@@ -451,3 +451,49 @@ test('rechaza filas repetidas sin modificar ninguna inscripción', function () {
     expect($registration->result_code)->toBeNull()
         ->and($registration->points)->toBeNull();
 });
+
+test('no permite incluir una inscripción que ya tiene puntuación', function () {
+    $typeId = DB::table('tournament_types')->insertGetId([
+        'name' => 'Torneo puntuable',
+        'code' => 'TP',
+        'assigns_points' => true,
+        'affects_ranking' => false,
+        'scoring_method' => 'position',
+        'scoring_rules' => json_encode([[
+            'code' => 'FINALISTA',
+            'description' => 'Finalista',
+            'instance_value' => 2,
+            'points' => 80,
+        ]]),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $tournamentId = DB::table('tournaments')->insertGetId([
+        'tournament_type_id' => $typeId,
+        'name' => 'Torneo con puntuación previa',
+        'scoring_rules' => null,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $registrationId = DB::table('tournament_registrations')->insertGetId([
+        'tournament_id' => $tournamentId,
+        'points' => 25,
+        'penalty_points' => 0,
+        'disqualified' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    expect(fn () => app(TournamentScoringService::class)->assignBatch(
+        Tournament::query()->findOrFail($tournamentId),
+        [['registration_id' => $registrationId, 'penalty_points' => 0]],
+        resultCode: 'FINALISTA',
+    ))->toThrow(ValidationException::class);
+
+    $registration = TournamentRegistration::query()->findOrFail($registrationId);
+
+    expect((float) $registration->points)->toBe(25.0)
+        ->and($registration->result_code)->toBeNull();
+});

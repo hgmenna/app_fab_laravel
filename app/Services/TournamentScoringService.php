@@ -89,6 +89,14 @@ class TournamentScoringService
                 ]);
             }
 
+            if ($registrations->contains(
+                fn (TournamentRegistration $registration): bool => $registration->points !== null
+            )) {
+                throw ValidationException::withMessages([
+                    'items' => 'Una o más inscripciones ya tienen una puntuación asignada.',
+                ]);
+            }
+
             $updated = new Collection;
 
             foreach ($items as $item) {

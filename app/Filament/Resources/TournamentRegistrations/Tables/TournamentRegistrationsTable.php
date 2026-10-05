@@ -449,12 +449,13 @@ class TournamentRegistrationsTable
 
                 $approvedCount = $resolvedTournament->registrations()
                     ->where('status', 'aprobado')
+                    ->whereNull('points')
                     ->whereKey($registrationIds)
                     ->count();
 
                 if ($approvedCount !== $registrationIds->unique()->count()) {
                     throw ValidationException::withMessages([
-                        'items' => 'Solo se pueden puntuar inscripciones aprobadas de este torneo.',
+                        'items' => 'Solo se pueden seleccionar inscripciones aprobadas y sin puntuación asignada.',
                     ]);
                 }
 
@@ -514,6 +515,7 @@ class TournamentRegistrationsTable
 
         return $tournament->registrations()
             ->where('status', 'aprobado')
+            ->whereNull('points')
             ->with([
                 'participants.player.category',
                 'tournamentModality.modality',
