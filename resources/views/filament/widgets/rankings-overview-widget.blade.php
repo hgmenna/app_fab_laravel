@@ -7,7 +7,7 @@
             </div>
         </div>
 
-        <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.55rem;">
+        <div class="fab-ranking-grid" style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.55rem;">
             <article class="fab-ranking-card" style="padding:.62rem .72rem; border-radius:.8rem; border:1px solid rgba(59,130,246,.25); background:linear-gradient(145deg,rgba(37,99,235,.10),rgba(255,255,255,.02));">
                 <div style="display:flex; justify-content:space-between; gap:.5rem;">
                     <div><small style="color:#2563eb; font-weight:800;">5 QUILLAS</small><h3 style="margin:.1rem 0 .25rem; font-size:.88rem;">Circuito Argentino</h3></div>
