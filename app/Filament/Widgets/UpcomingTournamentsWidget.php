@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Tournament;
+use Filament\Facades\Filament;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
@@ -21,11 +22,18 @@ class UpcomingTournamentsWidget extends TableWidget
 
     public function table(Table $table): Table
     {
+        $isGuestPanel = Filament::getCurrentPanel()?->getId() === 'guest';
+
         return $table
             ->query(Tournament::query()
                 ->with(['discipline', 'type', 'venue', 'externalVenueState'])
                 ->withCount('registrations')
                 ->whereDate('end_date', '>=', today())
+                ->when($isGuestPanel, fn ($query) => $query->whereIn('status', [
+                    'published',
+                    'in_progress',
+                    'finished',
+                ]))
                 ->orderBy('start_date')
                 ->orderBy('id'))
             ->columns([
@@ -59,18 +67,32 @@ class UpcomingTournamentsWidget extends TableWidget
                     ->badge()
                     ->color(fn (string $state): string => $state === 'Abiertas' ? 'success' : 'gray'),
                 TextColumn::make('status')
-                    ->label('Estado')
+                    ->label('Estado del torneo')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'draft' => 'Borrador',
+                        'published' => 'Publicado',
+                        'in_progress' => 'En curso',
+                        'finished' => 'Finalizado',
+                        'cancelled' => 'Cancelado',
                         'aprobado' => 'Aprobado',
                         'pendiente_verificacion' => 'Pendiente',
                         'excepcion_autorizada' => 'Excepción autorizada',
                         default => ucfirst(str_replace('_', ' ', (string) $state)),
                     })
                     ->color(fn (?string $state): string => match ($state) {
-                        'aprobado' => 'success',
-                        'excepcion_autorizada' => 'warning',
+                        'published', 'aprobado' => 'success',
+                        'in_progress', 'excepcion_autorizada' => 'warning',
+                        'cancelled' => 'danger',
+                        'finished' => 'info',
                         default => 'gray',
+                    })
+                    ->icon(fn (?string $state): string => match ($state) {
+                        'published', 'aprobado' => 'heroicon-m-check-circle',
+                        'in_progress' => 'heroicon-m-play-circle',
+                        'finished' => 'heroicon-m-flag',
+                        'cancelled' => 'heroicon-m-x-circle',
+                        default => 'heroicon-m-pencil-square',
                     }),
             ])
             ->defaultPaginationPageOption(5)
