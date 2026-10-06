@@ -14,6 +14,8 @@ class SportsSummaryWidget extends StatsOverviewWidget
 {
     protected static ?int $sort = 1;
 
+    protected ?string $pollingInterval = null;
+
     protected ?string $heading = 'Resumen deportivo';
 
     protected ?string $description = 'Información actualizada del sistema federativo';
@@ -42,7 +44,10 @@ class SportsSummaryWidget extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-check-badge')
                 ->color('success'),
 
-            Stat::make('Clubes activos', Club::query()->where('is_active', true)->count())
+            Stat::make('Clubes activos', Club::query()
+                ->withoutGlobalScope('ordered')
+                ->where('is_active', true)
+                ->count())
                 ->description('Instituciones registradas')
                 ->descriptionIcon('heroicon-m-building-office-2')
                 ->color('info'),
