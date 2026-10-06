@@ -11,4 +11,12 @@ class Dashboard extends BaseDashboard
     {
         return '';
     }
+
+    public function getPageClasses(): array
+    {
+        return [
+            ...parent::getPageClasses(),
+            'fab-compact-dashboard',
+        ];
+    }
 }
