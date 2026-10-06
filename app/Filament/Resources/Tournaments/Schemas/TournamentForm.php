@@ -47,14 +47,14 @@ class TournamentForm
 
                                 TextInput::make('name')
                                     ->label('Nombre del torneo')
-                                    ->columnSpan(5)
+                                    ->columnSpan(4)
                                     ->required()
                                     ->reactive(),
 
                                 Select::make('discipline_id')
                                     ->label('Disciplina')
                                     ->options(fn () => Auth::user()?->scopeDisciplineQuery(Discipline::query(), 'Create:Tournament')->orderBy('name')->pluck('name', 'id') ?? [])
-                                    ->columnSpan(4)
+                                    ->columnSpan(3)
                                     ->searchable()
                                     ->required()
                                     ->default(fn () => Auth::user()?->defaultDisciplineId('Create:Tournament'))
@@ -65,6 +65,21 @@ class TournamentForm
                                         $set('tournamentModalities', []);
                                         $set('manual_route_checks', []);
                                     }),
+
+                                Select::make('status')
+                                    ->label('Estado del torneo')
+                                    ->options([
+                                        'draft' => 'Borrador',
+                                        'published' => 'Publicado',
+                                        'in_progress' => 'En curso',
+                                        'finished' => 'Finalizado',
+                                        'cancelled' => 'Cancelado',
+                                    ])
+                                    ->default('published')
+                                    ->required()
+                                    ->native(false)
+                                    ->helperText('Publicado es el estado habitual para un torneo visible.')
+                                    ->columnSpan(2),
 
                                 Select::make('venue_type')
                                     ->label('Tipo de sede')
