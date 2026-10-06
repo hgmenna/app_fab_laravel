@@ -16,6 +16,6 @@
             @endforelse
         </div>
 
-        <a class="fab-upcoming-link" href="{{ $tournamentsUrl }}" style="white-space:nowrap; padding:.4rem .65rem; border-radius:.55rem; background:#1d4ed8; color:#fff; font-size:.73rem; font-weight:800; text-decoration:none;">Ver gestión de torneos</a>
+        <a class="fab-upcoming-link" href="{{ $tournamentsUrl }}" style="white-space:nowrap; padding:.4rem .65rem; border-radius:.55rem; background:#1d4ed8; color:#fff; font-size:.73rem; font-weight:800; text-decoration:none;">Ver calendario completo</a>
     </section>
 </x-filament-widgets::widget>
