@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Widgets\PlayersByClubChart;
 use App\Filament\Widgets\RankingGeneralWidget;
+use App\Filament\Widgets\ThreeCushionRankingWidget;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -44,7 +45,7 @@ class AdminPanelProvider extends PanelProvider
             ->theme('app')
             ->topNavigation()
             ->globalSearch(false)
-            
+
             ->colors([
                 'primary' => Color::Amber,
             ])
@@ -67,9 +68,10 @@ class AdminPanelProvider extends PanelProvider
 
             ->widgets([
                 RankingGeneralWidget::class,
+                ThreeCushionRankingWidget::class,
                 PlayersByClubChart::class,
             ])
-            
+
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
@@ -83,7 +85,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->plugins([
                 FilamentShieldPlugin::make()
-                    ->scopeToTenant(false), 
+                    ->scopeToTenant(false),
             ])
             ->authMiddleware([
                 Authenticate::class,
