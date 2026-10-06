@@ -15,13 +15,18 @@ class ThreeCushionRankingsTable
     public static function configure(Table $table): Table
     {
         $discipline = app(ThreeCushionRankingService::class)->discipline();
+        $categoryOptions = Category::query()
+            ->when($discipline, fn ($query) => $query->where('discipline_id', $discipline->id))
+            ->orderBy('order')
+            ->pluck('name', 'id')
+            ->all();
+        $defaultCategoryId = array_key_first($categoryOptions);
 
         return $table
             ->columns([
                 TextColumn::make('position')->label('Pos.')->sortable(),
                 TextColumn::make('player.full_name')->label('Apellido y Nombre')->searchable(['last_name', 'first_name']),
                 TextColumn::make('player.club.name')->label('Club')->searchable()->wrap(),
-                TextColumn::make('category.name')->label('Categoría')->sortable(),
                 TextColumn::make('total_caroms')->label('Carambolas')->numeric()->sortable(),
                 TextColumn::make('total_innings')->label('Entradas')->numeric()->sortable(),
                 TextColumn::make('high_run')->label('Serie Mayor')->numeric()->sortable(),
@@ -39,10 +44,11 @@ class ThreeCushionRankingsTable
                 SelectFilter::make('season')->label('Año')->options(
                     ThreeCushionRanking::query()->distinct()->orderByDesc('season')->pluck('season', 'season')->all()
                 )->default((string) now()->year),
-                SelectFilter::make('category_id')->label('Categoría')->options(
-                    Category::query()->when($discipline, fn ($query) => $query->where('discipline_id', $discipline->id))
-                        ->orderBy('order')->pluck('name', 'id')->all()
-                ),
+                SelectFilter::make('category_id')
+                    ->label('Categoría')
+                    ->options($categoryOptions)
+                    ->default($defaultCategoryId === null ? null : (string) $defaultCategoryId)
+                    ->selectablePlaceholder(false),
             ])
             ->defaultSort('position')
             ->paginated([25, 50, 100])

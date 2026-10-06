@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Widgets\PlayersByClubChart;
 use App\Filament\Widgets\RankingGeneralWidget;
+use App\Filament\Widgets\SportsSummaryWidget;
 use App\Filament\Widgets\ThreeCushionRankingWidget;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
@@ -67,6 +68,7 @@ class AdminPanelProvider extends PanelProvider
             ])
 
             ->widgets([
+                SportsSummaryWidget::class,
                 RankingGeneralWidget::class,
                 ThreeCushionRankingWidget::class,
                 PlayersByClubChart::class,

@@ -26,7 +26,7 @@ class RankingGeneralWidget extends TableWidget
 {
     protected static ?string $heading = 'Ranking Circuito Argentino de 5 Quillas';
 
-    protected static ?int $sort = 1; // opcional: orden en el dashboard
+    protected static ?int $sort = 10;
 
     protected static ?string $maxHeight = '600px'; // ajustable
 

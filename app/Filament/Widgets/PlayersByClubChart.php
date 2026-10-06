@@ -2,23 +2,24 @@
 
 namespace App\Filament\Widgets;
 
-use Filament\Widgets\ChartWidget;
-use App\Models\Player;
 use App\Models\Federation;
+use App\Models\Player;
 use Filament\Forms\Components\Select;
-use Filament\Widgets\ChartWidget\Concerns\HasFiltersSchema;
 use Filament\Schemas\Schema;
+use Filament\Widgets\ChartWidget;
+use Filament\Widgets\ChartWidget\Concerns\HasFiltersSchema;
 
 class PlayersByClubChart extends ChartWidget
 {
-
     use HasFiltersSchema;
 
     protected ?string $heading = 'Afiliados por Club';
+
     protected ?string $maxHeight = '300px';
+
     protected int|string|array $columnSpan = 'full';
 
-    
+    protected static ?int $sort = 30;
 
     public function filtersSchema(Schema $schema): Schema
     {
@@ -30,7 +31,7 @@ class PlayersByClubChart extends ChartWidget
         ]);
     }
 
-     public function updatedFederationFilter(): void
+    public function updatedFederationFilter(): void
     {
         $this->refresh();
     }
@@ -58,7 +59,7 @@ class PlayersByClubChart extends ChartWidget
         $rows = $query->get();
 
         $labels = $rows->pluck('club_name')->toArray();
-        $data   = $rows->pluck('total')->toArray();
+        $data = $rows->pluck('total')->toArray();
 
         return [
             'datasets' => [
@@ -98,5 +99,4 @@ class PlayersByClubChart extends ChartWidget
 
         return $colors;
     }
-
 }

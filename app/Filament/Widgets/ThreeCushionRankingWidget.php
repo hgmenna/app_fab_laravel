@@ -11,7 +11,7 @@ class ThreeCushionRankingWidget extends TableWidget
 {
     protected static ?string $heading = 'Ranking Carambola 3 Bandas';
 
-    protected static ?int $sort = 2;
+    protected static ?int $sort = 20;
 
     protected int|string|array $columnSpan = 'full';
 
