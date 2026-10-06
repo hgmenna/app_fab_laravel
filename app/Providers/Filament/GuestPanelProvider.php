@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Auth\GuestUser;
+use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\FiveQuillasRanking;
 use App\Filament\Widgets\DashboardHeaderWidget;
 use App\Filament\Widgets\RankingsOverviewWidget;
@@ -11,7 +12,6 @@ use App\Filament\Widgets\UpcomingByDisciplineWidget;
 use App\Http\Middleware\AssignGuestUser;
 use Filament\Enums\ThemeMode;
 use Filament\Facades\Filament;
-use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
