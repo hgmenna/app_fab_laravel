@@ -13,7 +13,8 @@
                 min-height:max(10rem, calc(100vh - 29rem));
                 display:flex;
                 flex-direction:column;
-                justify-content:center;
+                justify-content:space-between;
+                gap:1rem;
             }
         }
 
@@ -29,6 +30,7 @@
             .fab-upcoming-link { display:block; width:100%; box-sizing:border-box; text-align:center; }
             .fab-ranking-grid { grid-template-columns:1fr !important; gap:.75rem !important; }
             .fab-ranking-card { min-height:0 !important; padding:.85rem !important; }
+            .fab-ranking-card { gap:.8rem !important; }
             .fab-compact-dashboard .fi-wi-stats-overview-stat { padding:.85rem 1rem !important; }
             .fab-compact-dashboard .fi-wi-stats-overview-stat-value { font-size:1.45rem !important; }
         }
