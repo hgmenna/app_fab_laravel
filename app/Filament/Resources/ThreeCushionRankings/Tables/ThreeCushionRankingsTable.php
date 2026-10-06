@@ -23,6 +23,7 @@ class ThreeCushionRankingsTable
         $defaultCategoryId = array_key_first($categoryOptions);
 
         return $table
+            ->query(ThreeCushionRanking::query()->with(['player.club', 'category']))
             ->columns([
                 TextColumn::make('position')->label('Pos.')->sortable(),
                 TextColumn::make('player.full_name')->label('Apellido y Nombre')->searchable(['last_name', 'first_name']),
