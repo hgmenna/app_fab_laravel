@@ -25,7 +25,6 @@ class UpcomingTournamentsWidget extends TableWidget
             ->query(Tournament::query()
                 ->with(['discipline', 'type', 'venue', 'externalVenueState'])
                 ->withCount('registrations')
-                ->where('is_active', true)
                 ->whereDate('end_date', '>=', today())
                 ->orderBy('start_date')
                 ->orderBy('id'))

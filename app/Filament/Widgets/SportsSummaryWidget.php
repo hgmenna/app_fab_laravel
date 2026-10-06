@@ -60,7 +60,6 @@ class SportsSummaryWidget extends StatsOverviewWidget
                 ->color('warning'),
 
             Stat::make('Torneos próximos y en curso', Tournament::query()
-                ->where('is_active', true)
                 ->whereDate('end_date', '>=', today())
                 ->count())
                 ->description('Según la fecha de finalización')
@@ -68,7 +67,6 @@ class SportsSummaryWidget extends StatsOverviewWidget
                 ->color('primary'),
 
             Stat::make('Inscripciones abiertas', Tournament::query()
-                ->where('is_active', true)
                 ->where('registration_enabled', true)
                 ->where(fn ($query) => $query
                     ->whereNull('registration_open_at')
