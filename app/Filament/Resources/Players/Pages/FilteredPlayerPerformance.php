@@ -68,6 +68,7 @@ class FilteredPlayerPerformance extends Page
     public function typeOptions(): array
     {
         return TournamentType::query()
+            ->where('assigns_points', true)
             ->when($this->disciplineId !== '', fn (Builder $query) => $query->where(function (Builder $types): void {
                 $types->where('discipline_id', $this->disciplineId)
                     ->orWhereHas('tournaments', fn (Builder $tournaments) => $tournaments->where('discipline_id', $this->disciplineId));
@@ -102,7 +103,9 @@ class FilteredPlayerPerformance extends Page
         $rows = TournamentRegistration::query()
             ->whereHas('participants', fn (Builder $query) => $query->whereIn('player_id', $players->pluck('id')))
             ->whereHas('tournament', function (Builder $tournament): void {
-                $tournament->whereDate('end_date', '<=', today());
+                $tournament
+                    ->whereDate('end_date', '<=', today())
+                    ->whereHas('type', fn (Builder $type) => $type->where('assigns_points', true));
 
                 if ($this->disciplineId !== '') {
                     $tournament->where('discipline_id', $this->disciplineId);

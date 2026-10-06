@@ -27,10 +27,11 @@ class PointsAssignmentService
         $registration->loadMissing('tournament.type');
 
         /*
-         * Torneos que afectan al ranking:
-         * utilizan una posición oficial.
+         * Las posiciones oficiales pertenecen al ranking general de 5 Quillas.
+         * Las demás disciplinas usan la tabla de puntuación de su tipo de torneo,
+         * incluso cuando ese torneo afecta a su ranking propio.
          */
-        if ($registration->tournament?->type?->affects_ranking) {
+        if ($registration->tournament && $this->scoringService->usesOfficialInstances($registration->tournament)) {
             if (! $registration->tournament_instance_id) {
                 $registration->points = null;
                 $registration->save();

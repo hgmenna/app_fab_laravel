@@ -76,7 +76,9 @@ class PlayerPerformance extends Page implements HasTable
         return $table
             ->query(fn (): Builder => TournamentRegistration::query()
                 ->whereHas('participants', fn (Builder $query) => $query->where('player_id', $this->record->id))
-                ->whereHas('tournament', fn (Builder $query) => $query->whereDate('end_date', '<=', today()))
+                ->whereHas('tournament', fn (Builder $query) => $query
+                    ->whereDate('end_date', '<=', today())
+                    ->whereHas('type', fn (Builder $type) => $type->where('assigns_points', true)))
                 ->addSelect(['participant_count' => DB::table('tournament_registrations as participant_counts')
                     ->selectRaw('COUNT(*)')
                     ->whereColumn('participant_counts.tournament_id', 'tournament_registrations.tournament_id')])
@@ -108,7 +110,11 @@ class PlayerPerformance extends Page implements HasTable
                         : $query->whereHas('tournament', fn (Builder $tournament) => $tournament->where('discipline_id', $data['value']))),
                 SelectFilter::make('type')
                     ->label('Tipo de torneo')
-                    ->options(fn () => TournamentType::query()->orderBy('name')->pluck('name', 'id')->all())
+                    ->options(fn () => TournamentType::query()
+                        ->where('assigns_points', true)
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->all())
                     ->query(fn (Builder $query, array $data): Builder => empty($data['value'])
                         ? $query
                         : $query->whereHas('tournament', fn (Builder $tournament) => $tournament->where('tournament_type_id', $data['value']))),
