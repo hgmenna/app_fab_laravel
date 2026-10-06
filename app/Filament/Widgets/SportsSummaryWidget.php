@@ -25,12 +25,10 @@ class SportsSummaryWidget extends StatsOverviewWidget
     protected function getStats(): array
     {
         return [
-            Stat::make('Cantidad de afiliados', Player::query()
+            Stat::make('Jugadores afiliados', Player::query()
                 ->where('is_active', true)
                 ->where('is_enabled_to_compete', true)
                 ->count())
-                ->description('Habilitados para competir')
-                ->descriptionIcon('heroicon-m-check-badge')
                 ->color('primary'),
 
             Stat::make('Clubes activos', Club::query()

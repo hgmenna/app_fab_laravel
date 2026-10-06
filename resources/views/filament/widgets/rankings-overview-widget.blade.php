@@ -5,7 +5,6 @@
                 <p style="margin:0; font-size:.72rem; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:#64748b;">Competencia</p>
                 <h2 style="margin:.15rem 0 0; font-size:1.05rem; font-weight:800;">Rankings por disciplina</h2>
             </div>
-            <span style="font-size:.75rem; color:#64748b;">Cada disciplina conserva su reglamento independiente</span>
         </div>
 
         <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem;">
