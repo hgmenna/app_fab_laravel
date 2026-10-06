@@ -18,25 +18,20 @@ class SportsSummaryWidget extends StatsOverviewWidget
 
     protected int|array|null $columns = [
         'default' => 1,
-        'sm' => 2,
-        'xl' => 4,
+        'sm' => 3,
+        'xl' => 3,
     ];
 
     protected function getStats(): array
     {
         return [
-            Stat::make('Afiliados activos', Player::query()->where('is_active', true)->count())
-                ->description('Jugadores activos registrados')
-                ->descriptionIcon('heroicon-m-user-group')
-                ->color('primary'),
-
-            Stat::make('Habilitados para competir', Player::query()
+            Stat::make('Cantidad de afiliados', Player::query()
                 ->where('is_active', true)
                 ->where('is_enabled_to_compete', true)
                 ->count())
-                ->description('Con habilitación deportiva vigente')
+                ->description('Habilitados para competir')
                 ->descriptionIcon('heroicon-m-check-badge')
-                ->color('success'),
+                ->color('primary'),
 
             Stat::make('Clubes activos', Club::query()
                 ->withoutGlobalScope('ordered')
