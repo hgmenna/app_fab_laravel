@@ -7,6 +7,15 @@
         .fab-compact-dashboard .fi-wi-stats-overview-stat { padding:.65rem .8rem !important; }
         .fab-compact-dashboard .fi-wi-stats-overview-stat-content { gap:.2rem !important; }
         .fab-compact-dashboard .fi-wi-stats-overview-stat-value { font-size:1.3rem !important; line-height:1.15 !important; }
+
+        @media (min-width:1024px) {
+            .fab-compact-dashboard .fab-ranking-card {
+                min-height:max(10rem, calc(100vh - 36rem));
+                display:flex;
+                flex-direction:column;
+                justify-content:center;
+            }
+        }
     </style>
 
     <section style="position:relative; overflow:hidden; border-radius:1rem; padding:.65rem .9rem; background:linear-gradient(135deg,#172554 0%,#1e3a8a 48%,#0f766e 100%); box-shadow:0 10px 26px rgba(15,23,42,.18); color:#fff;">
