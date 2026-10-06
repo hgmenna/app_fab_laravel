@@ -3,9 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Club;
-use App\Models\Federation;
 use App\Models\Player;
-use App\Models\Tournament;
 use App\Models\TournamentRegistration;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -18,20 +16,14 @@ class SportsSummaryWidget extends StatsOverviewWidget
 
     protected ?string $pollingInterval = null;
 
-    protected ?string $heading = 'Resumen deportivo';
-
-    protected ?string $description = 'Información actualizada del sistema federativo';
-
     protected int|array|null $columns = [
         'default' => 1,
         'sm' => 2,
-        'xl' => 3,
+        'xl' => 4,
     ];
 
     protected function getStats(): array
     {
-        $now = now();
-
         return [
             Stat::make('Afiliados activos', Player::query()->where('is_active', true)->count())
                 ->description('Jugadores activos registrados')
@@ -54,32 +46,12 @@ class SportsSummaryWidget extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-building-office-2')
                 ->color('info'),
 
-            Stat::make('Federaciones', Federation::query()->count())
-                ->description('Entidades federativas registradas')
-                ->descriptionIcon('heroicon-m-flag')
-                ->color('warning'),
-
-            Stat::make('Torneos próximos y en curso', Tournament::query()
-                ->whereDate('end_date', '>=', today())
+            Stat::make('Inscripciones', TournamentRegistration::query()
+                ->where('status', 'aprobado')
+                ->whereHas('tournament', fn ($query) => $query->whereYear('end_date', now()->year))
                 ->count())
-                ->description('Según la fecha de finalización')
-                ->descriptionIcon('heroicon-m-calendar-days')
-                ->color('primary'),
-
-            Stat::make('Inscripciones abiertas', Tournament::query()
-                ->where('registration_enabled', true)
-                ->where(fn ($query) => $query
-                    ->whereNull('registration_open_at')
-                    ->orWhere('registration_open_at', '<=', $now))
-                ->where(fn ($query) => $query
-                    ->whereNull('registration_close_at')
-                    ->orWhere('registration_close_at', '>=', $now))
-                ->count())
-                ->description(TournamentRegistration::query()
-                    ->where('status', 'aprobado')
-                    ->whereHas('tournament', fn ($query) => $query->whereYear('end_date', now()->year))
-                    ->count().' inscripciones aprobadas en '.now()->year)
-                ->descriptionIcon('heroicon-m-pencil-square')
+                ->description('Registradas en '.now()->year)
+                ->descriptionIcon('heroicon-m-clipboard-document-check')
                 ->color('success'),
         ];
     }

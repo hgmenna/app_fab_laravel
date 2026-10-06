@@ -3,11 +3,11 @@
 namespace App\Providers\Filament;
 
 use App\Auth\GuestUser;
+use App\Filament\Pages\FiveQuillasRanking;
 use App\Filament\Widgets\DashboardHeaderWidget;
-use App\Filament\Widgets\RankingGeneralWidget;
+use App\Filament\Widgets\RankingsOverviewWidget;
 use App\Filament\Widgets\SportsSummaryWidget;
-use App\Filament\Widgets\ThreeCushionRankingWidget;
-use App\Filament\Widgets\UpcomingTournamentsWidget;
+use App\Filament\Widgets\UpcomingByDisciplineWidget;
 use App\Http\Middleware\AssignGuestUser;
 use Filament\Enums\ThemeMode;
 use Filament\Facades\Filament;
@@ -43,12 +43,12 @@ class GuestPanelProvider extends PanelProvider
             ->widgets([
                 DashboardHeaderWidget::class,
                 SportsSummaryWidget::class,
-                UpcomingTournamentsWidget::class,
-                RankingGeneralWidget::class,
-                ThreeCushionRankingWidget::class,
+                UpcomingByDisciplineWidget::class,
+                RankingsOverviewWidget::class,
             ])
             ->pages([
                 Dashboard::class,
+                FiveQuillasRanking::class,
             ])
             ->renderHook(
                 PanelsRenderHook::FOOTER,

@@ -2,9 +2,12 @@
 
 namespace App\Filament\Resources\ThreeCushionRankings\Tables;
 
+use App\Helpers\FabPath;
 use App\Models\Category;
 use App\Models\ThreeCushionRanking;
 use App\Services\ThreeCushionRankingService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Filament\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ViewColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -50,6 +53,40 @@ class ThreeCushionRankingsTable
                     ->options($categoryOptions)
                     ->default($defaultCategoryId === null ? null : (string) $defaultCategoryId)
                     ->selectablePlaceholder(false),
+            ])
+            ->headerActions([
+                Action::make('exportPdf')
+                    ->label('Exportar PDF')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('success')
+                    ->action(function ($livewire) {
+                        $records = $livewire->getFilteredTableQuery()
+                            ->with(['player.club', 'category'])
+                            ->orderBy('position')
+                            ->get();
+                        $first = $records->first();
+                        $season = $first?->season ?? now()->year;
+                        $category = $first?->category?->name ?? 'Sin categoría seleccionada';
+                        $logo = is_file(FabPath::logo())
+                            ? FabPath::logo()
+                            : public_path(config('fab.paths.logo'));
+                        $footer = is_file(FabPath::footer())
+                            ? FabPath::footer()
+                            : public_path(config('fab.paths.footer'));
+                        $pdf = Pdf::loadView('pdf.three-cushion-ranking', [
+                            'records' => $records,
+                            'season' => $season,
+                            'category' => $category,
+                            'logo' => $logo,
+                            'footer' => $footer,
+                            'generatedAt' => now(),
+                        ])->setPaper('a4', 'landscape');
+
+                        return response()->streamDownload(
+                            fn () => print ($pdf->output()),
+                            "ranking-carambola-3-bandas-{$season}.pdf",
+                        );
+                    }),
             ])
             ->defaultSort('position')
             ->paginated([25, 50, 100])
