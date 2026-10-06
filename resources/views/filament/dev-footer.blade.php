@@ -1,4 +1,4 @@
-<footer style="width:100%; margin-top:6px; padding:7px clamp(12px,3vw,32px); border-top:2px solid #e5e7eb; background:#000; color:#fff; font-family:Arial,sans-serif; box-sizing:border-box;">
+<footer class="fab-system-footer" style="width:100%; margin-top:6px; padding:7px clamp(12px,3vw,32px); border-top:2px solid #e5e7eb; background:#000; color:#fff; font-family:Arial,sans-serif; box-sizing:border-box;">
     <div class="fab-footer-grid" style="display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1.25fr) minmax(0,1fr); align-items:center; gap:12px; line-height:1.2;">
         <div style="min-width:0;">
             <div style="font-size:clamp(.58rem,1vw,.7rem); font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#d1d5db;">Desarrollo y Arquitectura de Software</div>
@@ -16,6 +16,21 @@
     </div>
 </footer>
 <style>
+    @media (min-width:1024px) {
+        body:has(.fab-compact-dashboard) .fab-system-footer {
+            position:fixed;
+            right:0;
+            bottom:0;
+            left:0;
+            z-index:30;
+            width:min(calc(100% - 2rem),96rem) !important;
+            margin:0 auto !important;
+            border-right:1px solid #27272a;
+            border-left:1px solid #27272a;
+            border-radius:.75rem .75rem 0 0;
+        }
+    }
+
     @media (max-width:700px) {
         .fab-footer-grid { grid-template-columns:1fr !important; gap:4px !important; text-align:center !important; }
         .fab-footer-grid > div { text-align:center !important; }
