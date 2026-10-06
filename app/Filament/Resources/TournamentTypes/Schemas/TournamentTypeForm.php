@@ -97,7 +97,7 @@ class TournamentTypeForm
                 Toggle::make('affects_ranking')
                     ->label('Afecta al ranking')
                     ->helperText(
-                        'Los tipos habilitados participan del Ranking General y utilizan las posiciones oficiales.'
+                        'Los tipos habilitados participan del ranking propio de su disciplina y utilizan posiciones oficiales.'
                     )
                     ->live()
                     ->required(),
@@ -111,34 +111,8 @@ class TournamentTypeForm
                     ->options([
                         'position' => 'Posición o instancia alcanzada',
                     ])
-                    ->visible(function (Get $get): bool {
-                        $disciplineId = $get('discipline_id');
-
-                        if (! $disciplineId) {
-                            return false;
-                        }
-
-                        return Discipline::query()
-                            ->whereKey($disciplineId)
-                            ->where('code', 'five_quillas')
-                            ->exists();
-                    })
-                    ->required(function (Get $get): bool {
-                        if (! $get('assigns_points')) {
-                            return false;
-                        }
-
-                        $disciplineId = $get('discipline_id');
-
-                        if (! $disciplineId) {
-                            return false;
-                        }
-
-                        return Discipline::query()
-                            ->whereKey($disciplineId)
-                            ->where('code', 'five_quillas')
-                            ->exists();
-                    })
+                    ->visible(fn (Get $get): bool => (bool) $get('assigns_points'))
+                    ->required(fn (Get $get): bool => (bool) $get('assigns_points'))
                     ->default('position')
                     ->live(),
 
@@ -208,9 +182,11 @@ class TournamentTypeForm
                             ->disableOptionsWhenSelectedInSiblingRepeaterItems()
                             ->visible(
                                 fn (Get $get): bool => (bool) $get('../../affects_ranking')
+                                    && self::isFiveQuillas($get('../../discipline_id'))
                             )
                             ->required(
                                 fn (Get $get): bool => (bool) $get('../../affects_ranking')
+                                    && self::isFiveQuillas($get('../../discipline_id'))
                             )
                             ->afterStateUpdated(function (
                                 $state,
@@ -242,6 +218,7 @@ class TournamentTypeForm
                             ->distinct()
                             ->disabled(
                                 fn (Get $get): bool => (bool) $get('../../affects_ranking')
+                                    && self::isFiveQuillas($get('../../discipline_id'))
                             )
                             ->dehydrated()
                             ->columnSpan(2),
@@ -253,6 +230,7 @@ class TournamentTypeForm
                             ->maxLength(255)
                             ->disabled(
                                 fn (Get $get): bool => (bool) $get('../../affects_ranking')
+                                    && self::isFiveQuillas($get('../../discipline_id'))
                             )
                             ->dehydrated()
                             ->columnSpan(3),
@@ -267,6 +245,7 @@ class TournamentTypeForm
                             ->required()
                             ->disabled(
                                 fn (Get $get): bool => (bool) $get('../../affects_ranking')
+                                    && self::isFiveQuillas($get('../../discipline_id'))
                             )
                             ->dehydrated()
                             ->columnSpan(2),
@@ -294,5 +273,13 @@ class TournamentTypeForm
                     )
                     ->columnSpanFull(),
             ]);
+    }
+
+    private static function isFiveQuillas(mixed $disciplineId): bool
+    {
+        return filled($disciplineId) && Discipline::query()
+            ->whereKey($disciplineId)
+            ->where('code', 'five_quillas')
+            ->exists();
     }
 }

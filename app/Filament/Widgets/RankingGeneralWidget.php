@@ -3,42 +3,41 @@
 namespace App\Filament\Widgets;
 
 use App\Models\GeneralRanking;
+use App\Models\Player;
 use App\Models\RankingHistory;
+use App\Models\RankingSpecialPosition;
 use App\Models\Tournament;
+use App\Services\RankingService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
-use Filament\Tables;
-use Filament\Tables\Columns\ColumnGroup;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Table;
-use Filament\Widgets\TableWidget;
-use Illuminate\Contracts\View\View;
-use App\Models\Player;
-use App\Models\RankingSpecialPosition;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use App\Services\RankingService;
-use Illuminate\Support\Facades\Auth;
+use Filament\Tables\Columns\ColumnGroup;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Filament\Widgets\TableWidget;
+use Illuminate\Support\Facades\Auth;
 
 class RankingGeneralWidget extends TableWidget
 {
     protected static ?string $heading = 'Ranking Circuito Argentino de 5 Quillas';
+
     protected static ?int $sort = 1; // opcional: orden en el dashboard
-    protected static ?string $maxHeight = '600px'; // ajustable 
-    //protected static bool $isScrollable = false; // scroll interno
+
+    protected static ?string $maxHeight = '600px'; // ajustable
+
+    // protected static bool $isScrollable = false; // scroll interno
     protected int|string|array $columnSpan = 'full';
 
-    /**
-     * @return \Filament\Tables\Table
-     */
     public function table(Table $table): Table
     {
-       
+
         $latestRankingTournament = Tournament::query()
+            ->whereHas('discipline', fn ($q) => $q->where('code', 'five_quillas'))
             ->whereHas('type', fn ($q) => $q->where('affects_ranking', true))
             ->whereIn('stage_number', [1, 2, 3, 4])
             ->where('end_date', '<=', now())
@@ -51,16 +50,16 @@ class RankingGeneralWidget extends TableWidget
         return $table
             ->query(
                 GeneralRanking::query()
-                ->select('general_rankings.*')
-                ->addSelect([
-                    'previous_rank' => RankingHistory::query()
-                        ->select('RG')
-                        ->whereColumn('player_id', 'general_rankings.player_id')
-                        ->where('season', $previousSeason)
-                        ->limit(1),
-                ])
-            )                               
-            ->paginated([5,10, 25, 50])
+                    ->select('general_rankings.*')
+                    ->addSelect([
+                        'previous_rank' => RankingHistory::query()
+                            ->select('RG')
+                            ->whereColumn('player_id', 'general_rankings.player_id')
+                            ->where('season', $previousSeason)
+                            ->limit(1),
+                    ])
+            )
+            ->paginated([5, 10, 25, 50])
             ->extremePaginationLinks()
             ->defaultPaginationPageOption(Filament::getCurrentPanel()?->getId() === 'guest' ? 5 : 10)
             ->striped()
@@ -83,6 +82,7 @@ class RankingGeneralWidget extends TableWidget
                             ->required()
                             ->default(function (): int {
                                 $latestRankingTournament = Tournament::query()
+                                    ->whereHas('discipline', fn ($q) => $q->where('code', 'five_quillas'))
                                     ->whereHas('type', fn ($q) => $q->where('affects_ranking', true))
                                     ->whereIn('stage_number', [1, 2, 3, 4])
                                     ->where('end_date', '<=', now())
@@ -101,7 +101,7 @@ class RankingGeneralWidget extends TableWidget
                                     ->orderBy('first_name')
                                     ->get()
                                     ->mapWithKeys(fn ($player) => [
-                                        $player->id => $player->last_name . ' ' . $player->first_name,
+                                        $player->id => $player->last_name.' '.$player->first_name,
                                     ])
                                     ->all()
                             )
@@ -116,7 +116,7 @@ class RankingGeneralWidget extends TableWidget
                                     ->orderBy('first_name')
                                     ->get()
                                     ->mapWithKeys(fn ($player) => [
-                                        $player->id => $player->last_name . ' ' . $player->first_name,
+                                        $player->id => $player->last_name.' '.$player->first_name,
                                     ])
                                     ->all()
                             )
@@ -163,13 +163,13 @@ class RankingGeneralWidget extends TableWidget
 
                         $pdf = Pdf::loadView('pdf.ranking', [
                             'records' => $records,
-                        ])->setPaper('a4', 'landscape'); 
+                        ])->setPaper('a4', 'landscape');
 
                         return response()->streamDownload(function () use ($pdf) {
                             echo $pdf->stream();
                         }, 'ranking-actual.pdf');
                     }
-                ),
+                    ),
             ])
 
             ->columns([
@@ -179,14 +179,14 @@ class RankingGeneralWidget extends TableWidget
                         ->alignment('center')
                         ->limit(3)
                         ->width('7px'),
-    
+
                     TextColumn::make('RC')
                         ->label('RC')
                         ->alignment('center')
                         ->limit(3)
                         ->width('7px')
                         ->extraCellAttributes(fn ($record) => $record['RC'] === 1
-                            ? ['style' => 'background-color: #065f46 !important; color: #ffffff !important; font-weight: 700 !important; border-left: 1px solid #047857;',]
+                            ? ['style' => 'background-color: #065f46 !important; color: #ffffff !important; font-weight: 700 !important; border-left: 1px solid #047857;']
                             : []
                         ),
 
@@ -199,13 +199,13 @@ class RankingGeneralWidget extends TableWidget
                         ->wrap()
                         ->alignment('center')
                         ->searchable(),
-    
+
                     TextColumn::make('first_name')
                         ->label('N')
                         ->alignment('center')
                         ->limit(1, '')
                         ->width('5px'),
-    
+
                     TextColumn::make('club')
                         ->label('Club')
                         ->alignment('center')
@@ -213,7 +213,7 @@ class RankingGeneralWidget extends TableWidget
                         ->wrap()
                         ->limit(20)
                         ->searchable(),
-    
+
                     TextColumn::make('category')
                         ->label('Cat')
                         ->alignment('center')
@@ -238,39 +238,39 @@ class RankingGeneralWidget extends TableWidget
                         ->alignment('center')
                         ->color('danger') // Color rojo para indicar descuento
                         ->width('25px'),
-    
+
                     TextColumn::make('total_puntos')
                         ->label('Tot')
                         ->alignment('center')
                         ->extraCellAttributes([
-                             'style' => 'background-color: #065f46 !important; color: #ffffff !important; font-weight: 700 !important; border-left: 1px solid #047857;', ])// El "!" asegura que el color de fondo sobresalga
+                            'style' => 'background-color: #065f46 !important; color: #ffffff !important; font-weight: 700 !important; border-left: 1px solid #047857;', ])// El "!" asegura que el color de fondo sobresalga
                         ->limit(3, '')
                         ->width('25px')
                         ->numeric(),
                 ]),
 
-                    ColumnGroup::make('Etapa 1', [
-                        TextColumn::make('pos_1')->label('Pos')->limit(7)->alignment('center')->width('20px'),
-                        TextColumn::make('ptos_1')->label('Pts')->numeric(decimalPlaces:0)->alignment('center')->width('10px'),
-                    ]),
+                ColumnGroup::make('Etapa 1', [
+                    TextColumn::make('pos_1')->label('Pos')->limit(7)->alignment('center')->width('20px'),
+                    TextColumn::make('ptos_1')->label('Pts')->numeric(decimalPlaces: 0)->alignment('center')->width('10px'),
+                ]),
 
-                    ColumnGroup::make('Etapa 2', [
-                        TextColumn::make('pos_2')->label('Pos')->limit(7)->alignment('center')->width('20px'),
-                        TextColumn::make('ptos_2')->label('Pts')->numeric(decimalPlaces:0)->limit(2)->alignment('center')->width('10px'),
-                    ]),
+                ColumnGroup::make('Etapa 2', [
+                    TextColumn::make('pos_2')->label('Pos')->limit(7)->alignment('center')->width('20px'),
+                    TextColumn::make('ptos_2')->label('Pts')->numeric(decimalPlaces: 0)->limit(2)->alignment('center')->width('10px'),
+                ]),
 
-                    ColumnGroup::make('Etapa 3',[
-                        TextColumn::make('pos_3')->label('Pos')->limit(7)->alignment('center')->width('20px'),
-                        TextColumn::make('ptos_3')->label('Pts')->numeric(decimalPlaces:0)->limit(2)->alignment('center')->width('10px'),
-                    ]),
+                ColumnGroup::make('Etapa 3', [
+                    TextColumn::make('pos_3')->label('Pos')->limit(7)->alignment('center')->width('20px'),
+                    TextColumn::make('ptos_3')->label('Pts')->numeric(decimalPlaces: 0)->limit(2)->alignment('center')->width('10px'),
+                ]),
 
-                    ColumnGroup::make('Etapa 4', [
-                        TextColumn::make('pos_4')->label('Pos')->limit(7)->alignment('center')->width('20px'),
-                        TextColumn::make('ptos_4')->label('Pts')->numeric(decimalPlaces:0)->limit(2)->alignment('center')->width('10px'),
-                    ]),
+                ColumnGroup::make('Etapa 4', [
+                    TextColumn::make('pos_4')->label('Pos')->limit(7)->alignment('center')->width('20px'),
+                    TextColumn::make('ptos_4')->label('Pts')->numeric(decimalPlaces: 0)->limit(2)->alignment('center')->width('10px'),
+                ]),
 
             ])
-            ->filters ([
+            ->filters([
                 SelectFilter::make('category')
                     ->label('Categoría')
                     ->options([
@@ -279,63 +279,62 @@ class RankingGeneralWidget extends TableWidget
                         'P' => 'Primera',
                         'S' => 'Segunda',
                         'T' => 'Tercera',
-                        'PR' => 'Promocional'
+                        'PR' => 'Promocional',
                     ]),
 
                 SelectFilter::make('fed')
-                ->label('Federación')
-                ->options(
-                    GeneralRanking::query()
-                        ->whereNotNull('fed')
-                        ->where('fed', '<>', '')
-                        ->distinct()
-                        ->orderBy('fed')
-                        ->pluck('fed', 'fed')
-                        ->all()
-                )
-                ->searchable(),
+                    ->label('Federación')
+                    ->options(
+                        GeneralRanking::query()
+                            ->whereNotNull('fed')
+                            ->where('fed', '<>', '')
+                            ->distinct()
+                            ->orderBy('fed')
+                            ->pluck('fed', 'fed')
+                            ->all()
+                    )
+                    ->searchable(),
 
-            SelectFilter::make('club')
-                ->label('Club')
-                ->options(
-                    GeneralRanking::query()
-                        ->whereNotNull('club')
-                        ->where('club', '<>', '')
-                        ->distinct()
-                        ->orderBy('club')
-                        ->pluck('club', 'club')
-                        ->all()
-                )
-                ->searchable(),
+                SelectFilter::make('club')
+                    ->label('Club')
+                    ->options(
+                        GeneralRanking::query()
+                            ->whereNotNull('club')
+                            ->where('club', '<>', '')
+                            ->distinct()
+                            ->orderBy('club')
+                            ->pluck('club', 'club')
+                            ->all()
+                    )
+                    ->searchable(),
 
-            Filter::make('total_puntos')
-                ->label('Total de puntos')
-                ->schema([
-                    TextInput::make('min')
-                        ->label('Mínimo')
-                        ->numeric(),
+                Filter::make('total_puntos')
+                    ->label('Total de puntos')
+                    ->schema([
+                        TextInput::make('min')
+                            ->label('Mínimo')
+                            ->numeric(),
 
-                    TextInput::make('max')
-                        ->label('Máximo')
-                        ->numeric(),
-                ])
-                ->query(function ($query, array $data) {
-                    return $query
-                        ->when(
-                            filled($data['min'] ?? null),
-                            fn ($query) => $query->where('total_puntos', '>=', $data['min'])
-                        )
-                        ->when(
-                            filled($data['max'] ?? null),
-                            fn ($query) => $query->where('total_puntos', '<=', $data['max'])
-                        );
-                }),
+                        TextInput::make('max')
+                            ->label('Máximo')
+                            ->numeric(),
+                    ])
+                    ->query(function ($query, array $data) {
+                        return $query
+                            ->when(
+                                filled($data['min'] ?? null),
+                                fn ($query) => $query->where('total_puntos', '>=', $data['min'])
+                            )
+                            ->when(
+                                filled($data['max'] ?? null),
+                                fn ($query) => $query->where('total_puntos', '<=', $data['max'])
+                            );
+                    }),
 
-            ])
-             /**
-             * MODIFICACIÓN: Extraemos el estado de los filtros y la búsqueda 
-             * directamente de las propiedades del componente Livewire.
-             **/
-            ;
+            ]);
+        /**
+         * MODIFICACIÓN: Extraemos el estado de los filtros y la búsqueda
+         * directamente de las propiedades del componente Livewire.
+         **/
     }
 }

@@ -244,7 +244,7 @@ class TournamentRegistrationResource extends Resource
 
                         if (
                             ! $tournament
-                            || ! $tournament->type?->affects_ranking
+                            || ! app(TournamentScoringService::class)->usesOfficialInstances($tournament)
                         ) {
                             return [];
                         }
@@ -277,8 +277,9 @@ class TournamentRegistrationResource extends Resource
                     ->searchable()
                     ->preload()
                     ->visible(
-                        fn (?TournamentRegistration $record): bool => (bool) $record?->tournament?->type
-                            ?->affects_ranking
+                        fn (?TournamentRegistration $record): bool => $record?->tournament
+                            ? app(TournamentScoringService::class)->usesOfficialInstances($record->tournament)
+                            : false
                     )
                     ->nullable(),
 
@@ -295,7 +296,7 @@ class TournamentRegistrationResource extends Resource
 
                         if (
                             ! $tournament
-                            || $tournament->type?->affects_ranking
+                            || app(TournamentScoringService::class)->usesOfficialInstances($tournament)
                         ) {
                             return [];
                         }
@@ -326,8 +327,9 @@ class TournamentRegistrationResource extends Resource
                     ->searchable()
                     ->preload()
                     ->visible(
-                        fn (?TournamentRegistration $record): bool => ! (bool) $record?->tournament?->type
-                            ?->affects_ranking
+                        fn (?TournamentRegistration $record): bool => $record?->tournament
+                            ? ! app(TournamentScoringService::class)->usesOfficialInstances($record->tournament)
+                            : false
                     )
                     ->nullable(),
 
@@ -345,9 +347,6 @@ class TournamentRegistrationResource extends Resource
             ): void {
                 $record->loadMissing('tournament.type');
 
-                $affectsRanking = (bool)
-                $record->tournament?->type?->affects_ranking;
-
                 $record->penalty_points =
                     $data['penalty_points'] ?? 0;
 
@@ -355,7 +354,7 @@ class TournamentRegistrationResource extends Resource
                     TournamentScoringService::class
                 );
 
-                if ($affectsRanking) {
+                if ($service->usesOfficialInstances($record->tournament)) {
                     $instanceId =
                         $data['tournament_instance_id'] ?? null;
 

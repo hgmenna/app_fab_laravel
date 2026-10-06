@@ -14,9 +14,18 @@ beforeEach(function () {
     Schema::dropIfExists('tournament_instances');
     Schema::dropIfExists('tournaments');
     Schema::dropIfExists('tournament_types');
+    Schema::dropIfExists('disciplines');
+
+    Schema::create('disciplines', function (Blueprint $table) {
+        $table->id();
+        $table->string('name');
+        $table->string('code');
+        $table->timestamps();
+    });
 
     Schema::create('tournament_types', function (Blueprint $table) {
         $table->id();
+        $table->foreignId('discipline_id')->nullable();
         $table->string('name');
         $table->string('code')->nullable();
         $table->boolean('assigns_points')->default(true);
@@ -28,6 +37,7 @@ beforeEach(function () {
 
     Schema::create('tournaments', function (Blueprint $table) {
         $table->id();
+        $table->foreignId('discipline_id')->nullable();
         $table->foreignId('tournament_type_id');
         $table->string('name');
         $table->json('scoring_rules')->nullable();
@@ -62,6 +72,7 @@ afterEach(function () {
     Schema::dropIfExists('tournament_instances');
     Schema::dropIfExists('tournaments');
     Schema::dropIfExists('tournament_types');
+    Schema::dropIfExists('disciplines');
 });
 
 test('CAB asigna los puntos de su regla y conserva la posición oficial', function () {
@@ -181,6 +192,59 @@ test('un torneo estadístico guarda su resultado sin posición oficial', functio
         ->and($registration->result_description)->toBe('Semifinal')
         ->and($registration->result_instance_value)->toBe(5)
         ->and((float) $registration->points)->toBe(60.0);
+});
+
+test('Carambola usa la tabla propia del tipo aunque afecte su ranking', function () {
+    $disciplineId = DB::table('disciplines')->insertGetId([
+        'name' => 'Carambola 3 Bandas',
+        'code' => 'carambola_3_bandas',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    $typeId = DB::table('tournament_types')->insertGetId([
+        'discipline_id' => $disciplineId,
+        'name' => 'Circuito de Primera',
+        'code' => 'C3B-P',
+        'assigns_points' => true,
+        'affects_ranking' => true,
+        'scoring_method' => 'position',
+        'scoring_rules' => json_encode([[
+            'code' => '1',
+            'description' => 'Primer puesto',
+            'instance_value' => 1,
+            'points' => 100,
+        ]]),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    $tournamentId = DB::table('tournaments')->insertGetId([
+        'discipline_id' => $disciplineId,
+        'tournament_type_id' => $typeId,
+        'name' => 'Etapa 1',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    $registrationId = DB::table('tournament_registrations')->insertGetId([
+        'tournament_id' => $tournamentId,
+        'penalty_points' => 0,
+        'disqualified' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $service = app(TournamentScoringService::class);
+    $tournament = Tournament::query()->findOrFail($tournamentId);
+
+    expect($service->usesOfficialInstances($tournament))->toBeFalse();
+
+    $registration = $service->assignByCode(
+        TournamentRegistration::query()->findOrFail($registrationId),
+        '1',
+    );
+
+    expect($registration->tournament_instance_id)->toBeNull()
+        ->and($registration->result_code)->toBe('1')
+        ->and((float) $registration->points)->toBe(100.0);
 });
 
 test('los cambios de la tabla actualizan asignaciones anteriores y futuras', function () {

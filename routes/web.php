@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Controllers\ThreeCushionRankingController;
 use App\Http\Controllers\UpcomingTournamentsController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/torneos-proximos.json', UpcomingTournamentsController::class);
+Route::get('/ranking-carambola-3-bandas.json', ThreeCushionRankingController::class);
 
 Route::get('/', function () {
     return view('welcome');
@@ -19,5 +21,3 @@ Route::get('/debug-path', function () {
         'public_html_5' => realpath('/home/usuario/public_html'),
     ];
 });
-
-

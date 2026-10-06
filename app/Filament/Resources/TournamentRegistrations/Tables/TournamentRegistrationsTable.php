@@ -10,12 +10,15 @@ use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResourc
 use App\Mail\TournamentRegistrationNotification;
 use App\Models\Category;
 use App\Models\GeneralRanking;
+use App\Models\ThreeCushionStageResult;
 use App\Models\TournamentRegistration;
 use App\Services\AdminNotifier;
+use App\Services\ThreeCushionRankingService;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
@@ -296,6 +299,42 @@ class TournamentRegistrationsTable
                             }
                         }),
                     TournamentRegistrationResource::AsignInstanceAction(),
+                    Action::make('resultadoTresBandas')
+                        ->label('Datos 3 Bandas')
+                        ->icon('heroicon-o-chart-bar-square')
+                        ->modalHeading('Resultado de la etapa - Carambola 3 Bandas')
+                        ->modalSubmitActionLabel('Guardar datos de la etapa')
+                        ->fillForm(function (TournamentRegistration $record): array {
+                            $result = ThreeCushionStageResult::query()
+                                ->where('tournament_registration_id', $record->id)
+                                ->first();
+
+                            return [
+                                'caroms' => $result?->caroms,
+                                'innings' => $result?->innings,
+                                'best_match_average' => $result?->best_match_average,
+                                'high_run' => $result?->high_run,
+                            ];
+                        })
+                        ->schema([
+                            TextInput::make('caroms')->label('Carambolas totales')->integer()->minValue(0)->required(),
+                            TextInput::make('innings')->label('Entradas totales')->integer()->minValue(1)->required(),
+                            TextInput::make('best_match_average')->label('Mejor promedio particular')->numeric()->minValue(0)->step(0.000001)->required(),
+                            TextInput::make('high_run')->label('Serie mayor')->integer()->minValue(0)->required(),
+                        ])
+                        ->action(function (TournamentRegistration $record, array $data): void {
+                            ThreeCushionStageResult::query()->updateOrCreate(
+                                ['tournament_registration_id' => $record->id],
+                                $data,
+                            );
+                        })
+                        ->visible(fn (TournamentRegistration $record): bool => ThreeCushionRankingService::isThreeCushion($record->tournament?->discipline)
+                            && $record->status === 'aprobado'
+                            && $record->points !== null
+                            && (Auth::user()?->canGloballyOrForDiscipline(
+                                'AssignTournamentScore',
+                                $record->tournament?->discipline_id,
+                            ) ?? false)),
                     Action::make('cambiarEstado')
                         ->label('Cambiar Estado')
                         ->icon(Heroicon::CurrencyDollar)
@@ -370,7 +409,7 @@ class TournamentRegistrationsTable
                     ->options(function ($livewire) use ($tournament): array {
                         $resolvedTournament = self::resolveTournament($tournament, $livewire);
 
-                        if (! $resolvedTournament?->type?->affects_ranking) {
+                        if (! self::usesOfficialInstances($resolvedTournament)) {
                             return [];
                         }
 
@@ -378,15 +417,15 @@ class TournamentRegistrationsTable
                     })
                     ->searchable()
                     ->preload()
-                    ->required(fn ($livewire): bool => (bool) self::resolveTournament($tournament, $livewire)?->type?->affects_ranking)
-                    ->visible(fn ($livewire): bool => (bool) self::resolveTournament($tournament, $livewire)?->type?->affects_ranking),
+                    ->required(fn ($livewire): bool => self::usesOfficialInstances(self::resolveTournament($tournament, $livewire)))
+                    ->visible(fn ($livewire): bool => self::usesOfficialInstances(self::resolveTournament($tournament, $livewire))),
 
                 Select::make('result_code')
                     ->label('Resultado')
                     ->options(function ($livewire) use ($tournament): array {
                         $resolvedTournament = self::resolveTournament($tournament, $livewire);
 
-                        if (! $resolvedTournament || $resolvedTournament->type?->affects_ranking) {
+                        if (! $resolvedTournament || self::usesOfficialInstances($resolvedTournament)) {
                             return [];
                         }
 
@@ -394,8 +433,8 @@ class TournamentRegistrationsTable
                     })
                     ->searchable()
                     ->preload()
-                    ->required(fn ($livewire): bool => ! (bool) self::resolveTournament($tournament, $livewire)?->type?->affects_ranking)
-                    ->visible(fn ($livewire): bool => ! (bool) self::resolveTournament($tournament, $livewire)?->type?->affects_ranking),
+                    ->required(fn ($livewire): bool => ! self::usesOfficialInstances(self::resolveTournament($tournament, $livewire)))
+                    ->visible(fn ($livewire): bool => ! self::usesOfficialInstances(self::resolveTournament($tournament, $livewire))),
 
                 Select::make('tournament_slot_id')
                     ->label('Filtrar por horario')
@@ -469,7 +508,7 @@ class TournamentRegistrationsTable
                     $data['result_code'] ?? null,
                 );
 
-                if ($resolvedTournament->type?->affects_ranking) {
+                if (self::usesOfficialInstances($resolvedTournament)) {
                     \App\Services\RankingService::syncGeneralRanking();
                 }
 
@@ -508,6 +547,13 @@ class TournamentRegistrationsTable
                 return [$value => "{$description} — {$points} puntos"];
             })
             ->all();
+    }
+
+    private static function usesOfficialInstances($tournament): bool
+    {
+        return $tournament
+            ? app(\App\Services\TournamentScoringService::class)->usesOfficialInstances($tournament)
+            : false;
     }
 
     private static function slotOptions($tournament): array

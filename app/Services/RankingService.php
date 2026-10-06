@@ -31,6 +31,7 @@ class RankingService
 
         foreach ([1, 2, 3, 4] as $stage) {
             $torneo = Tournament::query()
+                ->whereHas('discipline', fn ($q) => $q->where('code', 'five_quillas'))
                 ->whereHas('type', fn ($q) => $q->where('affects_ranking', true))
                 ->where('stage_number', $stage)
                 ->where('end_date', '<=', now())
@@ -425,6 +426,7 @@ class RankingService
         * finalizado más reciente.
         */
         $latestRankingTournament = Tournament::query()
+            ->whereHas('discipline', fn ($q) => $q->where('code', 'five_quillas'))
             ->whereHas(
                 'type',
                 fn ($q) => $q->where('affects_ranking', true)
@@ -671,6 +673,7 @@ class RankingService
 
         foreach ([1, 2, 3, 4] as $stage) {
             $torneo = Tournament::query()
+                ->whereHas('discipline', fn ($q) => $q->where('code', 'five_quillas'))
                 ->whereHas(
                     'type',
                     fn ($q) => $q->where('affects_ranking', true)

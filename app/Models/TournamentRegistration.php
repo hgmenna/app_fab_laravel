@@ -308,6 +308,12 @@ class TournamentRegistration extends Model
                 $registration->participants()->create(['player_id' => $playerId, 'position' => $index + 1]);
             }
         });
+
+        static::deleting(function (TournamentRegistration $registration): void {
+            if (\Illuminate\Support\Facades\Schema::hasTable('three_cushion_stage_results')) {
+                $registration->threeCushionStageResult?->delete();
+            }
+        });
     }
 
     public function calculatePoints(): float
@@ -341,5 +347,10 @@ class TournamentRegistration extends Model
         }
 
         return (float) $rule['points'];
+    }
+
+    public function threeCushionStageResult()
+    {
+        return $this->hasOne(ThreeCushionStageResult::class, 'tournament_registration_id');
     }
 }

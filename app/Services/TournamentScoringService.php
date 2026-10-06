@@ -56,15 +56,15 @@ class TournamentScoringService
             ]);
         }
 
-        $affectsRanking = (bool) $tournament->type?->affects_ranking;
+        $usesOfficialInstances = $this->usesOfficialInstances($tournament);
 
-        if ($affectsRanking && ! $tournamentInstanceId) {
+        if ($usesOfficialInstances && ! $tournamentInstanceId) {
             throw ValidationException::withMessages([
                 'tournament_instance_id' => 'Seleccioná una posición oficial.',
             ]);
         }
 
-        if (! $affectsRanking && blank($resultCode)) {
+        if (! $usesOfficialInstances && blank($resultCode)) {
             throw ValidationException::withMessages([
                 'result_code' => 'Seleccioná un resultado.',
             ]);
@@ -74,7 +74,7 @@ class TournamentScoringService
             $tournament,
             $items,
             $registrationIds,
-            $affectsRanking,
+            $usesOfficialInstances,
             $tournamentInstanceId,
             $resultCode,
         ): Collection {
@@ -114,7 +114,7 @@ class TournamentScoringService
                 $registration->penalty_points = $penaltyPoints;
 
                 $updated->push(
-                    $affectsRanking
+                    $usesOfficialInstances
                         ? $this->assignByTournamentInstance($registration, (int) $tournamentInstanceId)
                         : $this->assignByCode($registration, (string) $resultCode)
                 );
@@ -152,8 +152,17 @@ class TournamentScoringService
         return $rules;
     }
 
+    public function usesOfficialInstances(Tournament $tournament): bool
+    {
+        $tournament->loadMissing('type', 'discipline');
+
+        return (bool) $tournament->type?->affects_ranking
+            && (! $tournament->discipline || $tournament->discipline->code === 'five_quillas');
+    }
+
     public function synchronizeTypeAssignments(TournamentType $type): void
     {
+        $type->loadMissing('discipline');
         $rules = is_array($type->scoring_rules)
             ? array_values($type->scoring_rules)
             : [];
@@ -187,7 +196,7 @@ class TournamentScoringService
                         return;
                     }
 
-                    $rule = $type->affects_ranking
+                    $rule = $type->affects_ranking && (! $type->discipline || $type->discipline->code === 'five_quillas')
                         ? $rulesByInstance->get((int) $registration->tournament_instance_id)
                         : $rulesByCode->get(trim((string) $registration->result_code));
 
@@ -210,11 +219,14 @@ class TournamentScoringService
 
         if (
             $type->affects_ranking
+            && $type->discipline?->code === 'five_quillas'
             && Schema::hasTable('general_rankings')
             && \App\Models\GeneralRanking::query()->exists()
         ) {
             RankingService::syncGeneralRanking();
         }
+
+        app(ThreeCushionRankingService::class)->syncForTournamentType($type);
     }
 
     /**
@@ -436,13 +448,19 @@ class TournamentScoringService
             if ($instance) {
                 $registration->tournament_instance_id =
                     $instance->id;
-            } elseif (
-                ! $registration->tournament?->type?->affects_ranking
-            ) {
+            } elseif (! $this->usesOfficialInstances($registration->tournament)) {
                 $registration->tournament_instance_id = null;
             }
 
             $registration->save();
+
+            if (Schema::hasTable('three_cushion_stage_results')) {
+                $stageResult = $registration->threeCushionStageResult;
+
+                if ($stageResult) {
+                    app(ThreeCushionRankingService::class)->syncForResult($stageResult);
+                }
+            }
 
             return $registration->refresh();
         });
