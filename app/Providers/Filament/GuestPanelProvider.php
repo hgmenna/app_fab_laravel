@@ -3,9 +3,11 @@
 namespace App\Providers\Filament;
 
 use App\Auth\GuestUser;
+use App\Filament\Widgets\DashboardHeaderWidget;
 use App\Filament\Widgets\RankingGeneralWidget;
 use App\Filament\Widgets\SportsSummaryWidget;
 use App\Filament\Widgets\ThreeCushionRankingWidget;
+use App\Filament\Widgets\UpcomingTournamentsWidget;
 use App\Http\Middleware\AssignGuestUser;
 use Filament\Enums\ThemeMode;
 use Filament\Facades\Filament;
@@ -39,7 +41,9 @@ class GuestPanelProvider extends PanelProvider
             ->defaultThemeMode(ThemeMode::Dark)
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->widgets([
+                DashboardHeaderWidget::class,
                 SportsSummaryWidget::class,
+                UpcomingTournamentsWidget::class,
                 RankingGeneralWidget::class,
                 ThreeCushionRankingWidget::class,
             ])

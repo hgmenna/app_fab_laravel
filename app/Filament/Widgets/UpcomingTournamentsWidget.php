@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Filament\Widgets;
+
+use App\Models\Tournament;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
+use Filament\Widgets\TableWidget;
+
+class UpcomingTournamentsWidget extends TableWidget
+{
+    protected static bool $isLazy = false;
+
+    protected static ?string $heading = 'Agenda de torneos';
+
+    protected static ?int $sort = 5;
+
+    protected ?string $pollingInterval = null;
+
+    protected int|string|array $columnSpan = 'full';
+
+    public function table(Table $table): Table
+    {
+        return $table
+            ->query(Tournament::query()
+                ->with(['discipline', 'type', 'venue', 'externalVenueState'])
+                ->withCount('registrations')
+                ->where('is_active', true)
+                ->whereDate('end_date', '>=', today())
+                ->orderBy('start_date')
+                ->orderBy('id'))
+            ->columns([
+                TextColumn::make('date_range')
+                    ->label('Fechas')
+                    ->state(fn (Tournament $record): string => $record->start_date?->isSameDay($record->end_date)
+                        ? $record->start_date->format('d/m/Y')
+                        : $record->start_date?->format('d/m').' – '.$record->end_date?->format('d/m/Y'))
+                    ->icon('heroicon-m-calendar-days')
+                    ->weight('bold'),
+                TextColumn::make('name')
+                    ->label('Torneo')
+                    ->searchable()
+                    ->wrap()
+                    ->weight('bold'),
+                TextColumn::make('discipline.name')
+                    ->label('Disciplina')
+                    ->badge()
+                    ->color('info'),
+                TextColumn::make('venue_name')
+                    ->label('Sede')
+                    ->state(fn (Tournament $record): string => $record->venueName())
+                    ->wrap(),
+                TextColumn::make('registrations_count')
+                    ->label('Insc.')
+                    ->numeric()
+                    ->alignment('center'),
+                TextColumn::make('registration_state')
+                    ->label('Inscripciones')
+                    ->state(fn (Tournament $record): string => $record->isRegistrationOpen() ? 'Abiertas' : 'Cerradas')
+                    ->badge()
+                    ->color(fn (string $state): string => $state === 'Abiertas' ? 'success' : 'gray'),
+                TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'aprobado' => 'Aprobado',
+                        'pendiente_verificacion' => 'Pendiente',
+                        'excepcion_autorizada' => 'Excepción autorizada',
+                        default => ucfirst(str_replace('_', ' ', (string) $state)),
+                    })
+                    ->color(fn (?string $state): string => match ($state) {
+                        'aprobado' => 'success',
+                        'excepcion_autorizada' => 'warning',
+                        default => 'gray',
+                    }),
+            ])
+            ->defaultPaginationPageOption(5)
+            ->paginated([5, 10, 25])
+            ->striped();
+    }
+}

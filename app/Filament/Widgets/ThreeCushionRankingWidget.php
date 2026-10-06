@@ -9,6 +9,8 @@ use Filament\Widgets\TableWidget;
 
 class ThreeCushionRankingWidget extends TableWidget
 {
+    protected static bool $isLazy = false;
+
     protected static ?string $heading = 'Ranking Carambola 3 Bandas';
 
     protected static ?int $sort = 20;

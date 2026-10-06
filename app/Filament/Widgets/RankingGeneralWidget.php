@@ -24,6 +24,8 @@ use Illuminate\Support\Facades\Auth;
 
 class RankingGeneralWidget extends TableWidget
 {
+    protected static bool $isLazy = false;
+
     protected static ?string $heading = 'Ranking Circuito Argentino de 5 Quillas';
 
     protected static ?int $sort = 10;

@@ -3,10 +3,11 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\Auth\Login;
-use App\Filament\Widgets\PlayersByClubChart;
+use App\Filament\Widgets\DashboardHeaderWidget;
 use App\Filament\Widgets\RankingGeneralWidget;
 use App\Filament\Widgets\SportsSummaryWidget;
 use App\Filament\Widgets\ThreeCushionRankingWidget;
+use App\Filament\Widgets\UpcomingTournamentsWidget;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -68,10 +69,11 @@ class AdminPanelProvider extends PanelProvider
             ])
 
             ->widgets([
+                DashboardHeaderWidget::class,
                 SportsSummaryWidget::class,
+                UpcomingTournamentsWidget::class,
                 RankingGeneralWidget::class,
                 ThreeCushionRankingWidget::class,
-                PlayersByClubChart::class,
             ])
 
             ->middleware([
