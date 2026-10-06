@@ -21,7 +21,7 @@ class ThreeCushionRankingService
             return false;
         }
 
-        $value = Str::of($discipline->code ?: $discipline->name)
+        $value = Str::of(trim($discipline->code.' '.$discipline->name))
             ->ascii()->lower()->replace(['_', '-'], ' ')->squish()->toString();
 
         return str_contains($value, '3 banda') || str_contains($value, 'three cushion');
