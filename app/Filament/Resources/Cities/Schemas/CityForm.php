@@ -36,6 +36,7 @@ class CityForm
             Select::make('state_id')
                 ->relationship('state', 'name')
                 ->label('Provincia')
+                ->required()
                 ->options(function (callable $get) {
                         $countryId = $get('country_id');
 

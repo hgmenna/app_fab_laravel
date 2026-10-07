@@ -148,6 +148,7 @@ class ClubForm
                                 ->toarray();
                         })
                         ->createOptionForm(fn (Schema $schema) => CityForm::configure($schema))
+                        ->createOptionUsing(fn (array $data): int => City::create($data)->getKey())
                         ->required(),
                     TextInput::make('federation_name')
                         ->label('Federación')
