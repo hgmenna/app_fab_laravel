@@ -558,13 +558,40 @@ class PlayerResource extends Resource
                     ->groupBy(fn (array $row): string => implode('|', [
                         mb_strtoupper(trim((string) ($row['last_name'] ?? ''))),
                         mb_strtoupper(trim((string) ($row['first_name'] ?? ''))),
-                        (int) ($row['category_id'] ?? 0),
                     ]))
                     ->filter(fn ($group): bool => $group->count() > 1);
 
                 if ($duplicateRows->isNotEmpty()) {
                     throw ValidationException::withMessages([
-                        'players' => 'Hay jugadores repetidos dentro de la tabla. Revisá nombres, apellidos y categorías.',
+                        'players' => 'Hay jugadores repetidos dentro de la tabla. Revisá sus nombres y apellidos.',
+                    ]);
+                }
+
+                $submittedNames = $rows
+                    ->mapWithKeys(fn (array $row): array => [implode('|', [
+                        mb_strtoupper(trim((string) ($row['last_name'] ?? ''))),
+                        mb_strtoupper(trim((string) ($row['first_name'] ?? ''))),
+                    ]) => true]);
+
+                $existingPlayers = Player::query()
+                    ->whereIn('last_name', $rows
+                        ->pluck('last_name')
+                        ->map(fn ($lastName): string => mb_strtoupper(trim((string) $lastName)))
+                        ->unique()
+                        ->values())
+                    ->get(['first_name', 'last_name'])
+                    ->filter(fn (Player $player): bool => $submittedNames->has(implode('|', [
+                        mb_strtoupper(trim($player->last_name)),
+                        mb_strtoupper(trim($player->first_name)),
+                    ])))
+                    ->map(fn (Player $player): string => "{$player->last_name}, {$player->first_name}")
+                    ->unique()
+                    ->sort()
+                    ->values();
+
+                if ($existingPlayers->isNotEmpty()) {
+                    throw ValidationException::withMessages([
+                        'players' => 'No se realizó el alta porque ya existen estos jugadores: '.$existingPlayers->join('; ').'.',
                     ]);
                 }
 
