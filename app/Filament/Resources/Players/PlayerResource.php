@@ -15,6 +15,8 @@ use App\Filament\Resources\Players\Tables\PlayersTable;
 use App\Helpers\FabPath;
 use App\Imports\PlayersImport;
 use App\Models\Category;
+use App\Models\Club;
+use App\Models\Discipline;
 use App\Models\GeneralRanking;
 use App\Models\Membership;
 use App\Models\Player;
@@ -25,8 +27,11 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -35,6 +40,8 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Excel;
 use UnitEnum;
 
@@ -413,5 +420,177 @@ class PlayerResource extends Resource
                 })
                 ->modalHeading('Importar jugadores desde Excel')
                 ->modalSubmitActionLabel('Importar');
+    }
+
+    public static function bulkCreateAction(): Action
+    {
+        return Action::make('bulkCreatePlayers')
+            ->label('Alta masiva')
+            ->icon('heroicon-o-user-group')
+            ->color('success')
+            ->visible(fn (): bool => Auth::user()?->canGloballyOrInAnyDiscipline('Create:Player') ?? false)
+            ->modalHeading('Alta masiva de jugadores')
+            ->modalDescription('Seleccioná la disciplina y el club comunes. Después agregá una fila por cada jugador.')
+            ->modalSubmitActionLabel('Crear todos los jugadores')
+            ->modalWidth('7xl')
+            ->schema([
+                Select::make('discipline_id')
+                    ->label('Disciplina')
+                    ->options(function (): array {
+                        $query = Discipline::query()
+                            ->where('active', true)
+                            ->orderBy('name');
+
+                        return Auth::user()?->scopeDisciplineQuery($query, 'Create:Player')
+                            ->pluck('name', 'id')
+                            ->all() ?? [];
+                    })
+                    ->default(fn () => Auth::user()?->defaultDisciplineId('Create:Player'))
+                    ->searchable()
+                    ->preload()
+                    ->native(false)
+                    ->live()
+                    ->required()
+                    ->afterStateUpdated(fn (\Filament\Schemas\Components\Utilities\Set $set) => $set('players', [[
+                            'first_name' => null,
+                            'last_name' => null,
+                            'category_id' => null,
+                    ]])),
+
+                Select::make('club_id')
+                    ->label('Club')
+                    ->options(fn (): array => Club::query()
+                        ->where('is_active', true)
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->all())
+                    ->searchable()
+                    ->preload()
+                    ->native(false)
+                    ->required(),
+
+                Repeater::make('players')
+                    ->label('Jugadores a crear')
+                    ->table([
+                        TableColumn::make('Nombre')->markAsRequired(),
+                        TableColumn::make('Apellido')->markAsRequired(),
+                        TableColumn::make('Categoría')->markAsRequired(),
+                    ])
+                    ->schema([
+                        TextInput::make('first_name')
+                            ->label('Nombre')
+                            ->required()
+                            ->maxLength(255)
+                            ->dehydrateStateUsing(fn (?string $state): string => mb_strtoupper(trim((string) $state))),
+                        TextInput::make('last_name')
+                            ->label('Apellido')
+                            ->required()
+                            ->maxLength(255)
+                            ->dehydrateStateUsing(fn (?string $state): string => mb_strtoupper(trim((string) $state))),
+                        Select::make('category_id')
+                            ->label('Categoría')
+                            ->options(fn (\Filament\Schemas\Components\Utilities\Get $get): array => Category::query()
+                                ->where('discipline_id', $get('../../discipline_id'))
+                                ->orderBy('order')
+                                ->orderBy('name')
+                                ->get()
+                                ->mapWithKeys(fn (Category $category): array => [
+                                    $category->id => filled($category->code)
+                                        ? "{$category->code} — {$category->name}"
+                                        : $category->name,
+                                ])
+                                ->all())
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->required(),
+                    ])
+                    ->defaultItems(1)
+                    ->minItems(1)
+                    ->addActionLabel('Agregar jugador')
+                    ->reorderable(false)
+                    ->columnSpanFull(),
+            ])
+            ->action(function (array $data): void {
+                $disciplineId = (int) ($data['discipline_id'] ?? 0);
+                $clubId = (int) ($data['club_id'] ?? 0);
+                $rows = collect($data['players'] ?? [])->values();
+                $user = Auth::user();
+
+                abort_unless(
+                    $user?->canGloballyOrForDiscipline('Create:Player', $disciplineId),
+                    403,
+                );
+
+                $disciplineExists = Discipline::query()
+                    ->whereKey($disciplineId)
+                    ->where('active', true)
+                    ->exists();
+                $clubExists = Club::query()
+                    ->whereKey($clubId)
+                    ->where('is_active', true)
+                    ->exists();
+
+                if (! $disciplineExists || ! $clubExists || $rows->isEmpty()) {
+                    throw ValidationException::withMessages([
+                        'players' => 'Seleccioná una disciplina y un club válidos y agregá al menos un jugador.',
+                    ]);
+                }
+
+                $categoryIds = $rows
+                    ->pluck('category_id')
+                    ->map(fn ($id): int => (int) $id)
+                    ->unique()
+                    ->values();
+                $validCategoryIds = Category::query()
+                    ->where('discipline_id', $disciplineId)
+                    ->whereKey($categoryIds)
+                    ->pluck('id')
+                    ->map(fn ($id): int => (int) $id);
+
+                if ($validCategoryIds->count() !== $categoryIds->count()) {
+                    throw ValidationException::withMessages([
+                        'players' => 'Una o más categorías no pertenecen a la disciplina seleccionada.',
+                    ]);
+                }
+
+                $duplicateRows = $rows
+                    ->groupBy(fn (array $row): string => implode('|', [
+                        mb_strtoupper(trim((string) ($row['last_name'] ?? ''))),
+                        mb_strtoupper(trim((string) ($row['first_name'] ?? ''))),
+                        (int) ($row['category_id'] ?? 0),
+                    ]))
+                    ->filter(fn ($group): bool => $group->count() > 1);
+
+                if ($duplicateRows->isNotEmpty()) {
+                    throw ValidationException::withMessages([
+                        'players' => 'Hay jugadores repetidos dentro de la tabla. Revisá nombres, apellidos y categorías.',
+                    ]);
+                }
+
+                $createdPlayers = collect();
+
+                DB::transaction(function () use ($rows, $disciplineId, $clubId, $createdPlayers): void {
+                    foreach ($rows as $row) {
+                        $createdPlayers->push(Player::create([
+                            'first_name' => mb_strtoupper(trim((string) $row['first_name'])),
+                            'last_name' => mb_strtoupper(trim((string) $row['last_name'])),
+                            'category_id' => (int) $row['category_id'],
+                            'discipline_id' => $disciplineId,
+                            'club_id' => $clubId,
+                            'is_active' => true,
+                            'is_enabled_to_compete' => true,
+                        ]));
+                    }
+                });
+
+                AdminNotifier::sendBulk(
+                    $createdPlayers,
+                    'dio de alta masivamente a',
+                    ['last_name', 'first_name'],
+                    'jugadores',
+                );
+            })
+            ->successNotificationTitle('Jugadores creados correctamente');
     }
 }

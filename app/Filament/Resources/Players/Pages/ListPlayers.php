@@ -25,6 +25,7 @@ class ListPlayers extends ListRecords
     {
         return [
             CreateAction::make()->label('Nuevo'),
+            PlayerResource::bulkCreateAction(),
         ];
     }
 
