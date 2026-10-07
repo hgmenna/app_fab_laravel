@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Clubs\Schemas;
 
-use App\Filament\Resources\Cities\Schemas\CityForm;
 use App\Models\City;
 use App\Models\Country;
 use App\Models\State;
@@ -12,7 +11,9 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Illuminate\Validation\ValidationException;
 
 class ClubForm
 {
@@ -147,8 +148,43 @@ class ClubForm
                                 ->pluck('name', 'id')
                                 ->toarray();
                         })
-                        ->createOptionForm(fn (Schema $schema) => CityForm::configure($schema))
-                        ->createOptionUsing(fn (array $data): int => City::create($data)->getKey())
+                        ->createOptionForm([
+                            TextInput::make('name')
+                                ->label('Ciudad')
+                                ->required()
+                                ->maxLength(100),
+                            TextInput::make('postal_code')
+                                ->label('Código postal')
+                                ->numeric()
+                                ->nullable(),
+                        ])
+                        ->createOptionUsing(function (array $data, Get $get): int {
+                            $state = State::query()->find((int) $get('state_id'));
+
+                            if (! $state) {
+                                throw ValidationException::withMessages([
+                                    'state_id' => 'Seleccioná una provincia antes de crear la ciudad.',
+                                ]);
+                            }
+
+                            $name = mb_strtoupper(trim((string) $data['name']));
+                            $existingCity = City::query()
+                                ->where('state_id', $state->getKey())
+                                ->whereRaw('UPPER(TRIM(name)) = ?', [$name])
+                                ->first();
+
+                            if ($existingCity) {
+                                return (int) $existingCity->getKey();
+                            }
+
+                            return (int) City::query()->create([
+                                'name' => $name,
+                                'postal_code' => $data['postal_code'] ?? null,
+                                'country_id' => $state->country_id,
+                                'state_id' => $state->getKey(),
+                                'is_active' => true,
+                            ])->getKey();
+                        })
                         ->required(),
                     TextInput::make('federation_name')
                         ->label('Federación')
