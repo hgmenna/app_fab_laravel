@@ -423,11 +423,17 @@ class TournamentRegistrationsTable
                     ->hiddenLabel()
                     ->content(new HtmlString(<<<'HTML'
                         <style>
-                            .fab-slot-assignment-header,.fab-slot-assignment-row{display:grid;grid-template-columns:minmax(12rem,2fr) minmax(7rem,1fr) minmax(5rem,.7fr) minmax(10rem,1.4fr) minmax(7rem,1fr);align-items:center;gap:.65rem;width:100%}
-                            .fab-slot-assignment-header{padding:.55rem .75rem;border-radius:.5rem;background:rgba(100,116,139,.12);font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+                            .fab-slot-assignment-header,.fab-slot-assignment-row{display:grid;grid-template-columns:minmax(12rem,2fr) minmax(7rem,1fr) minmax(5rem,.7fr) minmax(10rem,1.4fr) minmax(7rem,1fr);align-items:center;gap:.65rem;width:100%;box-sizing:border-box}
+                            .fab-slot-assignment-header{padding:.55rem 0 .55rem 1.75rem;border-radius:.5rem;background:rgba(100,116,139,.12);font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
                             .fab-slot-assignment-row{font-size:.76rem;line-height:1.3}
                             .fab-slot-assignment-row strong{font-size:.8rem}
-                            @media(max-width:700px){.fab-slot-assignment-header{display:none}.fab-slot-assignment-row{grid-template-columns:1fr;gap:.2rem}.fab-slot-assignment-row span:not(:first-child)::before{content:attr(data-label) ': ';font-weight:800;color:#64748b}}
+                            .fab-slot-assignment-options{gap:0!important;margin-top:0!important}
+                            .fab-slot-assignment-options .fi-fo-checkbox-list-option-ctn{width:100%;padding:.55rem .65rem!important;border-bottom:1px solid rgba(100,116,139,.14);box-sizing:border-box}
+                            .fab-slot-assignment-options .fi-fo-checkbox-list-option{width:100%;align-items:center}
+                            .fab-slot-assignment-options .fi-checkbox-input{margin-top:0!important}
+                            .fab-slot-assignment-options .fi-fo-checkbox-list-option-text{flex:1;min-width:0;width:100%}
+                            .fab-slot-assignment-options .fi-fo-checkbox-list-option-label{display:block;width:100%}
+                            @media(max-width:700px){.fab-slot-assignment-header{display:none}.fab-slot-assignment-options .fi-fo-checkbox-list-option-ctn{padding:.65rem .25rem!important}.fab-slot-assignment-options .fi-fo-checkbox-list-option{align-items:flex-start}.fab-slot-assignment-options .fi-checkbox-input{margin-top:.2rem!important}.fab-slot-assignment-row{grid-template-columns:1fr;gap:.2rem}.fab-slot-assignment-row span:not(:first-child)::before{content:attr(data-label) ': ';font-weight:800;color:#64748b}}
                         </style>
                         <div class="fab-slot-assignment-header"><span>Integrantes</span><span>Modalidad</span><span>Categoría</span><span>Club</span><span>Horario actual</span></div>
                         HTML))
@@ -446,6 +452,7 @@ class TournamentRegistrationsTable
                     ->allowHtml()
                     ->bulkToggleable()
                     ->columns(1)
+                    ->extraAttributes(['class' => 'fab-slot-assignment-options'])
                     ->helperText(fn (Get $get): string => filled($get('target_slot_id'))
                         ? 'Marcá los jugadores o parejas que pasarán al horario seleccionado.'
                         : 'Primero seleccioná el horario de destino para ver las inscripciones disponibles.')
