@@ -12,11 +12,13 @@ use App\Models\Category;
 use App\Models\GeneralRanking;
 use App\Models\ThreeCushionStageResult;
 use App\Models\TournamentRegistration;
+use App\Models\TournamentSlot;
 use App\Services\AdminNotifier;
 use App\Services\ThreeCushionRankingService;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
@@ -31,7 +33,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 
 class TournamentRegistrationsTable
@@ -217,6 +221,7 @@ class TournamentRegistrationsTable
                         $livewire->dispatch('refreshTable');
                     }
                     ),
+                self::bulkSlotAssignmentAction($tournament),
                 self::bulkScoringAction($tournament),
                 Action::make('exportarInscripcionesPdf')
                     ->label('Exportar PDF')
@@ -379,6 +384,149 @@ class TournamentRegistrationsTable
                 ]),
             ]
             );
+    }
+
+    private static function bulkSlotAssignmentAction($tournament): Action
+    {
+        return Action::make('asignarHorariosMasivos')
+            ->label('Asignar horarios')
+            ->icon('heroicon-o-clock')
+            ->color('info')
+            ->modalHeading('Asignación masiva de horarios')
+            ->modalDescription('Elegí el horario de destino y marcá las inscripciones que todavía no tienen un horario asignado.')
+            ->modalSubmitActionLabel('Asignar horario seleccionado')
+            ->modalWidth('7xl')
+            ->visible(function ($livewire) use ($tournament): bool {
+                $resolvedTournament = self::resolveTournament($tournament, $livewire);
+
+                return $resolvedTournament
+                    && (Auth::user()?->canGloballyOrForDiscipline(
+                        'Update:TournamentRegistration',
+                        $resolvedTournament->discipline_id,
+                    ) ?? false);
+            })
+            ->schema([
+                Select::make('target_slot_id')
+                    ->label('Horario a asignar')
+                    ->placeholder('Seleccioná el horario de destino')
+                    ->options(fn ($livewire): array => self::assignableSlotOptions(
+                        self::resolveTournament($tournament, $livewire)
+                    ))
+                    ->searchable()
+                    ->preload()
+                    ->native(false)
+                    ->live()
+                    ->required()
+                    ->afterStateUpdated(fn (Set $set) => $set('registration_ids', [])),
+
+                Placeholder::make('registration_table_header')
+                    ->hiddenLabel()
+                    ->content(new HtmlString(<<<'HTML'
+                        <style>
+                            .fab-slot-assignment-header,.fab-slot-assignment-row{display:grid;grid-template-columns:minmax(12rem,2fr) minmax(7rem,1fr) minmax(5rem,.7fr) minmax(10rem,1.4fr) minmax(7rem,1fr);align-items:center;gap:.65rem;width:100%}
+                            .fab-slot-assignment-header{padding:.55rem .75rem;border-radius:.5rem;background:rgba(100,116,139,.12);font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#64748b}
+                            .fab-slot-assignment-row{font-size:.76rem;line-height:1.3}
+                            .fab-slot-assignment-row strong{font-size:.8rem}
+                            @media(max-width:700px){.fab-slot-assignment-header{display:none}.fab-slot-assignment-row{grid-template-columns:1fr;gap:.2rem}.fab-slot-assignment-row span:not(:first-child)::before{content:attr(data-label) ': ';font-weight:800;color:#64748b}}
+                        </style>
+                        <div class="fab-slot-assignment-header"><span>Integrantes</span><span>Modalidad</span><span>Categoría</span><span>Club</span><span>Horario actual</span></div>
+                        HTML))
+                    ->visible(fn (Get $get): bool => filled($get('target_slot_id')))
+                    ->columnSpanFull(),
+
+                CheckboxList::make('registration_ids')
+                    ->label('Inscripciones pendientes de horario')
+                    ->options(fn (Get $get, $livewire): array => self::unassignedRegistrationOptions(
+                        self::resolveTournament($tournament, $livewire),
+                        filled($get('target_slot_id')) ? (int) $get('target_slot_id') : null,
+                    ))
+                    ->required()
+                    ->minItems(1)
+                    ->searchable()
+                    ->allowHtml()
+                    ->bulkToggleable()
+                    ->columns(1)
+                    ->helperText(fn (Get $get): string => filled($get('target_slot_id'))
+                        ? 'Marcá los jugadores o parejas que pasarán al horario seleccionado.'
+                        : 'Primero seleccioná el horario de destino para ver las inscripciones disponibles.')
+                    ->columnSpanFull(),
+            ])
+            ->action(function (array $data, $livewire) use ($tournament): void {
+                $resolvedTournament = self::resolveTournament($tournament, $livewire);
+
+                abort_unless($resolvedTournament, 404);
+                abort_unless(
+                    Auth::user()?->canGloballyOrForDiscipline(
+                        'Update:TournamentRegistration',
+                        $resolvedTournament->discipline_id,
+                    ),
+                    403,
+                );
+
+                $targetSlot = $resolvedTournament->slots()
+                    ->where('is_active', true)
+                    ->whereKey((int) ($data['target_slot_id'] ?? 0))
+                    ->first();
+
+                if (! $targetSlot || self::isUnassignedSlotName($targetSlot->name)) {
+                    throw ValidationException::withMessages([
+                        'target_slot_id' => 'Seleccioná un horario activo válido.',
+                    ]);
+                }
+
+                $registrationIds = collect($data['registration_ids'] ?? [])
+                    ->filter()
+                    ->map(fn ($id): int => (int) $id)
+                    ->unique()
+                    ->values();
+
+                $eligibleRegistrations = $resolvedTournament->registrations()
+                    ->whereKey($registrationIds)
+                    ->where('tournament_modality_id', $targetSlot->tournament_modality_id)
+                    ->where(function (Builder $query): void {
+                        $query->whereNull('tournament_slot_id')
+                            ->orWhereHas('slot', fn (Builder $slotQuery): Builder => $slotQuery
+                                ->whereRaw('LOWER(TRIM(name)) = ?', ['sin asignar']));
+                    })
+                    ->with(['participants.player', 'slot'])
+                    ->get();
+
+                if ($registrationIds->isEmpty() || $eligibleRegistrations->count() !== $registrationIds->count()) {
+                    throw ValidationException::withMessages([
+                        'registration_ids' => 'Solo se pueden seleccionar inscripciones sin horario o con el horario SIN ASIGNAR que correspondan a la modalidad elegida.',
+                    ]);
+                }
+
+                if ($targetSlot->max_players !== null) {
+                    $availablePlaces = max(0, $targetSlot->max_players - $targetSlot->occupiedPlaces());
+                    $requiredPlaces = $eligibleRegistrations
+                        ->whereNotIn('status', ['denegado', 'rechazado'])
+                        ->count();
+
+                    if ($requiredPlaces > $availablePlaces) {
+                        throw ValidationException::withMessages([
+                            'registration_ids' => "El horario seleccionado tiene {$availablePlaces} cupo(s) disponible(s) y se intentan asignar {$requiredPlaces} inscripción(es).",
+                        ]);
+                    }
+                }
+
+                DB::transaction(function () use ($eligibleRegistrations, $targetSlot): void {
+                    foreach ($eligibleRegistrations as $registration) {
+                        $registration->update(['tournament_slot_id' => $targetSlot->getKey()]);
+                    }
+                });
+
+                $targetSlot->loadMissing('tournament');
+                AdminNotifier::sendBulk(
+                    $eligibleRegistrations,
+                    "asignó el horario {$targetSlot->name} a",
+                    'participant_names',
+                    'inscripciones del torneo '.($targetSlot->tournament?->name ?? ''),
+                );
+
+                $livewire->dispatch('refreshTable');
+            })
+            ->successNotificationTitle('Horario asignado correctamente');
     }
 
     private static function bulkScoringAction($tournament): Action
@@ -576,6 +724,97 @@ class TournamentRegistrationsTable
                 return [$slot->getKey() => $description !== '' ? "{$name} — {$description}" : $name];
             })
             ->all();
+    }
+
+    private static function assignableSlotOptions($tournament): array
+    {
+        if (! $tournament) {
+            return [];
+        }
+
+        return $tournament->slots()
+            ->where('is_active', true)
+            ->with('tournamentModality.modality')
+            ->orderBy('starts_at')
+            ->get()
+            ->reject(fn (TournamentSlot $slot): bool => self::isUnassignedSlotName($slot->name))
+            ->mapWithKeys(function (TournamentSlot $slot): array {
+                $modality = $slot->tournamentModality?->modality?->name;
+                $date = $slot->starts_at?->format('d/m/Y H:i');
+                $capacity = $slot->max_players === null
+                    ? 'Sin límite de cupos'
+                    : max(0, $slot->max_players - $slot->occupiedPlaces()).' cupos disponibles';
+                $details = implode(' · ', array_filter([$modality, $date, $capacity]));
+                $name = $slot->name ?: 'Horario #'.$slot->getKey();
+
+                return [$slot->getKey() => $details !== '' ? "{$name} — {$details}" : $name];
+            })
+            ->all();
+    }
+
+    private static function unassignedRegistrationOptions($tournament, ?int $targetSlotId): array
+    {
+        if (! $tournament || ! $targetSlotId) {
+            return [];
+        }
+
+        $targetSlot = $tournament->slots()
+            ->where('is_active', true)
+            ->find($targetSlotId);
+
+        if (! $targetSlot || self::isUnassignedSlotName($targetSlot->name)) {
+            return [];
+        }
+
+        return $tournament->registrations()
+            ->where('tournament_modality_id', $targetSlot->tournament_modality_id)
+            ->where(function (Builder $query): void {
+                $query->whereNull('tournament_slot_id')
+                    ->orWhereHas('slot', fn (Builder $slotQuery): Builder => $slotQuery
+                        ->whereRaw('LOWER(TRIM(name)) = ?', ['sin asignar']));
+            })
+            ->with([
+                'participants.player.category',
+                'participants.player.club',
+                'tournamentModality.modality',
+                'slot',
+            ])
+            ->get()
+            ->sortBy(fn (TournamentRegistration $registration): string => $registration->participant_names)
+            ->mapWithKeys(function (TournamentRegistration $registration): array {
+                $clubs = $registration->participants
+                    ->pluck('player.club.name')
+                    ->filter()
+                    ->unique()
+                    ->implode(' / ');
+                $categories = $registration->participants
+                    ->pluck('player.category.code')
+                    ->filter()
+                    ->unique()
+                    ->implode(' / ');
+                $modality = $registration->tournamentModality?->modality?->name;
+                $currentSlot = $registration->slot?->name ?: 'Sin asignar';
+                $label = $registration->participant_names ?: "Inscripción #{$registration->getKey()}";
+
+                $row = new HtmlString(sprintf(
+                    '<div class="fab-slot-assignment-row"><strong>%s</strong><span data-label="Modalidad">%s</span><span data-label="Categoría">%s</span><span data-label="Club">%s</span><span data-label="Horario actual">%s</span></div>',
+                    e($label),
+                    e($modality ?: '—'),
+                    e($categories ?: '—'),
+                    e($clubs ?: '—'),
+                    e($currentSlot),
+                ));
+
+                return [
+                    $registration->getKey() => $row,
+                ];
+            })
+            ->all();
+    }
+
+    private static function isUnassignedSlotName(?string $name): bool
+    {
+        return mb_strtolower(trim((string) $name)) === 'sin asignar';
     }
 
     private static function registrationOptions($tournament, ?int $slotId = null): array
