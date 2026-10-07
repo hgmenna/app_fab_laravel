@@ -558,12 +558,14 @@ class PlayerResource extends Resource
                     ->groupBy(fn (array $row): string => implode('|', [
                         mb_strtoupper(trim((string) ($row['last_name'] ?? ''))),
                         mb_strtoupper(trim((string) ($row['first_name'] ?? ''))),
+                        $clubId,
+                        (int) ($row['category_id'] ?? 0),
                     ]))
                     ->filter(fn ($group): bool => $group->count() > 1);
 
                 if ($duplicateRows->isNotEmpty()) {
                     throw ValidationException::withMessages([
-                        'players' => 'Hay jugadores repetidos dentro de la tabla. Revisá sus nombres y apellidos.',
+                        'players' => 'Hay jugadores repetidos dentro de la tabla con el mismo nombre, apellido, club y categoría.',
                     ]);
                 }
 
@@ -571,18 +573,24 @@ class PlayerResource extends Resource
                     ->mapWithKeys(fn (array $row): array => [implode('|', [
                         mb_strtoupper(trim((string) ($row['last_name'] ?? ''))),
                         mb_strtoupper(trim((string) ($row['first_name'] ?? ''))),
+                        $clubId,
+                        (int) ($row['category_id'] ?? 0),
                     ]) => true]);
 
                 $existingPlayers = Player::query()
+                    ->where('club_id', $clubId)
+                    ->whereIn('category_id', $categoryIds)
                     ->whereIn('last_name', $rows
                         ->pluck('last_name')
                         ->map(fn ($lastName): string => mb_strtoupper(trim((string) $lastName)))
                         ->unique()
                         ->values())
-                    ->get(['first_name', 'last_name'])
+                    ->get(['first_name', 'last_name', 'club_id', 'category_id'])
                     ->filter(fn (Player $player): bool => $submittedNames->has(implode('|', [
                         mb_strtoupper(trim($player->last_name)),
                         mb_strtoupper(trim($player->first_name)),
+                        (int) $player->club_id,
+                        (int) $player->category_id,
                     ])))
                     ->map(fn (Player $player): string => "{$player->last_name}, {$player->first_name}")
                     ->unique()
