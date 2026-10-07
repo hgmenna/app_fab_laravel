@@ -2,12 +2,14 @@
 
 namespace App\Providers;
 
+use App\Filament\Widgets\RankingGeneralWidget;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 use Spatie\Permission\PermissionRegistrar;
 
 class AppServiceProvider extends ServiceProvider
@@ -25,6 +27,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // La página de ranking carga este widget como componente de cabecera.
+        // El registro explícito permite que Livewire lo reconstruya en filtros,
+        // búsquedas y paginación sin incorporarlo nuevamente al dashboard.
+        Livewire::component('app.filament.widgets.ranking-general-widget', RankingGeneralWidget::class);
+
         app(PermissionRegistrar::class)
             ->setPermissionClass(Permission::class)
             ->setRoleClass(Role::class);
