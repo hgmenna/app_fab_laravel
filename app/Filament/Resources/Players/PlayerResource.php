@@ -554,22 +554,39 @@ class PlayerResource extends Resource
                     ]);
                 }
 
-                $duplicateRows = $rows
-                    ->groupBy(fn (array $row): string => implode('|', [
-                        mb_strtoupper(trim((string) ($row['last_name'] ?? ''))),
-                        mb_strtoupper(trim((string) ($row['first_name'] ?? ''))),
-                        $clubId,
-                        (int) ($row['category_id'] ?? 0),
-                    ]))
-                    ->filter(fn ($group): bool => $group->count() > 1);
+                $playerKey = fn (array $row): string => implode('|', [
+                    mb_strtoupper(trim((string) ($row['last_name'] ?? ''))),
+                    mb_strtoupper(trim((string) ($row['first_name'] ?? ''))),
+                    $clubId,
+                    (int) ($row['category_id'] ?? 0),
+                ]);
+                $categoryNames = Category::query()
+                    ->whereKey($categoryIds)
+                    ->pluck('name', 'id');
+                $playerLabel = fn (array $row): string => sprintf(
+                    '%s, %s — %s',
+                    mb_strtoupper(trim((string) ($row['last_name'] ?? ''))),
+                    mb_strtoupper(trim((string) ($row['first_name'] ?? ''))),
+                    $categoryNames->get((int) ($row['category_id'] ?? 0), 'Sin categoría'),
+                );
+                $uniqueRows = collect();
+                $skippedPlayers = collect();
+                $seenKeys = [];
 
-                if ($duplicateRows->isNotEmpty()) {
-                    throw ValidationException::withMessages([
-                        'players' => 'Hay jugadores repetidos dentro de la tabla con el mismo nombre, apellido, club y categoría.',
-                    ]);
+                foreach ($rows as $row) {
+                    $key = $playerKey($row);
+
+                    if (isset($seenKeys[$key])) {
+                        $skippedPlayers->push($playerLabel($row).' (repetido en la tabla)');
+
+                        continue;
+                    }
+
+                    $seenKeys[$key] = true;
+                    $uniqueRows->push($row);
                 }
 
-                $submittedNames = $rows
+                $submittedNames = $uniqueRows
                     ->mapWithKeys(fn (array $row): array => [implode('|', [
                         mb_strtoupper(trim((string) ($row['last_name'] ?? ''))),
                         mb_strtoupper(trim((string) ($row['first_name'] ?? ''))),
@@ -592,21 +609,29 @@ class PlayerResource extends Resource
                         (int) $player->club_id,
                         (int) $player->category_id,
                     ])))
-                    ->map(fn (Player $player): string => "{$player->last_name}, {$player->first_name}")
-                    ->unique()
-                    ->sort()
-                    ->values();
+                    ->mapWithKeys(fn (Player $player): array => [implode('|', [
+                        mb_strtoupper(trim($player->last_name)),
+                        mb_strtoupper(trim($player->first_name)),
+                        (int) $player->club_id,
+                        (int) $player->category_id,
+                    ]) => true]);
 
-                if ($existingPlayers->isNotEmpty()) {
-                    throw ValidationException::withMessages([
-                        'players' => 'No se realizó el alta porque ya existen estos jugadores: '.$existingPlayers->join('; ').'.',
-                    ]);
-                }
+                $rowsToCreate = $uniqueRows
+                    ->reject(function (array $row) use ($existingPlayers, $playerKey, $playerLabel, $skippedPlayers): bool {
+                        if (! $existingPlayers->has($playerKey($row))) {
+                            return false;
+                        }
+
+                        $skippedPlayers->push($playerLabel($row).' (ya existe)');
+
+                        return true;
+                    })
+                    ->values();
 
                 $createdPlayers = collect();
 
-                DB::transaction(function () use ($rows, $disciplineId, $clubId, $createdPlayers): void {
-                    foreach ($rows as $row) {
+                DB::transaction(function () use ($rowsToCreate, $disciplineId, $clubId, $createdPlayers): void {
+                    foreach ($rowsToCreate as $row) {
                         $createdPlayers->push(Player::create([
                             'first_name' => mb_strtoupper(trim((string) $row['first_name'])),
                             'last_name' => mb_strtoupper(trim((string) $row['last_name'])),
@@ -619,13 +644,31 @@ class PlayerResource extends Resource
                     }
                 });
 
-                AdminNotifier::sendBulk(
-                    $createdPlayers,
-                    'dio de alta masivamente a',
-                    ['last_name', 'first_name'],
-                    'jugadores',
-                );
+                if ($createdPlayers->isNotEmpty()) {
+                    AdminNotifier::sendBulk(
+                        $createdPlayers,
+                        'dio de alta masivamente a',
+                        ['last_name', 'first_name'],
+                        'jugadores',
+                    );
+
+                    Notification::make()
+                        ->success()
+                        ->title($createdPlayers->count().' jugadores creados correctamente')
+                        ->send();
+                }
+
+                if ($skippedPlayers->isNotEmpty()) {
+                    Notification::make()
+                        ->warning()
+                        ->title($createdPlayers->isEmpty()
+                            ? 'No se crearon jugadores'
+                            : $skippedPlayers->count().' jugadores duplicados omitidos')
+                        ->body($skippedPlayers->unique()->sort()->join('; '))
+                        ->persistent()
+                        ->send();
+                }
             })
-            ->successNotificationTitle('Jugadores creados correctamente');
+            ->successNotification(null);
     }
 }
