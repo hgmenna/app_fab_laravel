@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Players\Schemas;
 
 use App\Filament\Resources\Clubs\Schemas\ClubForm;
+use App\Models\Discipline;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
@@ -82,12 +83,15 @@ class PlayerForm
                             ->columnSpan(6),
                         Select::make('club_id')
                             ->relationship('club', 'name')
-                            ->label('Club')
+                            ->label('Club / sala')
                             ->columnSpan(6)
                             ->preload()
                             ->live()
                             ->createOptionForm(fn (Schema $schema) => ClubForm::configure($schema))
-                            ->required()
+                            ->required(fn (Get $get): bool => ! Discipline::query()
+                                ->find($get('discipline_id'))?->allowsIndependentAffiliates())
+                            ->placeholder('AFILIADO INDEPENDIENTE')
+                            ->helperText('En Pool puede dejarse vacío para registrar un afiliado independiente.')
                             ->searchable(),
                         Select::make('category_id')
                             ->relationship(

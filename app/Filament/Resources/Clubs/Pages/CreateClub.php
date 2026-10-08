@@ -32,10 +32,11 @@ class CreateClub extends CreateRecord
              * 2. Validamos la jerarquía definida:
              * city.state.federation.short_name
              */
-            $city = City::with('state.federation')->find($data['city_id']);
+            $cityId = $data['city_id'] ?? null;
+            $city = $cityId ? City::with('state.federation')->find($cityId) : null;
 
             // 3. Comprobamos si la ciudad elegida pertenece a su federación
-            if (! $city || $city->state->federation->short_name !== $user->username) {
+            if ($cityId && (! $city || $city->state?->federation?->short_name !== $user->username)) {
 
                 // Si no hay coincidencia, lanzamos un error de validación en el formulario
                 throw ValidationException::withMessages([

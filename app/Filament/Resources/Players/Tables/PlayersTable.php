@@ -43,7 +43,8 @@ class PlayersTable
                     ->sortable()
                     ->searchable(),
                 TextColumn::make('club.name')
-                    ->label('Club')
+                    ->label('Club / sala')
+                    ->placeholder('INDEPENDIENTE')
                     ->limit(15)
                     ->alignCenter()
                     ->searchable()

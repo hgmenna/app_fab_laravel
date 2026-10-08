@@ -98,4 +98,11 @@ class Discipline extends Model
 
         return $club?->city?->state?->federation;
     }
+
+    public function allowsIndependentAffiliates(): bool
+    {
+        return collect([$this->code, $this->short_name, $this->name])
+            ->filter()
+            ->contains(fn (string $value): bool => mb_strtolower(trim($value)) === 'pool');
+    }
 }

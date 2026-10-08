@@ -185,7 +185,8 @@ class ClubForm
                                 'is_active' => true,
                             ])->getKey();
                         })
-                        ->required(),
+                        ->placeholder('SIN ASIGNAR')
+                        ->helperText('La ubicación es opcional para salas o instituciones sin sede registrada.'),
                     TextInput::make('federation_name')
                         ->label('Federación')
                         ->columnSpan(2)

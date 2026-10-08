@@ -116,7 +116,7 @@ class TournamentResource extends Resource
 
                 // Agrupar por federacion
                 $porFederacion = $inscripciones->groupBy(function ($reg) {
-                    return $reg->player->club->city->state->federation->short_name ?? 'SIN FEDERACIÓN';
+                    return $reg->player?->club?->city?->state?->federation?->short_name ?? 'SIN FEDERACIÓN';
                 });
 
                 // Construir matriz: provincia → categoría → cantidad

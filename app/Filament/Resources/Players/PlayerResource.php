@@ -458,7 +458,7 @@ class PlayerResource extends Resource
                     ]])),
 
                 Select::make('club_id')
-                    ->label('Club')
+                    ->label('Club / sala')
                     ->options(fn (): array => Club::query()
                         ->where('is_active', true)
                         ->orderBy('name')
@@ -467,7 +467,10 @@ class PlayerResource extends Resource
                     ->searchable()
                     ->preload()
                     ->native(false)
-                    ->required(),
+                    ->required(fn (\Filament\Schemas\Components\Utilities\Get $get): bool => ! Discipline::query()
+                        ->find($get('discipline_id'))?->allowsIndependentAffiliates())
+                    ->placeholder('AFILIADOS INDEPENDIENTES')
+                    ->helperText('En Pool puede dejarse vacío para crear afiliados sin club o sala.'),
 
                 Repeater::make('players')
                     ->label('Jugadores a crear')
@@ -513,7 +516,7 @@ class PlayerResource extends Resource
             ])
             ->action(function (array $data): void {
                 $disciplineId = (int) ($data['discipline_id'] ?? 0);
-                $clubId = (int) ($data['club_id'] ?? 0);
+                $clubId = filled($data['club_id'] ?? null) ? (int) $data['club_id'] : null;
                 $rows = collect($data['players'] ?? [])->values();
                 $user = Auth::user();
 
@@ -522,18 +525,19 @@ class PlayerResource extends Resource
                     403,
                 );
 
-                $disciplineExists = Discipline::query()
+                $discipline = Discipline::query()
                     ->whereKey($disciplineId)
                     ->where('active', true)
-                    ->exists();
-                $clubExists = Club::query()
+                    ->first();
+                $clubExists = $clubId === null || Club::query()
                     ->whereKey($clubId)
                     ->where('is_active', true)
                     ->exists();
+                $clubIsRequired = ! $discipline?->allowsIndependentAffiliates();
 
-                if (! $disciplineExists || ! $clubExists || $rows->isEmpty()) {
+                if (! $discipline || ! $clubExists || ($clubIsRequired && $clubId === null) || $rows->isEmpty()) {
                     throw ValidationException::withMessages([
-                        'players' => 'Seleccioná una disciplina y un club válidos y agregá al menos un jugador.',
+                        'players' => 'Seleccioná una disciplina y un club válidos y agregá al menos un jugador. En Pool el club puede quedar vacío.',
                     ]);
                 }
 
@@ -595,7 +599,11 @@ class PlayerResource extends Resource
                     ]) => true]);
 
                 $existingPlayers = Player::query()
-                    ->where('club_id', $clubId)
+                    ->where(function (Builder $query) use ($clubId): void {
+                        $clubId === null
+                            ? $query->whereNull('club_id')
+                            : $query->where('club_id', $clubId);
+                    })
                     ->whereIn('category_id', $categoryIds)
                     ->whereIn('last_name', $rows
                         ->pluck('last_name')

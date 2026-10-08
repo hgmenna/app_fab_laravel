@@ -42,6 +42,7 @@ class ClubsTable
                     ->searchable(),
                 TextColumn::make('city.name')
                     ->label('Ciudad')
+                    ->placeholder('SIN ASIGNAR')
                     ->limit(15)
                     ->searchable()
                     ->sortable(),
