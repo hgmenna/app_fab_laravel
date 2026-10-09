@@ -61,6 +61,7 @@ class TournamentForm
                                     ->live()
                                     ->afterStateUpdated(function (Set $set): void {
                                         $set('tournament_type_id', null);
+                                        $set('stage_number', null);
                                         $set('categories', []);
                                         $set('tournamentModalities', []);
                                         $set('manual_route_checks', []);
@@ -179,6 +180,10 @@ class TournamentForm
                                         $set('manual_route_checks', []);
                                         $type = TournamentType::find($state);
 
+                                        if (! $type?->usesFiveQuillasStages()) {
+                                            $set('stage_number', null);
+                                        }
+
                                         if ($type && ! $type->is_official) {
                                             $set('non_official_logo_source', 'venue_federation');
                                         }
@@ -199,7 +204,7 @@ class TournamentForm
 
                                         $type = TournamentType::find($typeId);
 
-                                        return $type?->affects_ranking && $type?->assigns_points;
+                                        return $type?->usesFiveQuillasStages() ?? false;
                                     })
                                     ->required(function ($get) {
                                         $typeId = $get('tournament_type_id');
@@ -210,7 +215,7 @@ class TournamentForm
 
                                         $type = TournamentType::find($typeId);
 
-                                        return $type?->affects_ranking && $type?->assigns_points;
+                                        return $type?->usesFiveQuillasStages() ?? false;
                                     }),
 
                                 DatePicker::make('start_date')

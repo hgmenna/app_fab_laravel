@@ -62,4 +62,15 @@ class TournamentType extends Model
     {
         return $this->belongsTo(Federation::class, 'publication_federation_id');
     }
+
+    public function usesFiveQuillasStages(): bool
+    {
+        if (! $this->relationLoaded('discipline')) {
+            $this->load('discipline');
+        }
+
+        return $this->affects_ranking
+            && $this->assigns_points
+            && $this->discipline?->code === 'five_quillas';
+    }
 }

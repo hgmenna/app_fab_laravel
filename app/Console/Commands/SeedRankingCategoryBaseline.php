@@ -39,6 +39,7 @@ protected $description = 'Inicializa el estado base de categorías temporales M/
         * 1) Validar que exista la Etapa 4 de ranking de la temporada.
         */
         $stage4 = Tournament::query()
+            ->whereHas('discipline', fn ($query) => $query->where('code', 'five_quillas'))
             ->whereHas('type', fn ($query) =>
                 $query->where('affects_ranking', true)
             )
@@ -91,6 +92,7 @@ protected $description = 'Inicializa el estado base de categorías temporales M/
 
         foreach ([1, 2, 3, 4] as $stage) {
             $tournament = Tournament::query()
+                ->whereHas('discipline', fn ($query) => $query->where('code', 'five_quillas'))
                 ->whereHas('type', fn ($query) =>
                     $query->where('affects_ranking', true)
                 )

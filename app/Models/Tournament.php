@@ -11,6 +11,19 @@ class Tournament extends Model
 {
     use HasFactory;
 
+    protected static function booted(): void
+    {
+        static::saving(function (Tournament $tournament): void {
+            $type = $tournament->tournament_type_id
+                ? TournamentType::query()->with('discipline')->find($tournament->tournament_type_id)
+                : null;
+
+            if (! $type?->usesFiveQuillasStages()) {
+                $tournament->stage_number = null;
+            }
+        });
+    }
+
     protected $fillable = [
         'name',
         'flyer_path',

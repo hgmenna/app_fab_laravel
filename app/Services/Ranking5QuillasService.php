@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Category;
+use App\Models\Discipline;
 use App\Models\Player;
 use App\Models\Ranking5Quillas;
 use App\Models\Tournament;
@@ -10,13 +11,17 @@ use App\Models\TournamentRegistration;
 
 class Ranking5QuillasService
 {
-    protected int $disciplineId;
-
     public function recalculate(): void
     {
+        $disciplineId = Discipline::query()->where('code', 'five_quillas')->value('id');
+
+        if (! $disciplineId) {
+            return;
+        }
+
         $tournaments = Tournament::whereHas('type', fn ($q) => $q->where('affects_ranking', true)
         )
-            ->where('discipline_id', $this->disciplineId)
+            ->where('discipline_id', $disciplineId)
             ->orderBy('start_date', 'desc')
             ->take(4)
             ->get();
