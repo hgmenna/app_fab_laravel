@@ -181,16 +181,23 @@ class PlayerResource extends Resource
             ->schema([
                 Select::make('category_id')
                     ->label('Nueva categoría')
-                    ->options(function () {
+                    ->options(function (Player $record): array {
                         $temporaryCodes = config(
                             'ranking.temporary_ranking_categories',
                             ['M', 'N']
                         );
 
                         return Category::query()
+                            ->where('discipline_id', $record->discipline_id)
                             ->whereNotIn('code', $temporaryCodes)
+                            ->orderBy('order')
                             ->orderBy('name')
-                            ->pluck('name', 'id')
+                            ->get()
+                            ->mapWithKeys(fn (Category $category): array => [
+                                $category->id => filled($category->code)
+                                    ? "{$category->code} — {$category->name}"
+                                    : $category->name,
+                            ])
                             ->all();
                     })
                     ->required()
@@ -222,7 +229,16 @@ class PlayerResource extends Resource
             ->modalSubmitActionLabel('Guardar cambio')
             ->action(function (Player $record, array $data): void {
                 try {
-                    $newCategory = Category::findOrFail($data['category_id']);
+                    $newCategory = Category::query()
+                        ->whereKey($data['category_id'])
+                        ->where('discipline_id', $record->discipline_id)
+                        ->first();
+
+                    if (! $newCategory) {
+                        throw ValidationException::withMessages([
+                            'category_id' => 'La categoría seleccionada no pertenece a la disciplina del jugador.',
+                        ]);
+                    }
 
                     $history = PlayerCategoryChangeService::scheduleManualChange(
                         player: $record,
