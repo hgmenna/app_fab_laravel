@@ -52,13 +52,23 @@ class FiveQuillasRankingController extends Controller
             'penalizaciones' => (float) $row['total_penalties'],
             'puntos_total' => (float) $row['total_puntos'],
             'etapa_1_posicion' => $row['pos_1'],
+            'etapa_1_penalizacion' => $row['pen_1'] === null ? null : (float) $row['pen_1'],
             'etapa_1_puntos' => $row['ptos_1'] === null ? null : (float) $row['ptos_1'],
             'etapa_2_posicion' => $row['pos_2'],
+            'etapa_2_penalizacion' => $row['pen_2'] === null ? null : (float) $row['pen_2'],
             'etapa_2_puntos' => $row['ptos_2'] === null ? null : (float) $row['ptos_2'],
             'etapa_3_posicion' => $row['pos_3'],
+            'etapa_3_penalizacion' => $row['pen_3'] === null ? null : (float) $row['pen_3'],
             'etapa_3_puntos' => $row['ptos_3'] === null ? null : (float) $row['ptos_3'],
             'etapa_4_posicion' => $row['pos_4'],
+            'etapa_4_penalizacion' => $row['pen_4'] === null ? null : (float) $row['pen_4'],
             'etapa_4_puntos' => $row['ptos_4'] === null ? null : (float) $row['ptos_4'],
+            'etapas' => collect(range(1, 4))->map(fn (int $stage): array => [
+                'etapa' => $stage,
+                'penalizacion' => $row["pen_{$stage}"] === null ? null : (float) $row["pen_{$stage}"],
+                'posicion' => $row["pos_{$stage}"],
+                'puntos' => $row["ptos_{$stage}"] === null ? null : (float) $row["ptos_{$stage}"],
+            ])->all(),
         ])->values();
 
         return response()->json([

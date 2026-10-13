@@ -128,6 +128,7 @@ class RankingService
                 'posiciones' => $ordenados->map(fn ($r) => $r?->tournamentInstance?->instance ?? 0),
                 'detalle' => $ordenados->map(fn ($r) => [
                     'description' => $r?->tournamentInstance?->description ?? null,
+                    'penalty' => $r?->penalty_points ?? null,
                     'ptos' => $r?->points ?? null,
                 ]),
                 'previous_rank' => $rankingAnterior[$player->id] ?? PHP_INT_MAX,
@@ -201,10 +202,10 @@ class RankingService
                         'total_penalties' => 0,
                         'posiciones' => collect([0, 0, 0, 0]),
                         'detalle' => collect([
-                            ['description' => null, 'ptos' => null],
-                            ['description' => null, 'ptos' => null],
-                            ['description' => null, 'ptos' => null],
-                            ['description' => null, 'ptos' => null],
+                            ['description' => null, 'penalty' => null, 'ptos' => null],
+                            ['description' => null, 'penalty' => null, 'ptos' => null],
+                            ['description' => null, 'penalty' => null, 'ptos' => null],
+                            ['description' => null, 'penalty' => null, 'ptos' => null],
                         ]),
                         'previous_rank' => $rankingAnterior[$player->id] ?? PHP_INT_MAX,
                     ];
@@ -223,10 +224,10 @@ class RankingService
                         'total_penalties' => 0,
                         'posiciones' => collect([0, 0, 0, 0]),
                         'detalle' => collect([
-                            ['description' => null, 'ptos' => null],
-                            ['description' => null, 'ptos' => null],
-                            ['description' => null, 'ptos' => null],
-                            ['description' => null, 'ptos' => null],
+                            ['description' => null, 'penalty' => null, 'ptos' => null],
+                            ['description' => null, 'penalty' => null, 'ptos' => null],
+                            ['description' => null, 'penalty' => null, 'ptos' => null],
+                            ['description' => null, 'penalty' => null, 'ptos' => null],
                         ]),
                         'previous_rank' => $rankingAnterior[$player->id] ?? PHP_INT_MAX,
                     ];
@@ -350,15 +351,19 @@ class RankingService
 
                 // Detalle de las etapas
                 'pos_1' => $detalle->get(0)['description'] ?? null,
+                'pen_1' => $detalle->get(0)['penalty'] ?? null,
                 'ptos_1' => $detalle->get(0)['ptos'] ?? null,
 
                 'pos_2' => $detalle->get(1)['description'] ?? null,
+                'pen_2' => $detalle->get(1)['penalty'] ?? null,
                 'ptos_2' => $detalle->get(1)['ptos'] ?? null,
 
                 'pos_3' => $detalle->get(2)['description'] ?? null,
+                'pen_3' => $detalle->get(2)['penalty'] ?? null,
                 'ptos_3' => $detalle->get(2)['ptos'] ?? null,
 
                 'pos_4' => $detalle->get(3)['description'] ?? null,
+                'pen_4' => $detalle->get(3)['penalty'] ?? null,
                 'ptos_4' => $detalle->get(3)['ptos'] ?? null,
             ];
         });
