@@ -28,8 +28,8 @@ class TournamentRegistrationForm
                 fn ($query) => Auth::user()?->scopeDisciplineQuery($query, 'Create:TournamentRegistration'),
             )->required()->live()
                 ->hidden(fn ($livewire): bool => $tournament !== null || $livewire instanceof \Filament\Resources\Pages\ManageRelatedRecords || method_exists($livewire, 'getOwnerRecord'))
-                ->afterStateUpdated(function (Set $set): void {
-                    $set('tournament_modality_id', null);
+                ->afterStateUpdated(function (Set $set, mixed $state): void {
+                    $set('tournament_modality_id', self::singleModalityId(Tournament::find($state)));
                     $set('player_ids', []);
                     $set('tournament_slot_id', null);
                 })->dehydrated(),
@@ -39,7 +39,15 @@ class TournamentRegistrationForm
 
                     return $selected?->tournamentModalities()->with('modality')->get()
                         ->mapWithKeys(fn (TournamentModality $item): array => [$item->id => $item->modality->name])->all() ?? [];
-                })->required()->live()->native(false)
+                })
+                ->afterStateHydrated(function (Select $component, Get $get, $livewire) use ($tournament): void {
+                    if (blank($component->getState())) {
+                        $component->state(self::singleModalityId(self::resolveTournament($get, $livewire, $tournament)));
+                    }
+                })
+                ->hidden(fn (Get $get, $livewire): bool => self::modalityCount(self::resolveTournament($get, $livewire, $tournament)) === 1)
+                ->required(fn (Get $get, $livewire): bool => self::modalityCount(self::resolveTournament($get, $livewire, $tournament)) > 1)
+                ->live()->native(false)
                 ->afterStateUpdated(function (Set $set): void {
                     $set('player_ids', []);
                     $set('tournament_slot_id', null);
@@ -84,6 +92,20 @@ class TournamentRegistrationForm
     private static function requiredPlayers(mixed $configurationId): int
     {
         return max(1, (int) (TournamentModality::with('modality')->find($configurationId)?->modality?->players_per_registration ?? 1));
+    }
+
+    private static function modalityCount(?Tournament $tournament): int
+    {
+        return $tournament?->tournamentModalities()->count() ?? 0;
+    }
+
+    private static function singleModalityId(?Tournament $tournament): ?int
+    {
+        if (self::modalityCount($tournament) !== 1) {
+            return null;
+        }
+
+        return $tournament?->tournamentModalities()->value('id');
     }
 
     private static function eligiblePlayers(mixed $configurationId): array

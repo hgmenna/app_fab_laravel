@@ -149,6 +149,14 @@ class TournamentRegistration extends Model
                 ]);
             }
 
+            if (! $registration->tournament_modality_id) {
+                $modalityIds = $tournament->tournamentModalities()->limit(2)->pluck('id');
+
+                if ($modalityIds->count() === 1) {
+                    $registration->tournament_modality_id = $modalityIds->first();
+                }
+            }
+
             $configuration = TournamentModality::query()->with('modality')
                 ->where('tournament_id', $tournament->id)->find($registration->tournament_modality_id);
             if (! $configuration) {

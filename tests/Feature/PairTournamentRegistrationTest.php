@@ -130,3 +130,15 @@ it('prevents duplicates in one modality and permits an independent registration 
 
     expect($otherModality->fresh('participants')->participantIds())->toBe([2]);
 });
+
+it('automatically assigns the only modality in the tournament', function () {
+    DB::table('tournament_modalities')->where('id', 2)->delete();
+
+    $registration = TournamentRegistration::query()->create([
+        'tournament_id' => 1,
+        'player_ids' => [1, 2],
+    ]);
+
+    expect($registration->tournament_modality_id)->toBe(1)
+        ->and($registration->fresh('participants')->participantIds())->toBe([1, 2]);
+});
