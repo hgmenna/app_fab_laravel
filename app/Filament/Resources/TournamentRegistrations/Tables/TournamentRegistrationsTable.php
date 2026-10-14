@@ -18,7 +18,10 @@ use App\Services\ThreeCushionRankingService;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
@@ -543,7 +546,7 @@ class TournamentRegistrationsTable
             ->icon('heroicon-o-list-bullet')
             ->color('primary')
             ->modalHeading('Asignación masiva de puntajes')
-            ->modalDescription('Elegí una posición y marcá los jugadores o parejas que recibirán el mismo puntaje.')
+            ->modalDescription('Asigná un mismo puntaje a varias inscripciones o elegí un puntaje diferente para cada jugador o pareja.')
             ->modalSubmitActionLabel('Guardar todos los puntajes')
             ->modalWidth('7xl')
             ->visible(function ($livewire) use ($tournament): bool {
@@ -559,6 +562,26 @@ class TournamentRegistrationsTable
                     && $resolvedTournament->start_date < now();
             })
             ->schema([
+                Select::make('assignment_mode')
+                    ->label('Forma de asignación')
+                    ->options([
+                        'shared' => 'Mismo puntaje para varios jugadores',
+                        'individual' => 'Un puntaje diferente para cada jugador',
+                    ])
+                    ->default('shared')
+                    ->required()
+                    ->native(false)
+                    ->live()
+                    ->afterStateUpdated(function (Get $get, Set $set, $livewire, mixed $state) use ($tournament): void {
+                        $set('registration_ids', []);
+                        $set('individual_scores', $state === 'individual'
+                            ? self::individualScoringRows(
+                                self::resolveTournament($tournament, $livewire),
+                                filled($get('tournament_slot_id')) ? (int) $get('tournament_slot_id') : null,
+                            )
+                            : []);
+                    }),
+
                 Select::make('tournament_instance_id')
                     ->label('Posición oficial')
                     ->options(function ($livewire) use ($tournament): array {
@@ -572,8 +595,10 @@ class TournamentRegistrationsTable
                     })
                     ->searchable()
                     ->preload()
-                    ->required(fn ($livewire): bool => self::usesOfficialInstances(self::resolveTournament($tournament, $livewire)))
-                    ->visible(fn ($livewire): bool => self::usesOfficialInstances(self::resolveTournament($tournament, $livewire))),
+                    ->required(fn (Get $get, $livewire): bool => $get('assignment_mode') === 'shared'
+                        && self::usesOfficialInstances(self::resolveTournament($tournament, $livewire)))
+                    ->visible(fn (Get $get, $livewire): bool => $get('assignment_mode') === 'shared'
+                        && self::usesOfficialInstances(self::resolveTournament($tournament, $livewire))),
 
                 Select::make('result_code')
                     ->label('Resultado')
@@ -588,8 +613,10 @@ class TournamentRegistrationsTable
                     })
                     ->searchable()
                     ->preload()
-                    ->required(fn ($livewire): bool => ! self::usesOfficialInstances(self::resolveTournament($tournament, $livewire)))
-                    ->visible(fn ($livewire): bool => ! self::usesOfficialInstances(self::resolveTournament($tournament, $livewire))),
+                    ->required(fn (Get $get, $livewire): bool => $get('assignment_mode') === 'shared'
+                        && ! self::usesOfficialInstances(self::resolveTournament($tournament, $livewire)))
+                    ->visible(fn (Get $get, $livewire): bool => $get('assignment_mode') === 'shared'
+                        && ! self::usesOfficialInstances(self::resolveTournament($tournament, $livewire))),
 
                 Select::make('tournament_slot_id')
                     ->label('Filtrar por horario')
@@ -599,7 +626,16 @@ class TournamentRegistrationsTable
                     ))
                     ->native(false)
                     ->live()
-                    ->afterStateUpdated(fn (Set $set) => $set('registration_ids', [])),
+                    ->required(fn (Get $get): bool => $get('assignment_mode') === 'individual')
+                    ->afterStateUpdated(function (Get $get, Set $set, $livewire, mixed $state) use ($tournament): void {
+                        $set('registration_ids', []);
+                        $set('individual_scores', $get('assignment_mode') === 'individual'
+                            ? self::individualScoringRows(
+                                self::resolveTournament($tournament, $livewire),
+                                filled($state) ? (int) $state : null,
+                            )
+                            : []);
+                    }),
 
                 CheckboxList::make('registration_ids')
                     ->label('Jugadores o parejas sin puntuación')
@@ -607,12 +643,44 @@ class TournamentRegistrationsTable
                         self::resolveTournament($tournament, $livewire),
                         filled($get('tournament_slot_id')) ? (int) $get('tournament_slot_id') : null,
                     ))
-                    ->required()
                     ->minItems(1)
                     ->searchable()
                     ->bulkToggleable()
                     ->columns(2)
                     ->helperText('Marcá todas las inscripciones que obtuvieron la posición seleccionada.')
+                    ->visible(fn (Get $get): bool => $get('assignment_mode') !== 'individual')
+                    ->required(fn (Get $get): bool => $get('assignment_mode') !== 'individual')
+                    ->columnSpanFull(),
+
+                Repeater::make('individual_scores')
+                    ->label('Puntaje por jugador o pareja')
+                    ->table([
+                        TableColumn::make('Jugador o pareja')->markAsRequired(),
+                        TableColumn::make('Posición o resultado')->markAsRequired(),
+                    ])
+                    ->schema([
+                        Hidden::make('registration_id'),
+                        Placeholder::make('label')
+                            ->hiddenLabel()
+                            ->content(fn (Get $get): string => (string) ($get('label') ?: 'Inscripción')),
+                        Select::make('score_key')
+                            ->hiddenLabel()
+                            ->options(fn ($livewire) => self::scoringRuleOptions(
+                                self::resolveTournament($tournament, $livewire),
+                                self::usesOfficialInstances(self::resolveTournament($tournament, $livewire)),
+                            ))
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->required(),
+                    ])
+                    ->addable(false)
+                    ->deletable(false)
+                    ->reorderable(false)
+                    ->minItems(1)
+                    ->required()
+                    ->helperText('Elegí la posición o resultado de cada inscripción del horario seleccionado.')
+                    ->visible(fn (Get $get): bool => $get('assignment_mode') === 'individual')
                     ->columnSpanFull(),
             ])
             ->action(function (array $data, $livewire) use ($tournament): void {
@@ -627,7 +695,11 @@ class TournamentRegistrationsTable
                     403,
                 );
 
-                $registrationIds = collect($data['registration_ids'] ?? [])
+                $individualMode = ($data['assignment_mode'] ?? 'shared') === 'individual';
+                $individualRows = collect($data['individual_scores'] ?? [])->values();
+                $registrationIds = ($individualMode
+                    ? $individualRows->pluck('registration_id')
+                    : collect($data['registration_ids'] ?? []))
                     ->filter()
                     ->map(fn ($id): int => (int) $id)
                     ->values();
@@ -643,25 +715,53 @@ class TournamentRegistrationsTable
 
                 $eligibleCount = $eligibleQuery->count();
 
-                if ($eligibleCount !== $registrationIds->unique()->count()) {
+                if ($registrationIds->count() !== $registrationIds->unique()->count()
+                    || $eligibleCount !== $registrationIds->unique()->count()) {
                     throw ValidationException::withMessages([
-                        'registration_ids' => 'Solo se pueden seleccionar inscripciones aprobadas, sin puntuación y pertenecientes al horario elegido.',
+                        $individualMode ? 'individual_scores' : 'registration_ids' => 'Solo se pueden seleccionar inscripciones aprobadas, sin puntuación y pertenecientes al horario elegido.',
                     ]);
                 }
 
-                $items = $registrationIds
-                    ->map(fn (int $registrationId): array => [
-                        'registration_id' => $registrationId,
-                        'penalty_points' => 0,
-                    ])
-                    ->all();
+                if ($individualMode) {
+                    if ($individualRows->isEmpty()
+                        || blank($data['tournament_slot_id'] ?? null)
+                        || $individualRows->contains(fn (array $row): bool => blank($row['score_key'] ?? null))) {
+                        throw ValidationException::withMessages([
+                            'individual_scores' => 'Seleccioná un horario y asigná una posición o resultado a cada inscripción.',
+                        ]);
+                    }
 
-                app(\App\Services\TournamentScoringService::class)->assignBatch(
-                    $resolvedTournament,
-                    $items,
-                    isset($data['tournament_instance_id']) ? (int) $data['tournament_instance_id'] : null,
-                    $data['result_code'] ?? null,
-                );
+                    DB::transaction(function () use ($individualRows, $resolvedTournament): void {
+                        $service = app(\App\Services\TournamentScoringService::class);
+                        $officialInstances = self::usesOfficialInstances($resolvedTournament);
+
+                        foreach ($individualRows as $row) {
+                            $service->assignBatch(
+                                $resolvedTournament,
+                                [[
+                                    'registration_id' => (int) $row['registration_id'],
+                                    'penalty_points' => 0,
+                                ]],
+                                $officialInstances ? (int) $row['score_key'] : null,
+                                $officialInstances ? null : (string) $row['score_key'],
+                            );
+                        }
+                    });
+                } else {
+                    $items = $registrationIds
+                        ->map(fn (int $registrationId): array => [
+                            'registration_id' => $registrationId,
+                            'penalty_points' => 0,
+                        ])
+                        ->all();
+
+                    app(\App\Services\TournamentScoringService::class)->assignBatch(
+                        $resolvedTournament,
+                        $items,
+                        isset($data['tournament_instance_id']) ? (int) $data['tournament_instance_id'] : null,
+                        $data['result_code'] ?? null,
+                    );
+                }
 
                 if (self::usesOfficialInstances($resolvedTournament)) {
                     \App\Services\RankingService::syncGeneralRanking();
@@ -860,6 +960,43 @@ class TournamentRegistrationsTable
                     $registration->getKey() => $details !== '' ? "{$label} — {$details}" : $label,
                 ];
             })
+            ->all();
+    }
+
+    private static function individualScoringRows($tournament, ?int $slotId): array
+    {
+        if (! $tournament || ! $slotId) {
+            return [];
+        }
+
+        return $tournament->registrations()
+            ->where('status', 'aprobado')
+            ->whereNull('points')
+            ->where('tournament_slot_id', $slotId)
+            ->with([
+                'participants.player.category',
+                'tournamentModality.modality',
+                'slot',
+            ])
+            ->get()
+            ->sortBy(fn (TournamentRegistration $registration): string => $registration->participant_names)
+            ->map(function (TournamentRegistration $registration): array {
+                $categories = $registration->participants
+                    ->pluck('player.category.code')
+                    ->filter()
+                    ->unique()
+                    ->implode(' / ');
+                $modality = $registration->tournamentModality?->modality?->name;
+                $details = implode(' · ', array_filter([$modality, $categories]));
+                $label = $registration->participant_names ?: "Inscripción #{$registration->getKey()}";
+
+                return [
+                    'registration_id' => $registration->getKey(),
+                    'label' => $details !== '' ? "{$label} — {$details}" : $label,
+                    'score_key' => null,
+                ];
+            })
+            ->values()
             ->all();
     }
 }
