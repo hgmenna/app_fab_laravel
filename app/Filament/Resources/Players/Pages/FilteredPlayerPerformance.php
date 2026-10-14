@@ -6,6 +6,7 @@ use App\Filament\Resources\Players\PlayerResource;
 use App\Helpers\FabPath;
 use App\Models\Discipline;
 use App\Models\Player;
+use App\Models\Tournament;
 use App\Models\TournamentRegistration;
 use App\Models\TournamentType;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -125,6 +126,10 @@ class FilteredPlayerPerformance extends Page
                 ->selectRaw('COUNT(*)')
                 ->whereColumn('participant_counts.tournament_id', 'tournament_registrations.tournament_id')])
             ->with(['tournament.type', 'tournamentInstance', 'participants'])
+            ->orderByDesc(Tournament::query()
+                ->select('end_date')
+                ->whereColumn('tournaments.id', 'tournament_registrations.tournament_id')
+                ->limit(1))
             ->orderByDesc('id')
             ->get();
 
