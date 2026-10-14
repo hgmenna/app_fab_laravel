@@ -69,10 +69,7 @@ class FilteredPlayerPerformance extends Page
     {
         return TournamentType::query()
             ->where('assigns_points', true)
-            ->when($this->disciplineId !== '', fn (Builder $query) => $query->where(function (Builder $types): void {
-                $types->where('discipline_id', $this->disciplineId)
-                    ->orWhereHas('tournaments', fn (Builder $tournaments) => $tournaments->where('discipline_id', $this->disciplineId));
-            }))
+            ->when($this->disciplineId !== '', fn (Builder $query) => $query->where('discipline_id', $this->disciplineId))
             ->orderBy('name')
             ->pluck('name', 'id')
             ->all();

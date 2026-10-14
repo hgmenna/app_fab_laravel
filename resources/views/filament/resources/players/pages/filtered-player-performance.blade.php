@@ -51,7 +51,7 @@
             </div>
             <div>
                 <span class="block text-sm font-semibold mb-1">Tipo de torneo</span>
-                <div class="performance-type-picker" x-data="{ open: false }" x-on:click.outside="open = false">
+                <div class="performance-type-picker" wire:key="performance-types-{{ $this->disciplineId ?: 'all' }}" x-data="{ open: false }" x-on:click.outside="open = false">
                     <button type="button" x-on:click="open = !open" x-bind:aria-expanded="open.toString()" aria-label="Seleccionar tipos de torneo">
                         <span>{{ count($this->typeIds) ? count($this->typeIds) . ' tipos seleccionados' : 'Todos los tipos' }}</span>
                         <span aria-hidden="true">⌄</span>
