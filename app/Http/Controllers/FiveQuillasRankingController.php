@@ -23,6 +23,19 @@ class FiveQuillasRankingController extends Controller
         // WordPress no dependa de una copia que pueda haber quedado desactualizada.
         $ranking = RankingService::getGeneralRanking($category, $search);
 
+        $stageTournaments = collect(range(1, 4))->mapWithKeys(function (int $stage): array {
+            $tournament = Tournament::query()
+                ->with('venue')
+                ->whereHas('discipline', fn ($query) => $query->where('code', 'five_quillas'))
+                ->whereHas('type', fn ($query) => $query->where('affects_ranking', true))
+                ->where('stage_number', $stage)
+                ->whereDate('end_date', '<=', today())
+                ->orderByDesc('end_date')
+                ->first();
+
+            return [$stage => $tournament];
+        });
+
         $latestTournament = Tournament::query()
             ->whereHas('discipline', fn ($query) => $query->where('code', 'five_quillas'))
             ->whereHas('type', fn ($query) => $query->where('affects_ranking', true))
@@ -63,12 +76,19 @@ class FiveQuillasRankingController extends Controller
             'etapa_4_posicion' => $row['pos_4'],
             'etapa_4_penalizacion' => $row['pen_4'] === null ? null : (float) $row['pen_4'],
             'etapa_4_puntos' => $row['ptos_4'] === null ? null : (float) $row['ptos_4'],
-            'etapas' => collect(range(1, 4))->map(fn (int $stage): array => [
-                'etapa' => $stage,
-                'penalizacion' => $row["pen_{$stage}"] === null ? null : (float) $row["pen_{$stage}"],
-                'posicion' => $row["pos_{$stage}"],
-                'puntos' => $row["ptos_{$stage}"] === null ? null : (float) $row["ptos_{$stage}"],
-            ])->all(),
+            'etapas' => collect(range(1, 4))->map(function (int $stage) use ($row, $stageTournaments): array {
+                $tournament = $stageTournaments->get($stage);
+
+                return [
+                    'etapa' => $stage,
+                    'fecha' => $tournament?->end_date?->format('d/m/Y'),
+                    'end_date' => $tournament?->end_date?->toDateString(),
+                    'sede' => $tournament?->venueName() ?? 'SIN ASIGNAR',
+                    'penalizacion' => $row["pen_{$stage}"] === null ? null : (float) $row["pen_{$stage}"],
+                    'posicion' => $row["pos_{$stage}"],
+                    'puntos' => $row["ptos_{$stage}"] === null ? null : (float) $row["ptos_{$stage}"],
+                ];
+            })->all(),
         ])->values();
 
         return response()->json([
