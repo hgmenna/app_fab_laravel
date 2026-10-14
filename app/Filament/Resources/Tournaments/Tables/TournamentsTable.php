@@ -9,8 +9,10 @@ use App\Filament\Actions\GlobalViewAction;
 use App\Filament\Resources\Tournaments\TournamentResource;
 use App\Models\Category;
 use App\Models\Tournament;
+use App\Models\TournamentType;
 use App\Services\AdminNotifier;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -209,11 +211,29 @@ class TournamentsTable
             ->filters([
                 SelectFilter::make('discipline_id')
                     ->relationship('discipline', 'name')
-                    ->label('Disciplina'),
+                    ->label('Disciplina')
+                    ->modifyFormFieldUsing(fn (Select $field): Select => $field
+                        ->live()
+                        ->afterStateUpdated(function ($livewire): void {
+                            $livewire->tableFilters['type_id']['value'] = null;
+                        })),
                 SelectFilter::make('type_id')
-                    ->relationship('type', 'name')
                     ->label('Tipo de Torneo')
-                    ->searchable(),
+                    ->options(function ($livewire): array {
+                        $disciplineId = data_get($livewire->tableFilters, 'discipline_id.value');
+
+                        return TournamentType::query()
+                            ->when(filled($disciplineId), fn (Builder $query) => $query->where('discipline_id', $disciplineId))
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->all();
+                    })
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
+                        filled($data['value'] ?? null),
+                        fn (Builder $query): Builder => $query->where('tournament_type_id', $data['value']),
+                    ))
+                    ->searchable()
+                    ->preload(),
                 Filter::make('start_date')
                     ->label('Fecha de inicio')
                     ->schema([
