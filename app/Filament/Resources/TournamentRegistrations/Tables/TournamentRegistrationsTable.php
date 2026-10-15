@@ -261,6 +261,7 @@ class TournamentRegistrationsTable
             ])
             ->recordActions([
                 GlobalActionGroup::make([
+                    TournamentRegistrationResource::continuePaymentAction(),
                     TournamentRegistrationResource::shareByWhatsAppAction(),
                     GlobalViewAction::make(),
                     GlobalEditAction::make()

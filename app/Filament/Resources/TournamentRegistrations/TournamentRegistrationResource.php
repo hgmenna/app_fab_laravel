@@ -12,6 +12,7 @@ use App\Helpers\FabPath;
 use App\Models\GeneralRanking;
 use App\Models\TournamentRegistration;
 use App\Services\RankingService;
+use App\Services\BankTransferService;
 use App\Services\TournamentRegistrationPdfService;
 use App\Services\TournamentScoringService;
 use BackedEnum;
@@ -51,6 +52,23 @@ class TournamentRegistrationResource extends Resource
         return $order
             ? BankTransferOrderResource::getUrl('edit', ['record' => $order])
             : null;
+    }
+
+    public static function continuePaymentAction(): Action
+    {
+        return Action::make('continuePayment')
+            ->label('Continuar pago')
+            ->icon('heroicon-o-banknotes')
+            ->color('warning')
+            ->visible(fn (TournamentRegistration $record): bool => (bool) $record->tournament?->is_payment_enabled
+                && $record->payment_status !== 'paid')
+            ->action(function (TournamentRegistration $record, $livewire): void {
+                $order = app(BankTransferService::class)->createTournamentRegistrationOrder($record);
+
+                if ($order) {
+                    $livewire->redirect(BankTransferOrderResource::getUrl('edit', ['record' => $order]));
+                }
+            });
     }
 
     public static function shareByWhatsAppAction(): Action
