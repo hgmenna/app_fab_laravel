@@ -42,6 +42,28 @@ class TournamentRegistrationResource extends Resource
         );
     }
 
+    protected static function applyAssignmentScope(Builder $query, $user): Builder
+    {
+        $assignments = $user->disciplineAssignments()
+            ->where('is_active', true)
+            ->whereHas('role.permissions', fn ($permissions) => $permissions->where('name', static::disciplineViewPermission()))
+            ->get(['discipline_id', 'club_id']);
+
+        return $query->whereHas('tournament', function (Builder $tournaments) use ($assignments): void {
+            $tournaments->where(function (Builder $scope) use ($assignments): void {
+                foreach ($assignments as $assignment) {
+                    $scope->orWhere(function (Builder $row) use ($assignment): void {
+                        $row->where('discipline_id', $assignment->discipline_id);
+
+                        if (filled($assignment->club_id)) {
+                            $row->where('venue_type', 'club')->where('venue_id', $assignment->club_id);
+                        }
+                    });
+                }
+            });
+        });
+    }
+
     protected static function disciplineViewPermission(): string
     {
         return 'ViewAny:Tournament';

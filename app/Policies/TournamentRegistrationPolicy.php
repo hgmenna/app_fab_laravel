@@ -20,7 +20,7 @@ class TournamentRegistrationPolicy
 
     public function view(User $user, TournamentRegistration $registration): bool
     {
-        return $this->allowsFor($user, 'View:TournamentRegistration', $registration->tournament?->discipline_id);
+        return $this->allowsRegistration($user, 'View:TournamentRegistration', $registration);
     }
 
     public function create(User $user): bool
@@ -30,22 +30,22 @@ class TournamentRegistrationPolicy
 
     public function update(User $user, TournamentRegistration $registration): bool
     {
-        return $this->allowsFor($user, 'Update:TournamentRegistration', $registration->tournament?->discipline_id);
+        return $this->allowsRegistration($user, 'Update:TournamentRegistration', $registration);
     }
 
     public function delete(User $user, TournamentRegistration $registration): bool
     {
-        return $this->allowsFor($user, 'Delete:TournamentRegistration', $registration->tournament?->discipline_id);
+        return $this->allowsRegistration($user, 'Delete:TournamentRegistration', $registration);
     }
 
     public function restore(User $user, TournamentRegistration $registration): bool
     {
-        return $this->allowsFor($user, 'Restore:TournamentRegistration', $registration->tournament?->discipline_id);
+        return $this->allowsRegistration($user, 'Restore:TournamentRegistration', $registration);
     }
 
     public function forceDelete(User $user, TournamentRegistration $registration): bool
     {
-        return $this->allowsFor($user, 'ForceDelete:TournamentRegistration', $registration->tournament?->discipline_id);
+        return $this->allowsRegistration($user, 'ForceDelete:TournamentRegistration', $registration);
     }
 
     public function forceDeleteAny(User $user): bool
@@ -60,11 +60,22 @@ class TournamentRegistrationPolicy
 
     public function replicate(User $user, TournamentRegistration $registration): bool
     {
-        return $this->allowsFor($user, 'Replicate:TournamentRegistration', $registration->tournament?->discipline_id);
+        return $this->allowsRegistration($user, 'Replicate:TournamentRegistration', $registration);
     }
 
     public function reorder(User $user): bool
     {
         return $this->allowsAny($user, 'Reorder:TournamentRegistration');
+    }
+
+    private function allowsRegistration(User $user, string $permission, TournamentRegistration $registration): bool
+    {
+        $tournament = $registration->tournament;
+
+        return $user->canAccessClubInDiscipline(
+            $permission,
+            $tournament?->discipline_id,
+            $tournament?->venue_type === 'club' ? $tournament?->venue_id : null,
+        );
     }
 }

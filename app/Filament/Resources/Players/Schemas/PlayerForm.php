@@ -82,10 +82,17 @@ class PlayerForm
                             ->afterStateUpdated(fn (Set $set) => $set('category_id', null))
                             ->columnSpan(6),
                         Select::make('club_id')
-                            ->relationship('club', 'name')
+                            ->relationship('club', 'name', function ($query, Get $get) {
+                                $user = Auth::user();
+
+                                if ($user?->hasClubScopeForDiscipline($get('discipline_id'), 'Create:Player')) {
+                                    $query->whereKey($user->allowedClubIds('Create:Player', $get('discipline_id')) ?: [-1]);
+                                }
+                            })
                             ->label('Club / sala')
                             ->columnSpan(6)
                             ->preload()
+                            ->default(fn (Get $get) => Auth::user()?->defaultClubId('Create:Player', $get('discipline_id')))
                             ->live()
                             ->createOptionForm(fn (Schema $schema) => ClubForm::configure($schema))
                             ->required(fn (Get $get): bool => ! Discipline::query()

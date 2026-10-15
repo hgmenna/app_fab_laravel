@@ -13,6 +13,7 @@ use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 class EditTournament extends EditRecord
 {
@@ -28,6 +29,7 @@ class EditTournament extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $this->enforceClubScope($data);
         $data['categories'] = $this->selectedCategoryIds();
         $workflow = app(TournamentRegulationWorkflow::class);
 
@@ -43,6 +45,24 @@ class EditTournament extends EditRecord
         }
 
         return $data;
+    }
+
+    private function enforceClubScope(array &$data): void
+    {
+        $user = Auth::user();
+        $disciplineId = $data['discipline_id'] ?? $this->record->discipline_id;
+
+        if (! $user?->hasClubScopeForDiscipline($disciplineId, 'Update:Tournament')) {
+            return;
+        }
+
+        $clubIds = $user->allowedClubIds('Update:Tournament', $disciplineId);
+
+        if (($data['venue_type'] ?? null) !== 'club' || ! in_array((int) ($data['venue_id'] ?? 0), $clubIds, true)) {
+            throw ValidationException::withMessages([
+                'data.venue_id' => 'Solo podés modificar torneos del club asignado a tu usuario.',
+            ]);
+        }
     }
 
     private function selectedCategoryIds(): array

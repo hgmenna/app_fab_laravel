@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 beforeEach(function () {
-    foreach (['discipline_user_roles', 'model_has_roles', 'role_has_permissions', 'permissions', 'roles', 'tournaments', 'disciplines', 'users'] as $table) {
+    foreach (['discipline_user_roles', 'model_has_roles', 'role_has_permissions', 'permissions', 'roles', 'tournaments', 'clubs', 'disciplines', 'users'] as $table) {
         Schema::dropIfExists($table);
     }
 
@@ -50,17 +50,31 @@ beforeEach(function () {
         $table->foreignId('user_id');
         $table->foreignId('discipline_id');
         $table->foreignId('role_id');
+        $table->foreignId('club_id')->nullable();
         $table->boolean('is_active');
+        $table->timestamps();
+    });
+    Schema::create('clubs', function (Blueprint $table): void {
+        $table->id();
+        $table->string('name');
+        $table->boolean('is_active')->default(true);
         $table->timestamps();
     });
     Schema::create('tournaments', function (Blueprint $table): void {
         $table->id();
         $table->foreignId('discipline_id');
         $table->string('name');
+        $table->string('venue_type')->default('unassigned');
+        $table->foreignId('venue_id')->nullable();
         $table->timestamps();
     });
 
     DB::table('users')->insert(['id' => 1, 'name' => 'Administrador', 'email' => 'admin@example.test', 'password' => 'secret', 'created_at' => now(), 'updated_at' => now()]);
+    DB::table('users')->insert(['id' => 2, 'name' => 'Dirigente', 'email' => 'club@example.test', 'password' => 'secret', 'created_at' => now(), 'updated_at' => now()]);
+    DB::table('clubs')->insert([
+        ['id' => 10, 'name' => 'Club propio', 'created_at' => now(), 'updated_at' => now()],
+        ['id' => 20, 'name' => 'Otro club', 'created_at' => now(), 'updated_at' => now()],
+    ]);
     DB::table('disciplines')->insert([['id' => 1, 'name' => 'Pool'], ['id' => 2, 'name' => 'Carambola'], ['id' => 3, 'name' => '5 Quillas'], ['id' => 4, 'name' => 'Snooker']]);
     DB::table('roles')->insert([
         ['id' => 1, 'name' => 'Administrador de disciplina', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()],
@@ -70,23 +84,28 @@ beforeEach(function () {
         ['id' => 1, 'name' => 'ViewAny:Tournament', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()],
         ['id' => 2, 'name' => 'Update:Tournament', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()],
         ['id' => 3, 'name' => 'AssignTournamentScore', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()],
+        ['id' => 4, 'name' => 'View:Tournament', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()],
     ]);
     DB::table('role_has_permissions')->insert([
         ['permission_id' => 1, 'role_id' => 1],
         ['permission_id' => 2, 'role_id' => 1],
         ['permission_id' => 3, 'role_id' => 1],
+        ['permission_id' => 4, 'role_id' => 1],
         ['permission_id' => 1, 'role_id' => 2],
     ]);
     DB::table('discipline_user_roles')->insert([
         ['user_id' => 1, 'discipline_id' => 1, 'role_id' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
         ['user_id' => 1, 'discipline_id' => 2, 'role_id' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
         ['user_id' => 1, 'discipline_id' => 3, 'role_id' => 2, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+        ['user_id' => 2, 'discipline_id' => 1, 'role_id' => 1, 'club_id' => 10, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
     ]);
     DB::table('tournaments')->insert([
         ['id' => 1, 'discipline_id' => 1, 'name' => 'Pool', 'created_at' => now(), 'updated_at' => now()],
         ['id' => 2, 'discipline_id' => 2, 'name' => 'Carambola', 'created_at' => now(), 'updated_at' => now()],
         ['id' => 3, 'discipline_id' => 3, 'name' => '5 Quillas', 'created_at' => now(), 'updated_at' => now()],
         ['id' => 4, 'discipline_id' => 4, 'name' => 'Snooker', 'created_at' => now(), 'updated_at' => now()],
+        ['id' => 5, 'discipline_id' => 1, 'name' => 'Club propio', 'venue_type' => 'club', 'venue_id' => 10, 'created_at' => now(), 'updated_at' => now()],
+        ['id' => 6, 'discipline_id' => 1, 'name' => 'Otro club', 'venue_type' => 'club', 'venue_id' => 20, 'created_at' => now(), 'updated_at' => now()],
     ]);
 });
 
@@ -108,5 +127,17 @@ it('allows different Shield roles in multiple disciplines without leaking update
 it('limits Filament tournament queries to assigned disciplines', function () {
     $this->actingAs(User::findOrFail(1));
 
-    expect(TournamentResource::getEloquentQuery()->pluck('id')->all())->toBe([1, 2, 3]);
+    expect(TournamentResource::getEloquentQuery()->pluck('id')->all())->toBe([1, 2, 3, 5, 6]);
+});
+
+it('limits a club manager to tournaments from the assigned club', function () {
+    $user = User::findOrFail(2);
+    $policy = new TournamentPolicy;
+    $this->actingAs($user);
+
+    expect($user->allowedClubIds('Update:Tournament', 1))->toBe([10])
+        ->and(TournamentResource::getEloquentQuery()->pluck('id')->all())->toBe([5])
+        ->and($policy->update($user, Tournament::findOrFail(5)))->toBeTrue()
+        ->and($policy->update($user, Tournament::findOrFail(6)))->toBeFalse()
+        ->and($policy->update($user, Tournament::findOrFail(1)))->toBeFalse();
 });

@@ -59,12 +59,19 @@ class TournamentForm
                                     ->required()
                                     ->default(fn () => Auth::user()?->defaultDisciplineId('Create:Tournament'))
                                     ->live()
-                                    ->afterStateUpdated(function (Set $set): void {
+                                    ->afterStateUpdated(function ($state, Set $set): void {
                                         $set('tournament_type_id', null);
                                         $set('stage_number', null);
                                         $set('categories', []);
                                         $set('tournamentModalities', []);
                                         $set('manual_route_checks', []);
+
+                                        $clubId = Auth::user()?->defaultClubId('Create:Tournament', $state);
+
+                                        if ($clubId) {
+                                            $set('venue_type', 'club');
+                                            $set('venue_id', $clubId);
+                                        }
                                     }),
 
                                 Select::make('status')
@@ -84,12 +91,14 @@ class TournamentForm
 
                                 Select::make('venue_type')
                                     ->label('Tipo de sede')
-                                    ->options([
-                                        'club' => 'Club registrado',
-                                        'external' => 'Sede no registrada',
-                                        'unassigned' => 'Sin asignar',
-                                    ])
-                                    ->default('unassigned')
+                                    ->options(fn (Get $get): array => Auth::user()?->hasClubScopeForDiscipline($get('discipline_id'), 'Create:Tournament')
+                                        ? ['club' => 'Club registrado']
+                                        : [
+                                            'club' => 'Club registrado',
+                                            'external' => 'Sede no registrada',
+                                            'unassigned' => 'Sin asignar',
+                                        ])
+                                    ->default(fn (): string => Auth::user()?->defaultClubId('Create:Tournament') ? 'club' : 'unassigned')
                                     ->required()
                                     ->live()
                                     ->afterStateUpdated(function (?string $state, Set $set): void {
@@ -115,9 +124,19 @@ class TournamentForm
 
                                 Select::make('venue_id')
                                     ->label('Club organizador / sede')
-                                    ->options(fn () => Club::orderBy('name')->pluck('name', 'id'))
+                                    ->options(function (Get $get) {
+                                        $query = Club::query()->orderBy('name');
+                                        $user = Auth::user();
+
+                                        if ($user?->hasClubScopeForDiscipline($get('discipline_id'), 'Create:Tournament')) {
+                                            $query->whereKey($user->allowedClubIds('Create:Tournament', $get('discipline_id')) ?: [-1]);
+                                        }
+
+                                        return $query->pluck('name', 'id');
+                                    })
                                     ->columnSpan(5)
                                     ->searchable()
+                                    ->default(fn (Get $get) => Auth::user()?->defaultClubId('Create:Tournament', $get('discipline_id')))
                                     ->required(fn (Get $get): bool => $get('venue_type') === 'club')
                                     ->visible(fn (Get $get): bool => $get('venue_type') === 'club')
                                     ->live()

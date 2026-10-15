@@ -50,9 +50,19 @@ class UserForm
                             ->required()
                             ->searchable()
                             ->preload(),
+                        Select::make('club_id')
+                            ->relationship('club', 'name', fn ($query) => $query->orderBy('name'))
+                            ->label('Club asignado')
+                            ->helperText('Al seleccionar un club, el rol solo podrá operar con datos de ese club. Para el rol dirigente de club este campo es obligatorio.')
+                            ->searchable()
+                            ->preload()
+                            ->required(fn ($get): bool => \App\Models\Role::query()
+                                ->whereKey($get('role_id'))
+                                ->where('name', 'dirigente-club')
+                                ->exists()),
                         Toggle::make('is_active')->label('Activo')->default(true),
                     ])
-                    ->columns(3)
+                    ->columns(4)
                     ->defaultItems(0)
                     ->addActionLabel('Agregar disciplina')
                     ->columnSpanFull(),

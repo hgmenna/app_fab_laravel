@@ -34,6 +34,11 @@ class UsersTable
                     ->label('Roles por disciplina')
                     ->listWithLineBreaks()
                     ->bulleted(),
+                TextColumn::make('disciplineAssignments.club.name')
+                    ->label('Club asignado')
+                    ->placeholder('Todos los clubes')
+                    ->listWithLineBreaks()
+                    ->bulleted(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

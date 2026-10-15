@@ -19,11 +19,32 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
 
 class TournamentResource extends Resource
 {
     use ScopesToUserDisciplines;
+
+    protected static function applyAssignmentScope(Builder $query, $user): Builder
+    {
+        $assignments = $user->disciplineAssignments()
+            ->where('is_active', true)
+            ->whereHas('role.permissions', fn ($permissions) => $permissions->where('name', static::disciplineViewPermission()))
+            ->get(['discipline_id', 'club_id']);
+
+        return $query->where(function (Builder $scope) use ($assignments): void {
+            foreach ($assignments as $assignment) {
+                $scope->orWhere(function (Builder $row) use ($assignment): void {
+                    $row->where('discipline_id', $assignment->discipline_id);
+
+                    if (filled($assignment->club_id)) {
+                        $row->where('venue_type', 'club')->where('venue_id', $assignment->club_id);
+                    }
+                });
+            }
+        });
+    }
 
     protected static ?string $model = Tournament::class;
 

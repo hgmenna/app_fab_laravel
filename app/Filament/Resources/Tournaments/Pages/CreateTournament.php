@@ -10,6 +10,7 @@ use App\Services\TournamentRegulationEvaluation;
 use App\Services\TournamentRegulationWorkflow;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 class CreateTournament extends CreateRecord
 {
@@ -23,6 +24,7 @@ class CreateTournament extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $this->enforceClubScope($data);
         $data['categories'] = $this->selectedCategoryIds();
 
         try {
@@ -33,6 +35,24 @@ class CreateTournament extends CreateRecord
         }
 
         return $data;
+    }
+
+    private function enforceClubScope(array &$data): void
+    {
+        $user = Auth::user();
+        $disciplineId = $data['discipline_id'] ?? null;
+
+        if (! $user?->hasClubScopeForDiscipline($disciplineId, 'Create:Tournament')) {
+            return;
+        }
+
+        $clubIds = $user->allowedClubIds('Create:Tournament', $disciplineId);
+
+        if (($data['venue_type'] ?? null) !== 'club' || ! in_array((int) ($data['venue_id'] ?? 0), $clubIds, true)) {
+            throw ValidationException::withMessages([
+                'data.venue_id' => 'Solo podés crear torneos para el club asignado a tu usuario.',
+            ]);
+        }
     }
 
     private function selectedCategoryIds(): array

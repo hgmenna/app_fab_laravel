@@ -20,7 +20,7 @@ class PlayerPolicy
 
     public function view(User $authUser, Player $player): bool
     {
-        return $this->allowsFor($authUser, 'View:Player', $player->discipline_id);
+        return $authUser->canAccessClubInDiscipline('View:Player', $player->discipline_id, $player->club_id);
     }
 
     public function create(User $authUser): bool
@@ -34,22 +34,22 @@ class PlayerPolicy
             return $authUser->name === $player->club?->city?->state?->federation?->short_name;
         }
 
-        return $this->allowsFor($authUser, 'Update:Player', $player->discipline_id);
+        return $authUser->canAccessClubInDiscipline('Update:Player', $player->discipline_id, $player->club_id);
     }
 
     public function delete(User $authUser, Player $player): bool
     {
-        return $this->allowsFor($authUser, 'Delete:Player', $player->discipline_id);
+        return $authUser->canAccessClubInDiscipline('Delete:Player', $player->discipline_id, $player->club_id);
     }
 
     public function restore(User $authUser, Player $player): bool
     {
-        return $this->allowsFor($authUser, 'Restore:Player', $player->discipline_id);
+        return $authUser->canAccessClubInDiscipline('Restore:Player', $player->discipline_id, $player->club_id);
     }
 
     public function forceDelete(User $authUser, Player $player): bool
     {
-        return $this->allowsFor($authUser, 'ForceDelete:Player', $player->discipline_id);
+        return $authUser->canAccessClubInDiscipline('ForceDelete:Player', $player->discipline_id, $player->club_id);
     }
 
     public function forceDeleteAny(User $authUser): bool
@@ -64,7 +64,7 @@ class PlayerPolicy
 
     public function replicate(User $authUser, Player $player): bool
     {
-        return $this->allowsFor($authUser, 'Replicate:Player', $player->discipline_id);
+        return $authUser->canAccessClubInDiscipline('Replicate:Player', $player->discipline_id, $player->club_id);
     }
 
     public function reorder(User $authUser): bool

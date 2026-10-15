@@ -137,6 +137,73 @@ class User extends Authenticatable implements MustVerifyEmail
         return count($ids) === 1 ? $ids[0] : null;
     }
 
+    public function allowedClubIds(string $permission, int|string|null $disciplineId = null): array
+    {
+        return $this->disciplineAssignments()
+            ->where('is_active', true)
+            ->whereNotNull('club_id')
+            ->when(filled($disciplineId), fn ($query) => $query->where('discipline_id', $disciplineId))
+            ->whereHas('role.permissions', fn ($permissions) => $permissions->where('name', $permission))
+            ->pluck('club_id')
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function hasClubScopeForDiscipline(int|string|null $disciplineId, string $permission): bool
+    {
+        if (! filled($disciplineId) || $this->hasRole('super-admin') || ! $this->hasActiveDisciplineAssignments()) {
+            return false;
+        }
+
+        $assignment = $this->disciplineAssignments()
+            ->where('is_active', true)
+            ->where('discipline_id', $disciplineId)
+            ->whereHas('role.permissions', fn ($permissions) => $permissions->where('name', $permission))
+            ->first();
+
+        return $assignment !== null && filled($assignment->club_id);
+    }
+
+    public function canAccessClubInDiscipline(
+        string $permission,
+        int|string|null $disciplineId,
+        int|string|null $clubId,
+    ): bool {
+        if ($this->hasRole('super-admin')) {
+            return true;
+        }
+
+        if (! $this->hasActiveDisciplineAssignments()) {
+            return $this->can($permission);
+        }
+
+        if (! filled($disciplineId)) {
+            return false;
+        }
+
+        return $this->disciplineAssignments()
+            ->where('is_active', true)
+            ->where('discipline_id', $disciplineId)
+            ->whereHas('role.permissions', fn ($permissions) => $permissions->where('name', $permission))
+            ->where(function ($query) use ($clubId): void {
+                $query->whereNull('club_id');
+
+                if (filled($clubId)) {
+                    $query->orWhere('club_id', $clubId);
+                }
+            })
+            ->exists();
+    }
+
+    public function defaultClubId(string $permission, int|string|null $disciplineId = null): ?int
+    {
+        $ids = $this->allowedClubIds($permission, $disciplineId);
+
+        return count($ids) === 1 ? $ids[0] : null;
+    }
+
     public function scopeDisciplineQuery($query, string $permission)
     {
         if ($this->hasRole('super-admin') || ! $this->hasActiveDisciplineAssignments()) {

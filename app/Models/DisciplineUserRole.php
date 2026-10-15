@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class DisciplineUserRole extends Model
 {
-    protected $fillable = ['user_id', 'discipline_id', 'role_id', 'is_active'];
+    protected $fillable = ['user_id', 'discipline_id', 'role_id', 'club_id', 'is_active'];
 
     protected $casts = ['is_active' => 'boolean'];
 
@@ -23,5 +23,10 @@ class DisciplineUserRole extends Model
     public function role()
     {
         return $this->belongsTo(Role::class);
+    }
+
+    public function club()
+    {
+        return $this->belongsTo(Club::class);
     }
 }

@@ -20,7 +20,7 @@ class TournamentPolicy
 
     public function view(User $authUser, Tournament $tournament): bool
     {
-        return $this->allowsFor($authUser, 'View:Tournament', $tournament->discipline_id);
+        return $authUser->canAccessClubInDiscipline('View:Tournament', $tournament->discipline_id, $this->clubId($tournament));
     }
 
     public function create(User $authUser): bool
@@ -34,22 +34,22 @@ class TournamentPolicy
             return $authUser->name === $tournament->venue?->city?->state?->federation?->short_name;
         }
 
-        return $this->allowsFor($authUser, 'Update:Tournament', $tournament->discipline_id);
+        return $authUser->canAccessClubInDiscipline('Update:Tournament', $tournament->discipline_id, $this->clubId($tournament));
     }
 
     public function delete(User $authUser, Tournament $tournament): bool
     {
-        return $this->allowsFor($authUser, 'Delete:Tournament', $tournament->discipline_id);
+        return $authUser->canAccessClubInDiscipline('Delete:Tournament', $tournament->discipline_id, $this->clubId($tournament));
     }
 
     public function restore(User $authUser, Tournament $tournament): bool
     {
-        return $this->allowsFor($authUser, 'Restore:Tournament', $tournament->discipline_id);
+        return $authUser->canAccessClubInDiscipline('Restore:Tournament', $tournament->discipline_id, $this->clubId($tournament));
     }
 
     public function forceDelete(User $authUser, Tournament $tournament): bool
     {
-        return $this->allowsFor($authUser, 'ForceDelete:Tournament', $tournament->discipline_id);
+        return $authUser->canAccessClubInDiscipline('ForceDelete:Tournament', $tournament->discipline_id, $this->clubId($tournament));
     }
 
     public function forceDeleteAny(User $authUser): bool
@@ -64,11 +64,18 @@ class TournamentPolicy
 
     public function replicate(User $authUser, Tournament $tournament): bool
     {
-        return $this->allowsFor($authUser, 'Replicate:Tournament', $tournament->discipline_id);
+        return $authUser->canAccessClubInDiscipline('Replicate:Tournament', $tournament->discipline_id, $this->clubId($tournament));
     }
 
     public function reorder(User $authUser): bool
     {
         return $this->allowsAny($authUser, 'Reorder:Tournament');
+    }
+
+    private function clubId(Tournament $tournament): ?int
+    {
+        return $tournament->venue_type === 'club' && filled($tournament->venue_id)
+            ? (int) $tournament->venue_id
+            : null;
     }
 }

@@ -16,15 +16,22 @@ trait ScopesToUserDisciplines
             return $query;
         }
 
-        return static::applyDisciplineScope(
+        $query = static::applyDisciplineScope(
             $query,
             $user->allowedDisciplineIds(static::disciplineViewPermission()),
         );
+
+        return static::applyAssignmentScope($query, $user);
     }
 
     protected static function applyDisciplineScope(Builder $query, array $disciplineIds): Builder
     {
         return $query->whereIn($query->qualifyColumn('discipline_id'), $disciplineIds ?: [-1]);
+    }
+
+    protected static function applyAssignmentScope(Builder $query, $user): Builder
+    {
+        return $query;
     }
 
     protected static function disciplineViewPermission(): string
