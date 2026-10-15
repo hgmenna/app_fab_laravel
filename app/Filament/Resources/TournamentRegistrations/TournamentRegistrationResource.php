@@ -25,12 +25,96 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use UnitEnum;
 
 class TournamentRegistrationResource extends Resource
 {
     use ScopesToUserDisciplines;
+
+    public static function shareByWhatsAppAction(): Action
+    {
+        return Action::make('shareRegistrationWhatsApp')
+            ->label(new HtmlString(
+                '<span style="display:inline-flex;align-items:center;gap:.45rem">'
+                .'<svg aria-hidden="true" viewBox="0 0 32 32" width="18" height="18" fill="currentColor">'
+                .'<path d="M16 3A13 13 0 0 0 4.78 22.54L3 29l6.62-1.74A13 13 0 1 0 16 3Zm0 23.62c-2.1 0-4.14-.62-5.88-1.78l-.42-.25-3.93 1.03 1.05-3.82-.27-.44A10.62 10.62 0 1 1 16 26.62Zm5.82-7.95c-.32-.16-1.88-.93-2.17-1.03-.29-.11-.5-.16-.71.16-.21.32-.82 1.03-1 1.24-.19.21-.37.24-.69.08-.32-.16-1.34-.49-2.55-1.58-.94-.84-1.58-1.88-1.76-2.2-.19-.32-.02-.49.14-.65.14-.14.32-.37.48-.56.16-.19.21-.32.32-.53.11-.21.05-.4-.03-.56-.08-.16-.71-1.72-.98-2.35-.26-.62-.52-.54-.71-.55h-.61c-.21 0-.56.08-.85.4-.29.32-1.11 1.09-1.11 2.65 0 1.56 1.14 3.07 1.3 3.28.16.21 2.24 3.42 5.43 4.8.76.33 1.35.52 1.81.67.76.24 1.46.21 2.01.13.61-.09 1.88-.77 2.14-1.51.26-.74.26-1.38.19-1.51-.08-.13-.29-.21-.61-.37Z"/>'
+                .'</svg><span>Enviar constancia</span></span>',
+            ))
+            ->color('success')
+            ->disabled(fn (TournamentRegistration $record): bool => self::whatsAppRecipient($record) === null)
+            ->tooltip(fn (TournamentRegistration $record): string => self::whatsAppRecipient($record)
+                ? 'Compartir manualmente por WhatsApp'
+                : 'Los jugadores de esta inscripción no tienen teléfono cargado')
+            ->url(fn (TournamentRegistration $record): string => self::registrationWhatsAppUrl($record))
+            ->openUrlInNewTab();
+    }
+
+    public static function registrationWhatsAppUrl(TournamentRegistration $registration): string
+    {
+        $registration->loadMissing(['participants.player', 'tournament', 'tournamentModality.modality', 'slot']);
+        $recipient = self::whatsAppRecipient($registration);
+
+        if (! $recipient) {
+            return '#';
+        }
+
+        $status = match ($registration->status) {
+            'aprobado' => 'APROBADA',
+            'denegado', 'rechazado' => 'RECHAZADA',
+            default => 'PENDIENTE',
+        };
+        $pdfUrl = URL::temporarySignedRoute(
+            'tournament-registrations.pdf',
+            now()->addDays(7),
+            ['registration' => $registration],
+        );
+        $message = implode("\n", [
+            'Federación Argentina de Billar',
+            '',
+            "Inscripción {$status}",
+            'Torneo: '.($registration->tournament?->name ?? 'Sin informar'),
+            'Jugador/es: '.$registration->participant_names,
+            'Modalidad: '.($registration->tournamentModality?->modality?->name ?? 'Sin modalidad'),
+            'Horario: '.($registration->slot?->name ?? 'Sin asignar'),
+            '',
+            'Descargar constancia:',
+            $pdfUrl,
+        ]);
+
+        return "https://wa.me/{$recipient}?text=".rawurlencode($message);
+    }
+
+    public static function whatsAppRecipient(TournamentRegistration $registration): ?string
+    {
+        $registration->loadMissing(['participants.player', 'player']);
+        $phone = $registration->participants
+            ->pluck('player.phone')
+            ->first(fn ($value): bool => filled($value)) ?: $registration->player?->phone;
+        $digits = preg_replace('/\D+/', '', (string) $phone);
+
+        if (! $digits) {
+            return null;
+        }
+
+        $digits = preg_replace('/^00/', '', $digits);
+        if (str_starts_with($digits, '54')) {
+            $nationalNumber = ltrim(substr($digits, 2), '0');
+
+            return str_starts_with($nationalNumber, '9')
+                ? '54'.$nationalNumber
+                : '549'.$nationalNumber;
+        }
+
+        $digits = ltrim($digits, '0');
+        if (strlen($digits) === 10) {
+            $digits = '549'.$digits;
+        }
+
+        return $digits;
+    }
 
     protected static ?string $model = TournamentRegistration::class;
 

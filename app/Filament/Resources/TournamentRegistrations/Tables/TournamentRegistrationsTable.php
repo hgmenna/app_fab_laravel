@@ -253,6 +253,7 @@ class TournamentRegistrationsTable
             ])
             ->recordActions([
                 GlobalActionGroup::make([
+                    TournamentRegistrationResource::shareByWhatsAppAction(),
                     GlobalViewAction::make(),
                     GlobalEditAction::make()
                         ->visible(fn () => Auth::user()?->canGloballyOrInAnyDiscipline('EditField'))

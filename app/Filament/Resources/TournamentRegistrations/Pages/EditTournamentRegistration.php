@@ -23,6 +23,7 @@ class EditTournamentRegistration extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            TournamentRegistrationResource::shareByWhatsAppAction(),
             AdminNotifier::notifyAction(
                 DeleteAction::make(),
                 $this,
