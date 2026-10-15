@@ -225,15 +225,15 @@ class TournamentRegistrationResource extends Resource
         return Action::make('asignarInstancia')
             ->label('Asignar posición')
             ->authorize(
-                fn (?TournamentRegistration $record): bool => Auth::user()?->canGloballyOrForDiscipline(
+                fn (?TournamentRegistration $record): bool => Auth::user()?->canAccessTournament(
                     'AssignTournamentScore',
-                    $record?->tournament?->discipline_id,
+                    $record?->tournament,
                 ) ?? false
             )
             ->visible(
-                fn (?TournamentRegistration $record): bool => (Auth::user()?->canGloballyOrForDiscipline(
+                fn (?TournamentRegistration $record): bool => (Auth::user()?->canAccessTournament(
                     'AssignTournamentScore',
-                    $record?->tournament?->discipline_id,
+                    $record?->tournament,
                 ) ?? false)
                     && $record?->tournament?->start_date < now()
             )

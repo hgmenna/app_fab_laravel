@@ -204,6 +204,19 @@ class User extends Authenticatable implements MustVerifyEmail
         return count($ids) === 1 ? $ids[0] : null;
     }
 
+    public function canAccessTournament(string $permission, ?Tournament $tournament): bool
+    {
+        if (! $tournament) {
+            return false;
+        }
+
+        return $this->canAccessClubInDiscipline(
+            $permission,
+            $tournament->discipline_id,
+            $tournament->venue_type === 'club' ? $tournament->venue_id : null,
+        );
+    }
+
     public function scopeDisciplineQuery($query, string $permission)
     {
         if ($this->hasRole('super-admin') || ! $this->hasActiveDisciplineAssignments()) {

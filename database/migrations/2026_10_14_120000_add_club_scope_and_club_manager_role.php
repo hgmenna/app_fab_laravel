@@ -30,6 +30,7 @@ return new class extends Migration
             'ViewAny:Tournament', 'View:Tournament', 'Create:Tournament', 'Update:Tournament',
             'ViewAny:TournamentRegistration', 'View:TournamentRegistration',
             'Create:TournamentRegistration', 'Update:TournamentRegistration',
+            'AssignTournamentScore',
             'ViewAny:Player', 'View:Player', 'Create:Player', 'Update:Player',
         ];
 

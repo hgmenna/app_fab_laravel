@@ -139,5 +139,7 @@ it('limits a club manager to tournaments from the assigned club', function () {
         ->and(TournamentResource::getEloquentQuery()->pluck('id')->all())->toBe([5])
         ->and($policy->update($user, Tournament::findOrFail(5)))->toBeTrue()
         ->and($policy->update($user, Tournament::findOrFail(6)))->toBeFalse()
+        ->and($user->canAccessTournament('AssignTournamentScore', Tournament::findOrFail(5)))->toBeTrue()
+        ->and($user->canAccessTournament('AssignTournamentScore', Tournament::findOrFail(6)))->toBeFalse()
         ->and($policy->update($user, Tournament::findOrFail(1)))->toBeFalse();
 });

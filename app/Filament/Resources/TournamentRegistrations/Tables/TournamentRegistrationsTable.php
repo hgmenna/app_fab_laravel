@@ -339,9 +339,9 @@ class TournamentRegistrationsTable
                         ->visible(fn (TournamentRegistration $record): bool => ThreeCushionRankingService::isThreeCushion($record->tournament?->discipline)
                             && $record->status === 'aprobado'
                             && $record->points !== null
-                            && (Auth::user()?->canGloballyOrForDiscipline(
+                            && (Auth::user()?->canAccessTournament(
                                 'AssignTournamentScore',
-                                $record->tournament?->discipline_id,
+                                $record->tournament,
                             ) ?? false)),
                     Action::make('cambiarEstado')
                         ->label('Cambiar Estado')
@@ -403,9 +403,9 @@ class TournamentRegistrationsTable
                 $resolvedTournament = self::resolveTournament($tournament, $livewire);
 
                 return $resolvedTournament
-                    && (Auth::user()?->canGloballyOrForDiscipline(
+                    && (Auth::user()?->canAccessTournament(
                         'Update:TournamentRegistration',
-                        $resolvedTournament->discipline_id,
+                        $resolvedTournament,
                     ) ?? false);
             })
             ->schema([
@@ -466,9 +466,9 @@ class TournamentRegistrationsTable
 
                 abort_unless($resolvedTournament, 404);
                 abort_unless(
-                    Auth::user()?->canGloballyOrForDiscipline(
+                    Auth::user()?->canAccessTournament(
                         'Update:TournamentRegistration',
-                        $resolvedTournament->discipline_id,
+                        $resolvedTournament,
                     ),
                     403,
                 );
@@ -555,9 +555,9 @@ class TournamentRegistrationsTable
                 return $resolvedTournament
                     && (bool) $resolvedTournament->type?->assigns_points
                     && $resolvedTournament->type?->scoring_method === 'position'
-                    && (Auth::user()?->canGloballyOrForDiscipline(
+                    && (Auth::user()?->canAccessTournament(
                         'AssignTournamentScore',
-                        $resolvedTournament->discipline_id,
+                        $resolvedTournament,
                     ) ?? false)
                     && $resolvedTournament->start_date < now();
             })
@@ -688,9 +688,9 @@ class TournamentRegistrationsTable
 
                 abort_unless($resolvedTournament, 404);
                 abort_unless(
-                    Auth::user()?->canGloballyOrForDiscipline(
+                    Auth::user()?->canAccessTournament(
                         'AssignTournamentScore',
-                        $resolvedTournament->discipline_id,
+                        $resolvedTournament,
                     ),
                     403,
                 );
