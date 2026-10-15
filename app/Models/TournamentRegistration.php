@@ -46,6 +46,11 @@ class TournamentRegistration extends Model
         return $this->belongsTo(Tournament::class);
     }
 
+    public function bankTransferOrderItems()
+    {
+        return $this->morphMany(BankTransferOrderItem::class, 'payable');
+    }
+
     public function tournamentModality()
     {
         return $this->belongsTo(TournamentModality::class);
@@ -146,6 +151,14 @@ class TournamentRegistration extends Model
             if (! $tournament) {
                 throw ValidationException::withMessages([
                     'tournament_id' => 'El torneo seleccionado no existe.',
+                ]);
+            }
+
+            if ($registration->status === 'aprobado'
+                && $tournament->is_payment_enabled
+                && $registration->payment_status !== 'paid') {
+                throw ValidationException::withMessages([
+                    'status' => 'No se puede aprobar la inscripción hasta que Tesorería acredite la transferencia.',
                 ]);
             }
 
@@ -314,6 +327,10 @@ class TournamentRegistration extends Model
             $registration->participants()->delete();
             foreach ($registration->player_ids ?? [] as $index => $playerId) {
                 $registration->participants()->create(['player_id' => $playerId, 'position' => $index + 1]);
+            }
+
+            if ($registration->wasRecentlyCreated) {
+                app(\App\Services\BankTransferService::class)->createTournamentRegistrationOrder($registration->fresh());
             }
         });
 

@@ -7,6 +7,7 @@ use App\Models\Club;
 use App\Models\Membership;
 use App\Models\Player;
 use App\Models\PlayerMembership;
+use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -42,59 +43,14 @@ class AnnualMembershipService
             ]);
         }
 
-        $renewals = DB::transaction(function () use ($membership, $players, $club): Collection {
-            return $players->map(function (Player $player) use ($membership, $club): PlayerMembership {
-                if ((int) $player->discipline_id !== (int) $membership->discipline_id) {
-                    throw ValidationException::withMessages([
-                        'player_ids' => "{$player->full_name} no pertenece a la disciplina seleccionada.",
-                    ]);
-                }
+        $order = app(BankTransferService::class)->createMembershipOrder($membership, $players, $club);
 
-                $playerMembership = PlayerMembership::query()->firstOrNew([
-                    'player_id' => $player->id,
-                    'membership_id' => $membership->id,
-                ]);
-                $operation = $playerMembership->exists ? 'Renovación' : 'Nueva membresía';
-                $playerMembership->fill([
-                    'club_id' => $club?->id,
-                    'amount_due' => $membership->amount,
-                    'amount_paid' => $membership->amount,
-                    'status' => 'paid',
-                    'enabled_to_compete' => true,
-                    'paid_at' => now(),
-                ])->save();
-
-                $playerMembership->payments()->updateOrCreate(
-                    ['external_reference' => "RENOVACION-{$membership->year}-{$player->id}"],
-                    [
-                        'payer_type' => $club ? 'club' : 'player',
-                        'payer_id' => $club?->id ?? $player->id,
-                        'amount' => $membership->amount,
-                        'method' => 'manual',
-                        'status' => 'approved',
-                    ],
-                );
-
-                $player->update([
-                    'club_id' => $club?->id,
-                    'is_active' => true,
-                    'is_enabled_to_compete' => true,
-                ]);
-
-                $playerMembership->setAttribute('operation_label', $operation);
-
-                return $playerMembership;
-            });
-        });
-
-        $this->sendConfirmation($membership, $renewals);
-
-        return $renewals;
+        return $order->items->map(fn ($item) => $item->payable()->first())->filter()->values();
     }
 
-    private function sendConfirmation(Membership $membership, Collection $renewals): void
+    public function sendConfirmation(Membership $membership, Collection $renewals, ?User $recipient = null): void
     {
-        $user = Auth::user();
+        $user = $recipient ?? Auth::user();
 
         if (! $user || blank($user->email) || $renewals->isEmpty()) {
             return;

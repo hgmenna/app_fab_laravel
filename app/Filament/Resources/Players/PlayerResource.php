@@ -364,8 +364,9 @@ class PlayerResource extends Resource
 
         if ($renewed->isNotEmpty()) {
             Notification::make()
-                ->title($renewed->count().' membresías renovadas')
-                ->success()
+                ->title('Orden de transferencia generada')
+                ->body($renewed->count().' membresías quedaron pendientes de pago. Cargá el comprobante en Pagos por transferencia.')
+                ->info()
                 ->send();
         }
     }
@@ -813,9 +814,9 @@ class PlayerResource extends Resource
                 $renewed = app(AnnualMembershipService::class)->renew($membership, $players, $clubId ? Club::findOrFail($clubId) : null);
 
                 Notification::make()
-                    ->success()
-                    ->title($renewed->count().' membresías renovadas')
-                    ->body('Los jugadores quedaron habilitados y se registró el club correspondiente al año '.$membership->year.'.')
+                    ->info()
+                    ->title('Orden de transferencia generada')
+                    ->body($renewed->count().' membresías quedaron pendientes. Los jugadores se habilitarán cuando Tesorería apruebe el pago.')
                     ->send();
             });
     }

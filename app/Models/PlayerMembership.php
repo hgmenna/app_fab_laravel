@@ -53,6 +53,11 @@ class PlayerMembership extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function bankTransferOrderItems()
+    {
+        return $this->morphMany(BankTransferOrderItem::class, 'payable');
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Lógica de negocio

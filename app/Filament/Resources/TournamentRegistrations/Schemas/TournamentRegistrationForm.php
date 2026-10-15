@@ -9,13 +9,11 @@ use App\Models\Player;
 use App\Models\Tournament;
 use App\Models\TournamentModality;
 use App\Models\TournamentSlot;
-use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class TournamentRegistrationForm
 {
@@ -63,15 +61,6 @@ class TournamentRegistrationForm
                         $slot->id => $slot->name.' — '.$slot->starts_at?->format('d/m/Y H:i').' ('.($slot->max_players - $slot->occupiedPlaces()).' cupos)',
                     ])->all();
             })->native(false),
-            FileUpload::make('payment_file')->label('Comprobante de pago')->disk('public_path')->visibility('public')->directory('pagos')->openable()
-                ->getUploadedFileNameForStorageUsing(function (Get $get, TemporaryUploadedFile $file): string {
-                    $player = Player::find(collect($get('player_ids'))->first());
-
-                    return str(($player?->full_name ?? 'inscripcion').'-'.now()->timestamp)->slug().'.'.$file->getClientOriginalExtension();
-                })
-                ->visible(fn (Get $get, $livewire): bool => self::resolveTournament($get, $livewire, $tournament)?->is_payment_enabled ?? false)
-                ->required(fn (Get $get, $livewire): bool => (self::resolveTournament($get, $livewire, $tournament)?->is_payment_enabled ?? false)
-                    && ! (Auth::user()?->hasRole('super-admin') ?? false)),
             Select::make('status')->options(['pendiente' => 'Pendiente', 'aprobado' => 'Aprobado', 'rechazado' => 'Rechazado'])
                 ->default('pendiente')->disabled(fn (): bool => ! (Auth::user()?->canGloballyOrInAnyDiscipline('UpdateStatusTournament') ?? false))->dehydrated(),
         ]);

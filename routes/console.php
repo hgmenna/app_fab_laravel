@@ -22,3 +22,8 @@ Schedule::command('memberships:expire-overdue')
     ->dailyAt('00:15')
     ->timezone('America/Argentina/Buenos_Aires')
     ->withoutOverlapping();
+
+Schedule::command('bank-transfers:expire')
+    ->dailyAt('00:20')
+    ->timezone('America/Argentina/Buenos_Aires')
+    ->withoutOverlapping();
