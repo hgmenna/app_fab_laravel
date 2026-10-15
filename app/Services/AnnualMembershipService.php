@@ -2,13 +2,18 @@
 
 namespace App\Services;
 
+use App\Mail\MembershipRenewalConfirmation;
 use App\Models\Club;
 use App\Models\Membership;
 use App\Models\Player;
 use App\Models\PlayerMembership;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class AnnualMembershipService
 {
@@ -37,7 +42,7 @@ class AnnualMembershipService
             ]);
         }
 
-        return DB::transaction(function () use ($membership, $players, $club): Collection {
+        $renewals = DB::transaction(function () use ($membership, $players, $club): Collection {
             return $players->map(function (Player $player) use ($membership, $club): PlayerMembership {
                 if ((int) $player->discipline_id !== (int) $membership->discipline_id) {
                     throw ValidationException::withMessages([
@@ -49,6 +54,7 @@ class AnnualMembershipService
                     'player_id' => $player->id,
                     'membership_id' => $membership->id,
                 ]);
+                $operation = $playerMembership->exists ? 'Renovación' : 'Nueva membresía';
                 $playerMembership->fill([
                     'club_id' => $club?->id,
                     'amount_due' => $membership->amount,
@@ -75,9 +81,40 @@ class AnnualMembershipService
                     'is_enabled_to_compete' => true,
                 ]);
 
+                $playerMembership->setAttribute('operation_label', $operation);
+
                 return $playerMembership;
             });
         });
+
+        $this->sendConfirmation($membership, $renewals);
+
+        return $renewals;
+    }
+
+    private function sendConfirmation(Membership $membership, Collection $renewals): void
+    {
+        $user = Auth::user();
+
+        if (! $user || blank($user->email) || $renewals->isEmpty()) {
+            return;
+        }
+
+        $copies = AdminNotifier::recipientEmails()
+            ? collect(AdminNotifier::recipientEmails())->reject(fn (string $email): bool => strcasecmp($email, $user->email) === 0)->values()->all()
+            : [];
+
+        try {
+            Mail::to($user->email)
+                ->cc($copies)
+                ->send(new MembershipRenewalConfirmation($membership, $renewals, $user));
+        } catch (Throwable $exception) {
+            Log::error('No se pudo enviar el comprobante de membresías.', [
+                'message' => $exception->getMessage(),
+                'user_id' => $user->id,
+                'membership_id' => $membership->id,
+            ]);
+        }
     }
 
     public function expireOverdue(): int
