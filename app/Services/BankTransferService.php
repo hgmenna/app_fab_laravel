@@ -106,6 +106,37 @@ class BankTransferService
 
         return DB::transaction(function () use ($registration, $setting, $amount): BankTransferOrder {
             $registration->updateQuietly(['price' => $amount, 'payment_status' => 'pending']);
+
+            $registrationIds = TournamentRegistration::query()
+                ->where('tournament_id', $registration->tournament_id)
+                ->select('id');
+            $order = BankTransferOrder::query()
+                ->where('user_id', Auth::id())
+                ->where('purpose', 'tournament_registration')
+                ->where('status', 'pending')
+                ->whereNull('receipt_path')
+                ->whereHas('items', fn ($items) => $items
+                    ->where('payable_type', $registration->getMorphClass())
+                    ->whereIn('payable_id', $registrationIds))
+                ->lockForUpdate()
+                ->latest('id')
+                ->first();
+
+            if ($order) {
+                $order->items()->create([
+                    'payable_type' => $registration->getMorphClass(),
+                    'payable_id' => $registration->getKey(),
+                    'description' => "Inscripción — {$registration->tournament->name} — {$registration->participant_names}",
+                    'amount' => $amount,
+                ]);
+                $order->update([
+                    'amount' => $order->items()->sum('amount'),
+                    'expires_at' => today()->addDays($setting->expires_in_days),
+                ]);
+
+                return $order->refresh()->load('items');
+            }
+
             $order = BankTransferOrder::query()->create([
                 'code' => $this->nextCode(),
                 'user_id' => Auth::id(),

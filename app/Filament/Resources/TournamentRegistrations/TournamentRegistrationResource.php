@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TournamentRegistrations;
 
+use App\Filament\Resources\BankTransferOrders\BankTransferOrderResource;
 use App\Filament\Resources\Concerns\ScopesToUserDisciplines;
 use App\Filament\Resources\TournamentRegistrations\Pages\CreateTournamentRegistration;
 use App\Filament\Resources\TournamentRegistrations\Pages\EditTournamentRegistration;
@@ -33,6 +34,24 @@ use UnitEnum;
 class TournamentRegistrationResource extends Resource
 {
     use ScopesToUserDisciplines;
+
+    public static function paymentOrderUrl(TournamentRegistration $registration): ?string
+    {
+        $registration->loadMissing('tournament');
+
+        if (! $registration->tournament?->is_payment_enabled) {
+            return null;
+        }
+
+        $order = $registration->bankTransferOrderItems()
+            ->with('order')
+            ->latest('id')
+            ->first()?->order;
+
+        return $order
+            ? BankTransferOrderResource::getUrl('edit', ['record' => $order])
+            : null;
+    }
 
     public static function shareByWhatsAppAction(): Action
     {

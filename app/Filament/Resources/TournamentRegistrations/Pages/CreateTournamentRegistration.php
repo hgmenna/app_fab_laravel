@@ -16,7 +16,8 @@ class CreateTournamentRegistration extends CreateRecord
 
     protected function getRedirectUrl(): string
     {
-        return $this->getResource()::getUrl('index');
+        return TournamentRegistrationResource::paymentOrderUrl($this->record)
+            ?? $this->getResource()::getUrl('index');
     }
 
     protected function afterCreate(): void

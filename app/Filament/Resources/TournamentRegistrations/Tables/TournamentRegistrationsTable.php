@@ -218,9 +218,17 @@ class TournamentRegistrationsTable
 
                         return $data;
                     })
-                    ->successNotificationTitle('Inscripción realizada con éxito')
+                    ->successNotificationTitle('Inscripción registrada. Continúe con el pago si corresponde.')
                     // Opcional: Lógica después de crear [105 de tu error]
-                    ->after(function ($livewire) {
+                    ->after(function (TournamentRegistration $record, $livewire) {
+                        $paymentUrl = TournamentRegistrationResource::paymentOrderUrl($record);
+
+                        if ($paymentUrl) {
+                            $livewire->redirect($paymentUrl);
+
+                            return;
+                        }
+
                         $livewire->dispatch('refreshTable');
                     }
                     ),

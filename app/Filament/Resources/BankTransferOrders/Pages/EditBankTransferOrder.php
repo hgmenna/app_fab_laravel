@@ -3,6 +3,9 @@
 namespace App\Filament\Resources\BankTransferOrders\Pages;
 
 use App\Filament\Resources\BankTransferOrders\BankTransferOrderResource;
+use App\Filament\Resources\Tournaments\TournamentResource;
+use App\Models\Tournament;
+use App\Models\TournamentRegistration;
 use App\Services\BankTransferService;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\EditRecord;
@@ -15,6 +18,17 @@ class EditBankTransferOrder extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('addTournamentRegistration')
+                ->label('Agregar otra inscripción')
+                ->icon('heroicon-o-user-plus')
+                ->color('info')
+                ->visible(fn (): bool => $this->record->purpose === 'tournament_registration'
+                    && $this->record->status === 'pending'
+                    && blank($this->record->receipt_path)
+                    && $this->registrationTournament() !== null)
+                ->url(fn (): string => TournamentResource::getUrl('registrations', [
+                    'record' => $this->registrationTournament(),
+                ])),
             BankTransferOrderResource::shareByWhatsAppAction(),
             Action::make('submit')->label('Enviar a revisión')->icon('heroicon-o-paper-airplane')->color('primary')
                 ->visible(fn (): bool => in_array($this->record->status, ['pending', 'observed'], true))
@@ -46,5 +60,15 @@ class EditBankTransferOrder extends EditRecord
     protected function getRedirectUrl(): string
     {
         return BankTransferOrderResource::getUrl('index');
+    }
+
+    private function registrationTournament(): ?Tournament
+    {
+        $item = $this->record->items()
+            ->where('payable_type', (new TournamentRegistration)->getMorphClass())
+            ->with('payable.tournament')
+            ->first();
+
+        return $item?->payable?->tournament;
     }
 }
