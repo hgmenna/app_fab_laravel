@@ -4,12 +4,16 @@ use App\Http\Controllers\FiveQuillasRankingController;
 use App\Http\Controllers\FiveQuillasRankingPdfController;
 use App\Http\Controllers\ThreeCushionRankingController;
 use App\Http\Controllers\UpcomingTournamentsController;
+use App\Http\Controllers\BankTransferOrderPdfController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/torneos-proximos.json', UpcomingTournamentsController::class);
 Route::get('/ranking-carambola-3-bandas.json', ThreeCushionRankingController::class);
 Route::get('/ranking-5-quillas.json', FiveQuillasRankingController::class);
 Route::get('/ranking-5-quillas.pdf', FiveQuillasRankingPdfController::class);
+Route::get('/ordenes-transferencia/{order}/pdf', BankTransferOrderPdfController::class)
+    ->middleware('signed')
+    ->name('bank-transfer-orders.pdf');
 
 Route::get('/', function () {
     return view('welcome');

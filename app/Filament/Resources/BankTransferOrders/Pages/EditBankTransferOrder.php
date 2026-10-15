@@ -15,6 +15,7 @@ class EditBankTransferOrder extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            BankTransferOrderResource::shareByWhatsAppAction(),
             Action::make('submit')->label('Enviar a revisión')->icon('heroicon-o-paper-airplane')->color('primary')
                 ->visible(fn (): bool => in_array($this->record->status, ['pending', 'observed'], true))
                 ->action(function (): void {

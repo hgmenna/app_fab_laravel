@@ -27,6 +27,8 @@ use Filament\Tables\Table;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\HtmlString;
 use UnitEnum;
 
 class BankTransferOrderResource extends Resource
@@ -134,6 +136,7 @@ class BankTransferOrderResource extends Resource
             SelectFilter::make('purpose')->label('Concepto')->options(['membership' => 'Membresías', 'tournament_registration' => 'Inscripción']),
         ])->recordActions([
             EditAction::make()->label('Ver / cargar comprobante'),
+            self::shareByWhatsAppAction(),
             Action::make('download')->label('Orden PDF')->icon('heroicon-o-arrow-down-tray')
                 ->action(function (BankTransferOrder $record) {
                     $record->load(['items.payable', 'club', 'discipline', 'user']);
@@ -182,5 +185,43 @@ class BankTransferOrderResource extends Resource
             'observed' => 'Observada', 'approved' => 'Aprobada', 'rejected' => 'Rechazada',
             'expired' => 'Vencida', 'cancelled' => 'Anulada',
         ];
+    }
+
+    public static function shareByWhatsAppAction(): Action
+    {
+        return Action::make('shareWhatsApp')
+            ->label(new HtmlString(
+                '<span style="display:inline-flex;align-items:center;gap:.45rem">'
+                .'<svg aria-hidden="true" viewBox="0 0 32 32" width="18" height="18" fill="currentColor">'
+                .'<path d="M16 3A13 13 0 0 0 4.78 22.54L3 29l6.62-1.74A13 13 0 1 0 16 3Zm0 23.62c-2.1 0-4.14-.62-5.88-1.78l-.42-.25-3.93 1.03 1.05-3.82-.27-.44A10.62 10.62 0 1 1 16 26.62Zm5.82-7.95c-.32-.16-1.88-.93-2.17-1.03-.29-.11-.5-.16-.71.16-.21.32-.82 1.03-1 1.24-.19.21-.37.24-.69.08-.32-.16-1.34-.49-2.55-1.58-.94-.84-1.58-1.88-1.76-2.2-.19-.32-.02-.49.14-.65.14-.14.32-.37.48-.56.16-.19.21-.32.32-.53.11-.21.05-.4-.03-.56-.08-.16-.71-1.72-.98-2.35-.26-.62-.52-.54-.71-.55h-.61c-.21 0-.56.08-.85.4-.29.32-1.11 1.09-1.11 2.65 0 1.56 1.14 3.07 1.3 3.28.16.21 2.24 3.42 5.43 4.8.76.33 1.35.52 1.81.67.76.24 1.46.21 2.01.13.61-.09 1.88-.77 2.14-1.51.26-.74.26-1.38.19-1.51-.08-.13-.29-.21-.61-.37Z"/>'
+                .'</svg><span>Compartir por WhatsApp</span></span>',
+            ))
+            ->color('success')
+            ->url(fn (BankTransferOrder $record): string => self::whatsAppShareUrl($record))
+            ->openUrlInNewTab();
+    }
+
+    public static function whatsAppShareUrl(BankTransferOrder $order): string
+    {
+        $order->loadMissing('items');
+        $pdfUrl = URL::temporarySignedRoute(
+            'bank-transfer-orders.pdf',
+            now()->addDays(7),
+            ['order' => $order],
+        );
+        $concept = $order->purpose === 'membership' ? 'membresías anuales' : 'inscripción al torneo';
+        $message = implode("\n", [
+            'Federación Argentina de Billar',
+            '',
+            "Orden: {$order->code}",
+            "Concepto: {$concept}",
+            'Importe: $ '.number_format((float) $order->amount, 2, ',', '.'),
+            'Vencimiento: '.($order->expires_at?->format('d/m/Y') ?? 'Sin vencimiento'),
+            '',
+            'Descargar orden de pago:',
+            $pdfUrl,
+        ]);
+
+        return 'https://wa.me/?text='.rawurlencode($message);
     }
 }
