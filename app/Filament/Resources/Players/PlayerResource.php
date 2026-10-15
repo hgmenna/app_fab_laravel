@@ -21,11 +21,13 @@ use App\Models\GeneralRanking;
 use App\Models\Membership;
 use App\Models\Player;
 use App\Services\AdminNotifier;
+use App\Services\AnnualMembershipService;
 use App\Services\PlayerCategoryChangeService;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
@@ -330,89 +332,42 @@ class PlayerResource extends Resource
 
     public static function processPayMembership($records): void
     {
-        // Normalizar: si es un solo registro, convertirlo en array
-        $records = is_iterable($records) ? $records : [$records];
+        $players = collect(is_iterable($records) ? $records : [$records]);
+        $renewed = collect();
 
-        foreach ($records as $record) {
-            try {
-                // 1) Buscar membresía activa del año actual
-                $activeMembership = Membership::where('active', true)
-                    ->where('year', now()->year)
-                    ->where('discipline_id', $record->discipline_id)
-                    ->first();
+        foreach ($players->groupBy('discipline_id') as $disciplineId => $disciplinePlayers) {
+            $membership = Membership::query()
+                ->where('active', true)
+                ->where('year', now()->year)
+                ->where('discipline_id', $disciplineId)
+                ->first();
 
-                if (! $activeMembership) {
-                    // Crear membresía activa automáticamente
-                    $activeMembership = Membership::create([
-                        'year' => now()->year,
-                        'discipline_id' => $record->discipline_id ?? 1, // Ajustar según tu lógica
-                        'amount' => 0, // O el monto institucional que corresponda
-                        'active' => true,
-                    ]);
-                }
-
-                // 2) Buscar membresía del jugador para el año actual
-                $playerMembership = $record->memberships()
-                    ->where('membership_id', $activeMembership->id)
-                    ->first();
-
-                // 3) Si ya existe y está aprobada → habilitar y continuar
-                if ($playerMembership && $playerMembership->status === 'approved') {
-                    $record->update(['is_enabled_to_compete' => true]);
-
-                    continue;
-                }
-
-                // 4) Si no existe → crearla
-                if (! $playerMembership) {
-                    $playerMembership = $record->memberships()->create([
-                        'membership_id' => $activeMembership->id,
-                        'club_id' => $record->club_id,
-                        'amount_due' => $activeMembership->amount,
-                        'amount_paid' => 0,
-                        'status' => 'pending',
-                    ]);
-                }
-
-                // 5) Registrar pago
-                $payment = $playerMembership->payments()->create([
-                    'payer_type' => 'player',
-                    'payer_id' => $record->id,
-                    'amount' => $activeMembership->amount,
-                    'method' => 'manual',
-                    'status' => 'pending',
-                    'external_reference' => 'MANUAL-'.uniqid(),
-                ]);
-
-                // 6) Aprobar pago
-                $payment->approve();
-
-                // 7) Habilitar jugador
-                $record->update(['is_enabled_to_compete' => true]);
-
-                // 8) Notificación institucional
-                AdminNotifier::send(
-                    pageInstance: null,
-                    record: $record,
-                    operation: 'habilitó para competir (Pago Membresía)',
-                    displayFields: ['last_name', 'first_name'],
-                    customResourceName: 'jugador'
-                );
-
-            } catch (\Throwable $e) {
-                AdminNotifier::sendException($e);
-
+            if (! $membership) {
                 Notification::make()
-                    ->title('Error en el proceso')
+                    ->title('Membresía anual sin configurar')
+                    ->body('Configurá primero el año, importe y fecha de cierre de la disciplina.')
                     ->danger()
+                    ->persistent()
                     ->send();
+
+                continue;
+            }
+
+            foreach ($disciplinePlayers->groupBy(fn (Player $player) => $player->club_id ?? 0) as $clubId => $clubPlayers) {
+                $renewed = $renewed->concat(app(AnnualMembershipService::class)->renew(
+                    $membership,
+                    $clubPlayers,
+                    $clubId ? Club::find((int) $clubId) : null,
+                ));
             }
         }
 
-        Notification::make()
-            ->title('Proceso completado')
-            ->success()
-            ->send();
+        if ($renewed->isNotEmpty()) {
+            Notification::make()
+                ->title($renewed->count().' membresías renovadas')
+                ->success()
+                ->send();
+        }
     }
 
     // Accion Exportar registros filtrados en archivo Pdf
@@ -714,5 +669,154 @@ class PlayerResource extends Resource
                 }
             })
             ->successNotification(null);
+    }
+
+    public static function configureAnnualMembershipAction(): Action
+    {
+        return Action::make('configureAnnualMembership')
+            ->label('Configurar membresía anual')
+            ->icon('heroicon-o-calendar-days')
+            ->color('gray')
+            ->visible(fn (): bool => Auth::user()?->hasRole('super-admin') ?? false)
+            ->modalHeading('Configuración anual por disciplina')
+            ->modalDescription('Definí el importe y la fecha de cierre. Desde esa fecha se inhabilitará automáticamente a quien no haya renovado.')
+            ->schema([
+                TextInput::make('year')->label('Año')->integer()->minValue(2020)->maxValue(2100)->default(now()->year)->required(),
+                Select::make('discipline_id')
+                    ->label('Disciplina')
+                    ->options(fn (): array => Discipline::query()->where('active', true)->orderBy('name')->pluck('name', 'id')->all())
+                    ->searchable()->preload()->required(),
+                TextInput::make('amount')->label('Importe anual')->numeric()->prefix('$')->minValue(0)->required(),
+                DatePicker::make('due_date')
+                    ->label('Fecha de cierre')
+                    ->helperText('A partir de esta fecha se inhabilitan los jugadores que no renovaron.')
+                    ->required(),
+            ])
+            ->action(function (array $data): void {
+                app(AnnualMembershipService::class)->configure(
+                    (int) $data['year'],
+                    (int) $data['discipline_id'],
+                    (float) $data['amount'],
+                    (string) $data['due_date'],
+                );
+
+                Notification::make()->success()->title('Membresía anual configurada')->send();
+            });
+    }
+
+    public static function renewClubMembershipsAction(): Action
+    {
+        return Action::make('renewClubMemberships')
+            ->label('Renovación masiva')
+            ->icon('heroicon-o-arrow-path-rounded-square')
+            ->color('success')
+            ->visible(fn (): bool => Auth::user()?->canGloballyOrInAnyDiscipline('RenewClubMemberships') ?? false)
+            ->modalHeading('Renovación masiva de membresías')
+            ->modalDescription('Elegí la disciplina, el club que representarán este año y los jugadores a renovar.')
+            ->modalSubmitActionLabel('Renovar seleccionados')
+            ->modalWidth('7xl')
+            ->schema([
+                TextInput::make('year')
+                    ->label('Año')->integer()->default(now()->year)->required()->live()
+                    ->afterStateUpdated(fn ($set) => $set('player_ids', [])),
+                Select::make('discipline_id')
+                    ->label('Disciplina')
+                    ->options(function (): array {
+                        $query = Discipline::query()->where('active', true)->orderBy('name');
+
+                        return Auth::user()?->scopeDisciplineQuery($query, 'RenewClubMemberships')->pluck('name', 'id')->all() ?? [];
+                    })
+                    ->default(fn () => Auth::user()?->defaultDisciplineId('RenewClubMemberships'))
+                    ->searchable()->preload()->required()->live()
+                    ->afterStateUpdated(function ($state, $set): void {
+                        $set('club_id', Auth::user()?->defaultClubId('RenewClubMemberships', $state));
+                        $set('player_ids', []);
+                    }),
+                Select::make('club_id')
+                    ->label('Club / sala para este año')
+                    ->options(function ($get): array {
+                        $query = Club::query()->where('is_active', true)->orderBy('name');
+                        $user = Auth::user();
+                        $disciplineId = $get('discipline_id');
+
+                        if ($user?->hasClubScopeForDiscipline($disciplineId, 'RenewClubMemberships')) {
+                            $query->whereKey($user->allowedClubIds('RenewClubMemberships', $disciplineId) ?: [-1]);
+                        }
+
+                        return $query->pluck('name', 'id')->all();
+                    })
+                    ->default(fn ($get) => Auth::user()?->defaultClubId('RenewClubMemberships', $get('discipline_id')))
+                    ->placeholder('AFILIADO INDEPENDIENTE')
+                    ->helperText('La selección actualiza el club representado por el jugador durante este año.')
+                    ->searchable()->preload()->live()
+                    ->afterStateUpdated(fn ($set) => $set('player_ids', [])),
+                CheckboxList::make('player_ids')
+                    ->label('Jugadores pendientes de renovación')
+                    ->options(function ($get): array {
+                        $disciplineId = (int) ($get('discipline_id') ?? 0);
+                        $year = (int) ($get('year') ?? now()->year);
+                        if (! $disciplineId) {
+                            return [];
+                        }
+
+                        $membershipIds = Membership::query()->where('year', $year)->where('discipline_id', $disciplineId)->pluck('id');
+                        $query = Player::query()
+                            ->with(['club', 'category'])
+                            ->where('discipline_id', $disciplineId)
+                            ->where('is_active', true)
+                            ->whereDoesntHave('memberships', fn (Builder $memberships) => $memberships
+                                ->whereIn('membership_id', $membershipIds)
+                                ->where('status', 'paid'));
+
+                        return $query->orderBy('last_name')->orderBy('first_name')->get()
+                            ->mapWithKeys(fn (Player $player): array => [
+                                $player->id => $player->full_name.' — '.($player->club?->name ?? 'INDEPENDIENTE').' — '.($player->category?->code ?? 'Sin categoría'),
+                            ])->all();
+                    })
+                    ->searchable()->bulkToggleable()->columns(2)->minItems(1)->required()->columnSpanFull(),
+            ])
+            ->action(function (array $data): void {
+                $disciplineId = (int) $data['discipline_id'];
+                $clubId = filled($data['club_id'] ?? null) ? (int) $data['club_id'] : null;
+                $user = Auth::user();
+
+                abort_unless($user?->canAccessClubInDiscipline('RenewClubMemberships', $disciplineId, $clubId), 403);
+
+                $membership = Membership::query()
+                    ->where('year', (int) $data['year'])
+                    ->where('discipline_id', $disciplineId)
+                    ->where('active', true)
+                    ->first();
+
+                if (! $membership) {
+                    throw ValidationException::withMessages(['year' => 'Primero debe configurarse la membresía anual de esta disciplina.']);
+                }
+
+                $discipline = Discipline::find($disciplineId);
+                if ($clubId === null && ! $discipline?->allowsIndependentAffiliates()) {
+                    throw ValidationException::withMessages(['club_id' => 'Seleccioná el club que representarán los jugadores.']);
+                }
+
+                $playersQuery = Player::query()
+                    ->whereKey($data['player_ids'])
+                    ->where('discipline_id', $disciplineId)
+                    ->where('is_active', true);
+
+                $players = $playersQuery->get();
+
+                if ($players->count() !== count(array_unique(array_map('intval', $data['player_ids'])))) {
+                    throw ValidationException::withMessages([
+                        'player_ids' => 'Uno o más jugadores no pertenecen al alcance autorizado para este club y disciplina.',
+                    ]);
+                }
+
+                $renewed = app(AnnualMembershipService::class)->renew($membership, $players, $clubId ? Club::findOrFail($clubId) : null);
+
+                Notification::make()
+                    ->success()
+                    ->title($renewed->count().' membresías renovadas')
+                    ->body('Los jugadores quedaron habilitados y se registró el club correspondiente al año '.$membership->year.'.')
+                    ->send();
+            });
     }
 }

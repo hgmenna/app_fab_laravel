@@ -17,3 +17,8 @@ Schedule::command('player-categories:apply-due-changes')
     ->dailyAt('00:10')
     ->timezone('America/Argentina/Buenos_Aires')
     ->withoutOverlapping();
+
+Schedule::command('memberships:expire-overdue')
+    ->dailyAt('00:15')
+    ->timezone('America/Argentina/Buenos_Aires')
+    ->withoutOverlapping();
