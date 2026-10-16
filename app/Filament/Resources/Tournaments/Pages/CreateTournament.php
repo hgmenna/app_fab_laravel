@@ -48,9 +48,9 @@ class CreateTournament extends CreateRecord
 
         $clubIds = $user->allowedClubIds('Create:Tournament', $disciplineId);
 
-        if (($data['venue_type'] ?? null) !== 'club' || ! in_array((int) ($data['venue_id'] ?? 0), $clubIds, true)) {
+        if (! in_array((int) ($data['organizer_club_id'] ?? 0), $clubIds, true)) {
             throw ValidationException::withMessages([
-                'data.venue_id' => 'Solo podés crear torneos para el club asignado a tu usuario.',
+                'data.organizer_club_id' => 'Solo podés crear torneos para el club asignado a tu usuario.',
             ]);
         }
     }

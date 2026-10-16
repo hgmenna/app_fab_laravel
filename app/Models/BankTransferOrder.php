@@ -13,6 +13,10 @@ class BankTransferOrder extends Model
         'expires_at', 'receipt_path', 'transferred_at', 'transferred_amount', 'origin_bank',
         'origin_holder', 'transaction_number', 'submitter_notes', 'review_notes',
         'submitted_at', 'reviewed_by', 'reviewed_at',
+        'beneficiary_type', 'beneficiary_name', 'destination_account_holder',
+        'destination_tax_id', 'destination_bank_name', 'destination_account_type',
+        'destination_account_number', 'destination_cbu', 'destination_alias',
+        'destination_treasury_email', 'destination_instructions',
     ];
 
     protected function casts(): array

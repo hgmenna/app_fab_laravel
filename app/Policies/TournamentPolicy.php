@@ -74,8 +74,6 @@ class TournamentPolicy
 
     private function clubId(Tournament $tournament): ?int
     {
-        return $tournament->venue_type === 'club' && filled($tournament->venue_id)
-            ? (int) $tournament->venue_id
-            : null;
+        return filled($tournament->organizer_club_id) ? (int) $tournament->organizer_club_id : null;
     }
 }

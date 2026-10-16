@@ -23,6 +23,15 @@ class Club extends Model
         'address',
         'is_active',
         'tax_id',
+        'bank_account_holder',
+        'bank_tax_id',
+        'bank_name',
+        'bank_account_type',
+        'bank_account_number',
+        'bank_cbu',
+        'bank_alias',
+        'bank_treasury_email',
+        'bank_transfer_instructions',
         'city_id',
         'location',
     ];
@@ -56,7 +65,14 @@ class Club extends Model
 
     public function tournaments()
     {
-        return $this->hasMany(Tournament::class);
+        return $this->hasMany(Tournament::class, 'organizer_club_id');
+    }
+
+    public function hasBankTransferData(): bool
+    {
+        return filled($this->bank_account_holder)
+            && filled($this->bank_name)
+            && (filled($this->bank_cbu) || filled($this->bank_alias));
     }
 
     protected $appends = [

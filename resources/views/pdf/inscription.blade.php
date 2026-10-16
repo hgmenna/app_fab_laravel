@@ -178,6 +178,16 @@
                                 {{ strtoupper($record->status) }}
                             </span>
                         </div>
+
+                        @if($record->tournament?->contacts?->isNotEmpty())
+                            <div class="label">Contactos del torneo</div>
+                            @foreach($record->tournament->contacts as $contact)
+                                <div class="value">{{ $contact->name }} · {{ $contact->phone }}</div>
+                            @endforeach
+                            @if($record->tournament->is_payment_enabled)
+                                <div style="font-size: 10px; margin-top: 4px;">Contactos para consultas y envío de comprobantes.</div>
+                            @endif
+                        @endif
                     </td>
 
                     {{-- DERECHA: COMPROBANTE --}}

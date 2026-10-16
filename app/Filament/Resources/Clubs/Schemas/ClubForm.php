@@ -64,6 +64,21 @@ class ClubForm
                         ->label('Persona de contacto')
                         ->columnSpan(3),
             ]),
+            Section::make('Datos bancarios para torneos')
+                ->description('Se utilizarán como cuenta de destino cuando este club organice un torneo que requiera pago.')
+                ->columns(4)
+                ->schema([
+                    TextInput::make('bank_account_holder')->label('Titular de la cuenta')->columnSpan(2),
+                    TextInput::make('bank_tax_id')->label('CUIT/CUIL del titular')->maxLength(20),
+                    TextInput::make('bank_name')->label('Banco'),
+                    TextInput::make('bank_account_type')->label('Tipo de cuenta'),
+                    TextInput::make('bank_account_number')->label('Número de cuenta'),
+                    TextInput::make('bank_cbu')->label('CBU/CVU')->length(22)->rule('regex:/^\d{22}$/'),
+                    TextInput::make('bank_alias')->label('Alias'),
+                    TextInput::make('bank_treasury_email')->label('Correo de Tesorería')->email()->columnSpan(2),
+                    Textarea::make('bank_transfer_instructions')->label('Instrucciones para la transferencia')->columnSpanFull(),
+                ]),
+
             Section::make()
                 ->heading('Domicilio')
                 ->columns([

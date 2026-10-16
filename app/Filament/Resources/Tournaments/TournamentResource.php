@@ -39,7 +39,7 @@ class TournamentResource extends Resource
                     $row->where('discipline_id', $assignment->discipline_id);
 
                     if (filled($assignment->club_id)) {
-                        $row->where('venue_type', 'club')->where('venue_id', $assignment->club_id);
+                        $row->where('organizer_club_id', $assignment->club_id);
                     }
                 });
             }

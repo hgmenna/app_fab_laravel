@@ -91,7 +91,7 @@ class TournamentRegistrationResource extends Resource
 
     public static function registrationWhatsAppUrl(TournamentRegistration $registration): string
     {
-        $registration->loadMissing(['participants.player', 'tournament', 'tournamentModality.modality', 'slot']);
+        $registration->loadMissing(['participants.player', 'tournament.contacts', 'tournamentModality.modality', 'slot']);
         $recipient = self::whatsAppRecipient($registration);
 
         if (! $recipient) {
@@ -108,7 +108,10 @@ class TournamentRegistrationResource extends Resource
             now()->addDays(7),
             ['registration' => $registration],
         );
-        $message = implode("\n", [
+        $contacts = $registration->tournament?->contacts
+            ?->map(fn ($contact) => "{$contact->name}: {$contact->phone}")
+            ->implode("\n");
+        $message = implode("\n", array_filter([
             'Federación Argentina de Billar',
             '',
             "Inscripción {$status}",
@@ -119,7 +122,8 @@ class TournamentRegistrationResource extends Resource
             '',
             'Descargar constancia:',
             $pdfUrl,
-        ]);
+            $contacts ? "\nContactos del torneo para consultas y comprobantes:\n{$contacts}" : null,
+        ]));
 
         return "https://wa.me/{$recipient}?text=".rawurlencode($message);
     }
@@ -177,7 +181,7 @@ class TournamentRegistrationResource extends Resource
                         $row->where('discipline_id', $assignment->discipline_id);
 
                         if (filled($assignment->club_id)) {
-                            $row->where('venue_type', 'club')->where('venue_id', $assignment->club_id);
+                            $row->where('organizer_club_id', $assignment->club_id);
                         }
                     });
                 }

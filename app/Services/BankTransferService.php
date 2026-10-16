@@ -65,6 +65,7 @@ class BankTransferService
                 'amount' => $renewals->sum(fn (PlayerMembership $renewal): float => (float) $renewal->amount_due),
                 'status' => 'pending',
                 'expires_at' => today()->addDays($setting->expires_in_days),
+                ...$this->destinationSnapshot($setting, 'federation', 'Federación Argentina de Billar'),
             ]);
 
             foreach ($renewals as $renewal) {
@@ -82,7 +83,7 @@ class BankTransferService
 
     public function createTournamentRegistrationOrder(TournamentRegistration $registration): ?BankTransferOrder
     {
-        $registration->loadMissing(['tournament', 'participants.player.category']);
+        $registration->loadMissing(['tournament.organizerClub', 'tournament.contacts', 'participants.player.category']);
 
         if (! $registration->tournament?->is_payment_enabled) {
             $registration->updateQuietly(['payment_status' => 'paid']);
@@ -96,7 +97,17 @@ class BankTransferService
                 ->whereIn('status', ['pending', 'submitted', 'observed']))->first()?->order;
         }
 
-        $setting = $this->requireActiveSetting();
+        $globalSetting = BankTransferSetting::active();
+        $organizer = $registration->tournament->organizerClub;
+        if ($organizer && ! $organizer->hasBankTransferData()) {
+            throw ValidationException::withMessages([
+                'payment' => "El club organizador {$organizer->name} debe completar sus datos bancarios antes de recibir inscripciones pagas.",
+            ]);
+        }
+        $destination = $organizer ?: ($globalSetting ?? throw ValidationException::withMessages([
+            'payment' => 'El torneo no tiene club organizador y la cuenta bancaria de la Federación no está configurada.',
+        ]));
+        $expiresInDays = (int) ($globalSetting?->expires_in_days ?: 7);
         $amount = $this->registrationAmount($registration);
 
         if ($amount <= 0) {
@@ -105,7 +116,7 @@ class BankTransferService
             ]);
         }
 
-        return DB::transaction(function () use ($registration, $setting, $amount): BankTransferOrder {
+        return DB::transaction(function () use ($registration, $destination, $organizer, $expiresInDays, $amount): BankTransferOrder {
             $registration->updateQuietly(['price' => $amount, 'payment_status' => 'pending']);
 
             $registrationIds = TournamentRegistration::query()
@@ -115,6 +126,7 @@ class BankTransferService
                 ->where('user_id', Auth::id())
                 ->where('purpose', 'tournament_registration')
                 ->where('status', 'pending')
+                ->where('club_id', $organizer?->id)
                 ->whereNull('receipt_path')
                 ->whereHas('items', fn ($items) => $items
                     ->where('payable_type', $registration->getMorphClass())
@@ -132,7 +144,7 @@ class BankTransferService
                 ]);
                 $order->update([
                     'amount' => $order->items()->sum('amount'),
-                    'expires_at' => today()->addDays($setting->expires_in_days),
+                    'expires_at' => today()->addDays($expiresInDays),
                 ]);
 
                 return $order->refresh()->load('items');
@@ -141,12 +153,17 @@ class BankTransferService
             $order = BankTransferOrder::query()->create([
                 'code' => $this->nextCode(),
                 'user_id' => Auth::id(),
-                'club_id' => $registration->participants->first()?->player?->club_id,
+                'club_id' => $organizer?->id,
                 'discipline_id' => $registration->tournament->discipline_id,
                 'purpose' => 'tournament_registration',
                 'amount' => $amount,
                 'status' => 'pending',
-                'expires_at' => today()->addDays($setting->expires_in_days),
+                'expires_at' => today()->addDays($expiresInDays),
+                ...$this->destinationSnapshot(
+                    $destination,
+                    $organizer ? 'club' : 'federation',
+                    $organizer?->name ?: 'Federación Argentina de Billar',
+                ),
             ]);
             $order->items()->create([
                 'payable_type' => $registration->getMorphClass(),
@@ -268,6 +285,25 @@ class BankTransferService
         return BankTransferSetting::active() ?? throw ValidationException::withMessages([
             'payment' => 'Configurá primero la cuenta bancaria receptora en Configuración General.',
         ]);
+    }
+
+    private function destinationSnapshot(BankTransferSetting|Club $source, string $type, string $name): array
+    {
+        $club = $source instanceof Club;
+
+        return [
+            'beneficiary_type' => $type,
+            'beneficiary_name' => $name,
+            'destination_account_holder' => $club ? $source->bank_account_holder : $source->account_holder,
+            'destination_tax_id' => $club ? $source->bank_tax_id : $source->tax_id,
+            'destination_bank_name' => $club ? $source->bank_name : $source->bank_name,
+            'destination_account_type' => $club ? $source->bank_account_type : $source->account_type,
+            'destination_account_number' => $club ? $source->bank_account_number : $source->account_number,
+            'destination_cbu' => $club ? $source->bank_cbu : $source->cbu,
+            'destination_alias' => $club ? $source->bank_alias : $source->alias,
+            'destination_treasury_email' => $club ? $source->bank_treasury_email : $source->treasury_email,
+            'destination_instructions' => $club ? $source->bank_transfer_instructions : $source->instructions,
+        ];
     }
 
     private function guardAgainstOpenOrders(Collection $renewals): void

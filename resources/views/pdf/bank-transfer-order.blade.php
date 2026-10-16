@@ -26,22 +26,22 @@
     <div class="header">
         <span class="code">{{ $order->code }}</span>
         <h1>Orden de transferencia bancaria</h1>
-        <div>Federación Argentina de Billar</div>
+        <div>Destinatario: {{ $order->beneficiary_name ?: 'Federación Argentina de Billar' }}</div>
     </div>
 
     <div class="box">
         <table class="grid">
             <tr>
-                <td><div class="label">Titular</div><div class="value">{{ $setting?->account_holder }}</div></td>
-                <td><div class="label">CUIT</div><div class="value">{{ $setting?->tax_id }}</div></td>
+                <td><div class="label">Titular</div><div class="value">{{ $order->destination_account_holder }}</div></td>
+                <td><div class="label">CUIT</div><div class="value">{{ $order->destination_tax_id }}</div></td>
             </tr>
             <tr>
-                <td><div class="label">Banco</div><div class="value">{{ $setting?->bank_name }}</div></td>
-                <td><div class="label">Tipo y número de cuenta</div><div class="value">{{ trim(($setting?->account_type ?? '').' '.($setting?->account_number ?? '')) ?: '—' }}</div></td>
+                <td><div class="label">Banco</div><div class="value">{{ $order->destination_bank_name }}</div></td>
+                <td><div class="label">Tipo y número de cuenta</div><div class="value">{{ trim(($order->destination_account_type ?? '').' '.($order->destination_account_number ?? '')) ?: '—' }}</div></td>
             </tr>
             <tr>
-                <td><div class="label">CBU</div><div class="value">{{ $setting?->cbu }}</div></td>
-                <td><div class="label">Alias</div><div class="value">{{ $setting?->alias ?: '—' }}</div></td>
+                <td><div class="label">CBU</div><div class="value">{{ $order->destination_cbu }}</div></td>
+                <td><div class="label">Alias</div><div class="value">{{ $order->destination_alias ?: '—' }}</div></td>
             </tr>
         </table>
     </div>
@@ -70,7 +70,17 @@
     </table>
 
     <p class="notice">Transferí el importe exacto y utilizá <strong>{{ $order->code }}</strong> como referencia. La presentación del comprobante no acredita el pago: Tesorería debe verificar el ingreso en Banco Macro.</p>
-    @if($setting?->instructions)<p>{{ $setting->instructions }}</p>@endif
+    @if($order->destination_instructions)<p>{{ $order->destination_instructions }}</p>@endif
+
+    @php($contacts = $order->items->map(fn ($item) => $item->payable?->tournament?->contacts ?? collect())->flatten(1)->unique('phone'))
+    @if($contacts->isNotEmpty())
+        <div class="box">
+            <div class="label">Contactos del torneo para consultas y comprobantes</div>
+            @foreach($contacts as $contact)
+                <div class="value">{{ $contact->name }} · {{ $contact->phone }}</div>
+            @endforeach
+        </div>
+    @endif
 
     <div class="footer">Sistema Administrativo Federación Argentina de Billar · Orden emitida el {{ $order->created_at?->format('d/m/Y H:i') }}</div>
 </body>

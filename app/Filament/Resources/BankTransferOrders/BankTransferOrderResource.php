@@ -5,7 +5,6 @@ namespace App\Filament\Resources\BankTransferOrders;
 use App\Filament\Resources\BankTransferOrders\Pages\EditBankTransferOrder;
 use App\Filament\Resources\BankTransferOrders\Pages\ListBankTransferOrders;
 use App\Models\BankTransferOrder;
-use App\Models\BankTransferSetting;
 use App\Services\AdminNotifier;
 use App\Services\BankTransferService;
 use BackedEnum;
@@ -81,8 +80,6 @@ class BankTransferOrderResource extends Resource
 
     public static function form(Schema $schema): Schema
     {
-        $setting = BankTransferSetting::active();
-
         return $schema->components([
             Section::make('Orden de pago')->schema([
                 Placeholder::make('code_display')->label('Orden')->content(fn (?BankTransferOrder $record): string => $record?->code ?? '—'),
@@ -91,12 +88,27 @@ class BankTransferOrderResource extends Resource
                 Placeholder::make('status_display')->label('Estado')->content(fn (?BankTransferOrder $record): string => self::statusLabels()[$record?->status] ?? '—'),
             ])->columns(4),
             Section::make('Cuenta de destino')->schema([
-                Placeholder::make('holder')->label('Titular')->content($setting?->account_holder ?? 'Sin configurar'),
-                Placeholder::make('tax')->label('CUIT')->content($setting?->tax_id ?? '—'),
-                Placeholder::make('bank')->label('Banco')->content($setting?->bank_name ?? '—'),
-                Placeholder::make('cbu_display')->label('CBU')->content($setting?->cbu ?? '—'),
-                Placeholder::make('alias_display')->label('Alias')->content($setting?->alias ?? '—'),
-                Placeholder::make('instructions_display')->label('Instrucciones')->content($setting?->instructions ?? 'Transferí el importe exacto e indicá el número de orden.')->columnSpanFull(),
+                Placeholder::make('beneficiary')->label('Destinatario')->content(fn (?BankTransferOrder $record) => $record?->beneficiary_name ?? 'Federación Argentina de Billar'),
+                Placeholder::make('holder')->label('Titular')->content(fn (?BankTransferOrder $record) => $record?->destination_account_holder ?? 'Sin configurar'),
+                Placeholder::make('tax')->label('CUIT')->content(fn (?BankTransferOrder $record) => $record?->destination_tax_id ?? '—'),
+                Placeholder::make('bank')->label('Banco')->content(fn (?BankTransferOrder $record) => $record?->destination_bank_name ?? '—'),
+                Placeholder::make('cbu_display')->label('CBU')->content(fn (?BankTransferOrder $record) => $record?->destination_cbu ?? '—'),
+                Placeholder::make('alias_display')->label('Alias')->content(fn (?BankTransferOrder $record) => $record?->destination_alias ?? '—'),
+                Placeholder::make('instructions_display')->label('Instrucciones')->content(fn (?BankTransferOrder $record) => $record?->destination_instructions ?? 'Transferí el importe exacto e indicá el número de orden.')->columnSpanFull(),
+                Placeholder::make('tournament_contacts')->label('Contactos del torneo')
+                    ->content(function (?BankTransferOrder $record): HtmlString|string {
+                        if (! $record || $record->purpose !== 'tournament_registration') {
+                            return '—';
+                        }
+                        $record->loadMissing('items.payable');
+                        $contacts = $record->items
+                            ->flatMap(fn ($item) => $item->payable?->tournament?->contacts ?? collect())
+                            ->unique('phone');
+                        if ($contacts->isEmpty()) {
+                            return 'Sin contactos informados';
+                        }
+                        return new HtmlString($contacts->map(fn ($contact) => e($contact->name).' · '.e($contact->phone))->implode('<br>'));
+                    })->columnSpanFull(),
             ])->columns(3),
             Section::make('Conceptos incluidos')->schema([
                 Repeater::make('items')->relationship()->hiddenLabel()->schema([
@@ -162,7 +174,6 @@ class BankTransferOrderResource extends Resource
                     return response()->streamDownload(
                         fn () => print(Pdf::loadView('pdf.bank-transfer-order', [
                             'order' => $record,
-                            'setting' => BankTransferSetting::active(),
                         ])->output()),
                         "orden-{$record->code}.pdf",
                     );
@@ -240,14 +251,19 @@ class BankTransferOrderResource extends Resource
 
     public static function whatsAppShareUrl(BankTransferOrder $order): string
     {
-        $order->loadMissing('items');
+        $order->loadMissing('items.payable');
         $pdfUrl = URL::temporarySignedRoute(
             'bank-transfer-orders.pdf',
             now()->addDays(7),
             ['order' => $order],
         );
         $concept = $order->purpose === 'membership' ? 'membresías anuales' : 'inscripción al torneo';
-        $message = implode("\n", [
+        $contacts = $order->items
+            ->flatMap(fn ($item) => $item->payable?->tournament?->contacts ?? collect())
+            ->unique('phone')
+            ->map(fn ($contact) => "{$contact->name}: {$contact->phone}")
+            ->implode("\n");
+        $message = implode("\n", array_filter([
             'Federación Argentina de Billar',
             '',
             "Orden: {$order->code}",
@@ -257,7 +273,8 @@ class BankTransferOrderResource extends Resource
             '',
             'Descargar orden de pago:',
             $pdfUrl,
-        ]);
+            $contacts ? "\nContactos del torneo para consultas y comprobantes:\n{$contacts}" : null,
+        ]));
 
         return 'https://wa.me/?text='.rawurlencode($message);
     }

@@ -213,7 +213,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->canAccessClubInDiscipline(
             $permission,
             $tournament->discipline_id,
-            $tournament->venue_type === 'club' ? $tournament->venue_id : null,
+            $tournament->organizer_club_id,
         );
     }
 

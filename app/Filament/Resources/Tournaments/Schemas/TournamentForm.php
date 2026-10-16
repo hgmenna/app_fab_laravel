@@ -69,8 +69,17 @@ class TournamentForm
                                         $clubId = Auth::user()?->defaultClubId('Create:Tournament', $state);
 
                                         if ($clubId) {
+                                            $set('organizer_club_id', $clubId);
                                             $set('venue_type', 'club');
                                             $set('venue_id', $clubId);
+                                            $club = Club::find($clubId);
+                                            if (filled($club?->contact_person) && filled($club?->phone)) {
+                                                $set('contacts', [[
+                                                    'name' => $club->contact_person,
+                                                    'phone' => $club->phone,
+                                                    'sort_order' => 0,
+                                                ]]);
+                                            }
                                         }
                                     }),
 
@@ -88,6 +97,33 @@ class TournamentForm
                                     ->native(false)
                                     ->helperText('Publicado es el estado habitual para un torneo visible.')
                                     ->columnSpan(2),
+
+                                Select::make('organizer_club_id')
+                                    ->label('Club organizador')
+                                    ->options(function (Get $get) {
+                                        $query = Club::query()->orderBy('name');
+                                        $user = Auth::user();
+                                        if ($user?->hasClubScopeForDiscipline($get('discipline_id'), 'Create:Tournament')) {
+                                            $query->whereKey($user->allowedClubIds('Create:Tournament', $get('discipline_id')) ?: [-1]);
+                                        }
+                                        return $query->pluck('name', 'id');
+                                    })
+                                    ->default(fn (Get $get) => Auth::user()?->defaultClubId('Create:Tournament', $get('discipline_id')))
+                                    ->searchable()->preload()->live()->native(false)->columnSpan(5)
+                                    ->helperText('Define el club responsable, la cuenta bancaria y el contacto inicial del torneo.')
+                                    ->afterStateUpdated(function ($state, Set $set, Get $get): void {
+                                        if (! $state || filled($get('contacts'))) {
+                                            return;
+                                        }
+                                        $club = Club::find($state);
+                                        if (filled($club?->contact_person) && filled($club?->phone)) {
+                                            $set('contacts', [[
+                                                'name' => $club->contact_person,
+                                                'phone' => $club->phone,
+                                                'sort_order' => 0,
+                                            ]]);
+                                        }
+                                    }),
 
                                 Select::make('venue_type')
                                     ->label('Tipo de sede')
@@ -123,7 +159,7 @@ class TournamentForm
                                     ->columnSpan(3),
 
                                 Select::make('venue_id')
-                                    ->label('Club organizador / sede')
+                                    ->label('Club sede')
                                     ->options(function (Get $get) {
                                         $query = Club::query()->orderBy('name');
                                         $user = Auth::user();
@@ -140,7 +176,20 @@ class TournamentForm
                                     ->required(fn (Get $get): bool => $get('venue_type') === 'club')
                                     ->visible(fn (Get $get): bool => $get('venue_type') === 'club')
                                     ->live()
-                                    ->afterStateUpdated(fn (Set $set) => $set('manual_route_checks', []))
+                                    ->afterStateUpdated(function ($state, Set $set, Get $get): void {
+                                        $set('manual_route_checks', []);
+                                        if ($state && ! $get('organizer_club_id')) {
+                                            $set('organizer_club_id', $state);
+                                            $club = Club::find($state);
+                                            if (filled($club?->contact_person) && filled($club?->phone) && blank($get('contacts'))) {
+                                                $set('contacts', [[
+                                                    'name' => $club->contact_person,
+                                                    'phone' => $club->phone,
+                                                    'sort_order' => 0,
+                                                ]]);
+                                            }
+                                        }
+                                    })
                                     ->native(false),
 
                                 TextInput::make('external_venue_name')
@@ -292,6 +341,24 @@ class TournamentForm
                                     ->inline(false)
                                     ->onColor('success')
                                     ->offColor('danger'),
+
+                                Repeater::make('contacts')
+                                    ->relationship('contacts')
+                                    ->label('Contactos del torneo')
+                                    ->helperText('Estos contactos se informarán al usuario para consultas y envío de comprobantes.')
+                                    ->schema([
+                                        TextInput::make('name')->label('Apellido y nombre')->required()->maxLength(255),
+                                        TextInput::make('phone')->label('Teléfono / WhatsApp')->tel()->required()->maxLength(50),
+                                        Hidden::make('sort_order')->default(0),
+                                    ])
+                                    ->columns(2)
+                                    ->defaultItems(0)
+                                    ->minItems(1)
+                                    ->required()
+                                    ->reorderable()
+                                    ->orderColumn('sort_order')
+                                    ->addActionLabel('Agregar contacto')
+                                    ->columnSpanFull(),
 
                                 Toggle::make('regulatory_override')
                                     ->label('Autorizar excepción reglamentaria')

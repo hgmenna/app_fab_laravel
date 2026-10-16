@@ -23,7 +23,7 @@ class TournamentRegistrationPdfService
         $record->loadMissing([
             'participants.player.club',
             'participants.player.category',
-            'tournament',
+            'tournament.contacts',
             'tournamentModality.modality',
             'slot',
         ]);

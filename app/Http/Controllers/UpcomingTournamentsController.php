@@ -39,6 +39,7 @@ class UpcomingTournamentsController extends Controller
                 'externalVenueState.country:id,name',
                 'externalVenueState.federation:id,name,short_name,logo_path',
                 'tournamentModalities.modality:id,name,players_per_registration',
+                'contacts:id,tournament_id,name,phone,sort_order',
                 'registrations:id,tournament_id,tournament_modality_id',
                 'registrations.participants:id,tournament_registration_id,player_id',
             ])
@@ -154,6 +155,9 @@ class UpcomingTournamentsController extends Controller
                         ? $publicationLogoUrl.'||'.$publicationLogoUrl
                         : '',
                     'logo_publicacion_url' => $publicationLogoUrl,
+                    'contactos' => $tournament->contacts
+                        ->map(fn ($contact): string => "{$contact->name}: {$contact->phone}")
+                        ->implode(' | '),
                 ];
             });
 

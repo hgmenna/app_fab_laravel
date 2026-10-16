@@ -45,6 +45,7 @@ class Tournament extends Model
         'registration_enabled',
         'entry_fee',
         'venue_id',
+        'organizer_club_id',
         'venue_type',
         'external_venue_name',
         'external_venue_address',
@@ -115,6 +116,16 @@ class Tournament extends Model
     public function venue()
     {
         return $this->belongsTo(Club::class, 'venue_id');
+    }
+
+    public function organizerClub(): BelongsTo
+    {
+        return $this->belongsTo(Club::class, 'organizer_club_id');
+    }
+
+    public function contacts()
+    {
+        return $this->hasMany(TournamentContact::class)->orderBy('sort_order');
     }
 
     public function externalVenueState(): BelongsTo
