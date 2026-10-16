@@ -21,6 +21,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -126,18 +127,35 @@ class BankTransferOrderResource extends Resource
             TextColumn::make('discipline.name')->label('Disciplina'),
             TextColumn::make('amount')->label('Total')->money('ARS'),
             TextColumn::make('expires_at')->label('Vence')->date('d/m/Y'),
-            TextColumn::make('status')->label('Estado')->badge()->formatStateUsing(fn (string $state): string => self::statusLabels()[$state] ?? $state)
+            IconColumn::make('status')->label('Estado')
+                ->icon(fn (string $state): string => match ($state) {
+                    'approved' => 'heroicon-o-check-circle',
+                    'submitted' => 'heroicon-o-clock',
+                    'observed' => 'heroicon-o-exclamation-triangle',
+                    'rejected' => 'heroicon-o-x-circle',
+                    'expired' => 'heroicon-o-calendar-days',
+                    'cancelled' => 'heroicon-o-no-symbol',
+                    default => 'heroicon-o-document-arrow-up',
+                })
                 ->color(fn (string $state): string => match ($state) {
                     'approved' => 'success', 'submitted' => 'info', 'observed' => 'warning',
                     'rejected', 'expired', 'cancelled' => 'danger', default => 'gray',
-                }),
+                })
+                ->tooltip(fn (string $state): string => self::statusLabels()[$state] ?? $state)
+                ->sortable()
+                ->alignCenter(),
         ])->filters([
             SelectFilter::make('status')->label('Estado')->options(self::statusLabels()),
             SelectFilter::make('purpose')->label('Concepto')->options(['membership' => 'Membresías', 'tournament_registration' => 'Inscripción']),
         ])->recordActions([
-            EditAction::make()->label('Ver / cargar comprobante'),
+            EditAction::make()
+                ->label('Ver o cargar comprobante')
+                ->icon('heroicon-o-document-arrow-up')
+                ->iconButton()
+                ->tooltip('Ver o cargar comprobante'),
             self::shareByWhatsAppAction(),
-            Action::make('download')->label('Orden PDF')->icon('heroicon-o-arrow-down-tray')
+            Action::make('download')->label('Descargar orden PDF')->icon('heroicon-o-arrow-down-tray')
+                ->iconButton()->tooltip('Descargar orden PDF')
                 ->action(function (BankTransferOrder $record) {
                     $record->load(['items.payable', 'club', 'discipline', 'user']);
 
@@ -150,11 +168,13 @@ class BankTransferOrderResource extends Resource
                     );
                 }),
             Action::make('approve')->label('Aprobar')->icon('heroicon-o-check-circle')->color('success')
+                ->iconButton()->tooltip('Aprobar transferencia')
                 ->requiresConfirmation()->visible(fn (BankTransferOrder $record): bool => (Auth::user()?->hasRole('super-admin') ?? false) && in_array($record->status, ['submitted', 'observed'], true))
                 ->action(function (BankTransferOrder $record): void {
                     app(BankTransferService::class)->approve($record);
                 }),
             Action::make('observe')->label('Observar')->icon('heroicon-o-exclamation-triangle')->color('warning')
+                ->iconButton()->tooltip('Observar transferencia')
                 ->schema([Textarea::make('review_notes')->label('Motivo')->required()])
                 ->visible(fn (BankTransferOrder $record): bool => (Auth::user()?->hasRole('super-admin') ?? false) && $record->status === 'submitted')
                 ->action(function (BankTransferOrder $record, array $data): void {
@@ -162,6 +182,7 @@ class BankTransferOrderResource extends Resource
                     AdminNotifier::send(null, $record, 'observó', 'code', 'Pagos por transferencia');
                 }),
             Action::make('reject')->label('Rechazar')->icon('heroicon-o-x-circle')->color('danger')
+                ->iconButton()->tooltip('Rechazar transferencia')
                 ->requiresConfirmation()->schema([Textarea::make('review_notes')->label('Motivo')->required()])
                 ->visible(fn (BankTransferOrder $record): bool => (Auth::user()?->hasRole('super-admin') ?? false) && in_array($record->status, ['submitted', 'observed'], true))
                 ->action(function (BankTransferOrder $record, array $data): void {
@@ -190,13 +211,15 @@ class BankTransferOrderResource extends Resource
     public static function shareByWhatsAppAction(): Action
     {
         return Action::make('shareWhatsApp')
-            ->label(new HtmlString(
-                '<span style="display:inline-flex;align-items:center;gap:.45rem">'
-                .'<svg aria-hidden="true" viewBox="0 0 32 32" width="18" height="18" fill="currentColor">'
+            ->label('Compartir por WhatsApp')
+            ->icon(new HtmlString(
+                '<svg aria-hidden="true" viewBox="0 0 32 32" width="20" height="20" fill="currentColor">'
                 .'<path d="M16 3A13 13 0 0 0 4.78 22.54L3 29l6.62-1.74A13 13 0 1 0 16 3Zm0 23.62c-2.1 0-4.14-.62-5.88-1.78l-.42-.25-3.93 1.03 1.05-3.82-.27-.44A10.62 10.62 0 1 1 16 26.62Zm5.82-7.95c-.32-.16-1.88-.93-2.17-1.03-.29-.11-.5-.16-.71.16-.21.32-.82 1.03-1 1.24-.19.21-.37.24-.69.08-.32-.16-1.34-.49-2.55-1.58-.94-.84-1.58-1.88-1.76-2.2-.19-.32-.02-.49.14-.65.14-.14.32-.37.48-.56.16-.19.21-.32.32-.53.11-.21.05-.4-.03-.56-.08-.16-.71-1.72-.98-2.35-.26-.62-.52-.54-.71-.55h-.61c-.21 0-.56.08-.85.4-.29.32-1.11 1.09-1.11 2.65 0 1.56 1.14 3.07 1.3 3.28.16.21 2.24 3.42 5.43 4.8.76.33 1.35.52 1.81.67.76.24 1.46.21 2.01.13.61-.09 1.88-.77 2.14-1.51.26-.74.26-1.38.19-1.51-.08-.13-.29-.21-.61-.37Z"/>'
-                .'</svg><span>Compartir por WhatsApp</span></span>',
+                .'</svg>',
             ))
             ->color('success')
+            ->iconButton()
+            ->tooltip('Compartir por WhatsApp')
             ->url(fn (BankTransferOrder $record): string => self::whatsAppShareUrl($record))
             ->openUrlInNewTab();
     }

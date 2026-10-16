@@ -339,6 +339,35 @@ class TournamentRegistration extends Model
                 $registration->threeCushionStageResult?->delete();
             }
         });
+
+        static::deleted(function (TournamentRegistration $registration): void {
+            $items = $registration->bankTransferOrderItems()
+                ->with('order')
+                ->get();
+
+            foreach ($items as $item) {
+                $order = $item->order;
+                $item->delete();
+
+                if (! $order) {
+                    continue;
+                }
+
+                $remainingAmount = (float) $order->items()->sum('amount');
+
+                if ($remainingAmount <= 0) {
+                    if (filled($order->receipt_path)) {
+                        \Illuminate\Support\Facades\Storage::disk('public_path')->delete($order->receipt_path);
+                    }
+
+                    $order->delete();
+
+                    continue;
+                }
+
+                $order->update(['amount' => $remainingAmount]);
+            }
+        });
     }
 
     public function calculatePoints(): float
