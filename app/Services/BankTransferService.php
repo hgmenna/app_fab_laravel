@@ -14,6 +14,7 @@ use App\Notifications\SystemActivityEmailNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class BankTransferService
@@ -234,6 +235,32 @@ class BankTransferService
             'reviewed_by' => Auth::id(), 'reviewed_at' => now(),
         ]);
         $this->notifyParticipants($order, 'Transferencia rechazada', "Tesorería rechazó la orden {$order->code}. Motivo: {$notes}");
+    }
+
+    public function deleteOrder(BankTransferOrder $order): void
+    {
+        if ($order->status === 'approved') {
+            throw ValidationException::withMessages([
+                'status' => 'Una transferencia aprobada no puede eliminarse. Debe realizarse una reversión administrativa.',
+            ]);
+        }
+
+        DB::transaction(function () use ($order): void {
+            $order->load('items.payable');
+
+            foreach ($order->items as $item) {
+                if ($item->payable instanceof TournamentRegistration) {
+                    $item->payable->updateQuietly(['payment_status' => 'pending']);
+                }
+            }
+
+            $receiptPath = $order->receipt_path;
+            $order->delete();
+
+            if (filled($receiptPath)) {
+                Storage::disk('public_path')->delete($receiptPath);
+            }
+        });
     }
 
     private function requireActiveSetting(): BankTransferSetting

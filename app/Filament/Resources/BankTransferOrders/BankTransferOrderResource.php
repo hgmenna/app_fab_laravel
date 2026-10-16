@@ -188,6 +188,20 @@ class BankTransferOrderResource extends Resource
                 ->action(function (BankTransferOrder $record, array $data): void {
                     app(BankTransferService::class)->reject($record, $data['review_notes']);
                 }),
+            Action::make('deletePayment')
+                ->label('Eliminar pago')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->iconButton()
+                ->tooltip('Eliminar pago')
+                ->requiresConfirmation()
+                ->modalHeading('Eliminar orden de pago')
+                ->modalDescription('Se eliminarán la orden, sus conceptos y el comprobante adjunto. Esta acción no se puede deshacer.')
+                ->visible(fn (BankTransferOrder $record): bool => (Auth::user()?->hasRole('super-admin') ?? false)
+                    && $record->status !== 'approved')
+                ->action(function (BankTransferOrder $record): void {
+                    app(BankTransferService::class)->deleteOrder($record);
+                }),
         ]);
     }
 
