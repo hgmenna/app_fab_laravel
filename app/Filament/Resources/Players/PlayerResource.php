@@ -327,7 +327,7 @@ class PlayerResource extends Resource
             ->modalHeading('Confirmar Pago de Afiliacion')
             ->visible(fn () => $userAuth?->canGloballyOrInAnyDiscipline('PayMembership') ?? false)
             ->disabled(fn ($record) => $record?->is_enabled_to_compete)
-            ->action(fn ($records) => static::processPayMembership($records));
+            ->action(fn (Player $record) => static::processPayMembership($record));
     }
 
     public static function processPayMembership($records): void
