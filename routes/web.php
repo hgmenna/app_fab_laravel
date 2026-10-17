@@ -8,6 +8,7 @@ use App\Http\Controllers\UpcomingTournamentsController;
 use App\Http\Controllers\BankTransferOrderPdfController;
 use App\Http\Controllers\MembershipAccountPdfController;
 use App\Http\Controllers\MembershipPaymentPdfController;
+use App\Http\Controllers\MembershipEntityStatementPdfController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/torneos-proximos.json', UpcomingTournamentsController::class);
@@ -24,6 +25,8 @@ Route::get('/membresias/cuentas/{account}/pdf', MembershipAccountPdfController::
     ->middleware('signed')->name('membership-accounts.pdf');
 Route::get('/membresias/movimientos/{payment}/pdf', MembershipPaymentPdfController::class)
     ->middleware('signed')->name('membership-payments.pdf');
+Route::get('/membresias/estado-entidad/pdf', MembershipEntityStatementPdfController::class)
+    ->middleware('signed')->name('membership-entity-statements.pdf');
 
 Route::get('/', function () {
     return view('welcome');
