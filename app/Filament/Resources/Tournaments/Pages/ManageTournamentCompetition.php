@@ -94,12 +94,22 @@ class ManageTournamentCompetition extends Page
                         'tables' => data_get($phase->settings, 'tables'),
                         'estimated_minutes' => data_get($phase->settings, 'estimated_minutes'),
                         'rest_minutes' => data_get($phase->settings, 'rest_minutes', 0),
+                        'bracket_size' => data_get($phase->settings, 'bracket_size')
+                            ?: match ($phase->code) {
+                                'national' => 64,
+                                'master-final' => 32,
+                                'final' => 16,
+                                default => null,
+                            },
                         'schedules' => $phase->phase_type === 'zones'
                             ? []
                             : (data_get($phase->settings, 'schedules') ?: [[
                                 'name' => 'Horario principal',
                                 'starts_at' => null,
+                                'round_number' => 1,
                                 'bracket_section' => null,
+                                'from_match' => null,
+                                'to_match' => null,
                                 'tables' => data_get($phase->settings, 'tables'),
                             ]]),
                     ])->values()->all(),
@@ -152,6 +162,13 @@ class ManageTournamentCompetition extends Page
                             TextInput::make('tables')->label('Mesas disponibles')->integer()->minValue(1),
                             TextInput::make('estimated_minutes')->label('Duración por partido')->suffix('min')->integer()->minValue(1),
                             TextInput::make('rest_minutes')->label('Descanso entre partidos')->suffix('min')->integer()->minValue(0)->default(0),
+                            Select::make('bracket_size')->label('Tamaño del cuadro')->options([
+                                16 => '16 posiciones',
+                                32 => '32 posiciones',
+                                64 => '64 posiciones',
+                            ])->visible(fn (Get $get): bool => $get('phase_type') === 'bracket')
+                                ->required(fn (Get $get): bool => $get('phase_type') === 'bracket')
+                                ->native(false),
                             Toggle::make('split_by_slot')->label('Usar los horarios definidos en el torneo')->inline(false)
                                 ->helperText('Cada horario conserva sus propios inscriptos, zonas y partidos.'),
                             Toggle::make('is_enabled')->label('Fase habilitada')->default(true)->inline(false),
@@ -161,13 +178,19 @@ class ManageTournamentCompetition extends Page
                                 ->table([
                                     TableColumn::make('Nombre')->markAsRequired(),
                                     TableColumn::make('Fecha y hora de inicio'),
+                                    TableColumn::make('Ronda'),
                                     TableColumn::make('Sector de la grilla'),
+                                    TableColumn::make('Desde partido'),
+                                    TableColumn::make('Hasta partido'),
                                     TableColumn::make('Mesas'),
                                 ])
                                 ->schema([
                                     TextInput::make('name')->hiddenLabel()->required()->maxLength(100),
                                     DateTimePicker::make('starts_at')->hiddenLabel()->seconds(false),
+                                    TextInput::make('round_number')->hiddenLabel()->integer()->minValue(1)->default(1)->required(),
                                     TextInput::make('bracket_section')->hiddenLabel()->placeholder('Ej. 1-64 a 29-4')->maxLength(100),
+                                    TextInput::make('from_match')->hiddenLabel()->integer()->minValue(1)->placeholder('Desde'),
+                                    TextInput::make('to_match')->hiddenLabel()->integer()->minValue(1)->placeholder('Hasta'),
                                     TextInput::make('tables')->hiddenLabel()->integer()->minValue(1),
                                 ])
                                 ->visible(fn (Get $get): bool => $get('phase_type') !== 'zones')
@@ -195,6 +218,30 @@ class ManageTournamentCompetition extends Page
                     );
                     Notification::make()->success()->title('Formato actualizado')
                         ->body($enabled.' fases habilitadas para este torneo.')->send();
+                }),
+            Action::make('scheduleMatches')
+                ->label('Programar partidos')
+                ->icon('heroicon-o-clock')
+                ->color('primary')
+                ->visible(fn (): bool => $this->competition() !== null)
+                ->schema([
+                    Select::make('phase_id')->label('Fase')
+                        ->options(fn (): array => $this->competition()->phases()->where('is_enabled', true)
+                            ->where('phase_type', '!=', 'zones')->pluck('name', 'id')->all())
+                        ->live()->searchable()->preload()->native(false)->required(),
+                    Select::make('schedule_index')->label('Horario de la fase')
+                        ->options(fn (Get $get): array => $this->scheduleOptionsForPhase((int) $get('phase_id')))
+                        ->searchable()->native(false)->required(),
+                ])
+                ->modalDescription('Los partidos se distribuyen por orden de grilla. Si hay 6 mesas, los primeros 6 comparten hora; la tanda siguiente comienza al cumplirse la duración estimada.')
+                ->action(function (array $data): void {
+                    $phase = $this->competition()->phases()->whereKey((int) $data['phase_id'])->firstOrFail();
+                    $count = app(FiveQuillasCompetitionService::class)->scheduleConfiguredMatches(
+                        $phase,
+                        (int) $data['schedule_index'],
+                    );
+                    Notification::make()->success()->title('Partidos programados')
+                        ->body($count.' partidos recibieron mesa y horario.')->send();
                 }),
             Action::make('applyTypeTemplate')
                 ->label('Aplicar plantilla del torneo')
@@ -330,6 +377,16 @@ class ManageTournamentCompetition extends Page
                 ($match->playerOne?->player?->full_name ?? 'A definir').' vs '.($match->playerTwo?->player?->full_name ?? 'A definir'),
                 $match->status === 'completed' ? 'RESULTADO CARGADO' : null,
             ]))])->all();
+    }
+
+    public function scheduleOptionsForPhase(int $phaseId): array
+    {
+        $phase = $this->competition()?->phases()->whereKey($phaseId)->first();
+        return collect(data_get($phase?->settings, 'schedules', []))
+            ->mapWithKeys(fn (array $schedule, int $index): array => [
+                $index => ($schedule['name'] ?? 'Horario '.($index + 1))
+                    .(filled($schedule['starts_at'] ?? null) ? ' · '.$schedule['starts_at'] : ' · SIN FECHA'),
+            ])->all();
     }
 
     protected function getViewData(): array

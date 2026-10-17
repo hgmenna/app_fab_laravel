@@ -207,12 +207,21 @@ class FiveQuillasCompetitionService
                         'tables' => filled($row['tables'] ?? null) ? (int) $row['tables'] : null,
                         'estimated_minutes' => filled($row['estimated_minutes'] ?? null) ? (int) $row['estimated_minutes'] : null,
                         'rest_minutes' => filled($row['rest_minutes'] ?? null) ? (int) $row['rest_minutes'] : 0,
+                        'bracket_size' => $row['phase_type'] === 'bracket' && filled($row['bracket_size'] ?? null)
+                            ? (int) $row['bracket_size']
+                            : null,
+                        'bracket_pairs' => $row['phase_type'] === 'bracket' && filled($row['bracket_size'] ?? null)
+                            ? $this->officialBracketPairs((int) $row['bracket_size'])
+                            : [],
                         'schedules' => $row['phase_type'] === 'zones'
                             ? []
                             : collect($row['schedules'] ?? [])->map(fn (array $schedule): array => [
                                 'name' => trim((string) ($schedule['name'] ?? '')),
                                 'starts_at' => filled($schedule['starts_at'] ?? null) ? $schedule['starts_at'] : null,
+                                'round_number' => max(1, (int) ($schedule['round_number'] ?? 1)),
                                 'bracket_section' => trim((string) ($schedule['bracket_section'] ?? '')) ?: null,
+                                'from_match' => filled($schedule['from_match'] ?? null) ? max(1, (int) $schedule['from_match']) : null,
+                                'to_match' => filled($schedule['to_match'] ?? null) ? max(1, (int) $schedule['to_match']) : null,
                                 'tables' => filled($schedule['tables'] ?? null) ? (int) $schedule['tables'] : null,
                             ])->filter(fn (array $schedule): bool => $schedule['name'] !== '')->values()->all(),
                     ],
@@ -254,6 +263,61 @@ class FiveQuillasCompetitionService
                 $competition->phases()->create($phase);
             }
             return $competition->phases()->count();
+        });
+    }
+
+    public function scheduleConfiguredMatches(FiveQuillasPhase $phase, int $scheduleIndex): int
+    {
+        return DB::transaction(function () use ($phase, $scheduleIndex): int {
+            $schedule = data_get($phase->settings, "schedules.{$scheduleIndex}");
+            if (! is_array($schedule)) {
+                throw ValidationException::withMessages(['schedule' => 'El horario seleccionado no existe.']);
+            }
+            if (! filled($schedule['starts_at'] ?? null)) {
+                throw ValidationException::withMessages(['schedule' => 'Indicá la fecha y hora de inicio del horario.']);
+            }
+            $tables = (int) ($schedule['tables'] ?? data_get($phase->settings, 'tables', 0));
+            $minutes = (int) data_get($phase->settings, 'estimated_minutes', 0);
+            if ($tables < 1 || $minutes < 1) {
+                throw ValidationException::withMessages([
+                    'schedule' => 'Configurá al menos una mesa y la duración estimada de cada partido.',
+                ]);
+            }
+
+            $round = max(1, (int) ($schedule['round_number'] ?? 1));
+            $matches = $phase->matches()->where('round_number', $round)
+                ->with(['playerOne', 'playerTwo'])->orderBy('bracket_order')->get();
+            if ($round === 1 && count(data_get($phase->settings, 'bracket_pairs', []))) {
+                $order = collect(data_get($phase->settings, 'bracket_pairs'))->mapWithKeys(
+                    fn (array $pair, int $index): array => [min($pair).'-'.max($pair) => $index]
+                );
+                $matches = $matches->sortBy(function ($match) use ($order): int {
+                    $one = (int) ($match->playerOne?->seed ?? 0);
+                    $two = (int) ($match->playerTwo?->seed ?? 0);
+                    return $order->get(min($one, $two).'-'.max($one, $two), 10000 + $match->bracket_order);
+                })->values();
+            }
+            $from = filled($schedule['from_match'] ?? null) ? (int) $schedule['from_match'] : 1;
+            $to = filled($schedule['to_match'] ?? null) ? (int) $schedule['to_match'] : $matches->count();
+            $matches = $matches->slice($from - 1, max(0, $to - $from + 1))->values();
+            if ($matches->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'schedule' => "La fase todavía no tiene partidos creados para la ronda {$round}.",
+                ]);
+            }
+
+            $start = \Illuminate\Support\Carbon::parse($schedule['starts_at']);
+            foreach ($matches as $index => $match) {
+                $batch = intdiv($index, $tables);
+                $match->update([
+                    'scheduled_at' => $start->copy()->addMinutes($batch * $minutes),
+                    'table_number' => ($index % $tables) + 1,
+                    'estimated_minutes' => $minutes,
+                    'status' => $match->status === 'pending' ? 'scheduled' : $match->status,
+                ]);
+            }
+
+            return $matches->count();
         });
     }
 
@@ -456,20 +520,44 @@ class FiveQuillasCompetitionService
                 $this->phase('slot-elimination', 'Eliminación por horario', 'slot_elimination', 2, 3, 'automatic_draw', true),
                 $this->phase('national-play-in', 'Emparejamientos de Primera Nacional', 'play_in', 3, 3, 'national_ranking', true),
                 $this->phase('national', 'Primera Nacional', 'bracket', 4, 5, 'national_ranking', true, [
+                    'bracket_size' => 64,
+                    'bracket_pairs' => $this->officialBracketPairs(64),
                     'schedules' => [
-                        ['name' => 'Horario 1', 'starts_at' => null, 'bracket_section' => '1-64 a 29-4', 'tables' => null],
-                        ['name' => 'Horario 2', 'starts_at' => null, 'bracket_section' => '3-62 a 2-63', 'tables' => null],
+                        ['name' => 'Horario 1', 'starts_at' => null, 'round_number' => 1, 'bracket_section' => '1-64 a 61-4', 'from_match' => 1, 'to_match' => 16, 'tables' => null],
+                        ['name' => 'Horario 2', 'starts_at' => null, 'round_number' => 1, 'bracket_section' => '3-62 a 2-63', 'from_match' => 17, 'to_match' => 32, 'tables' => null],
                     ],
                 ]),
-                $this->phase('master-final', 'Master / Etapa final', 'bracket', 5, 5, 'national_ranking', false),
+                $this->phase('master-final', 'Master / Etapa final', 'bracket', 5, 5, 'national_ranking', false, [
+                    'bracket_size' => 32,
+                    'bracket_pairs' => $this->officialBracketPairs(32),
+                ]),
             ];
         }
 
         return [
             $this->phase('zones', 'Zonas', 'zones', 1, 3, 'manual', true),
             $this->phase('intermediate', 'Fase intermedia', 'slot_elimination', 2, 3, 'previous_results', true),
-            $this->phase('final', 'Cuadro final', 'bracket', 3, 3, 'number_draw', false),
+            $this->phase('final', 'Cuadro final', 'bracket', 3, 3, 'number_draw', false, [
+                'bracket_size' => 16,
+                'bracket_pairs' => $this->officialBracketPairs(16),
+            ]),
         ];
+    }
+
+    private function officialBracketPairs(int $size): array
+    {
+        return match ($size) {
+            16 => [[1,16],[9,8],[5,12],[13,4],[3,14],[11,6],[7,10],[15,2]],
+            32 => [[1,32],[16,17],[9,24],[25,8],[5,28],[12,21],[13,20],[29,4],
+                [3,30],[14,19],[11,22],[27,6],[7,26],[10,23],[15,18],[31,2]],
+            64 => [[1,64],[32,33],[17,48],[49,16],[9,56],[24,41],[25,40],[57,8],
+                [5,60],[28,37],[12,53],[21,44],[13,52],[20,45],[29,36],[61,4],
+                [3,62],[30,35],[19,46],[51,14],[11,54],[43,22],[27,38],[59,6],
+                [7,58],[39,26],[23,42],[55,10],[15,50],[47,18],[31,34],[63,2]],
+            default => throw ValidationException::withMessages([
+                'phases' => 'El cuadro debe tener 16, 32 o 64 posiciones.',
+            ]),
+        };
     }
 
     private function phase(string $code, string $name, string $type, int $order, int $sets, string $seeding, bool $split, array $settings = []): array
@@ -478,7 +566,10 @@ class FiveQuillasCompetitionService
             $settings['schedules'] = [[
                 'name' => 'Horario principal',
                 'starts_at' => null,
+                'round_number' => 1,
                 'bracket_section' => null,
+                'from_match' => null,
+                'to_match' => null,
                 'tables' => null,
             ]];
         }
