@@ -26,7 +26,7 @@ class BankTransferSettingResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingLibrary;
     protected static ?string $navigationLabel = 'Cuenta para transferencias';
     protected static ?string $modelLabel = 'cuenta para transferencias';
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 5;
 
     public static function canViewAny(): bool
     {

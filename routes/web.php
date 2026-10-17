@@ -6,6 +6,8 @@ use App\Http\Controllers\ThreeCushionRankingController;
 use App\Http\Controllers\TournamentRegistrationPdfController;
 use App\Http\Controllers\UpcomingTournamentsController;
 use App\Http\Controllers\BankTransferOrderPdfController;
+use App\Http\Controllers\MembershipAccountPdfController;
+use App\Http\Controllers\MembershipPaymentPdfController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/torneos-proximos.json', UpcomingTournamentsController::class);
@@ -18,6 +20,10 @@ Route::get('/ordenes-transferencia/{order}/pdf', BankTransferOrderPdfController:
 Route::get('/inscripciones/{registration}/constancia-pdf', TournamentRegistrationPdfController::class)
     ->middleware('signed')
     ->name('tournament-registrations.pdf');
+Route::get('/membresias/cuentas/{account}/pdf', MembershipAccountPdfController::class)
+    ->middleware('signed')->name('membership-accounts.pdf');
+Route::get('/membresias/movimientos/{payment}/pdf', MembershipPaymentPdfController::class)
+    ->middleware('signed')->name('membership-payments.pdf');
 
 Route::get('/', function () {
     return view('welcome');

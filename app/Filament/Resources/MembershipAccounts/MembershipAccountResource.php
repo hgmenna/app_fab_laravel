@@ -14,6 +14,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\URL;
 use UnitEnum;
 
 class MembershipAccountResource extends Resource
@@ -98,6 +99,18 @@ class MembershipAccountResource extends Resource
                     ->modalContent(fn (PlayerMembership $record) => view('filament.membership-account-history', [
                         'record' => $record->load(['payments.payer', 'payments.recorder']),
                     ])),
+                Action::make('print')->label('Ver / imprimir cuenta')->icon('heroicon-o-printer')->iconButton()
+                    ->tooltip('Ver o imprimir cuenta corriente')->openUrlInNewTab()
+                    ->url(fn (PlayerMembership $record): string => URL::temporarySignedRoute(
+                        'membership-accounts.pdf', now()->addDays(7), ['account' => $record]
+                    )),
+                Action::make('share')->label('Compartir cuenta')->icon('heroicon-o-share')->iconButton()->color('success')
+                    ->tooltip('Compartir cuenta corriente por WhatsApp')->openUrlInNewTab()
+                    ->url(function (PlayerMembership $record): string {
+                        $url = URL::temporarySignedRoute('membership-accounts.pdf', now()->addDays(7), ['account' => $record]);
+                        $message = "Cuenta corriente de membresía\n{$record->player->full_name}\nSaldo: $ ".number_format($record->balance, 2, ',', '.')."\n{$url}";
+                        return 'https://wa.me/?text='.rawurlencode($message);
+                    }),
             ]);
     }
 
