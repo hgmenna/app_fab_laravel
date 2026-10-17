@@ -15,6 +15,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
@@ -83,7 +84,10 @@ class ManageTournamentCompetition extends Page
                         'phase_type' => $phase->phase_type,
                         'sets_to_play' => $phase->sets_to_play,
                         'points_per_set' => $phase->points_per_set,
-                        'seeding_method' => $phase->seeding_method,
+                        'seeding_method' => $phase->phase_type === 'zones'
+                            && ! in_array($phase->seeding_method, ['manual', 'national_ranking'], true)
+                                ? 'manual'
+                                : $phase->seeding_method,
                         'split_by_slot' => $phase->split_by_slot,
                         'is_enabled' => $phase->is_enabled ?? true,
                         'qualifiers' => data_get($phase->settings, 'qualifiers'),
@@ -104,16 +108,38 @@ class ManageTournamentCompetition extends Page
                                 'slot_elimination' => 'Eliminación por horario',
                                 'play_in' => 'Emparejamiento / reclasificación',
                                 'bracket' => 'Cuadro eliminatorio',
-                            ])->required()->native(false)->columnSpan(2),
+                            ])->required()->native(false)->live()
+                                ->afterStateUpdated(fn (Set $set) => $set('seeding_method', 'manual'))
+                                ->columnSpan(2),
                             TextInput::make('sets_to_play')->label('Sets')->integer()->minValue(1)->default(3)->required(),
                             TextInput::make('points_per_set')->label('Puntos por set')->integer()->minValue(1)->default(60)->required(),
-                            Select::make('seeding_method')->label('Armado')->options([
-                                'previous_results' => 'Resultados de la fase anterior',
-                                'national_ranking' => 'Ranking nacional',
-                                'automatic_draw' => 'Sorteo automático',
-                                'number_draw' => 'Sorteo de número de grilla',
-                                'manual' => 'Carga manual',
-                            ])->required()->native(false)->columnSpan(2),
+                            Select::make('seeding_method')->label('Ubicación de jugadores')
+                                ->options(fn (Get $get): array => match ($get('phase_type')) {
+                                    'zones' => [
+                                        'manual' => 'Carga manual',
+                                        'national_ranking' => 'Ranking nacional',
+                                    ],
+                                    'slot_elimination' => [
+                                        'manual' => 'Carga manual',
+                                        'previous_results' => 'Resultados de la fase anterior',
+                                        'automatic_draw' => 'Sorteo automático',
+                                    ],
+                                    'play_in' => [
+                                        'manual' => 'Carga manual',
+                                        'national_ranking' => 'Ranking nacional',
+                                        'previous_results' => 'Resultados de la fase anterior',
+                                    ],
+                                    default => [
+                                        'manual' => 'Carga manual',
+                                        'previous_results' => 'Resultados de la fase anterior',
+                                        'national_ranking' => 'Ranking nacional',
+                                        'number_draw' => 'Sorteo presencial de posición en la grilla',
+                                    ],
+                                })
+                                ->default('manual')->required()->native(false)->columnSpan(2)
+                                ->helperText(fn (Get $get): ?string => $get('phase_type') === 'bracket'
+                                    ? 'El sorteo presencial se usa cuando cada jugador extrae el número de su posición en el cuadro.'
+                                    : null),
                             TextInput::make('qualifiers')->label('Clasificados a la siguiente fase')->integer()->minValue(1)
                                 ->helperText('En la última fase se ignora porque allí finaliza el torneo.'),
                             TextInput::make('tables')->label('Mesas disponibles')->integer()->minValue(1),

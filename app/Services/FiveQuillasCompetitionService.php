@@ -170,6 +170,17 @@ class FiveQuillasCompetitionService
             );
 
             foreach ($rows as $index => $row) {
+                $allowedSeeding = match ($row['phase_type']) {
+                    'zones' => ['manual', 'national_ranking'],
+                    'slot_elimination' => ['manual', 'previous_results', 'automatic_draw'],
+                    'play_in' => ['manual', 'national_ranking', 'previous_results'],
+                    default => ['manual', 'previous_results', 'national_ranking', 'number_draw'],
+                };
+                if (! in_array($row['seeding_method'], $allowedSeeding, true)) {
+                    throw ValidationException::withMessages([
+                        'phases' => 'El método de ubicación elegido no corresponde a la fase '.($index + 1).'.',
+                    ]);
+                }
                 $phase = filled($row['id'] ?? null) ? $existing->get((int) $row['id']) : null;
                 if ($phase && ($phase->groups_count > 0 || $phase->matches_count > 0)
                     && $phase->phase_type !== $row['phase_type']) {
@@ -441,7 +452,7 @@ class FiveQuillasCompetitionService
 
         if ($circuit) {
             return [
-                $this->phase('zones', 'Zonas', 'zones', 1, 3, 'automatic_draw', true),
+                $this->phase('zones', 'Zonas', 'zones', 1, 3, 'manual', true),
                 $this->phase('slot-elimination', 'Eliminación por horario', 'slot_elimination', 2, 3, 'automatic_draw', true),
                 $this->phase('national-play-in', 'Emparejamientos de Primera Nacional', 'play_in', 3, 3, 'national_ranking', true),
                 $this->phase('national', 'Primera Nacional', 'bracket', 4, 5, 'national_ranking', true, [
@@ -455,7 +466,7 @@ class FiveQuillasCompetitionService
         }
 
         return [
-            $this->phase('zones', 'Zonas', 'zones', 1, 3, 'automatic_draw', true),
+            $this->phase('zones', 'Zonas', 'zones', 1, 3, 'manual', true),
             $this->phase('intermediate', 'Fase intermedia', 'slot_elimination', 2, 3, 'previous_results', true),
             $this->phase('final', 'Cuadro final', 'bracket', 3, 3, 'number_draw', false),
         ];
