@@ -21,6 +21,8 @@ class EditBankTransferOrder extends EditRecord
             Action::make('addTournamentRegistration')
                 ->label('Agregar otra inscripción')
                 ->icon('heroicon-o-user-plus')
+                ->iconButton()
+                ->tooltip('Agregar otra inscripción a esta orden')
                 ->color('info')
                 ->visible(fn (): bool => $this->record->purpose === 'tournament_registration'
                     && $this->record->status === 'pending'

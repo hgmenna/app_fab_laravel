@@ -20,7 +20,12 @@
                         $pdfUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute('membership-payments.pdf', now()->addDays(7), ['payment' => $payment]);
                         $shareText = rawurlencode("Comprobante de pago de membresía\n{$record->player->full_name}\nImporte: $ ".number_format((float)$payment->amount,2,',','.')."\n{$pdfUrl}");
                     @endphp
-                    <td class="p-2 text-center whitespace-nowrap"><a class="text-primary-600 font-semibold" href="{{ $pdfUrl }}" target="_blank">PDF</a> · <a class="text-success-600 font-semibold" href="https://wa.me/?text={{ $shareText }}" target="_blank">WhatsApp</a></td>
+                    <td class="p-2 text-center whitespace-nowrap">
+                        <span class="inline-flex items-center gap-1">
+                            <x-filament::icon-button tag="a" href="{{ $pdfUrl }}" target="_blank" icon="heroicon-o-printer" color="primary" size="sm" label="Ver o imprimir comprobante" tooltip="Ver o imprimir comprobante" />
+                            <x-filament::icon-button tag="a" href="https://wa.me/?text={{ $shareText }}" target="_blank" icon="heroicon-o-share" color="success" size="sm" label="Compartir por WhatsApp" tooltip="Compartir por WhatsApp" />
+                        </span>
+                    </td>
                 </tr>
                 @if($payment->notes)<tr><td colspan="7" class="px-2 pb-2 text-xs text-gray-500"><strong>Observación:</strong> {{ $payment->notes }}</td></tr>@endif
             @empty

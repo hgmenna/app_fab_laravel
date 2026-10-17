@@ -94,6 +94,7 @@ class MembershipAccountResource extends Resource
             ])
             ->recordActions([
                 Action::make('history')->label('Ver movimientos')->icon('heroicon-o-list-bullet')
+                    ->iconButton()->color('info')->tooltip('Ver movimientos de la cuenta')
                     ->modalHeading(fn (PlayerMembership $record): string => 'Cuenta corriente · '.$record->player->full_name)
                     ->modalSubmitAction(false)->modalCancelActionLabel('Cerrar')
                     ->modalContent(fn (PlayerMembership $record) => view('filament.membership-account-history', [

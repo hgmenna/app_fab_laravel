@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Memberships\Tables;
 
-use App\Filament\Actions\GlobalActionGroup;
 use App\Filament\Actions\GlobalEditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -23,9 +22,7 @@ class MembershipsTable
                 IconColumn::make('active')->label('Activa')->boolean(),
             ])
             ->recordActions([
-                GlobalActionGroup::make([
-                    GlobalEditAction::make(),
-                ]),
+                GlobalEditAction::make()->iconButton()->tooltip('Editar configuración anual'),
             ]);
     }
 }

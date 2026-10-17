@@ -17,6 +17,7 @@ class EditMembershipPayment extends EditRecord
     {
         return [
             Action::make('print')->label('Ver / imprimir')->icon('heroicon-o-printer')->openUrlInNewTab()
+                ->iconButton()->tooltip('Ver o imprimir comprobante')
                 ->url(fn (): string => URL::temporarySignedRoute('membership-payments.pdf', now()->addDays(7), ['payment'=>$this->record])),
         ];
     }

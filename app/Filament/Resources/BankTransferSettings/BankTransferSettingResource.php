@@ -74,7 +74,10 @@ class BankTransferSettingResource extends Resource
             TextColumn::make('alias')->label('Alias')->copyable(),
             TextColumn::make('expires_in_days')->label('Vigencia')->suffix(' días'),
             IconColumn::make('is_active')->label('Activa')->boolean(),
-        ])->recordActions([EditAction::make()]);
+        ])->recordActions([
+            EditAction::make()->label('Editar cuenta')->icon('heroicon-o-pencil-square')
+                ->iconButton()->tooltip('Editar cuenta receptora'),
+        ]);
     }
 
     public static function getPages(): array
