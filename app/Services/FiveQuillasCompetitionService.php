@@ -85,7 +85,7 @@ class FiveQuillasCompetitionService
     public function createManualZones(FiveQuillasCompetition $competition, int $slotId, array $zoneRows): int
     {
         return DB::transaction(function () use ($competition, $slotId, $zoneRows): int {
-            $phase = $competition->phases()->where('code', 'zones')->firstOrFail();
+            $phase = $competition->phases()->where('phase_type', 'zones')->where('is_enabled', true)->firstOrFail();
             $availableEntries = $competition->entries()
                 ->where('source_slot_id', $slotId)
                 ->whereIn('status', ['eligible', 'assigned'])
@@ -146,6 +146,82 @@ class FiveQuillasCompetitionService
             $phase->update(['status' => 'ready']);
             return $zones->count();
         });
+    }
+
+    public function configureFormat(FiveQuillasCompetition $competition, array $phaseRows): int
+    {
+        return DB::transaction(function () use ($competition, $phaseRows): int {
+            $rows = collect($phaseRows)->values();
+            if ($rows->isEmpty()) {
+                throw ValidationException::withMessages(['phases' => 'El torneo debe tener al menos una fase.']);
+            }
+            if ($rows->where('phase_type', 'zones')->where('is_enabled', true)->count() !== 1) {
+                throw ValidationException::withMessages(['phases' => 'Debe existir exactamente una fase de zonas habilitada.']);
+            }
+
+            $existing = $competition->phases()->withCount(['groups', 'matches'])->get()->keyBy('id');
+            $retainedIds = collect();
+            $usedCodes = collect();
+
+            foreach ($rows as $index => $row) {
+                $phase = filled($row['id'] ?? null) ? $existing->get((int) $row['id']) : null;
+                if ($phase && ($phase->groups_count > 0 || $phase->matches_count > 0)
+                    && $phase->phase_type !== $row['phase_type']) {
+                    throw ValidationException::withMessages([
+                        'phases' => "No se puede cambiar el formato de {$phase->name} porque ya contiene zonas o partidos.",
+                    ]);
+                }
+
+                $code = $phase?->code ?: $this->uniquePhaseCode($competition, (string) $row['name'], $usedCodes);
+                $attributes = [
+                    'code' => $code,
+                    'name' => trim((string) $row['name']),
+                    'phase_type' => $row['phase_type'],
+                    'sort_order' => $index + 1,
+                    'sets_to_play' => (int) $row['sets_to_play'],
+                    'points_per_set' => (int) $row['points_per_set'],
+                    'seeding_method' => $row['seeding_method'],
+                    'split_by_slot' => (bool) ($row['split_by_slot'] ?? false),
+                    'is_enabled' => (bool) ($row['is_enabled'] ?? true),
+                    'settings' => [
+                        'qualifiers' => filled($row['qualifiers'] ?? null) ? (int) $row['qualifiers'] : null,
+                        'tables' => filled($row['tables'] ?? null) ? (int) $row['tables'] : null,
+                        'estimated_minutes' => filled($row['estimated_minutes'] ?? null) ? (int) $row['estimated_minutes'] : null,
+                        'rest_minutes' => filled($row['rest_minutes'] ?? null) ? (int) $row['rest_minutes'] : 0,
+                        'start_time' => filled($row['start_time'] ?? null) ? $row['start_time'] : null,
+                    ],
+                ];
+
+                if ($phase) {
+                    $phase->update($attributes);
+                } else {
+                    $phase = $competition->phases()->create($attributes + ['status' => 'pending', 'is_public' => false]);
+                }
+                $retainedIds->push($phase->id);
+                $usedCodes->push($code);
+            }
+
+            foreach ($existing->whereNotIn('id', $retainedIds) as $phase) {
+                if ($phase->groups_count > 0 || $phase->matches_count > 0) {
+                    $phase->update(['is_enabled' => false, 'is_public' => false]);
+                } else {
+                    $phase->delete();
+                }
+            }
+
+            return $rows->where('is_enabled', true)->count();
+        });
+    }
+
+    private function uniquePhaseCode(FiveQuillasCompetition $competition, string $name, $usedCodes): string
+    {
+        $base = Str::slug($name) ?: 'fase';
+        $code = $base;
+        $suffix = 2;
+        while ($usedCodes->contains($code) || $competition->phases()->where('code', $code)->exists()) {
+            $code = $base.'-'.$suffix++;
+        }
+        return $code;
     }
 
     private function createZoneBracket(FiveQuillasPhase $phase, FiveQuillasGroup $group, $entries): void
@@ -227,7 +303,7 @@ class FiveQuillasCompetitionService
         return [
             'code' => $code, 'name' => $name, 'phase_type' => $type, 'sort_order' => $order,
             'sets_to_play' => $sets, 'points_per_set' => 60, 'seeding_method' => $seeding,
-            'split_by_slot' => $split, 'status' => 'pending', 'is_public' => false,
+            'split_by_slot' => $split, 'is_enabled' => true, 'status' => 'pending', 'is_public' => false,
         ];
     }
 

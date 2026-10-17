@@ -14,7 +14,7 @@ class FiveQuillasCompetitionPublicController extends Controller
             ->where('is_public', true)
             ->with([
                 'tournament:id,name,start_date,end_date,flyer_path',
-                'phases' => fn ($query) => $query->where('is_public', true),
+                'phases' => fn ($query) => $query->where('is_public', true)->where('is_enabled', true),
                 'phases.groups' => fn ($query) => $query->where('is_public', true),
                 'phases.groups.slot:id,name,starts_at',
                 'phases.groups.groupEntries.entry.player:id,first_name,last_name,club_id',

@@ -8,8 +8,11 @@ use App\Services\FiveQuillasCompetitionService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
@@ -58,12 +61,85 @@ class ManageTournamentCompetition extends Page
                     $competition = $this->competition();
                     $publish = ! $competition->is_public;
                     $competition->update(['is_public' => $publish, 'status' => $publish ? 'published' : 'draft']);
-                    $competition->phases()->update(['is_public' => $publish]);
+                    $competition->phases()->update(['is_public' => false]);
+                    $competition->phases()->where('is_enabled', true)->update(['is_public' => $publish]);
                     $competition->phases()->with('groups')->get()->flatMap->groups->each(function ($group) use ($publish): void {
-                        $group->update(['is_public' => $publish]);
-                        $group->matches()->update(['is_public' => $publish]);
+                        $phaseEnabled = (bool) $group->phase()->value('is_enabled');
+                        $group->update(['is_public' => $publish && $phaseEnabled]);
+                        $group->matches()->update(['is_public' => $publish && $phaseEnabled]);
                     });
                     Notification::make()->success()->title($publish ? 'Desarrollo publicado' : 'Desarrollo ocultado')->send();
+                }),
+            Action::make('configureFormat')
+                ->label('Configurar formato')
+                ->icon('heroicon-o-adjustments-horizontal')
+                ->color('info')
+                ->visible(fn (): bool => $this->competition() !== null)
+                ->fillForm(fn (): array => [
+                    'phases' => $this->competition()->phases->map(fn ($phase): array => [
+                        'id' => $phase->id,
+                        'name' => $phase->name,
+                        'phase_type' => $phase->phase_type,
+                        'sets_to_play' => $phase->sets_to_play,
+                        'points_per_set' => $phase->points_per_set,
+                        'seeding_method' => $phase->seeding_method,
+                        'split_by_slot' => $phase->split_by_slot,
+                        'is_enabled' => $phase->is_enabled ?? true,
+                        'qualifiers' => data_get($phase->settings, 'qualifiers'),
+                        'tables' => data_get($phase->settings, 'tables'),
+                        'estimated_minutes' => data_get($phase->settings, 'estimated_minutes'),
+                        'rest_minutes' => data_get($phase->settings, 'rest_minutes', 0),
+                        'start_time' => data_get($phase->settings, 'start_time'),
+                    ])->values()->all(),
+                ])
+                ->schema([
+                    Repeater::make('phases')
+                        ->label('Fases de la competencia')
+                        ->schema([
+                            Hidden::make('id'),
+                            TextInput::make('name')->label('Nombre')->required()->maxLength(255)->columnSpan(2),
+                            Select::make('phase_type')->label('Formato')->options([
+                                'zones' => 'Zonas',
+                                'slot_elimination' => 'Eliminación por horario',
+                                'play_in' => 'Emparejamiento / reclasificación',
+                                'bracket' => 'Cuadro eliminatorio',
+                            ])->required()->native(false)->columnSpan(2),
+                            TextInput::make('sets_to_play')->label('Sets')->integer()->minValue(1)->default(3)->required(),
+                            TextInput::make('points_per_set')->label('Puntos por set')->integer()->minValue(1)->default(60)->required(),
+                            Select::make('seeding_method')->label('Armado')->options([
+                                'previous_results' => 'Resultados de la fase anterior',
+                                'national_ranking' => 'Ranking nacional',
+                                'automatic_draw' => 'Sorteo automático',
+                                'number_draw' => 'Sorteo de número de grilla',
+                                'manual' => 'Carga manual',
+                            ])->required()->native(false)->columnSpan(2),
+                            TextInput::make('qualifiers')->label('Clasificados')->integer()->minValue(1),
+                            TextInput::make('tables')->label('Mesas disponibles')->integer()->minValue(1),
+                            TextInput::make('estimated_minutes')->label('Duración por partido')->suffix('min')->integer()->minValue(1),
+                            TextInput::make('rest_minutes')->label('Descanso entre partidos')->suffix('min')->integer()->minValue(0)->default(0),
+                            TimePicker::make('start_time')->label('Hora de inicio')->seconds(false),
+                            Toggle::make('split_by_slot')->label('Separar por horarios')->inline(false),
+                            Toggle::make('is_enabled')->label('Fase habilitada')->default(true)->inline(false),
+                        ])
+                        ->columns(6)
+                        ->defaultItems(1)
+                        ->minItems(1)
+                        ->addActionLabel('Agregar fase')
+                        ->reorderable()
+                        ->collapsible()
+                        ->cloneable(false)
+                        ->columnSpanFull(),
+                ])
+                ->modalHeading('Formato de competencia del torneo')
+                ->modalDescription('El orden de las filas determina el orden de disputa. La fase de zonas debe existir una sola vez. Las fases con resultados cargados no se eliminan: quedan deshabilitadas para preservar el historial.')
+                ->modalWidth('7xl')
+                ->action(function (array $data): void {
+                    $enabled = app(FiveQuillasCompetitionService::class)->configureFormat(
+                        $this->competition(),
+                        $data['phases'] ?? [],
+                    );
+                    Notification::make()->success()->title('Formato actualizado')
+                        ->body($enabled.' fases habilitadas para este torneo.')->send();
                 }),
             Action::make('createZones')
                 ->label('Cargar zonas')

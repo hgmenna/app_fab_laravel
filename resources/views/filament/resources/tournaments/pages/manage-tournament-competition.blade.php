@@ -18,7 +18,7 @@
 
         <div class="fq-phases">
             @foreach($competition->phases as $phase)
-                <div class="fq-phase"><span class="fq-label">Fase {{ $phase->sort_order }}</span><strong>{{ $phase->name }}</strong><small>{{ $phase->sets_to_play }} sets · {{ $phase->points_per_set }} puntos</small></div>
+                <div class="fq-phase" style="{{ $phase->is_enabled ? '' : 'opacity:.48' }}"><span class="fq-label">Fase {{ $phase->sort_order }}{{ $phase->is_enabled ? '' : ' · Deshabilitada' }}</span><strong>{{ $phase->name }}</strong><small>{{ $phase->sets_to_play }} sets · {{ $phase->points_per_set }} puntos · {{ data_get($phase->settings, 'tables') ?: '—' }} mesas · {{ data_get($phase->settings, 'estimated_minutes') ?: '—' }} min</small></div>
             @endforeach
         </div>
 
@@ -36,7 +36,7 @@
             @endforelse
         </div>
 
-        @php($zonePhase = $competition->phases->firstWhere('code', 'zones'))
+        @php($zonePhase = $competition->phases->first(fn($phase) => $phase->phase_type === 'zones' && $phase->is_enabled))
         @if($zonePhase?->groups?->isNotEmpty())
             <h2 style="font-size:1.1rem;font-weight:800;margin:1.2rem 0 .65rem">Zonas preparadas</h2>
             <div class="fq-zones">
