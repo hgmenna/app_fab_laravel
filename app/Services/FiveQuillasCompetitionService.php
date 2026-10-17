@@ -250,20 +250,20 @@ class FiveQuillasCompetitionService
         });
     }
 
-    public function applyTournamentTypeTemplate(FiveQuillasCompetition $competition): int
+    public function applyCompetitionTemplate(FiveQuillasCompetition $competition, string $format): int
     {
-        return DB::transaction(function () use ($competition): int {
+        return DB::transaction(function () use ($competition, $format): int {
             if ($competition->phases()->whereHas('groups')->exists()
                 || $competition->phases()->whereHas('matches')->exists()) {
                 throw ValidationException::withMessages([
                     'format' => 'No se puede reemplazar la plantilla porque ya existen zonas o partidos cargados.',
                 ]);
             }
-            $competition->loadMissing('tournament.type');
             $competition->phases()->delete();
-            foreach ($this->phaseTemplate($competition->tournament) as $phase) {
+            foreach ($this->phaseTemplate($competition->tournament, $format) as $phase) {
                 $competition->phases()->create($phase);
             }
+            $competition->update(['settings' => array_merge($competition->settings ?? [], ['format' => $format])]);
             return $competition->phases()->count();
         });
     }
@@ -313,7 +313,7 @@ class FiveQuillasCompetitionService
                 $batch = intdiv($index, $tables);
                 $match->update([
                     'scheduled_at' => $start->copy()->addMinutes($batch * $minutes),
-                    'table_number' => ($index % $tables) + 1,
+                    'table_number' => null,
                     'estimated_minutes' => $minutes,
                     'status' => $match->status === 'pending' ? 'scheduled' : $match->status,
                 ]);
@@ -814,10 +814,8 @@ class FiveQuillasCompetitionService
         $match->nextMatch()->update([$field => $winnerId]);
     }
 
-    private function phaseTemplate(Tournament $tournament): array
+    private function phaseTemplate(Tournament $tournament, string $format = 'zones_final'): array
     {
-        $format = $tournament->type?->competition_format ?: 'zones_final';
-
         if ($format === 'circuit_argentino') {
             return [
                 $this->phase('zones', 'Zonas', 'zones', 1, 3, 'manual', true),

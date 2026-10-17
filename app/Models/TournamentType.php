@@ -25,7 +25,6 @@ class TournamentType extends Model
         'assigns_points',
         'scoring_method',
         'scoring_rules',
-        'competition_format',
         'is_active',
     ];
 
