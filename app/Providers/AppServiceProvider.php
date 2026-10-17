@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
 use Spatie\Permission\PermissionRegistrar;
@@ -27,6 +28,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Relation::morphMap([
+            'player' => \App\Models\Player::class,
+            'club' => \App\Models\Club::class,
+            'federation' => \App\Models\Federation::class,
+        ]);
+
         // La página de ranking carga este widget como componente de cabecera.
         // El registro explícito permite que Livewire lo reconstruya en filtros,
         // búsquedas y paginación sin incorporarlo nuevamente al dashboard.

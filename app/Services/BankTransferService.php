@@ -19,12 +19,20 @@ use Illuminate\Validation\ValidationException;
 
 class BankTransferService
 {
-    public function createMembershipOrder(Membership $membership, Collection $players, ?Club $club): BankTransferOrder
+    public function createMembershipOrder(
+        Membership $membership,
+        Collection $players,
+        ?Club $club,
+        string $payerType = 'players',
+        ?int $payerId = null,
+        ?string $payerName = null,
+        bool $preservePlayerClub = false,
+    ): BankTransferOrder
     {
         $setting = $this->requireActiveSetting();
 
-        return DB::transaction(function () use ($membership, $players, $club, $setting): BankTransferOrder {
-            $renewals = $players->map(function (Player $player) use ($membership, $club): PlayerMembership {
+        return DB::transaction(function () use ($membership, $players, $club, $setting, $payerType, $payerId, $payerName, $preservePlayerClub): BankTransferOrder {
+            $renewals = $players->map(function (Player $player) use ($membership, $club, $preservePlayerClub): PlayerMembership {
                 if ((int) $player->discipline_id !== (int) $membership->discipline_id) {
                     throw ValidationException::withMessages([
                         'player_ids' => "{$player->full_name} no pertenece a la disciplina seleccionada.",
@@ -43,7 +51,7 @@ class BankTransferService
                 }
 
                 $playerMembership->fill([
-                    'club_id' => $club?->id,
+                    'club_id' => $preservePlayerClub ? $player->club_id : $club?->id,
                     'amount_due' => $membership->amount,
                     'amount_paid' => 0,
                     'status' => 'pending',
@@ -65,6 +73,9 @@ class BankTransferService
                 'amount' => $renewals->sum(fn (PlayerMembership $renewal): float => (float) $renewal->amount_due),
                 'status' => 'pending',
                 'expires_at' => today()->addDays($setting->expires_in_days),
+                'payer_type' => $payerType,
+                'payer_id' => $payerId,
+                'payer_name' => $payerName ?: ($payerType === 'club' ? ($club?->name ?? 'Club') : 'Jugadores seleccionados'),
                 ...$this->destinationSnapshot($setting, 'federation', 'Federación Argentina de Billar'),
             ]);
 
@@ -210,11 +221,13 @@ class BankTransferService
                     $payable->payments()->updateOrCreate(
                         ['external_reference' => $order->code],
                         [
-                            'payer_type' => $order->club_id ? 'club' : 'player',
-                            'payer_id' => $order->club_id ?: $payable->player_id,
+                            'payer_type' => in_array($order->payer_type, ['club', 'federation'], true) ? $order->payer_type : 'player',
+                            'payer_id' => in_array($order->payer_type, ['club', 'federation'], true) ? $order->payer_id : $payable->player_id,
                             'amount' => $item->amount,
                             'method' => 'manual',
                             'status' => 'approved',
+                            'paid_at' => now(),
+                            'recorded_by' => Auth::id(),
                         ],
                     );
                     $payable->player()->update([

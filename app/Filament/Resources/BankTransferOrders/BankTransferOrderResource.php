@@ -86,6 +86,7 @@ class BankTransferOrderResource extends Resource
                 Placeholder::make('amount_display')->label('Importe exacto')->content(fn (?BankTransferOrder $record): string => '$ '.number_format((float) $record?->amount, 2, ',', '.')),
                 Placeholder::make('expires_display')->label('Vencimiento')->content(fn (?BankTransferOrder $record): string => $record?->expires_at?->format('d/m/Y') ?? '—'),
                 Placeholder::make('status_display')->label('Estado')->content(fn (?BankTransferOrder $record): string => self::statusLabels()[$record?->status] ?? '—'),
+                Placeholder::make('payer_display')->label('Pagador')->content(fn (?BankTransferOrder $record): string => $record?->payer_name ?: ($record?->club?->name ?? 'Jugador')),
             ])->columns(4),
             Section::make('Cuenta de destino')->schema([
                 Placeholder::make('beneficiary')->label('Destinatario')->content(fn (?BankTransferOrder $record) => $record?->beneficiary_name ?? 'Federación Argentina de Billar'),
@@ -135,6 +136,7 @@ class BankTransferOrderResource extends Resource
         return $table->defaultSort('created_at', 'desc')->columns([
             TextColumn::make('code')->label('Orden')->searchable()->copyable(),
             TextColumn::make('purpose')->label('Concepto')->formatStateUsing(fn (string $state): string => $state === 'membership' ? 'Membresías' : 'Inscripción'),
+            TextColumn::make('payer_name')->label('Pagador')->placeholder('Usuario solicitante')->searchable(),
             TextColumn::make('club.name')->label('Club')->placeholder('Independiente')->searchable(),
             TextColumn::make('discipline.name')->label('Disciplina'),
             TextColumn::make('amount')->label('Total')->money('ARS'),

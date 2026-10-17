@@ -37,4 +37,9 @@ class Federation extends Model
     {
         return $this->hasMany(Club::class);
     }
+
+    public function payments()
+    {
+        return $this->morphMany(Payment::class, 'payer');
+    }
 }

@@ -17,6 +17,7 @@ use App\Imports\PlayersImport;
 use App\Models\Category;
 use App\Models\Club;
 use App\Models\Discipline;
+use App\Models\Federation;
 use App\Models\GeneralRanking;
 use App\Models\Membership;
 use App\Models\Player;
@@ -731,6 +732,20 @@ class PlayerResource extends Resource
                     ->searchable()->preload()->required()->live()
                     ->afterStateUpdated(function ($state, $set): void {
                         $set('club_id', Auth::user()?->defaultClubId('RenewClubMemberships', $state));
+                        $set('federation_id', null);
+                        $set('player_ids', []);
+                    }),
+                Select::make('payer_type')
+                    ->label('Responsable del pago')
+                    ->options([
+                        'club' => 'Club / sala',
+                        'federation' => 'Federación provincial o subcomisión',
+                        'players' => 'Jugadores seleccionados',
+                    ])
+                    ->default(fn (): string => Auth::user()?->defaultClubId('RenewClubMemberships') ? 'club' : 'players')
+                    ->required()->live()
+                    ->afterStateUpdated(function ($set): void {
+                        $set('federation_id', null);
                         $set('player_ids', []);
                     }),
                 Select::make('club_id')
@@ -749,8 +764,36 @@ class PlayerResource extends Resource
                     ->default(fn ($get) => Auth::user()?->defaultClubId('RenewClubMemberships', $get('discipline_id')))
                     ->placeholder('AFILIADO INDEPENDIENTE')
                     ->helperText('La selección actualiza el club representado por el jugador durante este año.')
+                    ->visible(fn ($get): bool => $get('payer_type') === 'club')
+                    ->required(fn ($get): bool => $get('payer_type') === 'club')
                     ->searchable()->preload()->live()
                     ->afterStateUpdated(fn ($set) => $set('player_ids', [])),
+                Select::make('federation_id')
+                    ->label('Federación provincial / subcomisión pagadora')
+                    ->options(fn (): array => Federation::query()->orderBy('name')->pluck('name', 'id')->all())
+                    ->visible(fn ($get): bool => $get('payer_type') === 'federation')
+                    ->required(fn ($get): bool => $get('payer_type') === 'federation')
+                    ->searchable()->preload()->live()
+                    ->afterStateUpdated(fn ($set) => $set('player_ids', [])),
+                Select::make('payment_mode')
+                    ->label('Forma de acreditación')
+                    ->options([
+                        'transfer' => 'Generar orden de transferencia',
+                        'manual' => 'Registrar pago ya recibido',
+                    ])
+                    ->default('transfer')->required()->live(),
+                Select::make('manual_method')
+                    ->label('Medio de pago recibido')
+                    ->options(['cash' => 'Efectivo', 'bank_transfer' => 'Transferencia ya recibida', 'other' => 'Otro medio'])
+                    ->visible(fn ($get): bool => $get('payment_mode') === 'manual')
+                    ->required(fn ($get): bool => $get('payment_mode') === 'manual'),
+                TextInput::make('payment_reference')
+                    ->label('Referencia / número de recibo')
+                    ->visible(fn ($get): bool => $get('payment_mode') === 'manual'),
+                Textarea::make('payment_notes')
+                    ->label('Observaciones del pago')
+                    ->visible(fn ($get): bool => $get('payment_mode') === 'manual')
+                    ->columnSpanFull(),
                 CheckboxList::make('player_ids')
                     ->label('Jugadores pendientes de renovación')
                     ->options(function ($get): array {
@@ -769,6 +812,16 @@ class PlayerResource extends Resource
                                 ->whereIn('membership_id', $membershipIds)
                                 ->where('status', 'paid'));
 
+                        if ($get('payer_type') === 'federation' && $get('federation_id')) {
+                            $federationId = (int) $get('federation_id');
+                            $discipline = Discipline::find($disciplineId);
+                            if ($discipline?->affiliation_mode === 'direct') {
+                                $query->whereRaw((int) $discipline->direct_federation_id === $federationId ? '1 = 1' : '1 = 0');
+                            } else {
+                                $query->whereHas('club.city.state', fn (Builder $state) => $state->where('federation_id', $federationId));
+                            }
+                        }
+
                         return $query->orderBy('last_name')->orderBy('first_name')->get()
                             ->mapWithKeys(fn (Player $player): array => [
                                 $player->id => $player->full_name.' — '.($player->club?->name ?? 'INDEPENDIENTE').' — '.($player->category?->code ?? 'Sin categoría'),
@@ -779,6 +832,8 @@ class PlayerResource extends Resource
             ->action(function (array $data): void {
                 $disciplineId = (int) $data['discipline_id'];
                 $clubId = filled($data['club_id'] ?? null) ? (int) $data['club_id'] : null;
+                $payerType = $data['payer_type'] ?? 'players';
+                $federationId = filled($data['federation_id'] ?? null) ? (int) $data['federation_id'] : null;
                 $user = Auth::user();
 
                 abort_unless($user?->canAccessClubInDiscipline('RenewClubMemberships', $disciplineId, $clubId), 403);
@@ -794,7 +849,7 @@ class PlayerResource extends Resource
                 }
 
                 $discipline = Discipline::find($disciplineId);
-                if ($clubId === null && ! $discipline?->allowsIndependentAffiliates()) {
+                if ($payerType === 'club' && $clubId === null && ! $discipline?->allowsIndependentAffiliates()) {
                     throw ValidationException::withMessages(['club_id' => 'Seleccioná el club que representarán los jugadores.']);
                 }
 
@@ -811,7 +866,39 @@ class PlayerResource extends Resource
                     ]);
                 }
 
-                $renewed = app(AnnualMembershipService::class)->renew($membership, $players, $clubId ? Club::findOrFail($clubId) : null);
+                if ($payerType === 'federation') {
+                    $invalid = $players->first(function (Player $player) use ($discipline, $federationId): bool {
+                        $player->loadMissing('club.city.state', 'discipline.directFederation');
+                        return (int) $discipline?->federationForClub($player->club)?->id !== (int) $federationId;
+                    });
+                    if ($invalid) {
+                        throw ValidationException::withMessages([
+                            'player_ids' => "{$invalid->full_name} no pertenece a la federación pagadora seleccionada.",
+                        ]);
+                    }
+                }
+
+                $club = $clubId ? Club::findOrFail($clubId) : null;
+                $payerId = $payerType === 'club' ? $clubId : ($payerType === 'federation' ? $federationId : null);
+                $payerName = $payerType === 'club'
+                    ? $club?->name
+                    : ($payerType === 'federation' ? Federation::find($federationId)?->name : 'Jugadores seleccionados');
+                $preserveClub = $payerType !== 'club';
+
+                if (($data['payment_mode'] ?? 'transfer') === 'manual') {
+                    $renewed = app(AnnualMembershipService::class)->renewManually(
+                        $membership, $players, $club, $payerType, $payerId,
+                        $data['manual_method'], $data['payment_reference'] ?? null,
+                        $data['payment_notes'] ?? null, $preserveClub,
+                    );
+                    Notification::make()->success()->title('Membresías acreditadas')
+                        ->body($renewed->count().' jugadores quedaron habilitados para competir.')->send();
+                    return;
+                }
+
+                $renewed = app(AnnualMembershipService::class)->renew(
+                    $membership, $players, $club, $payerType, $payerId, $payerName, $preserveClub,
+                );
 
                 Notification::make()
                     ->info()

@@ -50,7 +50,7 @@
         <table class="grid">
             <tr>
                 <td><div class="label">Responsable</div><div class="value">{{ $order->user?->name ?? '—' }}</div></td>
-                <td><div class="label">Club</div><div class="value">{{ $order->club?->name ?? 'INDEPENDIENTE' }}</div></td>
+                <td><div class="label">Pagador</div><div class="value">{{ $order->payer_name ?: ($order->club?->name ?? 'Jugador') }}</div></td>
             </tr>
             <tr>
                 <td><div class="label">Disciplina</div><div class="value">{{ $order->discipline?->name ?? '—' }}</div></td>

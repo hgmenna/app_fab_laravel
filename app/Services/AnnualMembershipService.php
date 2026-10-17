@@ -35,7 +35,15 @@ class AnnualMembershipService
         });
     }
 
-    public function renew(Membership $membership, Collection $players, ?Club $club): Collection
+    public function renew(
+        Membership $membership,
+        Collection $players,
+        ?Club $club,
+        string $payerType = 'players',
+        ?int $payerId = null,
+        ?string $payerName = null,
+        bool $preservePlayerClub = false,
+    ): Collection
     {
         if (! $membership->active) {
             throw ValidationException::withMessages([
@@ -43,9 +51,86 @@ class AnnualMembershipService
             ]);
         }
 
-        $order = app(BankTransferService::class)->createMembershipOrder($membership, $players, $club);
+        $order = app(BankTransferService::class)->createMembershipOrder(
+            $membership, $players, $club, $payerType, $payerId, $payerName, $preservePlayerClub
+        );
 
         return $order->items->map(fn ($item) => $item->payable()->first())->filter()->values();
+    }
+
+    public function renewManually(
+        Membership $membership,
+        Collection $players,
+        ?Club $club,
+        string $payerType,
+        ?int $payerId,
+        string $manualMethod,
+        ?string $reference = null,
+        ?string $notes = null,
+        bool $preservePlayerClub = false,
+    ): Collection {
+        if (! $membership->active) {
+            throw ValidationException::withMessages(['membership' => 'La membresía anual seleccionada no está activa.']);
+        }
+
+        $renewals = DB::transaction(function () use ($membership, $players, $club, $payerType, $payerId, $manualMethod, $reference, $notes, $preservePlayerClub): Collection {
+            return $players->map(function (Player $player) use ($membership, $club, $payerType, $payerId, $manualMethod, $reference, $notes, $preservePlayerClub): PlayerMembership {
+                if ((int) $player->discipline_id !== (int) $membership->discipline_id) {
+                    throw ValidationException::withMessages(['player_ids' => "{$player->full_name} no pertenece a la disciplina seleccionada."]);
+                }
+
+                $renewal = PlayerMembership::query()->firstOrNew([
+                    'player_id' => $player->id, 'membership_id' => $membership->id,
+                ]);
+                if ($renewal->exists && $renewal->status === 'paid') {
+                    throw ValidationException::withMessages(['player_ids' => "{$player->full_name} ya tiene la membresía pagada."]);
+                }
+                if ($renewal->exists && $renewal->bankTransferOrderItems()->whereHas('order', fn ($query) => $query
+                    ->whereIn('status', ['pending', 'submitted', 'observed']))->exists()) {
+                    throw ValidationException::withMessages([
+                        'player_ids' => "{$player->full_name} tiene una orden de transferencia abierta. Anulala antes de registrar otro medio de pago.",
+                    ]);
+                }
+                $renewal->fill([
+                    'club_id' => $preservePlayerClub ? $player->club_id : $club?->id,
+                    'amount_due' => $membership->amount,
+                    'amount_paid' => $membership->amount,
+                    'status' => 'paid',
+                    'enabled_to_compete' => true,
+                    'paid_at' => now(),
+                ])->save();
+                $renewal->payments()->create([
+                    'payer_type' => in_array($payerType, ['club', 'federation'], true) ? $payerType : 'player',
+                    'payer_id' => in_array($payerType, ['club', 'federation'], true) ? $payerId : $player->id,
+                    'amount' => $membership->amount,
+                    'method' => 'manual',
+                    'manual_method' => $manualMethod,
+                    'external_reference' => $reference,
+                    'notes' => $notes,
+                    'status' => 'approved',
+                    'recorded_by' => Auth::id(),
+                    'paid_at' => now(),
+                ]);
+                $player->update([
+                    'club_id' => $preservePlayerClub ? $player->club_id : $club?->id,
+                    'is_active' => true,
+                    'is_enabled_to_compete' => true,
+                ]);
+
+                return $renewal;
+            });
+        });
+
+        $renewals->each(fn (PlayerMembership $renewal) => $renewal->setAttribute('operation_label', 'Renovación'));
+        $this->sendConfirmation($membership, $renewals);
+        AdminNotifier::sendBulk(
+            $renewals,
+            'registró y acreditó el pago manual de',
+            'player.full_name',
+            'membresías',
+        );
+
+        return $renewals;
     }
 
     public function sendConfirmation(Membership $membership, Collection $renewals, ?User $recipient = null): void

@@ -17,6 +17,7 @@ class BankTransferOrder extends Model
         'destination_tax_id', 'destination_bank_name', 'destination_account_type',
         'destination_account_number', 'destination_cbu', 'destination_alias',
         'destination_treasury_email', 'destination_instructions',
+        'payer_type', 'payer_id', 'payer_name',
     ];
 
     protected function casts(): array

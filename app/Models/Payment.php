@@ -17,10 +17,15 @@ class Payment extends Model
         'method',
         'external_reference',
         'status',
+        'manual_method',
+        'notes',
+        'recorded_by',
+        'paid_at',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'paid_at' => 'datetime',
     ];
 
     /*
@@ -37,6 +42,11 @@ class Payment extends Model
     public function payer()
     {
         return $this->morphTo();
+    }
+
+    public function recorder()
+    {
+        return $this->belongsTo(User::class, 'recorded_by');
     }
 
     /*
