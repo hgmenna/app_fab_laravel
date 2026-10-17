@@ -106,6 +106,9 @@ class UpcomingTournamentsController extends Controller
                 $competitionJsonUrl = $competition?->is_public
                     ? route('five-quillas-competition.public', ['slug' => $competition->public_slug])
                     : '';
+                $competitionPageUrl = $competition?->is_public
+                    ? route('five-quillas-competition.page', ['slug' => $competition->public_slug])
+                    : '';
 
                 $start = $tournament->start_date;
                 $end = $tournament->end_date;
@@ -167,6 +170,7 @@ class UpcomingTournamentsController extends Controller
                     'desarrollo_slug' => $competition?->public_slug ?? '',
                     'desarrollo_estado' => $competition?->status ?? '',
                     'desarrollo_json_url' => $competitionJsonUrl,
+                    'desarrollo_url' => $competitionPageUrl,
                 ];
             });
 

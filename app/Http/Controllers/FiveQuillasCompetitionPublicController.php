@@ -62,7 +62,8 @@ class FiveQuillasCompetitionPublicController extends Controller
                         ])->values(),
                     ])->values(),
                     'partidos' => $phase->matches->map(fn ($match): array => [
-                        'id' => $match->id, 'ronda' => $match->round_number, 'orden' => $match->bracket_order,
+                        'id' => $match->id, 'zona_id' => $match->group_id,
+                        'ronda' => $match->round_number, 'orden' => $match->bracket_order,
                         'etiqueta' => $match->label, 'jugador_1' => $match->playerOne?->player?->full_name,
                         'jugador_2' => $match->playerTwo?->player?->full_name, 'sets' => $match->set_scores,
                         'sets_reales' => [$match->player_one_actual_sets, $match->player_two_actual_sets],
@@ -70,6 +71,8 @@ class FiveQuillasCompetitionPublicController extends Controller
                         'puntos' => [$match->player_one_points, $match->player_two_points],
                         'ganador' => $match->winner?->player?->full_name, 'mesa' => $match->table_number,
                         'horario' => $match->scheduled_at?->toIso8601String(), 'pase_automatico' => $match->is_bye,
+                        'siguiente_partido_id' => $match->next_match_id,
+                        'siguiente_posicion' => $match->next_match_position,
                         'estado' => $match->status,
                     ])->values(),
                 ])->values(),

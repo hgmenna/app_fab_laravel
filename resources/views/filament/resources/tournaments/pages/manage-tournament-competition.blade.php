@@ -77,7 +77,11 @@
         @endif
 
         @if($publicJsonUrl)
-            <div class="fq-card" style="margin-top:1rem"><div class="fq-label">Servicio público para WordPress</div><a href="{{ $publicJsonUrl }}" target="_blank" style="color:#3b82f6;word-break:break-all">{{ $publicJsonUrl }}</a></div>
+            <div class="fq-card" style="margin-top:1rem">
+                <div class="fq-label">Publicación del torneo</div>
+                <a href="{{ $publicPageUrl }}" target="_blank" style="color:#3b82f6;font-weight:800">Ver desarrollo público</a>
+                <br><small><a href="{{ $publicJsonUrl }}" target="_blank" style="color:#718096;word-break:break-all">Servicio JSON para WordPress</a></small>
+            </div>
         @endif
     @endif
 </x-filament-panels::page>

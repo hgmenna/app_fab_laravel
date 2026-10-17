@@ -106,6 +106,21 @@ class TournamentTypeForm
                     ->label('Está activo')
                     ->required(),
 
+                Select::make('competition_format')
+                    ->label('Formato de competencia')
+                    ->options([
+                        'zones_final' => 'Zonas y cuadro final',
+                        'amistad' => 'Amistad: zonas, fase intermedia y cuadro final',
+                        'direct_elimination' => 'Eliminación directa',
+                        'circuit_argentino' => 'Circuito Argentino',
+                        'custom' => 'Personalizado en cada torneo',
+                    ])
+                    ->default('zones_final')
+                    ->helperText('La plantilla se aplica al iniciar la organización. Solo Circuito Argentino incorpora Primera Nacional y Master.')
+                    ->visible(fn (Get $get): bool => self::isFiveQuillas($get('discipline_id')))
+                    ->required(fn (Get $get): bool => self::isFiveQuillas($get('discipline_id')))
+                    ->native(false),
+
                 Select::make('scoring_method')
                     ->label('Método de puntuación')
                     ->options([

@@ -260,7 +260,7 @@ class ManageTournamentCompetition extends Page
                 ->label('Cargar zonas')
                 ->icon('heroicon-o-squares-2x2')
                 ->color('warning')
-                ->visible(fn (): bool => $this->competition() !== null)
+                ->visible(fn (): bool => $this->competition()?->phases()->where('phase_type', 'zones')->where('is_enabled', true)->exists() ?? false)
                 ->schema([
                     Select::make('slot_id')
                         ->label('Horario')
@@ -302,6 +302,25 @@ class ManageTournamentCompetition extends Page
                         $data['zones'] ?? [],
                     );
                     Notification::make()->success()->title('Zonas guardadas')->body($count.' zonas quedaron preparadas para revisión.')->send();
+                }),
+            Action::make('preparePhase')
+                ->label('Preparar siguiente fase')
+                ->icon('heroicon-o-forward')
+                ->color('warning')
+                ->visible(fn (): bool => $this->competition() !== null)
+                ->schema([
+                    Select::make('phase_id')->label('Fase a preparar')
+                        ->options(fn (): array => $this->competition()->phases()
+                            ->where('is_enabled', true)->where('phase_type', '!=', 'zones')
+                            ->orderBy('sort_order')->pluck('name', 'id')->all())
+                        ->searchable()->preload()->native(false)->required(),
+                ])
+                ->modalDescription('Toma los clasificados de la fase anterior, crea los cruces correspondientes y respeta la plantilla definida en el tipo de torneo.')
+                ->action(function (array $data): void {
+                    $phase = $this->competition()->phases()->whereKey((int) $data['phase_id'])->firstOrFail();
+                    $count = app(FiveQuillasCompetitionService::class)->preparePhase($phase);
+                    Notification::make()->success()->title('Fase preparada')
+                        ->body($count > 0 ? $count.' partidos quedaron creados.' : 'No se necesitaron partidos de emparejamiento.')->send();
                 }),
             Action::make('recordResult')
                 ->label('Cargar resultado')
@@ -399,6 +418,9 @@ class ManageTournamentCompetition extends Page
             'entriesBySlot' => $entries->groupBy(fn ($entry): string => $entry->sourceSlot?->name ?? 'SIN HORARIO ASIGNADO'),
             'publicJsonUrl' => $competition?->is_public
                 ? route('five-quillas-competition.public', ['slug' => $competition->public_slug])
+                : null,
+            'publicPageUrl' => $competition?->is_public
+                ? route('five-quillas-competition.page', ['slug' => $competition->public_slug])
                 : null,
         ];
     }
