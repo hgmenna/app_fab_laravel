@@ -788,10 +788,11 @@ class PlayerResource extends Resource
                 Select::make('payment_mode')
                     ->label('Forma de acreditación')
                     ->options([
+                        'debt' => 'Generar deuda institucional sin registrar pago',
                         'transfer' => 'Generar orden de transferencia',
                         'manual' => 'Registrar pago ya recibido',
                     ])
-                    ->default('transfer')->required()->live(),
+                    ->default('debt')->required()->live(),
                 Select::make('manual_method')
                     ->label('Medio de pago recibido')
                     ->options(['cash' => 'Efectivo', 'bank_transfer' => 'Transferencia ya recibida', 'other' => 'Otro medio'])
@@ -801,7 +802,8 @@ class PlayerResource extends Resource
                     ->label('Importe a acreditar por jugador')
                     ->helperText('Puede ser el total de la membresía o un pago parcial. El sistema calculará el saldo restante.')
                     ->numeric()->prefix('$')->minValue(0.01)
-                    ->required(),
+                    ->visible(fn ($get): bool => $get('payment_mode') !== 'debt')
+                    ->required(fn ($get): bool => $get('payment_mode') !== 'debt'),
                 TextInput::make('payment_reference')
                     ->label('Referencia / número de recibo')
                     ->visible(fn ($get): bool => $get('payment_mode') === 'manual'),
@@ -899,6 +901,21 @@ class PlayerResource extends Resource
                     ? $club?->name
                     : ($payerType === 'federation' ? Federation::find($federationId)?->name : 'Jugadores seleccionados');
                 $preserveClub = $payerType !== 'club';
+
+                if (($data['payment_mode'] ?? 'debt') === 'debt') {
+                    if (! in_array($payerType, ['club', 'federation'], true)) {
+                        throw ValidationException::withMessages([
+                            'payer_type' => 'La deuda institucional debe asignarse a un club o federación.',
+                        ]);
+                    }
+                    $renewed = app(AnnualMembershipService::class)->createInstitutionalDebt(
+                        $membership, $players, $club, $preserveClub, $payerType, $payerId,
+                    );
+                    Notification::make()->success()->title('Deuda institucional generada')
+                        ->body($renewed->count().' jugadores quedaron habilitados. El saldo permanece a cargo de la entidad pagadora.')
+                        ->send();
+                    return;
+                }
 
                 if (($data['payment_mode'] ?? 'transfer') === 'manual') {
                     $renewed = app(AnnualMembershipService::class)->renewManually(

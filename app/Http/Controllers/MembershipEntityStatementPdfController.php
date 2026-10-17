@@ -31,14 +31,8 @@ class MembershipEntityStatementPdfController extends Controller
             ->with(['player.club', 'membership.discipline', 'club', 'payments.payer', 'payments.recorder'])
             ->whereHas('membership', fn (Builder $query) => $query
                 ->where('discipline_id', $discipline->id)->where('year', $data['year']))
-            ->when($data['entity_type'] === 'club', fn (Builder $query) => $query->where('club_id', $entity->id))
-            ->when($data['entity_type'] === 'federation', function (Builder $query) use ($discipline, $entity): void {
-                if ($discipline->affiliation_mode === 'direct') {
-                    $query->whereRaw((int) $discipline->direct_federation_id === (int) $entity->id ? '1 = 1' : '1 = 0');
-                } else {
-                    $query->whereHas('player.club.city.state', fn (Builder $state) => $state->where('federation_id', $entity->id));
-                }
-            })
+            ->where('debtor_type', $data['entity_type'])
+            ->where('debtor_id', $entity->id)
             ->get()->sortBy(fn (PlayerMembership $account): string => $account->player?->full_name ?? '');
 
         return Pdf::loadView('pdf.membership-entity-statement', [

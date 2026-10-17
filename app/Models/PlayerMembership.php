@@ -13,6 +13,9 @@ class PlayerMembership extends Model
         'player_id',
         'membership_id',
         'club_id',
+        'debtor_type',
+        'debtor_id',
+        'institutionally_guaranteed',
         'amount_due',
         'amount_paid',
         'status',
@@ -24,6 +27,7 @@ class PlayerMembership extends Model
         'amount_due' => 'decimal:2',
         'amount_paid' => 'decimal:2',
         'enabled_to_compete' => 'boolean',
+        'institutionally_guaranteed' => 'boolean',
         'paid_at' => 'datetime',
     ];
 

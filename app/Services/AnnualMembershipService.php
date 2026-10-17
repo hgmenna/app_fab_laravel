@@ -59,6 +59,42 @@ class AnnualMembershipService
         return $order->items->map(fn ($item) => $item->payable()->first())->filter()->values();
     }
 
+    public function createInstitutionalDebt(
+        Membership $membership,
+        Collection $players,
+        ?Club $club,
+        bool $preservePlayerClub = false,
+        string $debtorType = 'club',
+        ?int $debtorId = null,
+    ): Collection {
+        return DB::transaction(function () use ($membership, $players, $club, $preservePlayerClub, $debtorType, $debtorId): Collection {
+            return $players->map(function (Player $player) use ($membership, $club, $preservePlayerClub, $debtorType, $debtorId): PlayerMembership {
+                $renewal = PlayerMembership::query()->firstOrNew([
+                    'player_id' => $player->id,
+                    'membership_id' => $membership->id,
+                ]);
+                $renewal->fill([
+                    'club_id' => $preservePlayerClub ? $player->club_id : $club?->id,
+                    'debtor_type' => $debtorType,
+                    'debtor_id' => $debtorId,
+                    'institutionally_guaranteed' => true,
+                    'amount_due' => $membership->amount,
+                    'amount_paid' => (float) ($renewal->amount_paid ?: 0),
+                    'status' => (float) ($renewal->amount_paid ?: 0) > 0 ? 'partial' : 'pending',
+                    'enabled_to_compete' => true,
+                    'paid_at' => null,
+                ])->save();
+                $player->update([
+                    'club_id' => $preservePlayerClub ? $player->club_id : $club?->id,
+                    'is_active' => true,
+                    'is_enabled_to_compete' => true,
+                ]);
+
+                return $renewal;
+            });
+        });
+    }
+
     public function renewManually(
         Membership $membership,
         Collection $players,
@@ -189,6 +225,7 @@ class AnnualMembershipService
                     PlayerMembership::query()
                         ->where('membership_id', $membership->id)
                         ->where('status', '!=', 'paid')
+                        ->where('institutionally_guaranteed', false)
                         ->update(['status' => 'expired', 'enabled_to_compete' => false]);
 
                     $renewedPlayerIds = PlayerMembership::query()

@@ -8,11 +8,18 @@ use App\Models\Club;
 use App\Models\Discipline;
 use App\Models\Federation;
 use App\Models\Membership;
+use App\Models\PlayerMembership;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ListMembershipAccounts extends ListRecords
 {
@@ -23,6 +30,59 @@ class ListMembershipAccounts extends ListRecords
     {
         return [
             PlayerResource::renewClubMembershipsAction(),
+            Action::make('recordInstitutionalPayment')
+                ->label('Registrar pago institucional')
+                ->icon('heroicon-o-banknotes')
+                ->color('warning')
+                ->tooltip('Registrar un pago parcial o total de un club o federación')
+                ->modalHeading('Registrar pago institucional')
+                ->modalDescription('El pago se aplica al saldo global. Puede repetir esta operación hasta cancelar la deuda.')
+                ->schema([
+                    ...$this->entityStatementSchema(),
+                    TextInput::make('amount')->label('Importe recibido')->numeric()->prefix('$')->minValue(0.01)->required(),
+                    Select::make('manual_method')->label('Medio de pago')->options([
+                        'bank_transfer' => 'Transferencia bancaria', 'cash' => 'Efectivo', 'other' => 'Otro medio',
+                    ])->required(),
+                    TextInput::make('reference')->label('Referencia / número de operación'),
+                    Textarea::make('notes')->label('Observación')->columnSpanFull(),
+                ])
+                ->modalSubmitActionLabel('Registrar pago')
+                ->action(function (array $data): void {
+                    $accounts = $this->entityAccounts($data)->filter(fn (PlayerMembership $account): bool => $account->balance > 0);
+                    $balance = $accounts->sum(fn (PlayerMembership $account): float => $account->balance);
+                    $amount = (float) $data['amount'];
+                    if ($accounts->isEmpty()) {
+                        throw ValidationException::withMessages(['amount' => 'La entidad no tiene saldo pendiente para los filtros seleccionados.']);
+                    }
+                    if ($amount > $balance) {
+                        throw ValidationException::withMessages(['amount' => 'El importe supera el saldo pendiente de $ '.number_format($balance, 2, ',', '.')]);
+                    }
+                    $payerType = $data['entity_type'];
+                    $payerId = (int) $data['entity_id'];
+                    DB::transaction(function () use ($accounts, $amount, $data, $payerType, $payerId): void {
+                        $remaining = $amount;
+                        foreach ($accounts as $account) {
+                            if ($remaining <= 0) break;
+                            $allocated = min($remaining, $account->balance);
+                            $account->payments()->create([
+                                'payer_type' => $payerType, 'payer_id' => $payerId, 'amount' => $allocated,
+                                'method' => 'manual', 'manual_method' => $data['manual_method'],
+                                'external_reference' => $data['reference'] ?? null, 'notes' => $data['notes'] ?? null,
+                                'status' => 'approved', 'recorded_by' => Auth::id(), 'paid_at' => now(),
+                            ]);
+                            $newPaid = (float) $account->amount_paid + $allocated;
+                            $paid = $newPaid >= (float) $account->amount_due;
+                            $account->update([
+                                'amount_paid' => $newPaid, 'status' => $paid ? 'paid' : 'partial',
+                                'enabled_to_compete' => true, 'paid_at' => $paid ? now() : null,
+                            ]);
+                            $account->player?->update(['is_active' => true, 'is_enabled_to_compete' => true]);
+                            $remaining -= $allocated;
+                        }
+                    });
+                    Notification::make()->success()->title('Pago institucional registrado')
+                        ->body('Importe acreditado: $ '.number_format($amount, 2, ',', '.').'. Saldo restante: $ '.number_format($balance - $amount, 2, ',', '.'))->send();
+                }),
             Action::make('printEntityStatement')
                 ->label('Imprimir estado consolidado')
                 ->icon('heroicon-o-printer')
@@ -98,5 +158,16 @@ class ListMembershipAccounts extends ListRecords
             now()->addDays(7),
             $data,
         );
+    }
+
+    private function entityAccounts(array $data)
+    {
+        $discipline = Discipline::with('directFederation')->findOrFail($data['discipline_id']);
+        return PlayerMembership::query()
+            ->with(['player.club.city.state', 'membership'])
+            ->whereHas('membership', fn ($query) => $query->where('discipline_id', $discipline->id)->where('year', $data['year']))
+            ->where('debtor_type', $data['entity_type'])
+            ->where('debtor_id', $data['entity_id'])
+            ->orderBy('id')->get();
     }
 }
