@@ -40,6 +40,10 @@ class FiveQuillasCompetitionPublicController extends Controller
                     'sets' => $phase->sets_to_play,
                     'puntos_por_set' => $phase->points_per_set,
                     'dividida_por_horario' => $phase->split_by_slot,
+                    'clasificados_siguiente_fase' => data_get($phase->settings, 'qualifiers'),
+                    'mesas' => data_get($phase->settings, 'tables'),
+                    'duracion_estimada_minutos' => data_get($phase->settings, 'estimated_minutes'),
+                    'horarios_fase' => collect(data_get($phase->settings, 'schedules', []))->values(),
                     'zonas' => $phase->groups->map(fn ($group): array => [
                         'id' => $group->id, 'nombre' => $group->name, 'estado' => $group->status,
                         'horario' => $group->slot?->name,

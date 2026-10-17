@@ -196,6 +196,14 @@ class FiveQuillasCompetitionService
                         'tables' => filled($row['tables'] ?? null) ? (int) $row['tables'] : null,
                         'estimated_minutes' => filled($row['estimated_minutes'] ?? null) ? (int) $row['estimated_minutes'] : null,
                         'rest_minutes' => filled($row['rest_minutes'] ?? null) ? (int) $row['rest_minutes'] : 0,
+                        'schedules' => $row['phase_type'] === 'zones'
+                            ? []
+                            : collect($row['schedules'] ?? [])->map(fn (array $schedule): array => [
+                                'name' => trim((string) ($schedule['name'] ?? '')),
+                                'starts_at' => filled($schedule['starts_at'] ?? null) ? $schedule['starts_at'] : null,
+                                'bracket_section' => trim((string) ($schedule['bracket_section'] ?? '')) ?: null,
+                                'tables' => filled($schedule['tables'] ?? null) ? (int) $schedule['tables'] : null,
+                            ])->filter(fn (array $schedule): bool => $schedule['name'] !== '')->values()->all(),
                     ],
                 ];
 
@@ -217,6 +225,24 @@ class FiveQuillasCompetitionService
             }
 
             return $rows->where('is_enabled', true)->count();
+        });
+    }
+
+    public function applyTournamentTypeTemplate(FiveQuillasCompetition $competition): int
+    {
+        return DB::transaction(function () use ($competition): int {
+            if ($competition->phases()->whereHas('groups')->exists()
+                || $competition->phases()->whereHas('matches')->exists()) {
+                throw ValidationException::withMessages([
+                    'format' => 'No se puede reemplazar la plantilla porque ya existen zonas o partidos cargados.',
+                ]);
+            }
+            $competition->loadMissing('tournament.type');
+            $competition->phases()->delete();
+            foreach ($this->phaseTemplate($competition->tournament) as $phase) {
+                $competition->phases()->create($phase);
+            }
+            return $competition->phases()->count();
         });
     }
 
@@ -418,7 +444,12 @@ class FiveQuillasCompetitionService
                 $this->phase('zones', 'Zonas', 'zones', 1, 3, 'automatic_draw', true),
                 $this->phase('slot-elimination', 'Eliminación por horario', 'slot_elimination', 2, 3, 'automatic_draw', true),
                 $this->phase('national-play-in', 'Emparejamientos de Primera Nacional', 'play_in', 3, 3, 'national_ranking', true),
-                $this->phase('national', 'Primera Nacional', 'bracket', 4, 5, 'national_ranking', true),
+                $this->phase('national', 'Primera Nacional', 'bracket', 4, 5, 'national_ranking', true, [
+                    'schedules' => [
+                        ['name' => 'Horario 1', 'starts_at' => null, 'bracket_section' => '1-64 a 29-4', 'tables' => null],
+                        ['name' => 'Horario 2', 'starts_at' => null, 'bracket_section' => '3-62 a 2-63', 'tables' => null],
+                    ],
+                ]),
                 $this->phase('master-final', 'Master / Etapa final', 'bracket', 5, 5, 'national_ranking', false),
             ];
         }
@@ -430,12 +461,13 @@ class FiveQuillasCompetitionService
         ];
     }
 
-    private function phase(string $code, string $name, string $type, int $order, int $sets, string $seeding, bool $split): array
+    private function phase(string $code, string $name, string $type, int $order, int $sets, string $seeding, bool $split, array $settings = []): array
     {
         return [
             'code' => $code, 'name' => $name, 'phase_type' => $type, 'sort_order' => $order,
             'sets_to_play' => $sets, 'points_per_set' => 60, 'seeding_method' => $seeding,
             'split_by_slot' => $split, 'is_enabled' => true, 'status' => 'pending', 'is_public' => false,
+            'settings' => $settings,
         ];
     }
 

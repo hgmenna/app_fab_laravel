@@ -9,6 +9,7 @@ use App\Services\FiveQuillasCompetitionService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
+use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -89,6 +90,7 @@ class ManageTournamentCompetition extends Page
                         'tables' => data_get($phase->settings, 'tables'),
                         'estimated_minutes' => data_get($phase->settings, 'estimated_minutes'),
                         'rest_minutes' => data_get($phase->settings, 'rest_minutes', 0),
+                        'schedules' => data_get($phase->settings, 'schedules', []),
                     ])->values()->all(),
                 ])
                 ->schema([
@@ -120,6 +122,25 @@ class ManageTournamentCompetition extends Page
                             Toggle::make('split_by_slot')->label('Usar los horarios definidos en el torneo')->inline(false)
                                 ->helperText('Cada horario conserva sus propios inscriptos, zonas y partidos.'),
                             Toggle::make('is_enabled')->label('Fase habilitada')->default(true)->inline(false),
+                            Repeater::make('schedules')
+                                ->label('Horarios propios de esta fase')
+                                ->helperText('Usalo en fases posteriores a las zonas. Primera Nacional puede dividirse en dos horarios independientes.')
+                                ->table([
+                                    TableColumn::make('Nombre')->markAsRequired(),
+                                    TableColumn::make('Inicio'),
+                                    TableColumn::make('Sector de la grilla'),
+                                    TableColumn::make('Mesas'),
+                                ])
+                                ->schema([
+                                    TextInput::make('name')->hiddenLabel()->required()->maxLength(100),
+                                    DateTimePicker::make('starts_at')->hiddenLabel()->seconds(false),
+                                    TextInput::make('bracket_section')->hiddenLabel()->placeholder('Ej. 1-64 a 29-4')->maxLength(100),
+                                    TextInput::make('tables')->hiddenLabel()->integer()->minValue(1),
+                                ])
+                                ->visible(fn (Get $get): bool => $get('phase_type') !== 'zones')
+                                ->addActionLabel('Agregar horario de fase')
+                                ->reorderable()
+                                ->columnSpanFull(),
                         ])
                         ->columns(6)
                         ->defaultItems(1)
@@ -140,6 +161,19 @@ class ManageTournamentCompetition extends Page
                     );
                     Notification::make()->success()->title('Formato actualizado')
                         ->body($enabled.' fases habilitadas para este torneo.')->send();
+                }),
+            Action::make('applyTypeTemplate')
+                ->label('Aplicar plantilla del torneo')
+                ->icon('heroicon-o-document-duplicate')
+                ->color('gray')
+                ->visible(fn (): bool => $this->competition() !== null)
+                ->requiresConfirmation()
+                ->modalHeading('Aplicar plantilla del tipo de torneo')
+                ->modalDescription('Se reemplazará el formato actual por la plantilla correspondiente al tipo de torneo. Solo se permite antes de cargar zonas o partidos.')
+                ->action(function (): void {
+                    $count = app(FiveQuillasCompetitionService::class)->applyTournamentTypeTemplate($this->competition());
+                    Notification::make()->success()->title('Plantilla aplicada')
+                        ->body($count.' fases creadas según el tipo de torneo.')->send();
                 }),
             Action::make('createZones')
                 ->label('Cargar zonas')

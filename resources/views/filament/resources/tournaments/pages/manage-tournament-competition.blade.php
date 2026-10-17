@@ -18,7 +18,7 @@
 
         <div class="fq-phases">
             @foreach($competition->phases as $phase)
-                <div class="fq-phase" style="{{ $phase->is_enabled ? '' : 'opacity:.48' }}"><span class="fq-label">Fase {{ $phase->sort_order }}{{ $phase->is_enabled ? '' : ' · Deshabilitada' }}</span><strong>{{ $phase->name }}</strong><small>{{ $phase->sets_to_play }} sets · {{ $phase->points_per_set }} puntos · {{ data_get($phase->settings, 'tables') ?: '—' }} mesas · {{ data_get($phase->settings, 'estimated_minutes') ?: '—' }} min</small></div>
+                <div class="fq-phase" style="{{ $phase->is_enabled ? '' : 'opacity:.48' }}"><span class="fq-label">Fase {{ $phase->sort_order }}{{ $phase->is_enabled ? '' : ' · Deshabilitada' }}</span><strong>{{ $phase->name }}</strong><small>{{ $phase->sets_to_play }} sets · {{ $phase->points_per_set }} puntos · {{ data_get($phase->settings, 'tables') ?: '—' }} mesas · {{ data_get($phase->settings, 'estimated_minutes') ?: '—' }} min</small>@if(count(data_get($phase->settings, 'schedules', [])))<br><small>{{ collect(data_get($phase->settings, 'schedules', []))->pluck('name')->implode(' · ') }}</small>@endif</div>
             @endforeach
         </div>
 
