@@ -12,7 +12,6 @@ use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Notifications\Notification;
@@ -90,7 +89,6 @@ class ManageTournamentCompetition extends Page
                         'tables' => data_get($phase->settings, 'tables'),
                         'estimated_minutes' => data_get($phase->settings, 'estimated_minutes'),
                         'rest_minutes' => data_get($phase->settings, 'rest_minutes', 0),
-                        'start_time' => data_get($phase->settings, 'start_time'),
                     ])->values()->all(),
                 ])
                 ->schema([
@@ -114,12 +112,13 @@ class ManageTournamentCompetition extends Page
                                 'number_draw' => 'Sorteo de número de grilla',
                                 'manual' => 'Carga manual',
                             ])->required()->native(false)->columnSpan(2),
-                            TextInput::make('qualifiers')->label('Clasificados')->integer()->minValue(1),
+                            TextInput::make('qualifiers')->label('Clasificados a la siguiente fase')->integer()->minValue(1)
+                                ->helperText('En la última fase se ignora porque allí finaliza el torneo.'),
                             TextInput::make('tables')->label('Mesas disponibles')->integer()->minValue(1),
                             TextInput::make('estimated_minutes')->label('Duración por partido')->suffix('min')->integer()->minValue(1),
                             TextInput::make('rest_minutes')->label('Descanso entre partidos')->suffix('min')->integer()->minValue(0)->default(0),
-                            TimePicker::make('start_time')->label('Hora de inicio')->seconds(false),
-                            Toggle::make('split_by_slot')->label('Separar por horarios')->inline(false),
+                            Toggle::make('split_by_slot')->label('Usar los horarios definidos en el torneo')->inline(false)
+                                ->helperText('Cada horario conserva sus propios inscriptos, zonas y partidos.'),
                             Toggle::make('is_enabled')->label('Fase habilitada')->default(true)->inline(false),
                         ])
                         ->columns(6)
@@ -132,7 +131,7 @@ class ManageTournamentCompetition extends Page
                         ->columnSpanFull(),
                 ])
                 ->modalHeading('Formato de competencia del torneo')
-                ->modalDescription('El orden de las filas determina el orden de disputa. La fase de zonas debe existir una sola vez. Las fases con resultados cargados no se eliminan: quedan deshabilitadas para preservar el historial.')
+                ->modalDescription('El orden de las filas determina el orden de disputa. Las zonas usan los horarios ya creados en el torneo; no comparten jugadores ni horarios entre sí. Las fases con resultados cargados se conservan para preservar el historial.')
                 ->modalWidth('7xl')
                 ->action(function (array $data): void {
                     $enabled = app(FiveQuillasCompetitionService::class)->configureFormat(

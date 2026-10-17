@@ -164,6 +164,10 @@ class FiveQuillasCompetitionService
             $existing = $competition->phases()->withCount(['groups', 'matches'])->get()->keyBy('id');
             $retainedIds = collect();
             $usedCodes = collect();
+            $lastEnabledIndex = $rows->search(fn (array $row, int $index): bool =>
+                (bool) ($row['is_enabled'] ?? true)
+                && $rows->slice($index + 1)->every(fn (array $next): bool => ! (bool) ($next['is_enabled'] ?? true))
+            );
 
             foreach ($rows as $index => $row) {
                 $phase = filled($row['id'] ?? null) ? $existing->get((int) $row['id']) : null;
@@ -186,11 +190,12 @@ class FiveQuillasCompetitionService
                     'split_by_slot' => (bool) ($row['split_by_slot'] ?? false),
                     'is_enabled' => (bool) ($row['is_enabled'] ?? true),
                     'settings' => [
-                        'qualifiers' => filled($row['qualifiers'] ?? null) ? (int) $row['qualifiers'] : null,
+                        'qualifiers' => $index === $lastEnabledIndex
+                            ? null
+                            : (filled($row['qualifiers'] ?? null) ? (int) $row['qualifiers'] : null),
                         'tables' => filled($row['tables'] ?? null) ? (int) $row['tables'] : null,
                         'estimated_minutes' => filled($row['estimated_minutes'] ?? null) ? (int) $row['estimated_minutes'] : null,
                         'rest_minutes' => filled($row['rest_minutes'] ?? null) ? (int) $row['rest_minutes'] : 0,
-                        'start_time' => filled($row['start_time'] ?? null) ? $row['start_time'] : null,
                     ],
                 ];
 
