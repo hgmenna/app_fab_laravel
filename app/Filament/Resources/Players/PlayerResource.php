@@ -714,13 +714,19 @@ class PlayerResource extends Resource
             ->color('success')
             ->visible(fn (): bool => Auth::user()?->canGloballyOrInAnyDiscipline('RenewClubMemberships') ?? false)
             ->modalHeading('Renovación masiva de membresías')
-            ->modalDescription('Elegí la disciplina, el club que representarán este año y los jugadores a renovar.')
-            ->modalSubmitActionLabel('Renovar seleccionados')
+            ->modalDescription('Seleccioná el pagador, el medio, el importe por jugador y las membresías. Admite pagos totales y parciales.')
+            ->modalSubmitActionLabel('Registrar operación')
             ->modalWidth('7xl')
             ->schema([
                 TextInput::make('year')
                     ->label('Año')->integer()->default(now()->year)->required()->live()
-                    ->afterStateUpdated(fn ($set) => $set('player_ids', [])),
+                    ->afterStateUpdated(function ($state, $set, $get): void {
+                        $set('player_ids', []);
+                        $set('payment_amount', Membership::query()
+                            ->where('year', (int) $state)
+                            ->where('discipline_id', (int) $get('discipline_id'))
+                            ->value('amount'));
+                    }),
                 Select::make('discipline_id')
                     ->label('Disciplina')
                     ->options(function (): array {
@@ -730,10 +736,14 @@ class PlayerResource extends Resource
                     })
                     ->default(fn () => Auth::user()?->defaultDisciplineId('RenewClubMemberships'))
                     ->searchable()->preload()->required()->live()
-                    ->afterStateUpdated(function ($state, $set): void {
+                    ->afterStateUpdated(function ($state, $set, $get): void {
                         $set('club_id', Auth::user()?->defaultClubId('RenewClubMemberships', $state));
                         $set('federation_id', null);
                         $set('player_ids', []);
+                        $set('payment_amount', Membership::query()
+                            ->where('year', (int) ($get('year') ?? now()->year))
+                            ->where('discipline_id', (int) $state)
+                            ->value('amount'));
                     }),
                 Select::make('payer_type')
                     ->label('Responsable del pago')
@@ -787,6 +797,11 @@ class PlayerResource extends Resource
                     ->options(['cash' => 'Efectivo', 'bank_transfer' => 'Transferencia ya recibida', 'other' => 'Otro medio'])
                     ->visible(fn ($get): bool => $get('payment_mode') === 'manual')
                     ->required(fn ($get): bool => $get('payment_mode') === 'manual'),
+                TextInput::make('payment_amount')
+                    ->label('Importe a acreditar por jugador')
+                    ->helperText('Puede ser el total de la membresía o un pago parcial. El sistema calculará el saldo restante.')
+                    ->numeric()->prefix('$')->minValue(0.01)
+                    ->required(),
                 TextInput::make('payment_reference')
                     ->label('Referencia / número de recibo')
                     ->visible(fn ($get): bool => $get('payment_mode') === 'manual'),
@@ -888,16 +903,19 @@ class PlayerResource extends Resource
                 if (($data['payment_mode'] ?? 'transfer') === 'manual') {
                     $renewed = app(AnnualMembershipService::class)->renewManually(
                         $membership, $players, $club, $payerType, $payerId,
-                        $data['manual_method'], $data['payment_reference'] ?? null,
+                        $data['manual_method'], (float) $data['payment_amount'], $data['payment_reference'] ?? null,
                         $data['payment_notes'] ?? null, $preserveClub,
                     );
-                    Notification::make()->success()->title('Membresías acreditadas')
-                        ->body($renewed->count().' jugadores quedaron habilitados para competir.')->send();
+                    $fullyPaid = $renewed->where('status', 'paid')->count();
+                    $partial = $renewed->where('status', 'partial')->count();
+                    Notification::make()->success()->title('Pagos registrados')
+                        ->body("{$fullyPaid} membresías canceladas y {$partial} con saldo pendiente.")->send();
                     return;
                 }
 
                 $renewed = app(AnnualMembershipService::class)->renew(
                     $membership, $players, $club, $payerType, $payerId, $payerName, $preserveClub,
+                    (float) $data['payment_amount'],
                 );
 
                 Notification::make()

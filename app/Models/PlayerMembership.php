@@ -58,6 +58,11 @@ class PlayerMembership extends Model
         return $this->morphMany(BankTransferOrderItem::class, 'payable');
     }
 
+    public function getBalanceAttribute(): float
+    {
+        return max(0, (float) $this->amount_due - (float) $this->amount_paid);
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Lógica de negocio

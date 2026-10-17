@@ -23,7 +23,7 @@ class MembershipResource extends Resource
 
     protected static ?string $model = Membership::class;
 
-    protected static string|UnitEnum|null $navigationGroup = 'Configuración General';
+    protected static string|UnitEnum|null $navigationGroup = 'Tesorería';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedIdentification;
 
@@ -33,7 +33,7 @@ class MembershipResource extends Resource
 
     protected static ?string $pluralModelLabel = 'membresías anuales';
 
-    protected static ?int $navigationSort = 15;
+    protected static ?int $navigationSort = 1;
 
     protected static function disciplineViewPermission(): string
     {

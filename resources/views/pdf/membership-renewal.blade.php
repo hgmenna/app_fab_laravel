@@ -48,7 +48,7 @@
             <td>{{ $renewal->player?->full_name }}</td>
             <td>{{ $renewal->club?->name ?? 'INDEPENDIENTE' }}</td>
             <td class="center">{{ $renewal->operation_label ?? 'Renovación' }}</td>
-            <td class="center">HABILITADO</td>
+            <td class="center">{{ $renewal->enabled_to_compete ? 'HABILITADO' : 'SALDO PENDIENTE' }}</td>
             <td class="right">$ {{ number_format((float)$renewal->amount_paid, 2, ',', '.') }}</td>
         </tr>
     @endforeach

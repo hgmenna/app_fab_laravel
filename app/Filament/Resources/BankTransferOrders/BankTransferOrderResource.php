@@ -34,12 +34,12 @@ use UnitEnum;
 class BankTransferOrderResource extends Resource
 {
     protected static ?string $model = BankTransferOrder::class;
-    protected static string|UnitEnum|null $navigationGroup = 'Configuración General';
+    protected static string|UnitEnum|null $navigationGroup = 'Tesorería';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
     protected static ?string $navigationLabel = 'Pagos por transferencia';
     protected static ?string $modelLabel = 'orden de transferencia';
     protected static ?string $pluralModelLabel = 'pagos por transferencia';
-    protected static ?int $navigationSort = 17;
+    protected static ?int $navigationSort = 3;
 
     public static function getEloquentQuery(): Builder
     {

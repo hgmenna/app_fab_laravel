@@ -27,12 +27,13 @@ class BankTransferService
         ?int $payerId = null,
         ?string $payerName = null,
         bool $preservePlayerClub = false,
+        ?float $amountPerPlayer = null,
     ): BankTransferOrder
     {
         $setting = $this->requireActiveSetting();
 
-        return DB::transaction(function () use ($membership, $players, $club, $setting, $payerType, $payerId, $payerName, $preservePlayerClub): BankTransferOrder {
-            $renewals = $players->map(function (Player $player) use ($membership, $club, $preservePlayerClub): PlayerMembership {
+        return DB::transaction(function () use ($membership, $players, $club, $setting, $payerType, $payerId, $payerName, $preservePlayerClub, $amountPerPlayer): BankTransferOrder {
+            $renewals = $players->map(function (Player $player) use ($membership, $club, $preservePlayerClub, $amountPerPlayer): PlayerMembership {
                 if ((int) $player->discipline_id !== (int) $membership->discipline_id) {
                     throw ValidationException::withMessages([
                         'player_ids' => "{$player->full_name} no pertenece a la disciplina seleccionada.",
@@ -50,14 +51,24 @@ class BankTransferService
                     ]);
                 }
 
+                $currentPaid = (float) ($playerMembership->amount_paid ?: 0);
+                $balance = max(0, (float) $membership->amount - $currentPaid);
+                $paymentAmount = $amountPerPlayer ?? $balance;
+                if ($paymentAmount <= 0 || $paymentAmount > $balance) {
+                    throw ValidationException::withMessages([
+                        'payment_amount' => "El importe indicado no es válido para {$player->full_name}. Saldo: $ ".number_format($balance, 2, ',', '.'),
+                    ]);
+                }
+
                 $playerMembership->fill([
                     'club_id' => $preservePlayerClub ? $player->club_id : $club?->id,
                     'amount_due' => $membership->amount,
-                    'amount_paid' => 0,
-                    'status' => 'pending',
+                    'amount_paid' => $currentPaid,
+                    'status' => $currentPaid > 0 ? 'partial' : 'pending',
                     'enabled_to_compete' => false,
                     'paid_at' => null,
                 ])->save();
+                $playerMembership->setAttribute('payment_amount_requested', $paymentAmount);
 
                 return $playerMembership;
             });
@@ -70,7 +81,7 @@ class BankTransferService
                 'club_id' => $club?->id,
                 'discipline_id' => $membership->discipline_id,
                 'purpose' => 'membership',
-                'amount' => $renewals->sum(fn (PlayerMembership $renewal): float => (float) $renewal->amount_due),
+                'amount' => $renewals->sum(fn (PlayerMembership $renewal): float => (float) $renewal->payment_amount_requested),
                 'status' => 'pending',
                 'expires_at' => today()->addDays($setting->expires_in_days),
                 'payer_type' => $payerType,
@@ -84,7 +95,7 @@ class BankTransferService
                     'payable_type' => $renewal->getMorphClass(),
                     'payable_id' => $renewal->getKey(),
                     'description' => "Membresía {$membership->year} — {$renewal->player->full_name}",
-                    'amount' => $renewal->amount_due,
+                    'amount' => $renewal->payment_amount_requested,
                 ]);
             }
 
@@ -212,11 +223,13 @@ class BankTransferService
             foreach ($order->items as $item) {
                 $payable = $item->payable;
                 if ($payable instanceof PlayerMembership) {
+                    $newPaid = min((float) $payable->amount_due, (float) $payable->amount_paid + (float) $item->amount);
+                    $fullyPaid = $newPaid >= (float) $payable->amount_due;
                     $payable->update([
-                        'amount_paid' => $item->amount,
-                        'status' => 'paid',
-                        'enabled_to_compete' => true,
-                        'paid_at' => now(),
+                        'amount_paid' => $newPaid,
+                        'status' => $fullyPaid ? 'paid' : 'partial',
+                        'enabled_to_compete' => $fullyPaid,
+                        'paid_at' => $fullyPaid ? now() : null,
                     ]);
                     $payable->payments()->updateOrCreate(
                         ['external_reference' => $order->code],
@@ -230,11 +243,12 @@ class BankTransferService
                             'recorded_by' => Auth::id(),
                         ],
                     );
-                    $payable->player()->update([
-                        'club_id' => $payable->club_id,
-                        'is_active' => true,
-                        'is_enabled_to_compete' => true,
-                    ]);
+                    $playerData = ['club_id' => $payable->club_id, 'is_active' => true];
+                    if ($fullyPaid) {
+                        $playerData['is_enabled_to_compete'] = true;
+                    }
+                    $payable->player()->update($playerData);
+                    $payable->setAttribute('operation_label', $fullyPaid ? 'Pago total' : 'Pago parcial');
                     $memberships->push($payable);
                 }
                 if ($payable instanceof TournamentRegistration) {
@@ -251,7 +265,6 @@ class BankTransferService
         $memberships->groupBy('membership_id')->each(function (Collection $renewals) use ($order): void {
             $membership = $renewals->first()?->membership;
             if ($membership) {
-                $renewals->each(fn (PlayerMembership $renewal) => $renewal->setAttribute('operation_label', 'Renovación'));
                 app(AnnualMembershipService::class)->sendConfirmation($membership, $renewals, $order->user);
             }
         });

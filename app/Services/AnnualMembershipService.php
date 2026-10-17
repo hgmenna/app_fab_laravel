@@ -43,6 +43,7 @@ class AnnualMembershipService
         ?int $payerId = null,
         ?string $payerName = null,
         bool $preservePlayerClub = false,
+        ?float $amountPerPlayer = null,
     ): Collection
     {
         if (! $membership->active) {
@@ -52,7 +53,7 @@ class AnnualMembershipService
         }
 
         $order = app(BankTransferService::class)->createMembershipOrder(
-            $membership, $players, $club, $payerType, $payerId, $payerName, $preservePlayerClub
+            $membership, $players, $club, $payerType, $payerId, $payerName, $preservePlayerClub, $amountPerPlayer
         );
 
         return $order->items->map(fn ($item) => $item->payable()->first())->filter()->values();
@@ -65,6 +66,7 @@ class AnnualMembershipService
         string $payerType,
         ?int $payerId,
         string $manualMethod,
+        float $amountPerPlayer,
         ?string $reference = null,
         ?string $notes = null,
         bool $preservePlayerClub = false,
@@ -73,8 +75,12 @@ class AnnualMembershipService
             throw ValidationException::withMessages(['membership' => 'La membresía anual seleccionada no está activa.']);
         }
 
-        $renewals = DB::transaction(function () use ($membership, $players, $club, $payerType, $payerId, $manualMethod, $reference, $notes, $preservePlayerClub): Collection {
-            return $players->map(function (Player $player) use ($membership, $club, $payerType, $payerId, $manualMethod, $reference, $notes, $preservePlayerClub): PlayerMembership {
+        if ($amountPerPlayer <= 0) {
+            throw ValidationException::withMessages(['payment_amount' => 'El importe debe ser mayor que cero.']);
+        }
+
+        $renewals = DB::transaction(function () use ($membership, $players, $club, $payerType, $payerId, $manualMethod, $amountPerPlayer, $reference, $notes, $preservePlayerClub): Collection {
+            return $players->map(function (Player $player) use ($membership, $club, $payerType, $payerId, $manualMethod, $amountPerPlayer, $reference, $notes, $preservePlayerClub): PlayerMembership {
                 if ((int) $player->discipline_id !== (int) $membership->discipline_id) {
                     throw ValidationException::withMessages(['player_ids' => "{$player->full_name} no pertenece a la disciplina seleccionada."]);
                 }
@@ -91,18 +97,28 @@ class AnnualMembershipService
                         'player_ids' => "{$player->full_name} tiene una orden de transferencia abierta. Anulala antes de registrar otro medio de pago.",
                     ]);
                 }
+                $currentPaid = (float) ($renewal->amount_paid ?: 0);
+                $balance = max(0, (float) $membership->amount - $currentPaid);
+                if ($amountPerPlayer > $balance) {
+                    throw ValidationException::withMessages([
+                        'payment_amount' => 'El pago de '.number_format($amountPerPlayer, 2, ',', '.')." supera el saldo de {$player->full_name}: ".number_format($balance, 2, ',', '.'),
+                    ]);
+                }
+                $newPaid = $currentPaid + $amountPerPlayer;
+                $fullyPaid = $newPaid >= (float) $membership->amount;
+
                 $renewal->fill([
                     'club_id' => $preservePlayerClub ? $player->club_id : $club?->id,
                     'amount_due' => $membership->amount,
-                    'amount_paid' => $membership->amount,
-                    'status' => 'paid',
-                    'enabled_to_compete' => true,
-                    'paid_at' => now(),
+                    'amount_paid' => $newPaid,
+                    'status' => $fullyPaid ? 'paid' : 'partial',
+                    'enabled_to_compete' => $fullyPaid,
+                    'paid_at' => $fullyPaid ? now() : null,
                 ])->save();
                 $renewal->payments()->create([
                     'payer_type' => in_array($payerType, ['club', 'federation'], true) ? $payerType : 'player',
                     'payer_id' => in_array($payerType, ['club', 'federation'], true) ? $payerId : $player->id,
-                    'amount' => $membership->amount,
+                    'amount' => $amountPerPlayer,
                     'method' => 'manual',
                     'manual_method' => $manualMethod,
                     'external_reference' => $reference,
@@ -111,17 +127,18 @@ class AnnualMembershipService
                     'recorded_by' => Auth::id(),
                     'paid_at' => now(),
                 ]);
-                $player->update([
+                $player->update(array_filter([
                     'club_id' => $preservePlayerClub ? $player->club_id : $club?->id,
                     'is_active' => true,
-                    'is_enabled_to_compete' => true,
-                ]);
+                    'is_enabled_to_compete' => $fullyPaid ? true : null,
+                ], fn ($value) => $value !== null));
+
+                $renewal->setAttribute('operation_label', $fullyPaid ? 'Pago total' : 'Pago parcial');
 
                 return $renewal;
             });
         });
 
-        $renewals->each(fn (PlayerMembership $renewal) => $renewal->setAttribute('operation_label', 'Renovación'));
         $this->sendConfirmation($membership, $renewals);
         AdminNotifier::sendBulk(
             $renewals,
