@@ -51,7 +51,7 @@
                                     <span class="fq-pos">{{ $position }}</span>
                                     @if($row)
                                         <span><strong>{{ $row->entry?->player?->full_name }}</strong><br><small>{{ $row->entry?->player?->club?->name ?? 'INDEPENDIENTE' }}</small></span>
-                                        <small>RG {{ $row->entry?->national_ranking_snapshot ?? '—' }}</small>
+                                        <small>PG {{ $row->match_wins }} · DS {{ $row->sets_difference }} · Prom {{ number_format((float)$row->points_average, 3, ',', '.') }}</small>
                                     @else
                                         <span><strong style="color:#dc2626">LIBRE</strong><br><small>Pase automático del rival</small></span><small>2–0</small>
                                     @endif
@@ -63,7 +63,10 @@
                                         <strong>{{ $match->label }}</strong>
                                         {{ $match->playerOne?->player?->full_name ?? ($match->is_bye ? 'LIBRE' : 'A definir') }}<br>
                                         {{ $match->playerTwo?->player?->full_name ?? ($match->is_bye ? 'LIBRE' : 'A definir') }}
-                                        @if($match->is_bye)<br><small>Pase automático · 2–0</small>@endif
+                                        @if($match->is_bye)<br><small>Pase automático · {{ $match->player_one_computed_sets }}–{{ $match->player_two_computed_sets }}</small>@endif
+                                        @if($match->status === 'completed')
+                                            <br><small>Real: {{ $match->player_one_actual_sets }}–{{ $match->player_two_actual_sets }} · Computable: {{ $match->player_one_computed_sets }}–{{ $match->player_two_computed_sets }} · Puntos: {{ $match->player_one_points }}–{{ $match->player_two_points }}</small>
+                                        @endif
                                     </div>
                                 @endforeach
                             </div>

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\FiveQuillasCompetition;
 use App\Models\FiveQuillasGroup;
+use App\Models\FiveQuillasMatch;
 use App\Models\FiveQuillasPhase;
 use App\Models\GeneralRanking;
 use App\Models\Player;
@@ -141,6 +142,7 @@ class FiveQuillasCompetitionService
                     $entry->update(['status' => 'assigned']);
                 }
                 $this->createZoneBracket($phase, $group, $zone['positions']->map(fn ($entryId) => $entryId ? $availableEntries->get($entryId) : null));
+                $this->recalculateGroupStatistics($group->id);
             }
 
             $phase->update(['status' => 'ready']);
@@ -213,6 +215,127 @@ class FiveQuillasCompetitionService
         });
     }
 
+    public function recordMatchResult(FiveQuillasMatch $match, array $scores): FiveQuillasMatch
+    {
+        return DB::transaction(function () use ($match, $scores): FiveQuillasMatch {
+            $match->loadMissing(['phase', 'group']);
+            if (! $match->player_one_entry_id || ! $match->player_two_entry_id) {
+                throw ValidationException::withMessages(['scores' => 'El partido todavía no tiene los dos jugadores definidos.']);
+            }
+            if ($match->is_bye) {
+                throw ValidationException::withMessages(['scores' => 'Un pase libre no requiere carga de resultado.']);
+            }
+
+            $bestOf = (int) $match->phase->sets_to_play;
+            $winsNeeded = intdiv($bestOf, 2) + 1;
+            $pointsPerSet = (int) $match->phase->points_per_set;
+            $normalizedScores = collect($scores)->map(function (array $set, int $index) use ($pointsPerSet): array {
+                $one = (int) ($set['player_one_points'] ?? 0);
+                $two = (int) ($set['player_two_points'] ?? 0);
+                if ($one < 0 || $two < 0 || max($one, $two) !== $pointsPerSet) {
+                    throw ValidationException::withMessages([
+                        'scores' => 'El ganador del set '.($index + 1)." debe alcanzar exactamente {$pointsPerSet} puntos.",
+                    ]);
+                }
+                if ($one === $two) {
+                    throw ValidationException::withMessages(['scores' => 'El set '.($index + 1).' no puede terminar empatado.']);
+                }
+                return ['player_one_points' => $one, 'player_two_points' => $two];
+            })->values();
+
+            $oneWins = $normalizedScores->filter(fn (array $set): bool => $set['player_one_points'] > $set['player_two_points'])->count();
+            $twoWins = $normalizedScores->count() - $oneWins;
+            if (max($oneWins, $twoWins) !== $winsNeeded || min($oneWins, $twoWins) >= $winsNeeded) {
+                throw ValidationException::withMessages([
+                    'scores' => "El partido al mejor de {$bestOf} sets termina cuando un jugador gana {$winsNeeded} sets.",
+                ]);
+            }
+
+            $winnerIsOne = $oneWins > $twoWins;
+            $loserActualSets = min($oneWins, $twoWins);
+            $winnerComputedSets = $bestOf - $loserActualSets;
+            $oneComputed = $winnerIsOne ? $winnerComputedSets : $loserActualSets;
+            $twoComputed = $winnerIsOne ? $loserActualSets : $winnerComputedSets;
+            $onePoints = $normalizedScores->sum('player_one_points');
+            $twoPoints = $normalizedScores->sum('player_two_points');
+            $winnerId = $winnerIsOne ? $match->player_one_entry_id : $match->player_two_entry_id;
+            $loserId = $winnerIsOne ? $match->player_two_entry_id : $match->player_one_entry_id;
+
+            $match->update([
+                'set_scores' => ['bye' => false, 'sets' => $normalizedScores->all()],
+                'player_one_actual_sets' => $oneWins,
+                'player_two_actual_sets' => $twoWins,
+                'player_one_computed_sets' => $oneComputed,
+                'player_two_computed_sets' => $twoComputed,
+                'player_one_points' => $onePoints,
+                'player_two_points' => $twoPoints,
+                'winner_entry_id' => $winnerId,
+                'status' => 'completed',
+            ]);
+
+            $this->advanceEntry($match->next_match_id, $match->next_match_position, $winnerId);
+            $this->advanceEntry($match->loser_next_match_id, $match->loser_next_match_position, $loserId);
+            $this->resolveReadyByes(collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique());
+            if ($match->group_id) {
+                $this->recalculateGroupStatistics($match->group_id);
+            }
+
+            return $match->fresh();
+        });
+    }
+
+    private function advanceEntry(?int $matchId, ?int $position, int $entryId): void
+    {
+        if (! $matchId || ! in_array($position, [1, 2], true)) {
+            return;
+        }
+        FiveQuillasMatch::query()->whereKey($matchId)->update([
+            $position === 1 ? 'player_one_entry_id' : 'player_two_entry_id' => $entryId,
+        ]);
+    }
+
+    private function resolveReadyByes($matchIds): void
+    {
+        foreach ($matchIds as $matchId) {
+            $candidate = FiveQuillasMatch::query()->find($matchId);
+            if (! $candidate || $candidate->status === 'completed') {
+                continue;
+            }
+            $sourceMatches = FiveQuillasMatch::query()
+                ->where('next_match_id', $candidate->id)
+                ->orWhere('loser_next_match_id', $candidate->id)
+                ->get();
+            if ($sourceMatches->isNotEmpty() && $sourceMatches->every(fn ($source): bool => $source->status === 'completed')) {
+                $this->resolveBye($candidate);
+            }
+        }
+    }
+
+    private function recalculateGroupStatistics(int $groupId): void
+    {
+        $group = FiveQuillasGroup::query()->with(['groupEntries', 'matches'])->findOrFail($groupId);
+        foreach ($group->groupEntries as $row) {
+            $wins = 0; $setsFor = 0; $setsAgainst = 0; $pointsFor = 0; $pointsAgainst = 0;
+            foreach ($group->matches->where('status', 'completed') as $match) {
+                $isOne = (int) $match->player_one_entry_id === (int) $row->entry_id;
+                $isTwo = (int) $match->player_two_entry_id === (int) $row->entry_id;
+                if (! $isOne && ! $isTwo) { continue; }
+                $wins += (int) $match->winner_entry_id === (int) $row->entry_id ? 1 : 0;
+                $setsFor += $isOne ? $match->player_one_computed_sets : $match->player_two_computed_sets;
+                $setsAgainst += $isOne ? $match->player_two_computed_sets : $match->player_one_computed_sets;
+                $pointsFor += $isOne ? $match->player_one_points : $match->player_two_points;
+                $pointsAgainst += $isOne ? $match->player_two_points : $match->player_one_points;
+            }
+            $row->update([
+                'match_wins' => $wins,
+                'sets_difference' => $setsFor - $setsAgainst,
+                'points_for' => $pointsFor,
+                'points_against' => $pointsAgainst,
+                'points_average' => $pointsAgainst > 0 ? round($pointsFor / $pointsAgainst, 3) : 0,
+            ]);
+        }
+    }
+
     private function uniquePhaseCode(FiveQuillasCompetition $competition, string $name, $usedCodes): string
     {
         $base = Str::slug($name) ?: 'fase';
@@ -268,7 +391,11 @@ class FiveQuillasCompetitionService
         $winnerId = (int) $players->first();
         $match->update([
             'winner_entry_id' => $winnerId,
-            'set_scores' => ['bye' => true, 'winner_sets' => 2, 'loser_sets' => 0, 'sets' => []],
+            'set_scores' => ['bye' => true, 'sets' => []],
+            'player_one_actual_sets' => $match->player_one_entry_id ? intdiv((int) $match->phase()->value('sets_to_play'), 2) + 1 : 0,
+            'player_two_actual_sets' => $match->player_two_entry_id ? intdiv((int) $match->phase()->value('sets_to_play'), 2) + 1 : 0,
+            'player_one_computed_sets' => $match->player_one_entry_id ? (int) $match->phase()->value('sets_to_play') : 0,
+            'player_two_computed_sets' => $match->player_two_entry_id ? (int) $match->phase()->value('sets_to_play') : 0,
             'is_bye' => true,
             'status' => 'completed',
         ]);

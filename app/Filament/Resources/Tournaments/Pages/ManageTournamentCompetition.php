@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Tournaments\Pages;
 
 use App\Filament\Resources\Tournaments\TournamentResource;
 use App\Models\FiveQuillasCompetition;
+use App\Models\FiveQuillasMatch;
 use App\Services\FiveQuillasCompetitionService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
@@ -188,6 +189,35 @@ class ManageTournamentCompetition extends Page
                     );
                     Notification::make()->success()->title('Zonas guardadas')->body($count.' zonas quedaron preparadas para revisión.')->send();
                 }),
+            Action::make('recordResult')
+                ->label('Cargar resultado')
+                ->icon('heroicon-o-pencil-square')
+                ->color('success')
+                ->visible(fn (): bool => $this->competition()?->phases()->whereHas('matches', fn ($query) => $query
+                    ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')->where('is_bye', false))->exists() ?? false)
+                ->schema([
+                    Select::make('match_id')->label('Partido')->options(fn (): array => $this->matchOptions())
+                        ->searchable()->preload()->native(false)->required(),
+                    Repeater::make('scores')->label('Resultado de los sets')
+                        ->table([
+                            TableColumn::make('Puntos jugador 1')->markAsRequired(),
+                            TableColumn::make('Puntos jugador 2')->markAsRequired(),
+                        ])
+                        ->schema([
+                            TextInput::make('player_one_points')->hiddenLabel()->integer()->minValue(0)->required(),
+                            TextInput::make('player_two_points')->hiddenLabel()->integer()->minValue(0)->required(),
+                        ])
+                        ->defaultItems(2)->minItems(2)->maxItems(5)
+                        ->addActionLabel('Agregar set')->reorderable(false)->columnSpanFull(),
+                ])
+                ->modalDescription('Cargá solamente los sets realmente disputados. El sistema determina el ganador, normaliza los sets computables y recalcula la zona.')
+                ->action(function (array $data): void {
+                    $match = FiveQuillasMatch::query()
+                        ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
+                        ->findOrFail((int) $data['match_id']);
+                    app(FiveQuillasCompetitionService::class)->recordMatchResult($match, $data['scores'] ?? []);
+                    Notification::make()->success()->title('Resultado guardado')->body('Clasificación y promedio actualizados.')->send();
+                }),
         ];
     }
 
@@ -214,6 +244,25 @@ class ManageTournamentCompetition extends Page
             ->mapWithKeys(fn ($entry): array => [
                 $entry->id => ($entry->player?->full_name ?? 'Jugador').' — '.($entry->player?->club?->name ?? 'INDEPENDIENTE'),
             ])->all();
+    }
+
+    public function matchOptions(): array
+    {
+        if (! $this->competition()) {
+            return [];
+        }
+        return FiveQuillasMatch::query()
+            ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id)->where('is_enabled', true))
+            ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')->where('is_bye', false)
+            ->with(['phase', 'group', 'playerOne.player', 'playerTwo.player'])
+            ->orderBy('phase_id')->orderBy('round_number')->orderBy('bracket_order')->get()
+            ->mapWithKeys(fn ($match): array => [$match->id => implode(' · ', array_filter([
+                $match->phase?->name,
+                $match->group?->name,
+                $match->label,
+                ($match->playerOne?->player?->full_name ?? 'A definir').' vs '.($match->playerTwo?->player?->full_name ?? 'A definir'),
+                $match->status === 'completed' ? 'RESULTADO CARGADO' : null,
+            ]))])->all();
     }
 
     protected function getViewData(): array
