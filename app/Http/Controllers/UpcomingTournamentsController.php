@@ -40,6 +40,7 @@ class UpcomingTournamentsController extends Controller
                 'externalVenueState.federation:id,name,short_name,logo_path',
                 'tournamentModalities.modality:id,name,players_per_registration',
                 'contacts:id,tournament_id,name,phone,sort_order',
+                'fiveQuillasCompetition:id,tournament_id,public_slug,status,is_public',
                 'registrations:id,tournament_id,tournament_modality_id',
                 'registrations.participants:id,tournament_registration_id,player_id',
             ])
@@ -101,6 +102,10 @@ class UpcomingTournamentsController extends Controller
                 $publicationLogoUrl = $publicationLogoPath
                     ? Storage::disk('public_path')->url($publicationLogoPath)
                     : '';
+                $competition = $tournament->fiveQuillasCompetition;
+                $competitionJsonUrl = $competition?->is_public
+                    ? route('five-quillas-competition.public', ['slug' => $competition->public_slug])
+                    : '';
 
                 $start = $tournament->start_date;
                 $end = $tournament->end_date;
@@ -158,6 +163,10 @@ class UpcomingTournamentsController extends Controller
                     'contactos' => $tournament->contacts
                         ->map(fn ($contact): string => "{$contact->name}: {$contact->phone}")
                         ->implode(' | '),
+                    'desarrollo_disponible' => (bool) $competition?->is_public,
+                    'desarrollo_slug' => $competition?->public_slug ?? '',
+                    'desarrollo_estado' => $competition?->status ?? '',
+                    'desarrollo_json_url' => $competitionJsonUrl,
                 ];
             });
 

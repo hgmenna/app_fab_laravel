@@ -87,16 +87,23 @@ class TournamentResource extends Resource
             'create' => CreateTournament::route('/create'),
             'edit' => EditTournament::route('/{record}/edit'),
             'registrations' => Pages\ManageTournamentRegistrations::route('/{record}/registrations'),
+            'competition' => Pages\ManageTournamentCompetition::route('/{record}/competition'),
 
         ];
     }
 
     public static function getRecordSubNavigation(Page $page): array
     {
-        return $page->generateNavigationItems([
+        $pages = [
             Pages\EditTournament::class,
             Pages\ManageTournamentRegistrations::class, // Aquí aparece el enlace a las inscripciones
-        ]);
+        ];
+
+        if ($page->getRecord()->discipline?->code === 'five_quillas') {
+            $pages[] = Pages\ManageTournamentCompetition::class;
+        }
+
+        return $page->generateNavigationItems($pages);
     }
 
     // Accion para inscripciones al torneo

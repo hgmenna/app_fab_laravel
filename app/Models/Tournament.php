@@ -128,6 +128,11 @@ class Tournament extends Model
         return $this->hasMany(TournamentContact::class)->orderBy('sort_order');
     }
 
+    public function fiveQuillasCompetition(): HasOne
+    {
+        return $this->hasOne(FiveQuillasCompetition::class);
+    }
+
     public function externalVenueState(): BelongsTo
     {
         return $this->belongsTo(State::class, 'external_venue_state_id');

@@ -9,12 +9,15 @@ use App\Http\Controllers\BankTransferOrderPdfController;
 use App\Http\Controllers\MembershipAccountPdfController;
 use App\Http\Controllers\MembershipPaymentPdfController;
 use App\Http\Controllers\MembershipEntityStatementPdfController;
+use App\Http\Controllers\FiveQuillasCompetitionPublicController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/torneos-proximos.json', UpcomingTournamentsController::class);
 Route::get('/ranking-carambola-3-bandas.json', ThreeCushionRankingController::class);
 Route::get('/ranking-5-quillas.json', FiveQuillasRankingController::class);
 Route::get('/ranking-5-quillas.pdf', FiveQuillasRankingPdfController::class);
+Route::get('/torneos/5-quillas/{slug}/competencia.json', FiveQuillasCompetitionPublicController::class)
+    ->name('five-quillas-competition.public');
 Route::get('/ordenes-transferencia/{order}/pdf', BankTransferOrderPdfController::class)
     ->middleware('signed')
     ->name('bank-transfer-orders.pdf');
