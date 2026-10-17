@@ -474,6 +474,15 @@ class FiveQuillasCompetitionService
 
     private function phase(string $code, string $name, string $type, int $order, int $sets, string $seeding, bool $split, array $settings = []): array
     {
+        if ($type !== 'zones' && ! array_key_exists('schedules', $settings)) {
+            $settings['schedules'] = [[
+                'name' => 'Horario principal',
+                'starts_at' => null,
+                'bracket_section' => null,
+                'tables' => null,
+            ]];
+        }
+
         return [
             'code' => $code, 'name' => $name, 'phase_type' => $type, 'sort_order' => $order,
             'sets_to_play' => $sets, 'points_per_set' => 60, 'seeding_method' => $seeding,

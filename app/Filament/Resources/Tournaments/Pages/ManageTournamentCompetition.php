@@ -94,7 +94,14 @@ class ManageTournamentCompetition extends Page
                         'tables' => data_get($phase->settings, 'tables'),
                         'estimated_minutes' => data_get($phase->settings, 'estimated_minutes'),
                         'rest_minutes' => data_get($phase->settings, 'rest_minutes', 0),
-                        'schedules' => data_get($phase->settings, 'schedules', []),
+                        'schedules' => $phase->phase_type === 'zones'
+                            ? []
+                            : (data_get($phase->settings, 'schedules') ?: [[
+                                'name' => 'Horario principal',
+                                'starts_at' => null,
+                                'bracket_section' => null,
+                                'tables' => data_get($phase->settings, 'tables'),
+                            ]]),
                     ])->values()->all(),
                 ])
                 ->schema([
@@ -153,7 +160,7 @@ class ManageTournamentCompetition extends Page
                                 ->helperText('Usalo en fases posteriores a las zonas. Primera Nacional puede dividirse en dos horarios independientes.')
                                 ->table([
                                     TableColumn::make('Nombre')->markAsRequired(),
-                                    TableColumn::make('Inicio'),
+                                    TableColumn::make('Fecha y hora de inicio'),
                                     TableColumn::make('Sector de la grilla'),
                                     TableColumn::make('Mesas'),
                                 ])
@@ -164,6 +171,7 @@ class ManageTournamentCompetition extends Page
                                     TextInput::make('tables')->hiddenLabel()->integer()->minValue(1),
                                 ])
                                 ->visible(fn (Get $get): bool => $get('phase_type') !== 'zones')
+                                ->defaultItems(1)
                                 ->addActionLabel('Agregar horario de fase')
                                 ->reorderable()
                                 ->columnSpanFull(),
