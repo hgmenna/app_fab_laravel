@@ -35,9 +35,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                 'informacion_disponible' => $competition->phases->contains(
                     fn ($phase): bool => $phase->groups->isNotEmpty() || $phase->matches->isNotEmpty()
                 ),
-                'fases' => $competition->phases
-                    ->filter(fn ($phase): bool => $phase->phase_type !== 'play_in' || $phase->matches->isNotEmpty())
-                    ->map(fn ($phase): array => [
+                'fases' => $competition->phases->map(fn ($phase): array => [
                     'codigo' => $phase->code,
                     'nombre' => $phase->name,
                     'tipo' => $phase->phase_type,
