@@ -18,6 +18,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Grid;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
@@ -472,43 +473,77 @@ class ManageTournamentCompetition extends Page
                     'players_label' => $this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)),
                     'player_one_name' => $match?->playerOne?->player?->full_name ?? 'Jugador 1',
                     'player_two_name' => $match?->playerTwo?->player?->full_name ?? 'Jugador 2',
-                    'scores' => $sets ?: [
-                    ['player_one_points' => null, 'player_two_points' => null],
-                    ['player_one_points' => null, 'player_two_points' => null],
-                    ],
+                    ...collect(range(1, max(1, (int) ($match?->phase?->sets_to_play ?? 3))))
+                        ->flatMap(fn (int $setNumber): array => [
+                            'player_one_set_'.$setNumber => data_get($sets, ($setNumber - 1).'.player_one_points'),
+                            'player_two_set_'.$setNumber => data_get($sets, ($setNumber - 1).'.player_two_points'),
+                        ])->all(),
                 ];
             })
-            ->schema([
-                Hidden::make('players_label'),
-                Hidden::make('player_one_name'),
-                Hidden::make('player_two_name'),
-                Placeholder::make('players')
-                    ->label('Partido')
-                    ->content(fn (Get $get): string => (string) ($get('players_label') ?: 'Jugadores a definir'))
-                    ->columnSpanFull(),
-                Repeater::make('scores')->label('Resultado de los sets')
-                    ->schema([
-                        TextInput::make('player_one_points')
-                            ->label(fn (Get $get): string => (string) ($get('../../player_one_name') ?: 'Jugador 1'))
-                            ->integer()->minValue(0)->required()
-                            ->extraInputAttributes(['style' => 'max-width:6rem;text-align:center']),
-                        TextInput::make('player_two_points')
-                            ->label(fn (Get $get): string => (string) ($get('../../player_two_name') ?: 'Jugador 2'))
-                            ->integer()->minValue(0)->required()
-                            ->extraInputAttributes(['style' => 'max-width:6rem;text-align:center']),
-                    ])
-                    ->columns(2)
-                    ->defaultItems(2)->minItems(2)->maxItems(5)
-                    ->addActionLabel('Agregar set')->reorderable(false)->columnSpanFull(),
-            ])
+            ->schema(function (array $arguments): array {
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+                $bestOf = max(1, (int) ($match?->phase?->sets_to_play ?? 3));
+                $pointsPerSet = max(1, (int) ($match?->phase?->points_per_set ?? 60));
+                $inputStyle = 'width:4.25rem;max-width:4.25rem;text-align:center;padding-left:.35rem;padding-right:.35rem';
+
+                $headers = [
+                    Placeholder::make('player_header')->hiddenLabel()->content('Jugador')
+                        ->columnSpan(3)->extraAttributes(['style' => 'font-weight:800']),
+                    ...collect(range(1, $bestOf))->map(fn (int $setNumber) =>
+                        Placeholder::make('set_header_'.$setNumber)->hiddenLabel()->content('Set '.$setNumber)
+                            ->extraAttributes(['style' => 'text-align:center;font-size:.75rem;font-weight:800'])
+                    )->all(),
+                ];
+
+                $playerRow = function (int $playerNumber) use ($bestOf, $pointsPerSet, $inputStyle): array {
+                    return [
+                        Placeholder::make('player_'.$playerNumber.'_label')->hiddenLabel()
+                            ->content(fn (Get $get): string => (string) ($get('player_'.$playerNumber.'_name') ?: 'Jugador '.$playerNumber))
+                            ->columnSpan(3)->extraAttributes(['style' => 'font-weight:800;align-self:center']),
+                        ...collect(range(1, $bestOf))->map(fn (int $setNumber) =>
+                            TextInput::make('player_'.$playerNumber.'_set_'.$setNumber)
+                                ->hiddenLabel()->integer()->minValue(0)->maxValue($pointsPerSet)
+                                ->extraInputAttributes(['style' => $inputStyle, 'inputmode' => 'numeric'])
+                        )->all(),
+                    ];
+                };
+
+                return [
+                    Hidden::make('players_label'),
+                    Hidden::make('player_one_name'),
+                    Hidden::make('player_two_name'),
+                    Grid::make($bestOf + 3)
+                        ->schema([...$headers, ...$playerRow(1), ...$playerRow(2)])
+                        ->columnSpanFull(),
+                ];
+            })
             ->modalHeading(fn (array $arguments): string => 'Resultado · '.$this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)))
             ->modalDescription('Cargá solamente los sets disputados. El sistema determina el ganador y actualiza la clasificación.')
+            ->modalWidth('3xl')
             ->action(function (array $data, array $arguments): void {
                 $match = FiveQuillasMatch::query()
                     ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
                     ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')->where('is_bye', false)
                     ->findOrFail((int) $arguments['matchId']);
-                app(FiveQuillasCompetitionService::class)->recordMatchResult($match, $data['scores'] ?? []);
+                $scores = collect(range(1, max(1, (int) $match->phase()->value('sets_to_play'))))
+                    ->map(function (int $setNumber) use ($data): array {
+                        $one = $data['player_one_set_'.$setNumber] ?? null;
+                        $two = $data['player_two_set_'.$setNumber] ?? null;
+                        if (filled($one) !== filled($two)) {
+                            throw ValidationException::withMessages([
+                                'scores' => 'Completá los dos puntajes del set '.$setNumber.' o dejá ambos vacíos.',
+                            ]);
+                        }
+
+                        return [
+                            'player_one_points' => filled($one) ? (int) $one : null,
+                            'player_two_points' => filled($two) ? (int) $two : null,
+                        ];
+                    })
+                    ->filter(fn (array $set): bool => $set['player_one_points'] !== null)
+                    ->values()
+                    ->all();
+                app(FiveQuillasCompetitionService::class)->recordMatchResult($match, $scores);
                 Notification::make()->success()->title('Resultado guardado')
                     ->body('La clasificación y la progresión del cuadro fueron actualizadas.')->send();
             });
@@ -571,7 +606,7 @@ class ManageTournamentCompetition extends Page
 
         return FiveQuillasMatch::query()
             ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
-            ->with(['playerOne.player', 'playerTwo.player'])
+            ->with(['phase', 'playerOne.player', 'playerTwo.player'])
             ->find($matchId);
     }
 
