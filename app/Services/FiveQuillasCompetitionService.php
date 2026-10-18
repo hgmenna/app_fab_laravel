@@ -845,7 +845,8 @@ class FiveQuillasCompetitionService
             $matchesByLabel = $group->matches->keyBy('label');
             $firstMatch = $matchesByLabel->get('Definición del primer puesto');
             $secondMatch = $matchesByLabel->get('Definición del segundo puesto');
-            $recoveryMatch = $matchesByLabel->get('Partido de recuperación');
+            $recoveryMatch = $matchesByLabel->get('Perdedores')
+                ?? $matchesByLabel->get('Partido de recuperación');
             $places = collect();
             if ($firstMatch?->winner_entry_id) { $places->put((int) $firstMatch->winner_entry_id, 1); }
             if ($secondMatch?->winner_entry_id) { $places->put((int) $secondMatch->winner_entry_id, 2); }
@@ -901,7 +902,7 @@ class FiveQuillasCompetitionService
         ]);
         $losersMatch = $group->matches()->create([
             'phase_id' => $phase->id, 'round_number' => 2, 'bracket_order' => 2,
-            'label' => 'Partido de recuperación', 'next_match_id' => $secondPlace->id,
+            'label' => 'Perdedores', 'next_match_id' => $secondPlace->id,
             'next_match_position' => 2, 'is_public' => $public,
         ]);
         $matchOne = $group->matches()->create([
