@@ -18,7 +18,27 @@
 
         <div class="fq-phases">
             @foreach($competition->phases as $phase)
-                <div class="fq-phase" style="{{ $phase->is_enabled ? '' : 'opacity:.48' }}"><span class="fq-label">Fase {{ $phase->sort_order }}{{ $phase->is_enabled ? '' : ' · Deshabilitada' }}</span><strong>{{ $phase->name }}</strong><small>{{ $phase->sets_to_play }} sets · {{ $phase->points_per_set }} puntos · {{ data_get($phase->settings, 'tables') ?: '—' }} mesas · {{ data_get($phase->settings, 'estimated_minutes') ?: '—' }} min</small>@if(count(data_get($phase->settings, 'schedules', [])))<br><small>{{ collect(data_get($phase->settings, 'schedules', []))->pluck('name')->implode(' · ') }}</small>@endif</div>
+                @php($previousPhase = $competition->phases->where('is_enabled', true)->where('sort_order', '<', $phase->sort_order)->sortByDesc('sort_order')->first())
+                <div class="fq-phase" style="{{ $phase->is_enabled ? '' : 'opacity:.48' }}">
+                    <span class="fq-label">Fase {{ $phase->sort_order }}{{ $phase->is_enabled ? '' : ' · Deshabilitada' }}</span>
+                    <strong>{{ $phase->name }}</strong>
+                    <small>{{ match($phase->status){'ready'=>'Preparada','in_progress'=>'En curso','completed'=>'Finalizada',default=>'Pendiente'} }}</small>
+                    @if($phase->is_enabled)
+                        <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem">
+                            @if($phase->phase_type === 'zones' && !in_array($phase->status, ['in_progress', 'completed']))
+                                {{ ($this->createZonesAction)(['phaseId' => $phase->id]) }}
+                            @elseif($phase->phase_type !== 'zones' && $phase->status !== 'completed' && $phase->matches->isEmpty() && (!$previousPhase || $previousPhase->status === 'completed'))
+                                {{ ($this->preparePhaseAction)(['phaseId' => $phase->id]) }}
+                            @elseif($phase->phase_type !== 'zones' && $phase->status !== 'completed' && $phase->matches->isNotEmpty())
+                                @foreach(collect(data_get($phase->settings, 'schedules', [])) as $scheduleIndex => $schedule)
+                                    <span style="display:flex;align-items:center;gap:.25rem"><small>{{ $schedule['name'] ?? 'Horario' }}</small>{{ ($this->schedulePhaseAction)(['phaseId' => $phase->id, 'scheduleIndex' => $scheduleIndex]) }}</span>
+                                @endforeach
+                            @elseif($phase->phase_type !== 'zones' && $phase->status !== 'completed' && $phase->matches->isEmpty())
+                                <small>Pendiente de la fase anterior</small>
+                            @endif
+                        </div>
+                    @endif
+                </div>
             @endforeach
         </div>
 
@@ -67,7 +87,11 @@
                                         @if($match->status === 'completed')
                                             <br><small>Real: {{ $match->player_one_actual_sets }}–{{ $match->player_two_actual_sets }} · Computable: {{ $match->player_one_computed_sets }}–{{ $match->player_two_computed_sets }} · Puntos: {{ $match->player_one_points }}–{{ $match->player_two_points }}</small>
                                         @elseif($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
-                                            <div style="margin-top:.45rem">{{ ($this->callMatchAction)(['matchId' => $match->id]) }}</div>
+                                            @if($match->table_number)<br><small>Mesa {{ $match->table_number }}</small>@endif
+                                            <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.45rem">
+                                                {{ ($this->callMatchAction)(['matchId' => $match->id]) }}
+                                                {{ ($this->recordResultAction)(['matchId' => $match->id]) }}
+                                            </div>
                                         @endif
                                     </div>
                                 @endforeach
@@ -89,7 +113,11 @@
                             @if($match->status === 'completed')
                                 <small>Resultado: {{ $match->player_one_computed_sets }}–{{ $match->player_two_computed_sets }}</small>
                             @elseif($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
-                                {{ ($this->callMatchAction)(['matchId' => $match->id]) }}
+                                @if($match->table_number)<small>Mesa {{ $match->table_number }}</small>@endif
+                                <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.45rem">
+                                    {{ ($this->callMatchAction)(['matchId' => $match->id]) }}
+                                    {{ ($this->recordResultAction)(['matchId' => $match->id]) }}
+                                </div>
                             @endif
                         </section>
                     @endforeach

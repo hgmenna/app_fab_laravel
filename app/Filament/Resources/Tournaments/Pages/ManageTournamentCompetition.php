@@ -227,30 +227,6 @@ class ManageTournamentCompetition extends Page
                     Notification::make()->success()->title('Formato actualizado')
                         ->body($enabled.' fases habilitadas para este torneo.')->send();
                 }),
-            Action::make('scheduleMatches')
-                ->label('Programar partidos')
-                ->icon('heroicon-o-clock')
-                ->color('primary')
-                ->visible(fn (): bool => $this->competition() !== null)
-                ->schema([
-                    Select::make('phase_id')->label('Fase')
-                        ->options(fn (): array => $this->competition()->phases()->where('is_enabled', true)
-                            ->where('phase_type', '!=', 'zones')->pluck('name', 'id')->all())
-                        ->live()->searchable()->preload()->native(false)->required(),
-                    Select::make('schedule_index')->label('Horario de la fase')
-                        ->options(fn (Get $get): array => $this->scheduleOptionsForPhase((int) $get('phase_id')))
-                        ->searchable()->native(false)->required(),
-                ])
-                ->modalDescription('Los partidos se distribuyen por orden de grilla y reciben su horario. La mesa se asigna manualmente cuando se llama a los jugadores.')
-                ->action(function (array $data): void {
-                    $phase = $this->competition()->phases()->whereKey((int) $data['phase_id'])->firstOrFail();
-                    $count = app(FiveQuillasCompetitionService::class)->scheduleConfiguredMatches(
-                        $phase,
-                        (int) $data['schedule_index'],
-                    );
-                    Notification::make()->success()->title('Partidos programados')
-                        ->body($count.' partidos recibieron horario.')->send();
-                }),
             Action::make('applyCompetitionTemplate')
                 ->label('Elegir formato inicial')
                 ->icon('heroicon-o-document-duplicate')
@@ -274,101 +250,6 @@ class ManageTournamentCompetition extends Page
                     );
                     Notification::make()->success()->title('Plantilla aplicada')
                         ->body($count.' fases creadas para este torneo.')->send();
-                }),
-            Action::make('createZones')
-                ->label('Cargar zonas')
-                ->icon('heroicon-o-squares-2x2')
-                ->color('warning')
-                ->visible(fn (): bool => $this->competition()?->phases()->where('phase_type', 'zones')->where('is_enabled', true)->exists() ?? false)
-                ->schema([
-                    Select::make('slot_id')
-                        ->label('Horario')
-                        ->options(fn (): array => $this->record->slots()->where('is_active', true)->orderBy('starts_at')->pluck('name', 'id')->all())
-                        ->required()
-                        ->searchable()
-                        ->live(),
-                    Repeater::make('zones')
-                        ->label('Zonas del horario')
-                        ->table([
-                            TableColumn::make('Zona'),
-                            TableColumn::make('Posición 1'),
-                            TableColumn::make('Posición 2'),
-                            TableColumn::make('Posición 3'),
-                            TableColumn::make('Posición 4'),
-                        ])
-                        ->schema([
-                            TextInput::make('name')->placeholder('Zona 1')->maxLength(255),
-                            ...collect(range(1, 4))->map(fn (int $position) => Select::make('player_'.$position)
-                                ->hiddenLabel()
-                                ->options(fn (Get $get): array => $this->entryOptionsForSlot((int) $get('../../slot_id')))
-                                ->searchable()->preload()->native(false)
-                                ->placeholder('LIBRE'))->all(),
-                        ])
-                        ->defaultItems(1)
-                        ->minItems(1)
-                        ->addActionLabel('Agregar zona')
-                        ->reorderable(false)
-                        ->columnSpanFull(),
-                ])
-                ->modalHeading('Carga manual de zonas')
-                ->modalDescription('Elegí únicamente jugadores aprobados del horario. Cada zona admite tres o cuatro jugadores; cualquier posición sin jugador queda LIBRE y produce el pase automático previsto en la planilla oficial.')
-                ->modalWidth('7xl')
-                ->requiresConfirmation()
-                ->action(function (array $data): void {
-                    $count = app(FiveQuillasCompetitionService::class)->createManualZones(
-                        $this->competition(),
-                        (int) $data['slot_id'],
-                        $data['zones'] ?? [],
-                    );
-                    Notification::make()->success()->title('Zonas guardadas')->body($count.' zonas quedaron preparadas para revisión.')->send();
-                }),
-            Action::make('preparePhase')
-                ->label('Preparar siguiente fase')
-                ->icon('heroicon-o-forward')
-                ->color('warning')
-                ->visible(fn (): bool => $this->competition() !== null)
-                ->schema([
-                    Select::make('phase_id')->label('Fase a preparar')
-                        ->options(fn (): array => $this->competition()->phases()
-                            ->where('is_enabled', true)->where('phase_type', '!=', 'zones')
-                            ->orderBy('sort_order')->pluck('name', 'id')->all())
-                        ->searchable()->preload()->native(false)->required(),
-                ])
-                ->modalDescription('Toma los clasificados de la fase anterior y crea los cruces según el formato configurado para este torneo.')
-                ->action(function (array $data): void {
-                    $phase = $this->competition()->phases()->whereKey((int) $data['phase_id'])->firstOrFail();
-                    $count = app(FiveQuillasCompetitionService::class)->preparePhase($phase);
-                    Notification::make()->success()->title('Fase preparada')
-                        ->body($count > 0 ? $count.' partidos quedaron creados.' : 'No se necesitaron partidos de emparejamiento.')->send();
-                }),
-            Action::make('recordResult')
-                ->label('Cargar resultado')
-                ->icon('heroicon-o-pencil-square')
-                ->color('success')
-                ->visible(fn (): bool => $this->competition()?->phases()->whereHas('matches', fn ($query) => $query
-                    ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')->where('is_bye', false))->exists() ?? false)
-                ->schema([
-                    Select::make('match_id')->label('Partido')->options(fn (): array => $this->matchOptions())
-                        ->searchable()->preload()->native(false)->required(),
-                    Repeater::make('scores')->label('Resultado de los sets')
-                        ->table([
-                            TableColumn::make('Puntos jugador 1')->markAsRequired(),
-                            TableColumn::make('Puntos jugador 2')->markAsRequired(),
-                        ])
-                        ->schema([
-                            TextInput::make('player_one_points')->hiddenLabel()->integer()->minValue(0)->required(),
-                            TextInput::make('player_two_points')->hiddenLabel()->integer()->minValue(0)->required(),
-                        ])
-                        ->defaultItems(2)->minItems(2)->maxItems(5)
-                        ->addActionLabel('Agregar set')->reorderable(false)->columnSpanFull(),
-                ])
-                ->modalDescription('Cargá solamente los sets realmente disputados. El sistema determina el ganador, normaliza los sets computables y recalcula la zona.')
-                ->action(function (array $data): void {
-                    $match = FiveQuillasMatch::query()
-                        ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
-                        ->findOrFail((int) $data['match_id']);
-                    app(FiveQuillasCompetitionService::class)->recordMatchResult($match, $data['scores'] ?? []);
-                    Notification::make()->success()->title('Resultado guardado')->body('Clasificación y promedio actualizados.')->send();
                 }),
         ];
     }
@@ -398,23 +279,104 @@ class ManageTournamentCompetition extends Page
             ])->all();
     }
 
-    public function matchOptions(): array
+    public function createZonesAction(): Action
     {
-        if (! $this->competition()) {
-            return [];
-        }
-        return FiveQuillasMatch::query()
-            ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id)->where('is_enabled', true))
-            ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')->where('is_bye', false)
-            ->with(['phase', 'group', 'playerOne.player', 'playerTwo.player'])
-            ->orderBy('phase_id')->orderBy('round_number')->orderBy('bracket_order')->get()
-            ->mapWithKeys(fn ($match): array => [$match->id => implode(' · ', array_filter([
-                $match->phase?->name,
-                $match->group?->name,
-                $match->label,
-                ($match->playerOne?->player?->full_name ?? 'A definir').' vs '.($match->playerTwo?->player?->full_name ?? 'A definir'),
-                $match->status === 'completed' ? 'RESULTADO CARGADO' : null,
-            ]))])->all();
+        return Action::make('createZones')
+            ->label('Cargar zonas')
+            ->icon('heroicon-o-squares-2x2')->color('warning')->size('sm')
+            ->schema([
+                Select::make('slot_id')->label('Horario')
+                    ->options(fn (): array => $this->record->slots()->where('is_active', true)->orderBy('starts_at')->pluck('name', 'id')->all())
+                    ->required()->searchable()->live(),
+                Repeater::make('zones')->label('Zonas del horario')
+                    ->table([
+                        TableColumn::make('Zona'), TableColumn::make('Posición 1'),
+                        TableColumn::make('Posición 2'), TableColumn::make('Posición 3'),
+                        TableColumn::make('Posición 4'),
+                    ])
+                    ->schema([
+                        TextInput::make('name')->placeholder('Zona 1')->maxLength(255),
+                        ...collect(range(1, 4))->map(fn (int $position) => Select::make('player_'.$position)
+                            ->hiddenLabel()->options(fn (Get $get): array => $this->entryOptionsForSlot((int) $get('../../slot_id')))
+                            ->searchable()->preload()->native(false)->placeholder('LIBRE'))->all(),
+                    ])
+                    ->defaultItems(1)->minItems(1)->addActionLabel('Agregar zona')
+                    ->reorderable(false)->columnSpanFull(),
+            ])
+            ->modalHeading('Carga manual de zonas')
+            ->modalDescription('Elegí un horario y ubicá sus jugadores en zonas de tres o cuatro integrantes.')
+            ->modalWidth('7xl')->requiresConfirmation()
+            ->action(function (array $data, array $arguments): void {
+                $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
+                    ->where('phase_type', 'zones')->where('is_enabled', true)->firstOrFail();
+                $count = app(FiveQuillasCompetitionService::class)->createManualZones(
+                    $this->competition(), (int) $data['slot_id'], $data['zones'] ?? [],
+                );
+                Notification::make()->success()->title('Zonas guardadas')
+                    ->body($count.' zonas quedaron preparadas.')->send();
+            });
+    }
+
+    public function preparePhaseAction(): Action
+    {
+        return Action::make('preparePhase')
+            ->label('Preparar fase')->icon('heroicon-o-forward')->color('warning')->size('sm')
+            ->requiresConfirmation()
+            ->modalDescription('Incorpora los clasificados de la fase anterior, agrega quienes ingresan directamente aquí y crea los cruces.')
+            ->action(function (array $arguments): void {
+                $phase = $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
+                    ->where('phase_type', '!=', 'zones')->where('is_enabled', true)->firstOrFail();
+                $count = app(FiveQuillasCompetitionService::class)->preparePhase($phase);
+                Notification::make()->success()->title('Fase preparada')
+                    ->body($count > 0 ? $count.' partidos quedaron creados.' : 'La fase no necesitó partidos adicionales.')->send();
+            });
+    }
+
+    public function schedulePhaseAction(): Action
+    {
+        return Action::make('schedulePhase')
+            ->label('Asignar horarios')->icon('heroicon-o-clock')->color('primary')->size('sm')
+            ->requiresConfirmation()
+            ->modalDescription('Asigna la hora configurada a los partidos de este bloque. La mesa se elige después, al llamar cada partido.')
+            ->action(function (array $arguments): void {
+                $phase = $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
+                    ->where('phase_type', '!=', 'zones')->where('is_enabled', true)->firstOrFail();
+                $count = app(FiveQuillasCompetitionService::class)->scheduleConfiguredMatches(
+                    $phase, (int) $arguments['scheduleIndex'],
+                );
+                Notification::make()->success()->title('Horarios asignados')
+                    ->body($count.' partidos recibieron su horario.')->send();
+            });
+    }
+
+    public function recordResultAction(): Action
+    {
+        return Action::make('recordResult')
+            ->label('Resultado')->icon('heroicon-o-pencil-square')->color('success')->size('sm')
+            ->schema([
+                Repeater::make('scores')->label('Resultado de los sets')
+                    ->table([
+                        TableColumn::make('Puntos jugador 1')->markAsRequired(),
+                        TableColumn::make('Puntos jugador 2')->markAsRequired(),
+                    ])
+                    ->schema([
+                        TextInput::make('player_one_points')->hiddenLabel()->integer()->minValue(0)->required(),
+                        TextInput::make('player_two_points')->hiddenLabel()->integer()->minValue(0)->required(),
+                    ])
+                    ->defaultItems(2)->minItems(2)->maxItems(5)
+                    ->addActionLabel('Agregar set')->reorderable(false)->columnSpanFull(),
+            ])
+            ->modalHeading('Cargar resultado del partido')
+            ->modalDescription('Cargá solamente los sets disputados. El sistema determina el ganador y actualiza la clasificación.')
+            ->action(function (array $data, array $arguments): void {
+                $match = FiveQuillasMatch::query()
+                    ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
+                    ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')->where('is_bye', false)
+                    ->findOrFail((int) $arguments['matchId']);
+                app(FiveQuillasCompetitionService::class)->recordMatchResult($match, $data['scores'] ?? []);
+                Notification::make()->success()->title('Resultado guardado')
+                    ->body('La clasificación y la progresión del cuadro fueron actualizadas.')->send();
+            });
     }
 
     public function callMatchAction(): Action
@@ -439,16 +401,6 @@ class ManageTournamentCompetition extends Page
                 Notification::make()->success()->title('Partido llamado')
                     ->body('La mesa '.$data['table_number'].' quedó asignada.')->send();
             });
-    }
-
-    public function scheduleOptionsForPhase(int $phaseId): array
-    {
-        $phase = $this->competition()?->phases()->whereKey($phaseId)->first();
-        return collect(data_get($phase?->settings, 'schedules', []))
-            ->mapWithKeys(fn (array $schedule, int $index): array => [
-                $index => ($schedule['name'] ?? 'Horario '.($index + 1))
-                    .(filled($schedule['starts_at'] ?? null) ? ' · '.$schedule['starts_at'] : ' · SIN FECHA'),
-            ])->all();
     }
 
     protected function getViewData(): array
