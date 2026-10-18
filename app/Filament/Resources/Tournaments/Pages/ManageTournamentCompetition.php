@@ -417,6 +417,8 @@ class ManageTournamentCompetition extends Page
 
                 return [
                     'players_label' => $this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)),
+                    'player_one_name' => $match?->playerOne?->player?->full_name ?? 'Jugador 1',
+                    'player_two_name' => $match?->playerTwo?->player?->full_name ?? 'Jugador 2',
                     'scores' => $sets ?: [
                     ['player_one_points' => null, 'player_two_points' => null],
                     ['player_one_points' => null, 'player_two_points' => null],
@@ -425,19 +427,22 @@ class ManageTournamentCompetition extends Page
             })
             ->schema([
                 Hidden::make('players_label'),
+                Hidden::make('player_one_name'),
+                Hidden::make('player_two_name'),
                 Placeholder::make('players')
                     ->label('Partido')
                     ->content(fn (Get $get): string => (string) ($get('players_label') ?: 'Jugadores a definir'))
                     ->columnSpanFull(),
                 Repeater::make('scores')->label('Resultado de los sets')
-                    ->table([
-                        TableColumn::make('Puntos jugador 1')->markAsRequired(),
-                        TableColumn::make('Puntos jugador 2')->markAsRequired(),
-                    ])
                     ->schema([
-                        TextInput::make('player_one_points')->hiddenLabel()->integer()->minValue(0)->required(),
-                        TextInput::make('player_two_points')->hiddenLabel()->integer()->minValue(0)->required(),
+                        TextInput::make('player_one_points')
+                            ->label(fn (Get $get): string => (string) ($get('../../player_one_name') ?: 'Jugador 1'))
+                            ->integer()->minValue(0)->required(),
+                        TextInput::make('player_two_points')
+                            ->label(fn (Get $get): string => (string) ($get('../../player_two_name') ?: 'Jugador 2'))
+                            ->integer()->minValue(0)->required(),
                     ])
+                    ->columns(2)
                     ->defaultItems(2)->minItems(2)->maxItems(5)
                     ->addActionLabel('Agregar set')->reorderable(false)->columnSpanFull(),
             ])
@@ -451,6 +456,28 @@ class ManageTournamentCompetition extends Page
                 app(FiveQuillasCompetitionService::class)->recordMatchResult($match, $data['scores'] ?? []);
                 Notification::make()->success()->title('Resultado guardado')
                     ->body('La clasificación y la progresión del cuadro fueron actualizadas.')->send();
+            });
+    }
+
+    public function resetResultAction(): Action
+    {
+        return Action::make('resetResult')
+            ->label('Reiniciar partido')
+            ->icon('heroicon-o-arrow-path')
+            ->color('danger')
+            ->size('sm')
+            ->requiresConfirmation()
+            ->modalHeading('Reiniciar partido')
+            ->modalDescription('Se eliminará el resultado y el partido volverá al estado No jugado. Esta acción también retira a los jugadores de los cruces posteriores que todavía no comenzaron.')
+            ->action(function (array $arguments): void {
+                $match = FiveQuillasMatch::query()
+                    ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
+                    ->where('status', 'completed')
+                    ->findOrFail((int) $arguments['matchId']);
+
+                app(FiveQuillasCompetitionService::class)->resetMatchResult($match);
+                Notification::make()->success()->title('Partido reiniciado')
+                    ->body('El resultado fue eliminado y el partido quedó como no jugado.')->send();
             });
     }
 
