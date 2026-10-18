@@ -564,12 +564,14 @@ class ManageTournamentCompetition extends Page
                 ];
 
                 $playerRow = function (int $playerNumber) use ($bestOf, $pointsPerSet, $inputStyle, $playerNames): array {
+                    $playerKey = $playerNumber === 1 ? 'one' : 'two';
+
                     return [
                         Placeholder::make('player_'.$playerNumber.'_label')->hiddenLabel()
                             ->content($playerNames[$playerNumber])
                             ->columnSpan(3)->extraAttributes(['style' => 'font-weight:800;align-self:center']),
                         ...collect(range(1, $bestOf))->map(fn (int $setNumber) =>
-                            TextInput::make('player_'.$playerNumber.'_set_'.$setNumber)
+                            TextInput::make('player_'.$playerKey.'_set_'.$setNumber)
                                 ->hiddenLabel()->numeric()->minValue(0)->maxValue($pointsPerSet)
                                 ->nullable()
                                 ->extraInputAttributes(['style' => $inputStyle, 'inputmode' => 'numeric'])
@@ -589,7 +591,7 @@ class ManageTournamentCompetition extends Page
             ->modalHeading(fn (array $arguments): string => 'Resultado · '.$this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)))
             ->modalDescription('Cargá los sets que ya finalizaron. Podés guardar avances parciales; el sistema solo proclama al ganador cuando corresponda.')
             ->modalWidth('3xl')
-            ->action(function (array $data, array $arguments): void {
+            ->action(function (array $data, array $arguments, Action $action): void {
                 $match = FiveQuillasMatch::query()
                     ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
                     ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')->where('is_bye', false)
@@ -616,7 +618,28 @@ class ManageTournamentCompetition extends Page
                     ->filter(fn (array $set): bool => $set['player_one_points'] !== null)
                     ->values()
                     ->all();
-                $updatedMatch = app(FiveQuillasCompetitionService::class)->recordMatchResult($match, $scores);
+                try {
+                    $updatedMatch = app(FiveQuillasCompetitionService::class)->recordMatchResult($match, $scores);
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()
+                        ->title('No se pudo guardar el resultado')
+                        ->body(collect($exception->errors())->flatten()->first() ?? 'Revisá los puntajes ingresados.')
+                        ->persistent()
+                        ->send();
+                    $action->halt();
+
+                    return;
+                } catch (\Throwable $exception) {
+                    report($exception);
+                    Notification::make()->danger()
+                        ->title('No se pudo guardar el resultado')
+                        ->body('Ocurrió un error al procesar el partido. El detalle quedó registrado para su revisión.')
+                        ->persistent()
+                        ->send();
+                    $action->halt();
+
+                    return;
+                }
                 Notification::make()->success()
                     ->title($updatedMatch->status === 'completed' ? 'Resultado final guardado' : 'Resultado parcial guardado')
                     ->body($updatedMatch->status === 'completed'
