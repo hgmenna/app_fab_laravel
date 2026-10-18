@@ -497,7 +497,6 @@ class ManageTournamentCompetition extends Page
                 }
                 Notification::make()->success()->title('Partido reiniciado')
                     ->body('El resultado fue eliminado y el partido quedó como no jugado.')->send();
-                $this->redirect(TournamentResource::getUrl('competition', ['record' => $this->record]), navigate: false);
             });
     }
 
