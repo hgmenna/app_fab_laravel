@@ -269,17 +269,9 @@ class ManageTournamentCompetition extends Page
             return [];
         }
 
-        $phase = $this->competition()->phases
-            ->first(fn ($phase): bool => $phase->phase_type === 'zones' && $phase->is_enabled);
-        $lockedEntryIds = $phase?->groups()->where('tournament_slot_id', $slotId)
-            ->whereHas('matches', fn ($query) => $query->where('status', '!=', 'pending'))
-            ->with('groupEntries:id,group_id,entry_id')->get()
-            ->flatMap->groupEntries->pluck('entry_id')->all() ?? [];
-
         return $this->competition()->entries()
             ->where('source_slot_id', $slotId)
             ->whereIn('status', ['eligible', 'assigned'])
-            ->whereNotIn('id', $lockedEntryIds)
             ->with(['player.club'])
             ->get()
             ->sortBy(fn ($entry): string => $entry->player?->full_name ?? '')
@@ -303,14 +295,15 @@ class ManageTournamentCompetition extends Page
 
         $rows = $phase->groups()
             ->where('tournament_slot_id', $slotId)
-            ->whereDoesntHave('matches', fn ($query) => $query->where('status', '!=', 'pending'))
-            ->with('groupEntries')
+            ->with(['groupEntries', 'matches:id,group_id,status'])
             ->orderBy('sort_order')
             ->get()
             ->map(function ($group): array {
                 $entries = $group->groupEntries->keyBy('position');
 
                 return [
+                    'group_id' => $group->id,
+                    'locked' => $group->matches->contains(fn ($match): bool => $match->status !== 'pending'),
                     'name' => $group->name,
                     ...collect(range(1, 4))->mapWithKeys(fn (int $position): array => [
                         'player_'.$position => $entries->get($position)?->entry_id,
@@ -326,9 +319,7 @@ class ManageTournamentCompetition extends Page
     public function createZonesAction(): Action
     {
         return Action::make('createZones')
-            ->label(fn (array $arguments): string => filled($arguments['slotId'] ?? null)
-                ? 'Configurar zonas'
-                : 'Cargar zonas')
+            ->label('Configurar zonas')
             ->icon('heroicon-o-squares-2x2')->color('warning')->size('sm')
             ->fillForm(function (array $arguments): array {
                 $slotId = (int) ($arguments['slotId'] ?? 0);
@@ -350,16 +341,20 @@ class ManageTournamentCompetition extends Page
                         TableColumn::make('Posición 4'),
                     ])
                     ->schema([
-                        TextInput::make('name')->placeholder('Zona 1')->maxLength(255),
+                        Hidden::make('group_id'),
+                        Hidden::make('locked'),
+                        TextInput::make('name')->placeholder('Zona 1')->maxLength(255)
+                            ->disabled(fn (Get $get): bool => (bool) $get('locked')),
                         ...collect(range(1, 4))->map(fn (int $position) => Select::make('player_'.$position)
                             ->hiddenLabel()->options(fn (Get $get): array => $this->entryOptionsForSlot((int) $get('../../slot_id')))
-                            ->searchable()->preload()->native(false)->placeholder('LIBRE'))->all(),
+                            ->searchable()->preload()->native(false)->placeholder('LIBRE')
+                            ->disabled(fn (Get $get): bool => (bool) $get('locked')))->all(),
                     ])
                     ->defaultItems(1)->minItems(1)->addActionLabel('Agregar zona')
                     ->reorderable(false)->columnSpanFull(),
             ])
             ->modalHeading('Carga manual de zonas')
-            ->modalDescription('Elegí un horario y ubicá sus jugadores en zonas de tres o cuatro integrantes. Si ya existen zonas para ese horario, se cargan para poder corregirlas.')
+            ->modalDescription('Elegí un horario para ver sus zonas. Podés modificar las que todavía no comenzaron y agregar las que falten. Las zonas con partidos iniciados se muestran protegidas.')
             ->modalWidth('7xl')->requiresConfirmation()
             ->action(function (array $data, array $arguments): void {
                 $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
@@ -407,18 +402,17 @@ class ManageTournamentCompetition extends Page
     public function recordResultAction(): Action
     {
         return Action::make('recordResult')
-            ->label(function (array $arguments): string {
-                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
-
-                return $match?->status === 'completed' ? 'Editar resultado' : 'Resultado';
-            })
+            ->label('Cargar / editar resultado')
             ->icon('heroicon-o-pencil-square')->color('success')->size('sm')
             ->fillForm(function (array $arguments): array {
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
-                $sets = collect(data_get($match?->set_scores, 'sets', []))
-                    ->map(fn (array $set): array => [
-                        'player_one_points' => (int) ($set['player_one_points'] ?? 0),
-                        'player_two_points' => (int) ($set['player_two_points'] ?? 0),
+                $storedScores = is_array($match?->set_scores) ? $match->set_scores : [];
+                $storedSets = $storedScores['sets'] ?? (array_is_list($storedScores) ? $storedScores : []);
+                $sets = collect(is_array($storedSets) ? $storedSets : [])
+                    ->filter(fn ($set): bool => is_array($set))
+                    ->map(fn ($set): array => [
+                        'player_one_points' => isset($set['player_one_points']) ? (int) $set['player_one_points'] : null,
+                        'player_two_points' => isset($set['player_two_points']) ? (int) $set['player_two_points'] : null,
                     ])->values()->all();
 
                 return ['scores' => $sets ?: [

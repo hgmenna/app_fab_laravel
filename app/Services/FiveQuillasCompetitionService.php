@@ -114,7 +114,9 @@ class FiveQuillasCompetitionService
                 ->whereNotIn('id', $lockedEntryIds)
                 ->get()->keyBy('id');
 
-            $zones = collect($zoneRows)->map(function (array $row): array {
+            $zones = collect($zoneRows)
+                ->reject(fn (array $row): bool => (bool) ($row['locked'] ?? false))
+                ->map(function (array $row): array {
                 $positions = collect(range(1, 4))->mapWithKeys(fn (int $position): array => [
                     $position => filled($row['player_'.$position] ?? null) ? (int) $row['player_'.$position] : null,
                 ]);
@@ -122,10 +124,11 @@ class FiveQuillasCompetitionService
             })->values();
             $selected = $zones->flatMap(fn (array $zone) => $zone['positions']->filter()->values());
 
+            if ($zones->isEmpty() && $lockedGroups->isNotEmpty()) {
+                return 0;
+            }
             if ($zones->isEmpty()) {
-                throw ValidationException::withMessages([
-                    'zones' => 'Agregá al menos una zona.',
-                ]);
+                throw ValidationException::withMessages(['zones' => 'Agregá al menos una zona.']);
             }
             foreach ($zones as $index => $zone) {
                 if (! in_array($zone['positions']->filter()->count(), [3, 4], true)) {

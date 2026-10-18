@@ -26,9 +26,7 @@
                     @if($phase->is_enabled)
                         <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem">
                             @if($phase->phase_type === 'zones' && $phase->status !== 'completed')
-                                @foreach($this->record->slots->where('is_active', true)->sortBy('starts_at') as $slot)
-                                    <span style="display:flex;align-items:center;gap:.25rem"><small>{{ $slot->name }}</small>{{ ($this->createZonesAction)(['phaseId' => $phase->id, 'slotId' => $slot->id]) }}</span>
-                                @endforeach
+                                {{ ($this->createZonesAction)(['phaseId' => $phase->id]) }}
                             @elseif($phase->phase_type !== 'zones' && $phase->status !== 'completed' && $phase->matches->isEmpty() && (!$previousPhase || $previousPhase->status === 'completed'))
                                 {{ ($this->preparePhaseAction)(['phaseId' => $phase->id]) }}
                             @elseif($phase->phase_type !== 'zones' && $phase->status !== 'completed' && $phase->matches->isNotEmpty())
