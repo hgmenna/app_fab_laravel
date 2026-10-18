@@ -479,7 +479,7 @@ class ManageTournamentCompetition extends Page
                     ->findOrFail((int) $arguments['matchId']);
 
                 try {
-                    app(FiveQuillasCompetitionService::class)->resetMatchResult($match);
+                    $resetMatch = app(FiveQuillasCompetitionService::class)->resetMatchResult($match);
                 } catch (ValidationException $exception) {
                     Notification::make()->danger()->title('No se puede reiniciar el partido')
                         ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
@@ -487,8 +487,17 @@ class ManageTournamentCompetition extends Page
 
                     return;
                 }
+
+                if ($resetMatch->status !== 'pending' || $resetMatch->winner_entry_id !== null) {
+                    Notification::make()->danger()->title('No se pudo reiniciar el partido')
+                        ->body('El resultado continúa guardado. Volvé a intentarlo y revisá el registro del sistema si el problema persiste.')
+                        ->send();
+
+                    return;
+                }
                 Notification::make()->success()->title('Partido reiniciado')
                     ->body('El resultado fue eliminado y el partido quedó como no jugado.')->send();
+                $this->redirect(TournamentResource::getUrl('competition', ['record' => $this->record]), navigate: false);
             });
     }
 
