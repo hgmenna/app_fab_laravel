@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Tournaments\Pages;
 use App\Filament\Resources\Tournaments\TournamentResource;
 use App\Models\FiveQuillasCompetition;
 use App\Models\FiveQuillasMatch;
+use App\Models\Category;
 use App\Services\FiveQuillasCompetitionService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
@@ -91,6 +92,7 @@ class ManageTournamentCompetition extends Page
                         'split_by_slot' => $phase->split_by_slot,
                         'is_enabled' => $phase->is_enabled ?? true,
                         'qualifiers' => data_get($phase->settings, 'qualifiers'),
+                        'entry_category_ids' => data_get($phase->settings, 'entry_category_ids', []),
                         'tables' => data_get($phase->settings, 'tables'),
                         'estimated_minutes' => data_get($phase->settings, 'estimated_minutes'),
                         'rest_minutes' => data_get($phase->settings, 'rest_minutes', 0),
@@ -157,6 +159,12 @@ class ManageTournamentCompetition extends Page
                                 ->helperText(fn (Get $get): ?string => $get('phase_type') === 'bracket'
                                     ? 'El sorteo presencial se usa cuando cada jugador extrae el número de su posición en el cuadro.'
                                     : null),
+                            Select::make('entry_category_ids')->label('Categorías que ingresan en esta fase')
+                                ->options(fn (): array => Category::query()
+                                    ->where('discipline_id', $this->record->discipline_id)
+                                    ->orderBy('order')->orderBy('name')->pluck('name', 'id')->all())
+                                ->multiple()->searchable()->preload()->native(false)->columnSpan(2)
+                                ->helperText('Los inscriptos de estas categorías se incorporan directamente aquí. Las categorías no asignadas ingresan en la primera fase.'),
                             TextInput::make('qualifiers')->label('Clasificados a la siguiente fase')->integer()->minValue(1)
                                 ->helperText('En la última fase se ignora porque allí finaliza el torneo.'),
                             TextInput::make('tables')->label('Mesas disponibles')->integer()->minValue(1),
@@ -267,30 +275,6 @@ class ManageTournamentCompetition extends Page
                     Notification::make()->success()->title('Plantilla aplicada')
                         ->body($count.' fases creadas para este torneo.')->send();
                 }),
-            Action::make('callMatch')
-                ->label('Llamar partido')
-                ->icon('heroicon-o-megaphone')
-                ->color('info')
-                ->visible(fn (): bool => $this->competition() !== null)
-                ->schema([
-                    Select::make('match_id')->label('Partido')->options(fn (): array => $this->callableMatchOptions())
-                        ->searchable()->preload()->native(false)->required(),
-                    TextInput::make('table_number')->label('Mesa')->integer()->minValue(1)->required(),
-                ])
-                ->modalDescription('Elegí el partido y asignale la mesa disponible al momento de llamar a los jugadores.')
-                ->action(function (array $data): void {
-                    $match = FiveQuillasMatch::query()
-                        ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
-                        ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')
-                        ->where('is_bye', false)->where('status', '!=', 'completed')
-                        ->findOrFail((int) $data['match_id']);
-                    $match->update([
-                        'table_number' => (int) $data['table_number'],
-                        'status' => 'called',
-                    ]);
-                    Notification::make()->success()->title('Partido llamado')
-                        ->body('La mesa '.$data['table_number'].' quedó asignada.')->send();
-                }),
             Action::make('createZones')
                 ->label('Cargar zonas')
                 ->icon('heroicon-o-squares-2x2')
@@ -393,7 +377,7 @@ class ManageTournamentCompetition extends Page
     {
         return FiveQuillasCompetition::query()
             ->where('tournament_id', $this->record->id)
-            ->with(['phases.groups.slot', 'phases.groups.groupEntries.entry.player.club', 'phases.groups.matches.playerOne.player', 'phases.groups.matches.playerTwo.player', 'entries.player.club', 'entries.sourceSlot'])
+            ->with(['phases.groups.slot', 'phases.groups.groupEntries.entry.player.club', 'phases.groups.matches.playerOne.player', 'phases.groups.matches.playerTwo.player', 'phases.matches.playerOne.player', 'phases.matches.playerTwo.player', 'entries.player.club', 'entries.player.category', 'entries.sourceSlot', 'entries.entryPhase'])
             ->first();
     }
 
@@ -433,24 +417,28 @@ class ManageTournamentCompetition extends Page
             ]))])->all();
     }
 
-    public function callableMatchOptions(): array
+    public function callMatchAction(): Action
     {
-        if (! $this->competition()) {
-            return [];
-        }
-
-        return FiveQuillasMatch::query()
-            ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id)->where('is_enabled', true))
-            ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')
-            ->where('is_bye', false)->where('status', '!=', 'completed')
-            ->with(['phase', 'group', 'playerOne.player', 'playerTwo.player'])
-            ->orderBy('scheduled_at')->orderBy('phase_id')->orderBy('round_number')->orderBy('bracket_order')->get()
-            ->mapWithKeys(fn ($match): array => [$match->id => implode(' · ', array_filter([
-                $match->phase?->name,
-                $match->group?->name,
-                $match->scheduled_at?->format('d/m/Y H:i'),
-                ($match->playerOne?->player?->full_name ?? 'A definir').' vs '.($match->playerTwo?->player?->full_name ?? 'A definir'),
-            ]))])->all();
+        return Action::make('callMatch')
+            ->label('Llamar')
+            ->icon('heroicon-o-megaphone')
+            ->color('info')
+            ->size('sm')
+            ->schema([
+                TextInput::make('table_number')->label('Mesa disponible')->integer()->minValue(1)->required(),
+            ])
+            ->modalHeading('Llamar partido')
+            ->modalDescription('Asigná la mesa disponible al momento de llamar a los jugadores.')
+            ->action(function (array $data, array $arguments): void {
+                $match = FiveQuillasMatch::query()
+                    ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
+                    ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')
+                    ->where('is_bye', false)->where('status', '!=', 'completed')
+                    ->findOrFail((int) $arguments['matchId']);
+                $match->update(['table_number' => (int) $data['table_number'], 'status' => 'called']);
+                Notification::make()->success()->title('Partido llamado')
+                    ->body('La mesa '.$data['table_number'].' quedó asignada.')->send();
+            });
     }
 
     public function scheduleOptionsForPhase(int $phaseId): array
@@ -471,6 +459,7 @@ class ManageTournamentCompetition extends Page
         return [
             'competition' => $competition,
             'entriesBySlot' => $entries->groupBy(fn ($entry): string => $entry->sourceSlot?->name ?? 'SIN HORARIO ASIGNADO'),
+            'entriesByPhase' => $entries->groupBy(fn ($entry): string => $entry->entryPhase?->name ?? 'PRIMERA FASE'),
             'publicJsonUrl' => $competition?->is_public
                 ? route('five-quillas-competition.public', ['slug' => $competition->public_slug])
                 : null,

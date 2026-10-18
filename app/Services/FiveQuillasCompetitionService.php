@@ -6,6 +6,7 @@ use App\Models\FiveQuillasCompetition;
 use App\Models\FiveQuillasGroup;
 use App\Models\FiveQuillasMatch;
 use App\Models\FiveQuillasPhase;
+use App\Models\Category;
 use App\Models\GeneralRanking;
 use App\Models\Player;
 use App\Models\Tournament;
@@ -46,8 +47,10 @@ class FiveQuillasCompetitionService
         $competition->loadMissing('tournament');
         $registrations = $competition->tournament->registrations()
             ->where('status', 'aprobado')
-            ->with(['participants.player', 'slot'])
+            ->with(['participants.player.category', 'slot'])
             ->get();
+        $phases = $competition->phases()->where('is_enabled', true)->orderBy('sort_order')->get();
+        $fallbackPhase = $phases->first();
         $activePlayerIds = collect();
 
         foreach ($registrations as $registration) {
@@ -65,16 +68,23 @@ class FiveQuillasCompetitionService
                     continue;
                 }
                 $ranking = GeneralRanking::query()->where('player_id', $participant->player_id)->value('RG');
-                $competition->entries()->updateOrCreate(
+                $player = $participant->player ?? Player::query()->with('category')->find($participant->player_id);
+                $entryPhase = $phases->first(fn ($phase): bool => collect(data_get($phase->settings, 'entry_category_ids', []))
+                    ->map(fn ($id): int => (int) $id)->contains((int) $player?->category_id)) ?: $fallbackPhase;
+                $entry = $competition->entries()->firstOrNew(
                     ['player_id' => $participant->player_id],
-                    [
-                        'tournament_registration_id' => $registration->id,
-                        'registration_participant_id' => $participant->id ?? null,
-                        'source_slot_id' => $registration->tournament_slot_id,
-                        'national_ranking_snapshot' => $ranking,
-                        'status' => 'eligible',
-                    ],
                 );
+                $entry->fill([
+                    'tournament_registration_id' => $registration->id,
+                    'registration_participant_id' => $participant->id ?? null,
+                    'source_slot_id' => $registration->tournament_slot_id,
+                    'entry_phase_id' => $entryPhase?->id,
+                    'national_ranking_snapshot' => $ranking,
+                ]);
+                if (! $entry->exists || $entry->status === 'withdrawn') {
+                    $entry->status = 'eligible';
+                }
+                $entry->save();
                 $activePlayerIds->push((int) $participant->player_id);
             }
         }
@@ -90,6 +100,7 @@ class FiveQuillasCompetitionService
             $phase = $competition->phases()->where('phase_type', 'zones')->where('is_enabled', true)->firstOrFail();
             $availableEntries = $competition->entries()
                 ->where('source_slot_id', $slotId)
+                ->where('entry_phase_id', $phase->id)
                 ->whereIn('status', ['eligible', 'assigned'])
                 ->get()->keyBy('id');
 
@@ -161,6 +172,13 @@ class FiveQuillasCompetitionService
             if ($rows->where('phase_type', 'zones')->where('is_enabled', true)->count() > 1) {
                 throw ValidationException::withMessages(['phases' => 'Puede existir como máximo una fase de zonas habilitada.']);
             }
+            $assignedCategories = $rows->flatMap(fn (array $row): array => $row['entry_category_ids'] ?? [])
+                ->filter()->map(fn ($id): int => (int) $id);
+            if ($assignedCategories->duplicates()->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'phases' => 'Una categoría de jugadores puede tener una sola fase de ingreso en el torneo.',
+                ]);
+            }
 
             $existing = $competition->phases()->withCount(['groups', 'matches'])->get()->keyBy('id');
             $retainedIds = collect();
@@ -205,6 +223,8 @@ class FiveQuillasCompetitionService
                         'qualifiers' => $index === $lastEnabledIndex
                             ? null
                             : (filled($row['qualifiers'] ?? null) ? (int) $row['qualifiers'] : null),
+                        'entry_category_ids' => collect($row['entry_category_ids'] ?? [])->filter()
+                            ->map(fn ($id): int => (int) $id)->unique()->values()->all(),
                         'tables' => filled($row['tables'] ?? null) ? (int) $row['tables'] : null,
                         'estimated_minutes' => filled($row['estimated_minutes'] ?? null) ? (int) $row['estimated_minutes'] : null,
                         'rest_minutes' => filled($row['rest_minutes'] ?? null) ? (int) $row['rest_minutes'] : 0,
@@ -215,6 +235,7 @@ class FiveQuillasCompetitionService
                             ? $this->officialBracketPairs((int) $row['bracket_size'])
                             : [],
                         'stop_after_rounds' => data_get($phase?->settings, 'stop_after_rounds'),
+                        'direct_entry_seed_count' => data_get($phase?->settings, 'direct_entry_seed_count'),
                         'schedules' => $row['phase_type'] === 'zones'
                             ? []
                             : collect($row['schedules'] ?? [])->map(fn (array $schedule): array => [
@@ -246,6 +267,8 @@ class FiveQuillasCompetitionService
                 }
             }
 
+            $this->syncApprovedEntries($competition);
+
             return $rows->where('is_enabled', true)->count();
         });
     }
@@ -264,6 +287,7 @@ class FiveQuillasCompetitionService
                 $competition->phases()->create($phase);
             }
             $competition->update(['settings' => array_merge($competition->settings ?? [], ['format' => $format])]);
+            $this->syncApprovedEntries($competition);
             return $competition->phases()->count();
         });
     }
@@ -342,6 +366,9 @@ class FiveQuillasCompetitionService
             $source = $previous
                 ? $this->qualifiedEntriesFromPhase($previous)
                 : $phase->competition->entries()->whereIn('status', ['eligible', 'assigned', 'qualified'])->get();
+            $directEntries = $phase->competition->entries()->where('entry_phase_id', $phase->id)
+                ->whereIn('status', ['eligible', 'assigned', 'qualified'])->get();
+            $source = collect($source)->merge($directEntries)->unique('id')->values();
 
             if ($source->isEmpty()) {
                 throw ValidationException::withMessages(['phase' => 'La fase anterior todavía no tiene clasificados disponibles.']);
@@ -433,25 +460,14 @@ class FiveQuillasCompetitionService
         $source = collect($source)->unique('id')->values();
         $seeds = [];
 
-        if ($phase->code === 'national') {
-            $national = $phase->competition->entries()->with('player.category')
-                ->whereNotIn('id', $source->pluck('id'))
-                ->get()->filter(function ($entry): bool {
-                    $category = Str::lower(($entry->player?->category?->code ?? '').' '.($entry->player?->category?->name ?? ''));
-                    return Str::contains($category, ['1ra', '1°', 'primera', 'nacional']);
-                })->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->take(32)->values();
-            $national->each(fn ($entry, $index) => $seeds[$index + 1] = $entry);
-            $source->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->values()
-                ->each(fn ($entry, $index) => $seeds[33 + $index] = $entry);
-        } elseif ($phase->code === 'master-final') {
-            $masters = $phase->competition->entries()->with('player.category')
-                ->whereNotIn('id', $source->pluck('id'))
-                ->get()->filter(function ($entry): bool {
-                    $category = Str::lower(($entry->player?->category?->code ?? '').' '.($entry->player?->category?->name ?? ''));
-                    return Str::contains($category, 'master');
-                })->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->take(16)->values();
-            $masters->each(fn ($entry, $index) => $seeds[$index + 1] = $entry);
-            $source->take(16)->values()->each(fn ($entry, $index) => $seeds[17 + $index] = $entry);
+        if ((int) data_get($phase->settings, 'direct_entry_seed_count', 0) > 0) {
+            $directCount = (int) data_get($phase->settings, 'direct_entry_seed_count');
+            $direct = $source->where('entry_phase_id', $phase->id)
+                ->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->take($directCount)->values();
+            $qualified = $source->where('entry_phase_id', '!=', $phase->id)
+                ->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->values();
+            $direct->each(fn ($entry, $index) => $seeds[$index + 1] = $entry);
+            $qualified->each(fn ($entry, $index) => $seeds[$directCount + 1 + $index] = $entry);
         } else {
             $ordered = $phase->seeding_method === 'national_ranking'
                 ? $source->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->values()
@@ -597,6 +613,8 @@ class FiveQuillasCompetitionService
             if (! $next) {
                 $phase->competition->update(['status' => 'completed']);
                 $this->assignFinalPoints($phase);
+            } else {
+                $this->assignPhaseEliminationPoints($phase);
             }
         } elseif ($phase->matches()->where('status', 'completed')->exists()) {
             $phase->update(['status' => 'in_progress']);
@@ -622,23 +640,107 @@ class FiveQuillasCompetitionService
         if ($finalLoser) { $placements->put($finalLoser, 2); }
         $position = 3;
         for ($round = $lastRound - 1; $round >= 1; $round--) {
-            foreach ($matches->where('round_number', $round)->sortBy('bracket_order') as $match) {
-                $loser = $this->loserEntryId($match);
-                if ($loser && ! $placements->has($loser)) { $placements->put($loser, $position++); }
+            $roundLosers = $matches->where('round_number', $round)->map(fn ($match) => $this->loserEntryId($match))
+                ->filter()->unique()->sort(function (int $left, int $right) use ($matches): int {
+                    $leftStats = $this->entryPerformance($matches, $left);
+                    $rightStats = $this->entryPerformance($matches, $right);
+                    foreach (['wins', 'sets_difference', 'average', 'points_for'] as $field) {
+                        if ($leftStats[$field] !== $rightStats[$field]) {
+                            return $rightStats[$field] <=> $leftStats[$field];
+                        }
+                    }
+                    return $left <=> $right;
+                });
+            foreach ($roundLosers as $loser) {
+                if (! $placements->has($loser)) { $placements->put($loser, $position++); }
             }
         }
 
-        $rules = app(TournamentScoringService::class)->getRules($tournament);
         $entries = $phase->competition->entries()->with('registration')->whereIn('id', $placements->keys())->get()->keyBy('id');
         foreach ($placements as $entryId => $place) {
             $registration = $entries->get($entryId)?->registration;
-            $rule = $this->ruleForPlacement($rules, $place);
-            if (! $registration || ! $rule || $registration->points !== null) { continue; }
-            if (app(TournamentScoringService::class)->usesOfficialInstances($tournament) && ! empty($rule['tournament_instance_id'])) {
-                app(TournamentScoringService::class)->assignByTournamentInstance($registration, (int) $rule['tournament_instance_id']);
-            } elseif (! empty($rule['code'])) {
-                app(TournamentScoringService::class)->assignByCode($registration, (string) $rule['code']);
+            if (! $registration) { continue; }
+            $this->assignPointsForPlacement($tournament, $registration, $place);
+            $entries->get($entryId)?->update(['status' => $place === 1 ? 'qualified' : 'eliminated']);
+        }
+    }
+
+    private function assignPhaseEliminationPoints(FiveQuillasPhase $phase): void
+    {
+        $phase->loadMissing('competition.tournament.type');
+        $tournament = $phase->competition->tournament;
+        if (! $tournament->type?->assigns_points) {
+            return;
+        }
+
+        $qualified = $this->qualifiedEntriesFromPhase($phase)->pluck('id')->map(fn ($id): int => (int) $id);
+        $futureEntrants = $phase->competition->entries()
+            ->whereHas('entryPhase', fn ($query) => $query->where('sort_order', '>', $phase->sort_order))
+            ->where('status', '!=', 'withdrawn')->pluck('id')->map(fn ($id): int => (int) $id);
+        $stillCompeting = $qualified->merge($futureEntrants)->unique();
+
+        $participantIds = $phase->phase_type === 'zones'
+            ? $phase->groups()->with('groupEntries')->get()->flatMap->groupEntries->pluck('entry_id')
+            : $phase->matches()->get()->flatMap(fn ($match): array => [
+                $match->player_one_entry_id, $match->player_two_entry_id,
+            ])->filter();
+        $eliminated = $phase->competition->entries()->whereIn('id', $participantIds->unique())
+            ->whereNotIn('id', $qualified)->where('status', '!=', 'withdrawn')->get();
+        if ($eliminated->isEmpty()) {
+            return;
+        }
+
+        $matches = $phase->matches()->where('status', 'completed')->get();
+        $ordered = $eliminated->sort(function ($left, $right) use ($matches): int {
+            $leftStats = $this->entryPerformance($matches, (int) $left->id);
+            $rightStats = $this->entryPerformance($matches, (int) $right->id);
+            foreach (['wins', 'sets_difference', 'average', 'points_for'] as $field) {
+                if ($leftStats[$field] !== $rightStats[$field]) {
+                    return $rightStats[$field] <=> $leftStats[$field];
+                }
             }
+            return ($left->national_ranking_snapshot ?: PHP_INT_MAX)
+                <=> ($right->national_ranking_snapshot ?: PHP_INT_MAX);
+        })->values();
+
+        $position = $stillCompeting->count() + 1;
+        foreach ($ordered as $entry) {
+            $entry->update(['status' => 'eliminated']);
+            $this->assignPointsForPlacement($tournament, $entry->registration, $position++);
+        }
+    }
+
+    private function entryPerformance($matches, int $entryId): array
+    {
+        $wins = 0; $setsFor = 0; $setsAgainst = 0; $pointsFor = 0; $pointsAgainst = 0;
+        foreach ($matches as $match) {
+            $isOne = (int) $match->player_one_entry_id === $entryId;
+            $isTwo = (int) $match->player_two_entry_id === $entryId;
+            if (! $isOne && ! $isTwo) { continue; }
+            $wins += (int) $match->winner_entry_id === $entryId ? 1 : 0;
+            $setsFor += $isOne ? (int) $match->player_one_computed_sets : (int) $match->player_two_computed_sets;
+            $setsAgainst += $isOne ? (int) $match->player_two_computed_sets : (int) $match->player_one_computed_sets;
+            $pointsFor += $isOne ? (int) $match->player_one_points : (int) $match->player_two_points;
+            $pointsAgainst += $isOne ? (int) $match->player_two_points : (int) $match->player_one_points;
+        }
+        return [
+            'wins' => $wins,
+            'sets_difference' => $setsFor - $setsAgainst,
+            'average' => $pointsAgainst > 0 ? $pointsFor / $pointsAgainst : 0,
+            'points_for' => $pointsFor,
+        ];
+    }
+
+    private function assignPointsForPlacement(Tournament $tournament, $registration, int $place): void
+    {
+        if (! $registration) { return; }
+        $scoring = app(TournamentScoringService::class);
+        $rule = $this->ruleForPlacement($scoring->getRules($tournament), $place);
+        if (! $rule) { return; }
+        if ($scoring->usesOfficialInstances($tournament) && ! empty($rule['tournament_instance_id'])) {
+            $scoring->assignByTournamentInstance($registration, (int) $rule['tournament_instance_id']);
+        } elseif (! empty($rule['code'])) {
+            $scoring->assignByCode($registration, (string) $rule['code']);
         }
     }
 
@@ -743,6 +845,7 @@ class FiveQuillasCompetitionService
             $group->update(['status' => 'completed']);
             if ($group->phase->groups()->where('status', '!=', 'completed')->doesntExist()) {
                 $group->phase()->update(['status' => 'completed']);
+                $this->assignPhaseEliminationPoints($group->phase()->first());
             }
         }
     }
@@ -817,11 +920,17 @@ class FiveQuillasCompetitionService
     private function phaseTemplate(Tournament $tournament, string $format = 'zones_final'): array
     {
         if ($format === 'circuit_argentino') {
+            $categories = Category::query()->where('discipline_id', $tournament->discipline_id)->get();
+            $masters = $categories->filter(fn ($category): bool => Str::contains(Str::lower($category->code.' '.$category->name), 'master'))->pluck('id')->all();
+            $nationals = $categories->filter(fn ($category): bool => Str::contains(Str::lower($category->code.' '.$category->name), ['1ra', '1°', 'primera', 'nacional']))->pluck('id')->all();
+            $initial = $categories->whereNotIn('id', array_merge($masters, $nationals))->pluck('id')->all();
             return [
-                $this->phase('zones', 'Zonas', 'zones', 1, 3, 'manual', true),
+                $this->phase('zones', 'Zonas', 'zones', 1, 3, 'manual', true, ['entry_category_ids' => $initial]),
                 $this->phase('slot-elimination', 'Eliminación por horario', 'slot_elimination', 2, 3, 'automatic_draw', true),
                 $this->phase('national-play-in', 'Emparejamientos de Primera Nacional', 'play_in', 3, 3, 'national_ranking', true),
                 $this->phase('national', 'Primera Nacional', 'bracket', 4, 5, 'national_ranking', true, [
+                    'entry_category_ids' => $nationals,
+                    'direct_entry_seed_count' => 32,
                     'bracket_size' => 64,
                     'stop_after_rounds' => 2,
                     'bracket_pairs' => $this->officialBracketPairs(64),
@@ -831,6 +940,8 @@ class FiveQuillasCompetitionService
                     ],
                 ]),
                 $this->phase('master-final', 'Master / Etapa final', 'bracket', 5, 5, 'national_ranking', false, [
+                    'entry_category_ids' => $masters,
+                    'direct_entry_seed_count' => 16,
                     'bracket_size' => 32,
                     'bracket_pairs' => $this->officialBracketPairs(32),
                 ]),

@@ -22,17 +22,17 @@
             @endforeach
         </div>
 
-        <h2 style="font-size:1.1rem;font-weight:800;margin:1rem 0 .65rem">Inscriptos aprobados disponibles para formar zonas</h2>
+        <h2 style="font-size:1.1rem;font-weight:800;margin:1rem 0 .65rem">Ingreso de jugadores por fase</h2>
         <div class="fq-slots">
-            @forelse($entriesBySlot as $slot => $entries)
+            @forelse($entriesByPhase as $phaseName => $entries)
                 <section class="fq-slot">
-                    <div style="display:flex;justify-content:space-between;gap:.5rem;margin-bottom:.5rem"><strong>{{ $slot }}</strong><span>{{ $entries->count() }} jugadores</span></div>
+                    <div style="display:flex;justify-content:space-between;gap:.5rem;margin-bottom:.5rem"><strong>{{ $phaseName }}</strong><span>{{ $entries->count() }} jugadores</span></div>
                     @foreach($entries->sortBy(fn($entry) => $entry->player?->last_name) as $entry)
-                        <div class="fq-player"><span>{{ $entry->player?->full_name }}<br><small>{{ $entry->player?->club?->name ?? 'INDEPENDIENTE' }}</small></span><span class="fq-rank">RG {{ $entry->national_ranking_snapshot ?? '—' }}</span></div>
+                        <div class="fq-player"><span>{{ $entry->player?->full_name }}<br><small>{{ $entry->player?->category?->name ?? 'SIN CATEGORÍA' }} · {{ $entry->sourceSlot?->name ?? 'SIN HORARIO' }}</small></span><span class="fq-rank">RG {{ $entry->national_ranking_snapshot ?? '—' }}</span></div>
                     @endforeach
                 </section>
             @empty
-                <div class="fq-empty">No hay inscripciones aprobadas asignadas a horarios activos.</div>
+                <div class="fq-empty">No hay inscripciones aprobadas para organizar.</div>
             @endforelse
         </div>
 
@@ -66,6 +66,8 @@
                                         @if($match->is_bye)<br><small>Pase automático · {{ $match->player_one_computed_sets }}–{{ $match->player_two_computed_sets }}</small>@endif
                                         @if($match->status === 'completed')
                                             <br><small>Real: {{ $match->player_one_actual_sets }}–{{ $match->player_two_actual_sets }} · Computable: {{ $match->player_one_computed_sets }}–{{ $match->player_two_computed_sets }} · Puntos: {{ $match->player_one_points }}–{{ $match->player_two_points }}</small>
+                                        @elseif($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
+                                            <div style="margin-top:.45rem">{{ ($this->callMatchAction)(['matchId' => $match->id]) }}</div>
                                         @endif
                                     </div>
                                 @endforeach
@@ -75,6 +77,25 @@
                 @endforeach
             </div>
         @endif
+
+        @foreach($competition->phases->where('phase_type', '!=', 'zones')->where('is_enabled', true) as $phase)
+            @if($phase->matches->isNotEmpty())
+                <h2 style="font-size:1.1rem;font-weight:800;margin:1.2rem 0 .65rem">{{ $phase->name }}</h2>
+                <div class="fq-zones">
+                    @foreach($phase->matches->sortBy(fn($match) => [$match->round_number, $match->bracket_order]) as $match)
+                        <section class="fq-slot">
+                            <div style="display:flex;justify-content:space-between;gap:.5rem"><strong>{{ $match->label }}</strong><small>{{ $match->scheduled_at?->format('d/m/Y H:i') ?? 'SIN HORARIO' }}</small></div>
+                            <div style="margin:.55rem 0">{{ $match->playerOne?->player?->full_name ?? 'A definir' }}<br>{{ $match->playerTwo?->player?->full_name ?? 'A definir' }}</div>
+                            @if($match->status === 'completed')
+                                <small>Resultado: {{ $match->player_one_computed_sets }}–{{ $match->player_two_computed_sets }}</small>
+                            @elseif($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
+                                {{ ($this->callMatchAction)(['matchId' => $match->id]) }}
+                            @endif
+                        </section>
+                    @endforeach
+                </div>
+            @endif
+        @endforeach
 
         @if($publicJsonUrl)
             <div class="fq-card" style="margin-top:1rem">
