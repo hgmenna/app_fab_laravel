@@ -9,7 +9,7 @@
     </style>
 </head>
 <body>
-<header class="hero"><small>FEDERACIÓN ARGENTINA DE BILLAR</small><h1>{{ $competition->tournament->name }}</h1><p>Desarrollo y resultados en tiempo real</p></header>
+<header class="hero"><small>FEDERACIÓN ARGENTINA DE BILLAR</small><h1>{{ $competition->tournament->name }}</h1><p>Resultados del torneo en tiempo real</p></header>
 <main class="wrap"><nav class="tabs" id="tabs"></nav><div id="content"><div class="empty">Cargando competencia…</div></div><footer><strong>Federación Argentina de Billar</strong><span>Información oficial del torneo</span></footer></main>
 <script>
 const endpoint=@json($jsonUrl);let data=null;

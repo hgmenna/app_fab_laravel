@@ -127,8 +127,8 @@
 
         @if($publicJsonUrl)
             <div class="fq-card" style="margin-top:1rem">
-                <div class="fq-label">Publicación del torneo</div>
-                <a href="{{ $publicPageUrl }}" target="_blank" style="color:#3b82f6;font-weight:800">Ver desarrollo público</a>
+                <div class="fq-label">Resultados para el público</div>
+                <a href="{{ $publicPageUrl }}" target="_blank" style="color:#3b82f6;font-weight:800">Ver resultados públicos</a>
                 <br><small><a href="{{ $publicJsonUrl }}" target="_blank" style="color:#718096;word-break:break-all">Servicio JSON para WordPress</a></small>
             </div>
         @endif

@@ -55,7 +55,7 @@ class ManageTournamentCompetition extends Page
                         ->send();
                 }),
             Action::make('publish')
-                ->label(fn (): string => $this->competition()?->is_public ? 'Ocultar publicación' : 'Publicar desarrollo')
+                ->label(fn (): string => $this->competition()?->is_public ? 'Ocultar resultados públicos' : 'Mostrar resultados al público')
                 ->icon(fn (): string => $this->competition()?->is_public ? 'heroicon-o-eye-slash' : 'heroicon-o-eye')
                 ->color(fn (): string => $this->competition()?->is_public ? 'gray' : 'success')
                 ->visible(fn (): bool => $this->competition() !== null)
@@ -71,7 +71,7 @@ class ManageTournamentCompetition extends Page
                         $group->update(['is_public' => $publish && $phaseEnabled]);
                         $group->matches()->update(['is_public' => $publish && $phaseEnabled]);
                     });
-                    Notification::make()->success()->title($publish ? 'Desarrollo publicado' : 'Desarrollo ocultado')->send();
+                    Notification::make()->success()->title($publish ? 'Los resultados ya están visibles para el público' : 'Los resultados dejaron de estar visibles para el público')->send();
                 }),
             Action::make('configureFormat')
                 ->label('Configurar formato')
