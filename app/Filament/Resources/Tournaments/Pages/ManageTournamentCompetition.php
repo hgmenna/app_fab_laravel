@@ -398,7 +398,25 @@ class ManageTournamentCompetition extends Page
     public function recordResultAction(): Action
     {
         return Action::make('recordResult')
-            ->label('Resultado')->icon('heroicon-o-pencil-square')->color('success')->size('sm')
+            ->label(function (array $arguments): string {
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+
+                return $match?->status === 'completed' ? 'Editar resultado' : 'Resultado';
+            })
+            ->icon('heroicon-o-pencil-square')->color('success')->size('sm')
+            ->fillForm(function (array $arguments): array {
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+                $sets = collect(data_get($match?->set_scores, 'sets', []))
+                    ->map(fn (array $set): array => [
+                        'player_one_points' => (int) ($set['player_one_points'] ?? 0),
+                        'player_two_points' => (int) ($set['player_two_points'] ?? 0),
+                    ])->values()->all();
+
+                return ['scores' => $sets ?: [
+                    ['player_one_points' => null, 'player_two_points' => null],
+                    ['player_one_points' => null, 'player_two_points' => null],
+                ]];
+            })
             ->schema([
                 Placeholder::make('players')
                     ->label('Partido')
@@ -431,14 +449,23 @@ class ManageTournamentCompetition extends Page
 
     private function matchPlayersLabel(int $matchId): string
     {
-        $match = FiveQuillasMatch::query()
-            ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()?->id))
-            ->with(['playerOne.player', 'playerTwo.player'])
-            ->find($matchId);
+        $match = $this->competitionMatch($matchId);
 
         return ($match?->playerOne?->player?->full_name ?? 'A definir')
             .' vs '
             .($match?->playerTwo?->player?->full_name ?? 'A definir');
+    }
+
+    private function competitionMatch(int $matchId): ?FiveQuillasMatch
+    {
+        if ($matchId < 1 || ! $this->competition()) {
+            return null;
+        }
+
+        return FiveQuillasMatch::query()
+            ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
+            ->with(['playerOne.player', 'playerTwo.player'])
+            ->find($matchId);
     }
 
     public function callMatchAction(): Action

@@ -579,6 +579,21 @@ class FiveQuillasCompetitionService
             $winnerId = $winnerIsOne ? $match->player_one_entry_id : $match->player_two_entry_id;
             $loserId = $winnerIsOne ? $match->player_two_entry_id : $match->player_one_entry_id;
 
+            $previousWinnerId = $match->winner_entry_id;
+            if ($match->status === 'completed' && $previousWinnerId && $previousWinnerId !== $winnerId) {
+                $dependentMatchIds = collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique();
+                $hasCompletedDependentMatch = FiveQuillasMatch::query()
+                    ->whereIn('id', $dependentMatchIds)
+                    ->where('status', 'completed')
+                    ->exists();
+
+                if ($hasCompletedDependentMatch) {
+                    throw ValidationException::withMessages([
+                        'scores' => 'No se puede cambiar el ganador porque ya se disputó un partido posterior. Corregí primero los resultados posteriores.',
+                    ]);
+                }
+            }
+
             $match->update([
                 'set_scores' => ['bye' => false, 'sets' => $normalizedScores->all()],
                 'player_one_actual_sets' => $oneWins,
