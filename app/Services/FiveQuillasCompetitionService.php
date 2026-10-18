@@ -555,6 +555,11 @@ class FiveQuillasCompetitionService
             $bestOf = (int) $match->phase->sets_to_play;
             $winsNeeded = intdiv($bestOf, 2) + 1;
             $pointsPerSet = (int) $match->phase->points_per_set;
+            if ($scores === [] || count($scores) > $bestOf) {
+                throw ValidationException::withMessages([
+                    'scores' => "Cargá entre 1 y {$bestOf} sets disputados.",
+                ]);
+            }
             $normalizedScores = collect($scores)->map(function (array $set, int $index) use ($pointsPerSet): array {
                 $one = (int) ($set['player_one_points'] ?? 0);
                 $two = (int) ($set['player_two_points'] ?? 0);
@@ -571,28 +576,40 @@ class FiveQuillasCompetitionService
 
             $oneWins = $normalizedScores->filter(fn (array $set): bool => $set['player_one_points'] > $set['player_two_points'])->count();
             $twoWins = $normalizedScores->count() - $oneWins;
-            if (max($oneWins, $twoWins) !== $winsNeeded || min($oneWins, $twoWins) >= $winsNeeded) {
-                throw ValidationException::withMessages([
-                    'scores' => "El partido al mejor de {$bestOf} sets termina cuando un jugador gana {$winsNeeded} sets.",
-                ]);
+            $runningOneWins = 0;
+            $runningTwoWins = 0;
+            foreach ($normalizedScores as $index => $set) {
+                if ($runningOneWins >= $winsNeeded || $runningTwoWins >= $winsNeeded) {
+                    throw ValidationException::withMessages([
+                        'scores' => 'El set '.($index + 1).' no corresponde porque el partido ya tenía un ganador.',
+                    ]);
+                }
+                $set['player_one_points'] > $set['player_two_points'] ? $runningOneWins++ : $runningTwoWins++;
             }
 
-            $winnerIsOne = $oneWins > $twoWins;
+            $isCompleted = max($oneWins, $twoWins) >= $winsNeeded;
+            $winnerIsOne = $isCompleted && $oneWins > $twoWins;
             $loserActualSets = min($oneWins, $twoWins);
-            $winnerComputedSets = $bestOf - $loserActualSets;
-            $oneComputed = $winnerIsOne ? $winnerComputedSets : $loserActualSets;
-            $twoComputed = $winnerIsOne ? $loserActualSets : $winnerComputedSets;
+            $winnerComputedSets = $isCompleted ? $bestOf - $loserActualSets : 0;
+            $oneComputed = $isCompleted ? ($winnerIsOne ? $winnerComputedSets : $loserActualSets) : $oneWins;
+            $twoComputed = $isCompleted ? ($winnerIsOne ? $loserActualSets : $winnerComputedSets) : $twoWins;
             $onePoints = $normalizedScores->sum('player_one_points');
             $twoPoints = $normalizedScores->sum('player_two_points');
-            $winnerId = $winnerIsOne ? $match->player_one_entry_id : $match->player_two_entry_id;
-            $loserId = $winnerIsOne ? $match->player_two_entry_id : $match->player_one_entry_id;
+            $winnerId = $isCompleted
+                ? ($winnerIsOne ? $match->player_one_entry_id : $match->player_two_entry_id)
+                : null;
+            $loserId = $isCompleted
+                ? ($winnerIsOne ? $match->player_two_entry_id : $match->player_one_entry_id)
+                : null;
 
+            $wasCompleted = $match->status === 'completed';
             $previousWinnerId = $match->winner_entry_id;
-            if ($match->status === 'completed' && $previousWinnerId && $previousWinnerId !== $winnerId) {
+            if ($match->status === 'completed' && $previousWinnerId && (int) $previousWinnerId !== (int) $winnerId) {
                 $dependentMatchIds = collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique();
                 $hasCompletedDependentMatch = FiveQuillasMatch::query()
                     ->whereIn('id', $dependentMatchIds)
                     ->where('status', 'completed')
+                    ->where('is_bye', false)
                     ->exists();
 
                 if ($hasCompletedDependentMatch) {
@@ -600,6 +617,13 @@ class FiveQuillasCompetitionService
                         'scores' => 'No se puede cambiar el ganador porque ya se disputó un partido posterior. Corregí primero los resultados posteriores.',
                     ]);
                 }
+
+                foreach ($dependentMatchIds as $dependentId) {
+                    $this->resetAutomaticByeChain((int) $dependentId);
+                }
+                $previousLoserId = $this->loserEntryId($match);
+                $this->removeAdvancedEntry($match->next_match_id, $match->next_match_position, (int) $previousWinnerId);
+                $this->removeAdvancedEntry($match->loser_next_match_id, $match->loser_next_match_position, $previousLoserId);
             }
 
             $match->update([
@@ -611,16 +635,30 @@ class FiveQuillasCompetitionService
                 'player_one_points' => $onePoints,
                 'player_two_points' => $twoPoints,
                 'winner_entry_id' => $winnerId,
-                'status' => 'completed',
+                'status' => $isCompleted ? 'completed' : 'in_progress',
             ]);
 
-            $this->advanceEntry($match->next_match_id, $match->next_match_position, $winnerId);
-            $this->advanceEntry($match->loser_next_match_id, $match->loser_next_match_position, $loserId);
-            $this->resolveReadyByes(collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique());
+            if ($isCompleted) {
+                $this->advanceEntry($match->next_match_id, $match->next_match_position, $winnerId);
+                $this->advanceEntry($match->loser_next_match_id, $match->loser_next_match_position, $loserId);
+                $this->resolveReadyByes(collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique());
+            }
             if ($match->group_id) {
+                $match->group()->update(['status' => 'in_progress']);
+                if ($wasCompleted && ! $isCompleted) {
+                    $match->group->groupEntries()->update(['final_place' => null]);
+                    $match->group->groupEntries()->with('entry')->get()
+                        ->each(fn ($row) => $row->entry?->update(['status' => 'assigned']));
+                }
                 $this->recalculateGroupStatistics($match->group_id);
             }
-            $this->completePhaseWhenReady($match->phase_id);
+            if (! $isCompleted || $match->phase->status !== 'completed') {
+                $match->phase()->update(['status' => 'in_progress']);
+                $match->phase->competition()->update(['status' => 'in_progress']);
+            }
+            if ($isCompleted) {
+                $this->completePhaseWhenReady($match->phase_id);
+            }
 
             return $match->fresh();
         });
@@ -630,9 +668,9 @@ class FiveQuillasCompetitionService
     {
         return DB::transaction(function () use ($match): FiveQuillasMatch {
             $match->loadMissing(['phase.competition', 'group.groupEntries.entry']);
-            if ($match->status !== 'completed' || $match->is_bye) {
+            if (! in_array($match->status, ['in_progress', 'completed'], true) || $match->is_bye) {
                 throw ValidationException::withMessages([
-                    'match' => 'Solamente se pueden reiniciar partidos disputados.',
+                    'match' => 'Solamente se pueden reiniciar partidos con resultados cargados.',
                 ]);
             }
 

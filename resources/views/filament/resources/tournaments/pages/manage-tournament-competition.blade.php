@@ -121,7 +121,7 @@
                                                                 {{ ($this->callMatchAction)(['matchId' => $match->id]) }}
                                                             @endif
                                                             {{ ($this->recordResultAction)(['matchId' => $match->id]) }}
-                                                            @if($match->status === 'completed')
+                                                            @if(in_array($match->status, ['in_progress', 'completed'], true))
                                                                 {{ ($this->resetResultAction)(['matchId' => $match->id]) }}
                                                             @endif
                                                         </div>
@@ -176,7 +176,7 @@
                                                 <div class="fq-match-actions">
                                                     @if($match->status !== 'completed'){{ ($this->callMatchAction)(['matchId' => $match->id]) }}@endif
                                                     {{ ($this->recordResultAction)(['matchId' => $match->id]) }}
-                                                    @if($match->status === 'completed'){{ ($this->resetResultAction)(['matchId' => $match->id]) }}@endif
+                                                    @if(in_array($match->status, ['in_progress', 'completed'], true)){{ ($this->resetResultAction)(['matchId' => $match->id]) }}@endif
                                                 </div>
                                             @endif
                                         </article>

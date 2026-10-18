@@ -522,7 +522,7 @@ class ManageTournamentCompetition extends Page
                 ];
             })
             ->modalHeading(fn (array $arguments): string => 'Resultado · '.$this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)))
-            ->modalDescription('Cargá solamente los sets disputados. El sistema determina el ganador y actualiza la clasificación.')
+            ->modalDescription('Cargá los sets que ya finalizaron. Podés guardar avances parciales; el sistema solo proclama al ganador cuando corresponda.')
             ->modalWidth('3xl')
             ->action(function (array $data, array $arguments): void {
                 $match = FiveQuillasMatch::query()
@@ -547,9 +547,13 @@ class ManageTournamentCompetition extends Page
                     ->filter(fn (array $set): bool => $set['player_one_points'] !== null)
                     ->values()
                     ->all();
-                app(FiveQuillasCompetitionService::class)->recordMatchResult($match, $scores);
-                Notification::make()->success()->title('Resultado guardado')
-                    ->body('La clasificación y la progresión del cuadro fueron actualizadas.')->send();
+                $updatedMatch = app(FiveQuillasCompetitionService::class)->recordMatchResult($match, $scores);
+                Notification::make()->success()
+                    ->title($updatedMatch->status === 'completed' ? 'Resultado final guardado' : 'Resultado parcial guardado')
+                    ->body($updatedMatch->status === 'completed'
+                        ? 'El ganador, la clasificación y la progresión del cuadro fueron actualizados.'
+                        : 'La partida continúa en curso y el resultado ya está disponible para el público.')
+                    ->send();
             });
     }
 
@@ -568,7 +572,7 @@ class ManageTournamentCompetition extends Page
             ->action(function (array $arguments): void {
                 $match = FiveQuillasMatch::query()
                     ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
-                    ->where('status', 'completed')
+                    ->whereIn('status', ['in_progress', 'completed'])
                     ->findOrFail((int) $arguments['matchId']);
 
                 try {
