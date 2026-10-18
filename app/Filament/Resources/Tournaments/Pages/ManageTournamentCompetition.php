@@ -273,9 +273,35 @@ class ManageTournamentCompetition extends Page
         return $this->competition()->entries()
             ->where('source_slot_id', $slotId)
             ->whereIn('status', ['eligible', 'assigned'])
-            ->with(['player.club'])
+            ->with(['player.club', 'player.category'])
             ->get()
-            ->sortBy(fn ($entry): string => $entry->player?->full_name ?? '')
+            ->sort(function ($left, $right): int {
+                $leftRanking = (int) ($left->national_ranking_snapshot ?? 0);
+                $rightRanking = (int) ($right->national_ranking_snapshot ?? 0);
+                $leftHasRanking = $leftRanking > 0;
+                $rightHasRanking = $rightRanking > 0;
+
+                if ($leftHasRanking !== $rightHasRanking) {
+                    return $leftHasRanking ? -1 : 1;
+                }
+
+                if ($leftHasRanking && $leftRanking !== $rightRanking) {
+                    return $leftRanking <=> $rightRanking;
+                }
+
+                if (! $leftHasRanking) {
+                    $categoryOrder = ((int) ($left->player?->category?->order ?? PHP_INT_MAX))
+                        <=> ((int) ($right->player?->category?->order ?? PHP_INT_MAX));
+                    if ($categoryOrder !== 0) {
+                        return $categoryOrder;
+                    }
+                }
+
+                return strcasecmp(
+                    (string) ($left->player?->full_name ?? ''),
+                    (string) ($right->player?->full_name ?? ''),
+                );
+            })
             ->mapWithKeys(fn ($entry): array => [
                 $entry->id => ($entry->player?->full_name ?? 'Jugador').' — '.($entry->player?->club?->name ?? 'INDEPENDIENTE'),
             ])->all();
@@ -337,9 +363,11 @@ class ManageTournamentCompetition extends Page
                     ->afterStateUpdated(fn ($state, Set $set) => $set('zones', $this->zoneRowsForSlot((int) $state))),
                 Repeater::make('zones')->label('Zonas del horario')
                     ->table([
-                        TableColumn::make('Zona'), TableColumn::make('Posición 1'),
-                        TableColumn::make('Posición 2'), TableColumn::make('Posición 3'),
-                        TableColumn::make('Posición 4'),
+                        TableColumn::make('Zona')->width('12%'),
+                        TableColumn::make('Posición 1')->width('21%'),
+                        TableColumn::make('Posición 2')->width('21%'),
+                        TableColumn::make('Posición 3')->width('21%'),
+                        TableColumn::make('Posición 4')->width('21%'),
                     ])
                     ->schema([
                         Hidden::make('group_id'),
