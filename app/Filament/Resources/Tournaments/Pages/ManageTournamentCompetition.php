@@ -455,7 +455,8 @@ class ManageTournamentCompetition extends Page
     {
         return Action::make('recordResult')
             ->label('Cargar / editar resultado')
-            ->icon('heroicon-o-pencil-square')->color('success')->size('sm')
+            ->icon('heroicon-o-pencil-square')->color('success')->size('xs')
+            ->iconButton()->tooltip('Cargar o editar resultado')
             ->fillForm(function (array $arguments): array {
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
                 $storedScores = is_array($match?->set_scores) ? $match->set_scores : [];
@@ -519,7 +520,9 @@ class ManageTournamentCompetition extends Page
             ->label('Reiniciar partido')
             ->icon('heroicon-o-arrow-path')
             ->color('danger')
-            ->size('sm')
+            ->size('xs')
+            ->iconButton()
+            ->tooltip('Reiniciar partido')
             ->requiresConfirmation()
             ->modalHeading('Reiniciar partido')
             ->modalDescription('Se eliminará el resultado y el partido volverá al estado No jugado. Esta acción también retira a los jugadores de los cruces posteriores que todavía no comenzaron.')
@@ -578,7 +581,9 @@ class ManageTournamentCompetition extends Page
             ->label('Llamar')
             ->icon('heroicon-o-megaphone')
             ->color('info')
-            ->size('sm')
+            ->size('xs')
+            ->iconButton()
+            ->tooltip('Llamar partido')
             ->schema([
                 TextInput::make('table_number')->label('Mesa disponible')->integer()->minValue(1)->required(),
             ])
