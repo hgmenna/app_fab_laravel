@@ -1,6 +1,6 @@
 <x-filament-panels::page>
     <style>
-        .fq-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;margin-bottom:1rem}.fq-card,.fq-slot{border:1px solid rgba(127,127,127,.25);background:rgba(127,127,127,.06);border-radius:.8rem;padding:1rem}.fq-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:#718096}.fq-value{font-size:1.35rem;font-weight:800;margin-top:.2rem}.fq-phases{display:flex;gap:.55rem;flex-wrap:wrap;margin:1rem 0}.fq-phase{border:1px solid rgba(59,130,246,.35);border-radius:.7rem;padding:.7rem .9rem;min-width:10rem}.fq-phase strong{display:block}.fq-slots,.fq-zones{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}.fq-player{display:grid;grid-template-columns:1fr auto;gap:.5rem;padding:.45rem 0;border-bottom:1px solid rgba(127,127,127,.18)}.fq-player:last-child{border-bottom:0}.fq-rank{font-size:.75rem;color:#718096}.fq-empty{padding:2rem;text-align:center;border:1px dashed rgba(127,127,127,.4);border-radius:.8rem}.fq-zone{overflow:hidden;border:1px solid rgba(37,99,235,.35);border-radius:.8rem;background:rgba(15,23,42,.04)}.fq-zone-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.7rem .85rem;background:#1e478e;color:#fff}.fq-zone-body{padding:.8rem}.fq-seed{display:grid;grid-template-columns:1.5rem 1fr auto;gap:.5rem;align-items:center;padding:.4rem 0;border-bottom:1px solid rgba(127,127,127,.18)}.fq-seed:last-child{border-bottom:0}.fq-pos{display:grid;place-items:center;width:1.45rem;height:1.45rem;border-radius:50%;background:#f5b400;color:#111827;font-weight:800;font-size:.75rem}.fq-bracket{display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem;margin-top:.75rem}.fq-match{border-left:3px solid #f5b400;background:rgba(127,127,127,.08);padding:.45rem;font-size:.73rem;min-height:3.4rem}.fq-match strong{display:block;color:#1d4ed8}.fq-match:nth-child(3),.fq-match:nth-child(4){grid-column:2}.fq-match:nth-child(5){grid-column:3}@media(max-width:900px){.fq-summary{grid-template-columns:repeat(2,1fr)}.fq-slots,.fq-zones{grid-template-columns:1fr}.fq-bracket{grid-template-columns:1fr}.fq-match:nth-child(n){grid-column:auto}}
+        .fq-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;margin-bottom:1rem}.fq-card,.fq-slot{border:1px solid rgba(127,127,127,.25);background:rgba(127,127,127,.06);border-radius:.8rem;padding:1rem}.fq-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:#718096}.fq-value{font-size:1.35rem;font-weight:800;margin-top:.2rem}.fq-phases{display:flex;gap:.55rem;flex-wrap:wrap;margin:1rem 0}.fq-phase{border:1px solid rgba(59,130,246,.35);border-radius:.7rem;padding:.7rem .9rem;min-width:10rem}.fq-phase strong{display:block}.fq-slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}.fq-zones{display:grid;grid-template-columns:1fr;gap:.9rem}.fq-player{display:grid;grid-template-columns:1fr auto;gap:.5rem;padding:.45rem 0;border-bottom:1px solid rgba(127,127,127,.18)}.fq-player:last-child{border-bottom:0}.fq-rank{font-size:.75rem;color:#718096}.fq-empty{padding:2rem;text-align:center;border:1px dashed rgba(127,127,127,.4);border-radius:.8rem}.fq-zone{overflow:hidden;border:1px solid rgba(37,99,235,.35);border-radius:.8rem;background:rgba(15,23,42,.04)}.fq-zone-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.7rem .85rem;background:#1e478e;color:#fff}.fq-zone-body{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(23rem,.8fr);gap:.8rem;padding:.8rem}.fq-zone-matches{display:grid;grid-template-columns:repeat(3,minmax(10rem,1fr));gap:.45rem;align-content:start}.fq-bracket{display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem;margin-top:.75rem}.fq-match{border-left:3px solid #f5b400;background:rgba(127,127,127,.08);padding:.55rem;font-size:.73rem;min-height:4rem}.fq-match strong{display:block;color:#1d4ed8}.fq-standings-wrap{overflow:auto}.fq-standings{width:100%;border-collapse:collapse;font-size:.75rem}.fq-standings th,.fq-standings td{padding:.5rem;border:1px solid rgba(127,127,127,.25);text-align:center}.fq-standings th{background:#07844d;color:#fff;font-weight:800}.fq-standings td:nth-child(2){text-align:left;font-weight:700;min-width:10rem}@media(max-width:1050px){.fq-zone-body{grid-template-columns:1fr}.fq-zone-matches{grid-template-columns:repeat(2,minmax(10rem,1fr))}}@media(max-width:900px){.fq-summary{grid-template-columns:repeat(2,1fr)}.fq-slots{grid-template-columns:1fr}.fq-zone-matches,.fq-bracket{grid-template-columns:1fr}.fq-match:nth-child(n){grid-column:auto}}
     </style>
 
     @if(!$competition)
@@ -26,7 +26,9 @@
                     @if($phase->is_enabled)
                         <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem">
                             @if($phase->phase_type === 'zones' && !in_array($phase->status, ['in_progress', 'completed']))
-                                {{ ($this->createZonesAction)(['phaseId' => $phase->id]) }}
+                                @foreach($this->record->slots->where('is_active', true)->sortBy('starts_at') as $slot)
+                                    <span style="display:flex;align-items:center;gap:.25rem"><small>{{ $slot->name }}</small>{{ ($this->createZonesAction)(['phaseId' => $phase->id, 'slotId' => $slot->id]) }}</span>
+                                @endforeach
                             @elseif($phase->phase_type !== 'zones' && $phase->status !== 'completed' && $phase->matches->isEmpty() && (!$previousPhase || $previousPhase->status === 'completed'))
                                 {{ ($this->preparePhaseAction)(['phaseId' => $phase->id]) }}
                             @elseif($phase->phase_type !== 'zones' && $phase->status !== 'completed' && $phase->matches->isNotEmpty())
@@ -64,20 +66,7 @@
                     <section class="fq-zone">
                         <header class="fq-zone-head"><strong>{{ $group->name }}</strong><span>{{ $group->slot?->name ?? 'SIN HORARIO' }}</span></header>
                         <div class="fq-zone-body">
-                            @php($rowsByPosition = $group->groupEntries->keyBy('position'))
-                            @foreach(range(1, 4) as $position)
-                                @php($row = $rowsByPosition->get($position))
-                                <div class="fq-seed">
-                                    <span class="fq-pos">{{ $position }}</span>
-                                    @if($row)
-                                        <span><strong>{{ $row->entry?->player?->full_name }}</strong><br><small>{{ $row->entry?->player?->club?->name ?? 'INDEPENDIENTE' }}</small></span>
-                                        <small>PG {{ $row->match_wins }} · DS {{ $row->sets_difference }} · Prom {{ number_format((float)$row->points_average, 3, ',', '.') }}</small>
-                                    @else
-                                        <span><strong style="color:#dc2626">LIBRE</strong><br><small>Pase automático del rival</small></span><small>2–0</small>
-                                    @endif
-                                </div>
-                            @endforeach
-                            <div class="fq-bracket">
+                            <div class="fq-zone-matches">
                                 @foreach($group->matches->sortBy(fn($match) => [$match->round_number, $match->bracket_order]) as $match)
                                     <div class="fq-match">
                                         <strong>{{ $match->label }}</strong>
@@ -95,6 +84,22 @@
                                         @endif
                                     </div>
                                 @endforeach
+                            </div>
+                            <div class="fq-standings-wrap">
+                                <table class="fq-standings">
+                                    <thead><tr><th>Pos</th><th>Jugador</th><th>PG</th><th>DS</th><th>PF</th><th>PC</th><th>Prom</th></tr></thead>
+                                    <tbody>
+                                    @foreach($group->groupEntries->sortBy(fn($row) => $row->final_place ?: 99) as $row)
+                                        <tr>
+                                            <td>{{ $row->final_place ?? '—' }}</td>
+                                            <td>{{ $row->entry?->player?->full_name }}<br><small>{{ $row->entry?->player?->club?->name ?? 'INDEPENDIENTE' }}</small></td>
+                                            <td>{{ $row->match_wins }}</td><td>{{ $row->sets_difference }}</td>
+                                            <td>{{ $row->points_for }}</td><td>{{ $row->points_against }}</td>
+                                            <td>{{ number_format((float)$row->points_average, 3, ',', '.') }}</td>
+                                        </tr>
+                                    @endforeach
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </section>

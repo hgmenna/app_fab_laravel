@@ -12,6 +12,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -279,15 +280,60 @@ class ManageTournamentCompetition extends Page
             ])->all();
     }
 
+    public function zoneRowsForSlot(int $slotId): array
+    {
+        if ($slotId < 1 || ! $this->competition()) {
+            return [['name' => 'Zona 1']];
+        }
+
+        $phase = $this->competition()->phases
+            ->first(fn ($phase): bool => $phase->phase_type === 'zones' && $phase->is_enabled);
+
+        if (! $phase) {
+            return [['name' => 'Zona 1']];
+        }
+
+        $rows = $phase->groups()
+            ->where('tournament_slot_id', $slotId)
+            ->with('groupEntries')
+            ->orderBy('sort_order')
+            ->get()
+            ->map(function ($group): array {
+                $entries = $group->groupEntries->keyBy('position');
+
+                return [
+                    'name' => $group->name,
+                    ...collect(range(1, 4))->mapWithKeys(fn (int $position): array => [
+                        'player_'.$position => $entries->get($position)?->entry_id,
+                    ])->all(),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return $rows ?: [['name' => 'Zona 1']];
+    }
+
     public function createZonesAction(): Action
     {
         return Action::make('createZones')
-            ->label('Cargar zonas')
+            ->label(fn (array $arguments): string => filled($arguments['slotId'] ?? null)
+                ? 'Configurar zonas'
+                : 'Cargar zonas')
             ->icon('heroicon-o-squares-2x2')->color('warning')->size('sm')
+            ->fillForm(function (array $arguments): array {
+                $slotId = (int) ($arguments['slotId'] ?? 0);
+
+                return [
+                    'slot_id' => $slotId ?: null,
+                    'zones' => $this->zoneRowsForSlot($slotId),
+                ];
+            })
             ->schema([
                 Select::make('slot_id')->label('Horario')
                     ->options(fn (): array => $this->record->slots()->where('is_active', true)->orderBy('starts_at')->pluck('name', 'id')->all())
-                    ->required()->searchable()->live(),
+                    ->required()->searchable()->live()
+                    ->afterStateUpdated(fn ($state, Set $set) => $set('zones', $this->zoneRowsForSlot((int) $state))),
                 Repeater::make('zones')->label('Zonas del horario')
                     ->table([
                         TableColumn::make('Zona'), TableColumn::make('Posición 1'),
@@ -304,7 +350,7 @@ class ManageTournamentCompetition extends Page
                     ->reorderable(false)->columnSpanFull(),
             ])
             ->modalHeading('Carga manual de zonas')
-            ->modalDescription('Elegí un horario y ubicá sus jugadores en zonas de tres o cuatro integrantes.')
+            ->modalDescription('Elegí un horario y ubicá sus jugadores en zonas de tres o cuatro integrantes. Si ya existen zonas para ese horario, se cargan para poder corregirlas.')
             ->modalWidth('7xl')->requiresConfirmation()
             ->action(function (array $data, array $arguments): void {
                 $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
@@ -354,6 +400,10 @@ class ManageTournamentCompetition extends Page
         return Action::make('recordResult')
             ->label('Resultado')->icon('heroicon-o-pencil-square')->color('success')->size('sm')
             ->schema([
+                Placeholder::make('players')
+                    ->label('Partido')
+                    ->content(fn (array $arguments): string => $this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)))
+                    ->columnSpanFull(),
                 Repeater::make('scores')->label('Resultado de los sets')
                     ->table([
                         TableColumn::make('Puntos jugador 1')->markAsRequired(),
@@ -366,7 +416,7 @@ class ManageTournamentCompetition extends Page
                     ->defaultItems(2)->minItems(2)->maxItems(5)
                     ->addActionLabel('Agregar set')->reorderable(false)->columnSpanFull(),
             ])
-            ->modalHeading('Cargar resultado del partido')
+            ->modalHeading(fn (array $arguments): string => 'Resultado · '.$this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)))
             ->modalDescription('Cargá solamente los sets disputados. El sistema determina el ganador y actualiza la clasificación.')
             ->action(function (array $data, array $arguments): void {
                 $match = FiveQuillasMatch::query()
@@ -377,6 +427,18 @@ class ManageTournamentCompetition extends Page
                 Notification::make()->success()->title('Resultado guardado')
                     ->body('La clasificación y la progresión del cuadro fueron actualizadas.')->send();
             });
+    }
+
+    private function matchPlayersLabel(int $matchId): string
+    {
+        $match = FiveQuillasMatch::query()
+            ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()?->id))
+            ->with(['playerOne.player', 'playerTwo.player'])
+            ->find($matchId);
+
+        return ($match?->playerOne?->player?->full_name ?? 'A definir')
+            .' vs '
+            .($match?->playerTwo?->player?->full_name ?? 'A definir');
     }
 
     public function callMatchAction(): Action

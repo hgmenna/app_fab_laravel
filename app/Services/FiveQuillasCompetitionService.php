@@ -864,6 +864,9 @@ class FiveQuillasCompetitionService
     private function createZoneBracket(FiveQuillasPhase $phase, FiveQuillasGroup $group, $entries): void
     {
         $public = $group->is_public;
+        // Todas las zonas pertenecientes al mismo horario comienzan juntas.
+        // La mesa se asigna manualmente al llamar cada partido.
+        $slotStartsAt = $group->slot()->value('starts_at');
         $secondPlace = $group->matches()->create([
             'phase_id' => $phase->id, 'round_number' => 3, 'bracket_order' => 1,
             'label' => 'Definición del segundo puesto', 'is_public' => $public,
@@ -884,6 +887,7 @@ class FiveQuillasCompetitionService
             'player_two_entry_id' => $entries->get(2)?->id, 'next_match_id' => $winnersFinal->id,
             'next_match_position' => 1, 'loser_next_match_id' => $losersMatch->id,
             'loser_next_match_position' => 1, 'is_public' => $public,
+            'scheduled_at' => $slotStartsAt,
         ]);
         $matchTwo = $group->matches()->create([
             'phase_id' => $phase->id, 'round_number' => 1, 'bracket_order' => 2,
@@ -891,6 +895,7 @@ class FiveQuillasCompetitionService
             'player_two_entry_id' => $entries->get(4)?->id, 'next_match_id' => $winnersFinal->id,
             'next_match_position' => 2, 'loser_next_match_id' => $losersMatch->id,
             'loser_next_match_position' => 2, 'is_public' => $public,
+            'scheduled_at' => $slotStartsAt,
         ]);
         $this->resolveBye($matchOne);
         $this->resolveBye($matchTwo);
