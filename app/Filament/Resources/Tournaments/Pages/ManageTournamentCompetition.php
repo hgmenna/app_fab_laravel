@@ -415,15 +415,19 @@ class ManageTournamentCompetition extends Page
                         'player_two_points' => isset($set['player_two_points']) ? (int) $set['player_two_points'] : null,
                     ])->values()->all();
 
-                return ['scores' => $sets ?: [
+                return [
+                    'players_label' => $this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)),
+                    'scores' => $sets ?: [
                     ['player_one_points' => null, 'player_two_points' => null],
                     ['player_one_points' => null, 'player_two_points' => null],
-                ]];
+                    ],
+                ];
             })
             ->schema([
+                Hidden::make('players_label'),
                 Placeholder::make('players')
                     ->label('Partido')
-                    ->content(fn (array $arguments): string => $this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)))
+                    ->content(fn (Get $get): string => (string) ($get('players_label') ?: 'Jugadores a definir'))
                     ->columnSpanFull(),
                 Repeater::make('scores')->label('Resultado de los sets')
                     ->table([
