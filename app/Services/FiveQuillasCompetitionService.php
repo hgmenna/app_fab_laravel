@@ -638,11 +638,18 @@ class FiveQuillasCompetitionService
 
             $dependentIds = collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique();
             $completedDependent = FiveQuillasMatch::query()
-                ->whereIn('id', $dependentIds)->where('status', 'completed')->exists();
+                ->whereIn('id', $dependentIds)
+                ->where('status', 'completed')
+                ->where('is_bye', false)
+                ->exists();
             if ($completedDependent) {
                 throw ValidationException::withMessages([
                     'match' => 'Primero tenés que reiniciar los partidos posteriores que ya fueron disputados.',
                 ]);
+            }
+
+            foreach ($dependentIds as $dependentId) {
+                $this->resetAutomaticByeChain((int) $dependentId);
             }
 
             $nextPrepared = $match->phase->competition->phases()
@@ -669,6 +676,7 @@ class FiveQuillasCompetitionService
                 'player_two_points' => 0,
                 'winner_entry_id' => null,
                 'table_number' => null,
+                'is_bye' => false,
                 'status' => 'pending',
             ]);
 
@@ -869,6 +877,49 @@ class FiveQuillasCompetitionService
         FiveQuillasMatch::query()->whereKey($matchId)->where($field, $entryId)->update([
             $field => null,
             'table_number' => null,
+            'status' => 'pending',
+        ]);
+    }
+
+    private function resetAutomaticByeChain(int $matchId): void
+    {
+        $match = FiveQuillasMatch::query()->find($matchId);
+        if (! $match || $match->status !== 'completed' || ! $match->is_bye) {
+            return;
+        }
+
+        $dependentIds = collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique();
+        $hasPlayedDependent = FiveQuillasMatch::query()
+            ->whereIn('id', $dependentIds)
+            ->where('status', 'completed')
+            ->where('is_bye', false)
+            ->exists();
+        if ($hasPlayedDependent) {
+            throw ValidationException::withMessages([
+                'match' => 'Primero tenés que reiniciar los partidos posteriores que ya fueron disputados.',
+            ]);
+        }
+
+        foreach ($dependentIds as $dependentId) {
+            $this->resetAutomaticByeChain((int) $dependentId);
+        }
+
+        $winnerId = (int) $match->winner_entry_id;
+        $loserId = $this->loserEntryId($match);
+        $this->removeAdvancedEntry($match->next_match_id, $match->next_match_position, $winnerId);
+        $this->removeAdvancedEntry($match->loser_next_match_id, $match->loser_next_match_position, $loserId);
+
+        $match->update([
+            'set_scores' => null,
+            'player_one_actual_sets' => 0,
+            'player_two_actual_sets' => 0,
+            'player_one_computed_sets' => 0,
+            'player_two_computed_sets' => 0,
+            'player_one_points' => 0,
+            'player_two_points' => 0,
+            'winner_entry_id' => null,
+            'table_number' => null,
+            'is_bye' => false,
             'status' => 'pending',
         ]);
     }
