@@ -264,7 +264,7 @@ class ManageTournamentCompetition extends Page
             ->first();
     }
 
-    public function entryOptionsForSlot(int $slotId): array
+    public function entryOptionsForSlot(int $slotId, array $excludedEntryIds = []): array
     {
         if ($slotId < 1 || ! $this->competition()) {
             return [];
@@ -273,6 +273,7 @@ class ManageTournamentCompetition extends Page
         return $this->competition()->entries()
             ->where('source_slot_id', $slotId)
             ->whereIn('status', ['eligible', 'assigned'])
+            ->when($excludedEntryIds !== [], fn ($query) => $query->whereNotIn('id', $excludedEntryIds))
             ->with(['player.club', 'player.category'])
             ->get()
             ->sort(function ($left, $right): int {
@@ -375,8 +376,25 @@ class ManageTournamentCompetition extends Page
                         TextInput::make('name')->placeholder('Zona 1')->maxLength(255)
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')),
                         ...collect(range(1, 4))->map(fn (int $position) => Select::make('player_'.$position)
-                            ->hiddenLabel()->options(fn (Get $get): array => $this->entryOptionsForSlot((int) $get('../../slot_id')))
-                            ->searchable()->preload()->native(false)->placeholder('LIBRE')
+                            ->hiddenLabel()
+                            ->options(function (Get $get) use ($position): array {
+                                $currentEntryId = (int) ($get('player_'.$position) ?? 0);
+                                $selectedEntryIds = collect($get('../../zones') ?? [])
+                                    ->flatMap(fn (array $zone): array => collect(range(1, 4))
+                                        ->map(fn (int $zonePosition): int => (int) ($zone['player_'.$zonePosition] ?? 0))
+                                        ->all())
+                                    ->filter()
+                                    ->reject(fn (int $entryId): bool => $entryId === $currentEntryId)
+                                    ->unique()
+                                    ->values()
+                                    ->all();
+
+                                return $this->entryOptionsForSlot(
+                                    (int) $get('../../slot_id'),
+                                    $selectedEntryIds,
+                                );
+                            })
+                            ->searchable()->preload()->native(false)->placeholder('LIBRE')->live()
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')))->all(),
                     ])
                     ->defaultItems(1)->minItems(1)->addActionLabel('Agregar zona')
