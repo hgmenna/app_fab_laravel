@@ -98,10 +98,20 @@ class FiveQuillasCompetitionService
     {
         return DB::transaction(function () use ($competition, $slotId, $zoneRows): int {
             $phase = $competition->phases()->where('phase_type', 'zones')->where('is_enabled', true)->firstOrFail();
+            $previousPhaseStatus = $phase->status;
+            $existing = $phase->groups()->where('tournament_slot_id', $slotId)
+                ->with(['matches', 'groupEntries'])->get();
+            $lockedGroups = $existing->filter(
+                fn ($group): bool => $group->matches->contains(fn ($match): bool => $match->status !== 'pending')
+            );
+            $editableGroups = $existing->diff($lockedGroups);
+            $lockedEntryIds = $lockedGroups->flatMap->groupEntries->pluck('entry_id')->unique();
+
             $availableEntries = $competition->entries()
                 ->where('source_slot_id', $slotId)
                 ->where('entry_phase_id', $phase->id)
                 ->whereIn('status', ['eligible', 'assigned'])
+                ->whereNotIn('id', $lockedEntryIds)
                 ->get()->keyBy('id');
 
             $zones = collect($zoneRows)->map(function (array $row): array {
@@ -129,14 +139,9 @@ class FiveQuillasCompetitionService
                 throw ValidationException::withMessages(['zones' => 'Todas las personas seleccionadas deben ser inscriptos aprobados del horario elegido.']);
             }
 
-            $existing = $phase->groups()->where('tournament_slot_id', $slotId)->with('matches')->get();
-            if ($existing->flatMap->matches->contains(fn ($match): bool => $match->status !== 'pending')) {
-                throw ValidationException::withMessages([
-                    'slot' => 'No se pueden regenerar las zonas porque ya existen partidos iniciados o programados.',
-                ]);
-            }
-
-            $existing->each->delete();
+            $editableEntryIds = $editableGroups->flatMap->groupEntries->pluck('entry_id')->unique();
+            $competition->entries()->whereIn('id', $editableEntryIds)->update(['status' => 'eligible']);
+            $editableGroups->each->delete();
             $firstOrder = (int) $phase->groups()->max('sort_order');
 
             foreach ($zones as $index => $zone) {
@@ -157,7 +162,7 @@ class FiveQuillasCompetitionService
                 $this->recalculateGroupStatistics($group->id);
             }
 
-            $phase->update(['status' => 'ready']);
+            $phase->update(['status' => $previousPhaseStatus === 'in_progress' ? 'in_progress' : 'ready']);
             return $zones->count();
         });
     }

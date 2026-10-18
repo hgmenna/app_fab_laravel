@@ -25,7 +25,7 @@
                     <small>{{ match($phase->status){'ready'=>'Preparada','in_progress'=>'En curso','completed'=>'Finalizada',default=>'Pendiente'} }}</small>
                     @if($phase->is_enabled)
                         <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem">
-                            @if($phase->phase_type === 'zones' && !in_array($phase->status, ['in_progress', 'completed']))
+                            @if($phase->phase_type === 'zones' && $phase->status !== 'completed')
                                 @foreach($this->record->slots->where('is_active', true)->sortBy('starts_at') as $slot)
                                     <span style="display:flex;align-items:center;gap:.25rem"><small>{{ $slot->name }}</small>{{ ($this->createZonesAction)(['phaseId' => $phase->id, 'slotId' => $slot->id]) }}</span>
                                 @endforeach
@@ -44,7 +44,7 @@
             @endforeach
         </div>
 
-        <h2 style="font-size:1.1rem;font-weight:800;margin:1rem 0 .65rem">Ingreso de jugadores por fase</h2>
+        <h2 style="font-size:1.1rem;font-weight:800;margin:1rem 0 .65rem">Jugadores pendientes de asignación</h2>
         <div class="fq-slots">
             @forelse($entriesByPhase as $phaseName => $entries)
                 <section class="fq-slot">
@@ -54,7 +54,7 @@
                     @endforeach
                 </section>
             @empty
-                <div class="fq-empty">No hay inscripciones aprobadas para organizar.</div>
+                <div class="fq-empty">Todos los jugadores disponibles ya fueron asignados.</div>
             @endforelse
         </div>
 

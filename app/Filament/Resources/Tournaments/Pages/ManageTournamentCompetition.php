@@ -269,9 +269,17 @@ class ManageTournamentCompetition extends Page
             return [];
         }
 
+        $phase = $this->competition()->phases
+            ->first(fn ($phase): bool => $phase->phase_type === 'zones' && $phase->is_enabled);
+        $lockedEntryIds = $phase?->groups()->where('tournament_slot_id', $slotId)
+            ->whereHas('matches', fn ($query) => $query->where('status', '!=', 'pending'))
+            ->with('groupEntries:id,group_id,entry_id')->get()
+            ->flatMap->groupEntries->pluck('entry_id')->all() ?? [];
+
         return $this->competition()->entries()
             ->where('source_slot_id', $slotId)
             ->whereIn('status', ['eligible', 'assigned'])
+            ->whereNotIn('id', $lockedEntryIds)
             ->with(['player.club'])
             ->get()
             ->sortBy(fn ($entry): string => $entry->player?->full_name ?? '')
@@ -295,6 +303,7 @@ class ManageTournamentCompetition extends Page
 
         $rows = $phase->groups()
             ->where('tournament_slot_id', $slotId)
+            ->whereDoesntHave('matches', fn ($query) => $query->where('status', '!=', 'pending'))
             ->with('groupEntries')
             ->orderBy('sort_order')
             ->get()
@@ -500,7 +509,8 @@ class ManageTournamentCompetition extends Page
         return [
             'competition' => $competition,
             'entriesBySlot' => $entries->groupBy(fn ($entry): string => $entry->sourceSlot?->name ?? 'SIN HORARIO ASIGNADO'),
-            'entriesByPhase' => $entries->groupBy(fn ($entry): string => $entry->entryPhase?->name ?? 'PRIMERA FASE'),
+            'entriesByPhase' => $entries->where('status', 'eligible')
+                ->groupBy(fn ($entry): string => $entry->entryPhase?->name ?? 'PRIMERA FASE'),
             'publicJsonUrl' => $competition?->is_public
                 ? route('five-quillas-competition.public', ['slug' => $competition->public_slug])
                 : null,
