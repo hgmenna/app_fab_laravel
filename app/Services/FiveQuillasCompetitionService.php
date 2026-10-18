@@ -661,12 +661,12 @@ class FiveQuillasCompetitionService
 
             $match->update([
                 'set_scores' => null,
-                'player_one_actual_sets' => null,
-                'player_two_actual_sets' => null,
-                'player_one_computed_sets' => null,
-                'player_two_computed_sets' => null,
-                'player_one_points' => null,
-                'player_two_points' => null,
+                'player_one_actual_sets' => 0,
+                'player_two_actual_sets' => 0,
+                'player_one_computed_sets' => 0,
+                'player_two_computed_sets' => 0,
+                'player_one_points' => 0,
+                'player_two_points' => 0,
                 'winner_entry_id' => null,
                 'table_number' => null,
                 'status' => 'pending',

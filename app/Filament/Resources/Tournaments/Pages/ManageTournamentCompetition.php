@@ -21,6 +21,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
+use Illuminate\Validation\ValidationException;
 
 class ManageTournamentCompetition extends Page
 {
@@ -437,10 +438,12 @@ class ManageTournamentCompetition extends Page
                     ->schema([
                         TextInput::make('player_one_points')
                             ->label(fn (Get $get): string => (string) ($get('../../player_one_name') ?: 'Jugador 1'))
-                            ->integer()->minValue(0)->required(),
+                            ->integer()->minValue(0)->required()
+                            ->extraInputAttributes(['style' => 'max-width:6rem;text-align:center']),
                         TextInput::make('player_two_points')
                             ->label(fn (Get $get): string => (string) ($get('../../player_two_name') ?: 'Jugador 2'))
-                            ->integer()->minValue(0)->required(),
+                            ->integer()->minValue(0)->required()
+                            ->extraInputAttributes(['style' => 'max-width:6rem;text-align:center']),
                     ])
                     ->columns(2)
                     ->defaultItems(2)->minItems(2)->maxItems(5)
@@ -475,7 +478,15 @@ class ManageTournamentCompetition extends Page
                     ->where('status', 'completed')
                     ->findOrFail((int) $arguments['matchId']);
 
-                app(FiveQuillasCompetitionService::class)->resetMatchResult($match);
+                try {
+                    app(FiveQuillasCompetitionService::class)->resetMatchResult($match);
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('No se puede reiniciar el partido')
+                        ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
+                        ->send();
+
+                    return;
+                }
                 Notification::make()->success()->title('Partido reiniciado')
                     ->body('El resultado fue eliminado y el partido quedó como no jugado.')->send();
             });
