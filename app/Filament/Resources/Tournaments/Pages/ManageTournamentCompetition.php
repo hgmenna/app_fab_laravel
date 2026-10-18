@@ -485,6 +485,10 @@ class ManageTournamentCompetition extends Page
                 $bestOf = max(1, (int) ($match?->phase?->sets_to_play ?? 3));
                 $pointsPerSet = max(1, (int) ($match?->phase?->points_per_set ?? 60));
                 $inputStyle = 'width:4.25rem;max-width:4.25rem;text-align:center;padding-left:.35rem;padding-right:.35rem';
+                $playerNames = [
+                    1 => $match?->playerOne?->player?->full_name ?? 'Jugador 1',
+                    2 => $match?->playerTwo?->player?->full_name ?? 'Jugador 2',
+                ];
 
                 $headers = [
                     Placeholder::make('player_header')->hiddenLabel()->content('Jugador')
@@ -495,10 +499,10 @@ class ManageTournamentCompetition extends Page
                     )->all(),
                 ];
 
-                $playerRow = function (int $playerNumber) use ($bestOf, $pointsPerSet, $inputStyle): array {
+                $playerRow = function (int $playerNumber) use ($bestOf, $pointsPerSet, $inputStyle, $playerNames): array {
                     return [
                         Placeholder::make('player_'.$playerNumber.'_label')->hiddenLabel()
-                            ->content(fn (Get $get): string => (string) ($get('player_'.$playerNumber.'_name') ?: 'Jugador '.$playerNumber))
+                            ->content($playerNames[$playerNumber])
                             ->columnSpan(3)->extraAttributes(['style' => 'font-weight:800;align-self:center']),
                         ...collect(range(1, $bestOf))->map(fn (int $setNumber) =>
                             TextInput::make('player_'.$playerNumber.'_set_'.$setNumber)
