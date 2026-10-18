@@ -1,7 +1,7 @@
 <x-filament-panels::page>
     <style>
         .fq-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;margin-bottom:1rem}.fq-card,.fq-slot{border:1px solid rgba(127,127,127,.25);background:rgba(127,127,127,.06);border-radius:.8rem;padding:1rem}.fq-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:#718096}.fq-value{font-size:1.35rem;font-weight:800;margin-top:.2rem}.fq-phases{display:flex;gap:.55rem;flex-wrap:wrap;margin:1rem 0}.fq-phase{border:1px solid rgba(59,130,246,.35);border-radius:.7rem;padding:.7rem .9rem;min-width:10rem}.fq-phase strong{display:block}.fq-pending{margin:.8rem 0 1rem;border:1px solid rgba(127,127,127,.28);border-radius:.75rem;background:rgba(127,127,127,.05);overflow:hidden}.fq-pending summary{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.7rem .9rem;cursor:pointer;list-style:none;font-weight:800}.fq-pending summary::-webkit-details-marker{display:none}.fq-pending summary:after{content:'Ver lista';padding:.3rem .6rem;border-radius:999px;background:#173d7c;color:#fff;font-size:.7rem}.fq-pending[open] summary{border-bottom:1px solid rgba(127,127,127,.22)}.fq-pending[open] summary:after{content:'Ocultar'}.fq-pending-content{max-height:18rem;overflow:auto;padding:.65rem}.fq-slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr));gap:.6rem}.fq-pending .fq-slot{padding:.65rem}.fq-zones{display:grid;grid-template-columns:1fr;gap:.9rem}.fq-player{display:grid;grid-template-columns:1fr auto;gap:.5rem;padding:.3rem 0;border-bottom:1px solid rgba(127,127,127,.18);font-size:.76rem;line-height:1.2}.fq-player:last-child{border-bottom:0}.fq-player small{font-size:.64rem;color:#718096}.fq-rank{font-size:.68rem;color:#718096}.fq-empty{padding:2rem;text-align:center;border:1px dashed rgba(127,127,127,.4);border-radius:.8rem}.fq-slot-tabs{display:flex;gap:.4rem;overflow:auto;margin-bottom:.8rem}.fq-slot-tab{border:1px solid rgba(127,127,127,.3);border-radius:999px;padding:.45rem .75rem;font-size:.78rem;font-weight:800;white-space:nowrap}.fq-slot-tab.is-active{color:#fff;background:#173d7c;border-color:#173d7c}.fq-zone{overflow:hidden;border:1px solid #d8e0ea;border-radius:.75rem;background:#fff;color:#17253a}.dark .fq-zone{border-color:#2b3950;background:#111a28;color:#eef4ff}.fq-zone-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.55rem .75rem;background:#173d7c;color:#fff}.fq-zone-body{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(23rem,.8fr);gap:.75rem;padding:.75rem}.fq-zone-matches{display:grid;grid-template-columns:repeat(3,minmax(10rem,1fr));gap:.5rem;align-content:start}.fq-bracket-scroll{overflow:auto}.fq-bracket{display:grid;gap:.8rem;min-width:58rem}.fq-round{display:flex;flex-direction:column;justify-content:space-around;gap:.55rem}.fq-match-shell{min-width:0}.fq-match{position:relative;border:1px solid #d8e0ea;border-left:4px solid #2464ce;border-radius:.5rem;background:#f4f7fb;padding:.45rem;font-size:.69rem;color:#17253a}.dark .fq-match{border-color:#2b3950;border-left-color:#2464ce;background:#182334;color:#eef4ff}.fq-match-title{display:block;margin-bottom:.3rem;color:#173d7c;font-weight:800}.dark .fq-match-title{color:#8db7ff}.fq-match-player{display:flex;justify-content:space-between;gap:.5rem;padding:.18rem 0}.fq-match-player.is-winner{color:#07844d;font-weight:900}.fq-match-time{display:block;margin-top:.2rem;color:#65758b}.fq-match-actions{position:absolute;right:.25rem;bottom:.2rem;display:flex;gap:.15rem;align-items:center;padding:.12rem;border:1px solid rgba(127,127,127,.2);border-radius:.45rem;background:rgba(255,255,255,.96);box-shadow:0 2px 8px rgba(15,23,42,.15);opacity:0;visibility:hidden;transform:translateY(3px);transition:.15s ease;z-index:5}.dark .fq-match-actions{background:rgba(17,26,40,.96)}.fq-match:hover .fq-match-actions,.fq-match:focus-within .fq-match-actions{opacity:1;visibility:visible;transform:none}.fq-standings-wrap{overflow:auto}.fq-standings{width:100%;border-collapse:collapse;font-size:.75rem}.fq-standings th,.fq-standings td{padding:.5rem;border:1px solid #d8e0ea;text-align:center}.dark .fq-standings th,.dark .fq-standings td{border-color:#2b3950}.fq-standings th{background:#07844d;color:#fff;font-weight:800}.fq-standings td:nth-child(2){text-align:left;font-weight:700;min-width:10rem}@media(hover:none){.fq-match-actions{position:static;justify-content:flex-end;margin-top:.2rem;opacity:1;visibility:visible;transform:none;box-shadow:none;background:transparent;border:0}}@media(max-width:1050px){.fq-zone-body{grid-template-columns:1fr}.fq-zone-matches{grid-template-columns:repeat(2,minmax(10rem,1fr))}}@media(max-width:900px){.fq-summary{grid-template-columns:repeat(2,1fr)}.fq-slots{grid-template-columns:1fr}.fq-pending-content{max-height:15rem}.fq-zone-matches{grid-template-columns:1fr}.fq-match:nth-child(n){grid-column:auto}}
-        .fq-zone-bracket{display:grid;grid-template-columns:repeat(3,minmax(9.5rem,1fr));grid-template-rows:repeat(3,minmax(5.3rem,auto));gap:.45rem 1rem;min-width:36rem;align-items:center}.fq-zone-bracket .fq-match-shell{position:relative}.fq-zone-bracket .fq-match{font-size:.66rem;padding:.32rem}.fq-zone-bracket .fq-match-player{padding:.1rem 0;line-height:1.15}.fq-zone-bracket .fq-match-title{margin-bottom:.18rem}.fq-zone-bracket .fq-match-actions{margin-top:.2rem;gap:.2rem}.fq-zone-bracket .z-m1{grid-column:1;grid-row:1}.fq-zone-bracket .z-m2{grid-column:1;grid-row:2}.fq-zone-bracket .z-loss{grid-column:1;grid-row:3}.fq-zone-bracket .z-win{grid-column:2;grid-row:1}.fq-zone-bracket .z-second{grid-column:2;grid-row:3}.fq-zone-bracket .z-first{grid-column:3;grid-row:1}.fq-zone-bracket .z-runner{grid-column:3;grid-row:3}.fq-place{border:2px solid #173d7c;border-radius:.4rem;background:#fff;padding:.35rem;text-align:center;color:#17253a;font-size:.68rem}.dark .fq-place{background:#111a28;color:#eef4ff}.fq-place b{display:block;color:#173d7c;text-transform:uppercase;font-size:.62rem}.dark .fq-place b{color:#8db7ff}.fq-place span{display:block;margin-top:.18rem;font-weight:900}.fq-set-points{display:flex;gap:.12rem;margin-left:auto}.fq-set-point{display:inline-grid;place-items:center;min-width:1.35rem;height:1.2rem;padding:0 .12rem;border:1px solid #9aa8ba;background:#fff;color:#17253a;font-size:.62rem;font-weight:800}.dark .fq-set-point{border-color:#53627a;background:#111a28;color:#eef4ff}.fq-zone-bracket .z-win:after,.fq-zone-bracket .z-second:after{content:"";position:absolute;top:50%;right:-1rem;width:1rem;border-top:1px solid #9aa8ba}.fq-zone-bracket-wrap{overflow:auto}@media(max-width:1050px){.fq-zone-bracket{min-width:36rem}.fq-zone-body{grid-template-columns:1fr}}@media(max-width:700px){.fq-zone-bracket{min-width:34rem}}
+        .fq-zone-bracket{display:grid;grid-template-columns:repeat(3,minmax(9.5rem,1fr));grid-template-rows:repeat(3,minmax(5.3rem,auto));gap:.45rem 1rem;min-width:36rem;align-items:center}.fq-zone-bracket .fq-match-shell{position:relative}.fq-zone-bracket .fq-match{font-size:.66rem;padding:.32rem}.fq-zone-bracket .fq-match-player{padding:.1rem 0;line-height:1.15}.fq-zone-bracket .fq-match-title{margin-bottom:.18rem}.fq-zone-bracket .fq-match-actions{margin-top:.2rem;gap:.2rem}.fq-zone-bracket .z-m1{grid-column:1;grid-row:1}.fq-zone-bracket .z-m2{grid-column:1;grid-row:2}.fq-zone-bracket .z-loss{grid-column:1;grid-row:3}.fq-zone-bracket .z-win{grid-column:2;grid-row:1}.fq-zone-bracket .z-second{grid-column:2;grid-row:3}.fq-zone-bracket .z-first{grid-column:3;grid-row:1}.fq-zone-bracket .z-runner{grid-column:3;grid-row:3}.fq-place{border:2px solid #173d7c;border-radius:.4rem;background:#fff;padding:.35rem;text-align:center;color:#17253a;font-size:.68rem}.dark .fq-place{background:#111a28;color:#eef4ff}.fq-place b{display:block;color:#173d7c;text-transform:uppercase;font-size:.62rem}.dark .fq-place b{color:#8db7ff}.fq-place span{display:block;margin-top:.18rem;font-weight:900}.fq-set-points{display:flex;gap:.12rem;margin-left:auto}.fq-set-point{display:inline-grid;place-items:center;min-width:1.35rem;height:1.2rem;padding:0 .12rem;border:1px solid #9aa8ba;background:#fff;color:#17253a;font-size:.62rem;font-weight:800}.dark .fq-set-point{border-color:#53627a;background:#111a28;color:#eef4ff}.fq-zone-bracket .z-win:after,.fq-zone-bracket .z-second:after{content:"";position:absolute;top:50%;right:-1rem;width:1rem;border-top:1px solid #9aa8ba}.fq-zone-bracket-wrap{overflow:auto}.fq-phase-tab{cursor:pointer;text-align:left;transition:.15s ease}.fq-phase-tab.is-active{color:#fff;background:#173d7c;border-color:#173d7c}.fq-phase-tab.is-active .fq-label,.fq-phase-tab.is-active small{color:#dbeafe}.fq-phase-panel{margin-top:.8rem}.fq-phase-heading{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:.7rem}.fq-phase-heading h2{font-size:1.1rem;font-weight:800}.fq-phase-actions{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}@media(max-width:1050px){.fq-zone-bracket{min-width:36rem}.fq-zone-body{grid-template-columns:1fr}}@media(max-width:700px){.fq-zone-bracket{min-width:34rem}}
     </style>
 
     @if(!$competition)
@@ -17,29 +17,15 @@
             <div class="fq-card"><div class="fq-label">Fases</div><div class="fq-value">{{ $competition->phases->count() }}</div></div>
         </div>
 
-        <div class="fq-phases">
+        @php($enabledPhases = $competition->phases->where('is_enabled', true)->values())
+        <div x-data="{ activePhase: @js((string) optional($enabledPhases->first())->id) }">
+        <div class="fq-phases" role="tablist" aria-label="Fases del torneo">
             @foreach($competition->phases as $phase)
-                @php($previousPhase = $competition->phases->where('is_enabled', true)->where('sort_order', '<', $phase->sort_order)->sortByDesc('sort_order')->first())
-                <div class="fq-phase" style="{{ $phase->is_enabled ? '' : 'opacity:.48' }}">
+                <button type="button" class="fq-phase fq-phase-tab" :class="activePhase === @js((string)$phase->id) && 'is-active'" @click="activePhase = @js((string)$phase->id)" style="{{ $phase->is_enabled ? '' : 'opacity:.48;pointer-events:none' }}">
                     <span class="fq-label">Fase {{ $phase->sort_order }}{{ $phase->is_enabled ? '' : ' · Deshabilitada' }}</span>
                     <strong>{{ $phase->name }}</strong>
                     <small>{{ match($phase->status){'ready'=>'Preparada','in_progress'=>'En curso','completed'=>'Finalizada',default=>'Pendiente'} }}</small>
-                    @if($phase->is_enabled)
-                        <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem">
-                            @if($phase->phase_type === 'zones' && $phase->status !== 'completed')
-                                {{ ($this->createZonesAction)(['phaseId' => $phase->id]) }}
-                            @elseif($phase->phase_type !== 'zones' && $phase->status !== 'completed' && $phase->matches->isEmpty() && (!$previousPhase || $previousPhase->status === 'completed'))
-                                {{ ($this->preparePhaseAction)(['phaseId' => $phase->id]) }}
-                            @elseif($phase->phase_type !== 'zones' && $phase->status !== 'completed' && $phase->matches->isNotEmpty())
-                                @foreach(collect(data_get($phase->settings, 'schedules', [])) as $scheduleIndex => $schedule)
-                                    <span style="display:flex;align-items:center;gap:.25rem"><small>{{ $schedule['name'] ?? 'Horario' }}</small>{{ ($this->schedulePhaseAction)(['phaseId' => $phase->id, 'scheduleIndex' => $scheduleIndex]) }}</span>
-                                @endforeach
-                            @elseif($phase->phase_type !== 'zones' && $phase->status !== 'completed' && $phase->matches->isEmpty())
-                                <small>Pendiente de la fase anterior</small>
-                            @endif
-                        </div>
-                    @endif
-                </div>
+                </button>
             @endforeach
         </div>
 
@@ -66,10 +52,17 @@
         </details>
 
         @php($zonePhase = $competition->phases->first(fn($phase) => $phase->phase_type === 'zones' && $phase->is_enabled))
-        @if($zonePhase?->groups?->isNotEmpty())
+        @if($zonePhase)
+            <section class="fq-phase-panel" x-show="activePhase === @js((string)$zonePhase->id)" x-cloak>
+            <div class="fq-phase-heading">
+                <h2>{{ $zonePhase->name }}</h2>
+                @if($zonePhase->status !== 'completed')
+                    <div class="fq-phase-actions">{{ ($this->createZonesAction)(['phaseId' => $zonePhase->id]) }}</div>
+                @endif
+            </div>
+        @if($zonePhase->groups->isNotEmpty())
             @php($groupsBySlot = $zonePhase->groups->groupBy(fn($group) => (string)($group->slot_id ?? 0)))
             @php($firstSlotKey = (string)$groupsBySlot->keys()->first())
-            <h2 style="font-size:1.1rem;font-weight:800;margin:1.2rem 0 .65rem">Zonas preparadas</h2>
             <div x-data="{ activeSlot: @js($firstSlotKey) }">
                 <div class="fq-slot-tabs">
                     @foreach($groupsBySlot as $slotKey => $slotGroups)
@@ -154,40 +147,82 @@
                     </div>
                 @endforeach
             </div>
+        @else
+            <div class="fq-empty">Todavía no hay zonas cargadas en esta fase.</div>
+        @endif
+            </section>
         @endif
 
         @foreach($competition->phases->where('phase_type', '!=', 'zones')->where('is_enabled', true) as $phase)
-            @if($phase->matches->isNotEmpty())
-                <h2 style="font-size:1.1rem;font-weight:800;margin:1.2rem 0 .65rem">{{ $phase->name }}</h2>
-                @php($matchesByRound = $phase->matches->groupBy('round_number')->sortKeys())
-                <div class="fq-bracket-scroll">
-                    <div class="fq-bracket" style="grid-template-columns:repeat({{ max($matchesByRound->count(), 1) }},minmax(12rem,1fr))">
-                        @foreach($matchesByRound as $roundMatches)
-                            <section class="fq-round">
-                                @foreach($roundMatches->sortBy('bracket_order') as $match)
-                                    <div class="fq-match-shell">
-                                        <article class="fq-match">
-                                            <b class="fq-match-title">{{ $match->label === 'Partido de recuperación' ? 'Perdedores' : $match->label }}</b>
-                                            <div class="fq-match-player {{ $match->winner_entry_id === $match->player_one_entry_id ? 'is-winner' : '' }}"><span>{{ $match->playerOne?->player?->full_name ?? 'A definir' }}</span><span>{{ $match->status === 'completed' ? $match->player_one_computed_sets : '—' }}</span></div>
-                                            <div class="fq-match-player {{ $match->winner_entry_id === $match->player_two_entry_id ? 'is-winner' : '' }}"><span>{{ $match->playerTwo?->player?->full_name ?? 'A definir' }}</span><span>{{ $match->status === 'completed' ? $match->player_two_computed_sets : '—' }}</span></div>
-                                            @if($match->scheduled_at)<small class="fq-match-time">{{ $match->scheduled_at->format('d/m/y · H:i') }}</small>@endif
-                                            @if($match->table_number)<small class="fq-match-time">Mesa {{ $match->table_number }}</small>@endif
-                                            @if($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
-                                                <div class="fq-match-actions">
-                                                    @if($match->status !== 'completed'){{ ($this->callMatchAction)(['matchId' => $match->id]) }}@endif
-                                                    {{ ($this->recordResultAction)(['matchId' => $match->id]) }}
-                                                    @if(in_array($match->status, ['in_progress', 'completed'], true)){{ ($this->resetResultAction)(['matchId' => $match->id]) }}@endif
-                                                </div>
-                                            @endif
-                                        </article>
-                                    </div>
+            @php($previousPhase = $competition->phases->where('is_enabled', true)->where('sort_order', '<', $phase->sort_order)->sortByDesc('sort_order')->first())
+            @php($phaseSchedules = collect(data_get($phase->settings, 'schedules', []))->values())
+            @php
+                $scheduledMatchIds = $phaseSchedules->flatMap(function ($schedule) use ($phase) {
+                    return $phase->matches->filter(function ($match) use ($schedule) {
+                        if (filled($schedule['round_number'] ?? null) && (int)$match->round_number !== (int)$schedule['round_number']) return false;
+                        if (filled($schedule['from_match'] ?? null) && (int)$match->bracket_order < (int)$schedule['from_match']) return false;
+                        if (filled($schedule['to_match'] ?? null) && (int)$match->bracket_order > (int)$schedule['to_match']) return false;
+                        return true;
+                    })->pluck('id');
+                })->unique();
+                $remainingMatches = $phase->matches->whereNotIn('id', $scheduledMatchIds);
+            @endphp
+            <section class="fq-phase-panel" x-show="activePhase === @js((string)$phase->id)" x-cloak>
+                <div class="fq-phase-heading">
+                    <h2>{{ $phase->name }}</h2>
+                    @if($phase->status !== 'completed')
+                        <div class="fq-phase-actions">
+                            @if($phase->matches->isNotEmpty() || !$previousPhase || $previousPhase->status === 'completed')
+                                {{ ($this->preparePhaseAction)(['phaseId' => $phase->id]) }}
+                            @else
+                                <small>Pendiente de finalizar {{ $previousPhase->name }}</small>
+                            @endif
+                            @if($phase->matches->isNotEmpty())
+                                @foreach($phaseSchedules as $scheduleIndex => $schedule)
+                                    {{ ($this->schedulePhaseAction)(['phaseId' => $phase->id, 'scheduleIndex' => $scheduleIndex]) }}
                                 @endforeach
-                            </section>
-                        @endforeach
-                    </div>
+                            @endif
+                        </div>
+                    @endif
                 </div>
-            @endif
+
+                @if($phaseSchedules->isNotEmpty() && $phase->matches->isNotEmpty())
+                    <div x-data="{ activeSchedule: 0 }">
+                        <div class="fq-slot-tabs" role="tablist" aria-label="Horarios de {{ $phase->name }}">
+                            @foreach($phaseSchedules as $scheduleIndex => $schedule)
+                                <button type="button" class="fq-slot-tab" :class="activeSchedule === {{ $scheduleIndex }} && 'is-active'" @click="activeSchedule = {{ $scheduleIndex }}">
+                                    {{ $schedule['name'] ?? 'Horario '.($scheduleIndex + 1) }}
+                                </button>
+                            @endforeach
+                            @if($remainingMatches->isNotEmpty())
+                                <button type="button" class="fq-slot-tab" :class="activeSchedule === 'remaining' && 'is-active'" @click="activeSchedule = 'remaining'">Rondas siguientes</button>
+                            @endif
+                        </div>
+                        @foreach($phaseSchedules as $scheduleIndex => $schedule)
+                            @php
+                                $scheduleMatches = $phase->matches->filter(function ($match) use ($schedule) {
+                                    if (filled($schedule['round_number'] ?? null) && (int)$match->round_number !== (int)$schedule['round_number']) return false;
+                                    if (filled($schedule['from_match'] ?? null) && (int)$match->bracket_order < (int)$schedule['from_match']) return false;
+                                    if (filled($schedule['to_match'] ?? null) && (int)$match->bracket_order > (int)$schedule['to_match']) return false;
+                                    return true;
+                                });
+                            @endphp
+                            <div x-show="activeSchedule === {{ $scheduleIndex }}" x-cloak>
+                                @include('filament.resources.tournaments.pages.partials.competition-bracket', ['matches' => $scheduleMatches])
+                            </div>
+                        @endforeach
+                        @if($remainingMatches->isNotEmpty())
+                            <div x-show="activeSchedule === 'remaining'" x-cloak>
+                                @include('filament.resources.tournaments.pages.partials.competition-bracket', ['matches' => $remainingMatches])
+                            </div>
+                        @endif
+                    </div>
+                @else
+                    @include('filament.resources.tournaments.pages.partials.competition-bracket', ['matches' => $phase->matches])
+                @endif
+            </section>
         @endforeach
+        </div>
 
         @if($publicJsonUrl)
             <div class="fq-card" style="margin-top:1rem">

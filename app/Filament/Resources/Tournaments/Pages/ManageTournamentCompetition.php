@@ -487,9 +487,9 @@ class ManageTournamentCompetition extends Page
     public function preparePhaseAction(): Action
     {
         return Action::make('preparePhase')
-            ->label('Preparar fase')->icon('heroicon-o-forward')->color('warning')->size('sm')
+            ->label('Preparar / actualizar grilla')->icon('heroicon-o-arrow-path')->color('warning')->size('sm')
             ->requiresConfirmation()
-            ->modalDescription('Incorpora los clasificados de la fase anterior, agrega quienes ingresan directamente aquí y crea los cruces.')
+            ->modalDescription('Actualiza los clasificados, incorpora quienes ingresan directamente en esta fase y vuelve a crear los cruces. Solo puede hacerse antes de iniciar los partidos.')
             ->action(function (array $arguments): void {
                 $phase = $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
                     ->where('phase_type', '!=', 'zones')->where('is_enabled', true)->firstOrFail();

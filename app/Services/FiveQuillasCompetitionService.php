@@ -363,7 +363,22 @@ class FiveQuillasCompetitionService
                 throw ValidationException::withMessages(['phase' => 'Las zonas se confeccionan con la acción Cargar zonas.']);
             }
             if ($phase->matches()->exists()) {
-                return $phase->matches()->count();
+                $hasStartedMatches = $phase->matches()
+                    ->where(function ($query): void {
+                        $query->whereIn('status', ['called', 'in_progress', 'completed'])
+                            ->orWhereNotNull('winner_entry_id')
+                            ->orWhereNotNull('set_scores');
+                    })->exists();
+
+                if ($hasStartedMatches) {
+                    throw ValidationException::withMessages([
+                        'phase' => 'La grilla ya tiene partidos iniciados. Reiniciá esos resultados antes de volver a prepararla.',
+                    ]);
+                }
+
+                // La grilla puede haberse creado antes de que terminara la fase previa.
+                // En ese caso se vuelve a construir con los clasificados actuales.
+                $phase->matches()->delete();
             }
 
             $previous = $phase->competition->phases()
@@ -969,19 +984,31 @@ class FiveQuillasCompetitionService
 
     private function resolveReadyByes($matchIds): void
     {
-        foreach ($matchIds as $matchId) {
-            $candidate = FiveQuillasMatch::query()->find($matchId);
-            if (! $candidate || $candidate->status === 'completed') {
-                continue;
+        $ids = collect($matchIds)->map(fn ($id): int => (int) $id)->unique()->values();
+
+        // Repite el recorrido porque un pase libre resuelto puede habilitar otro
+        // pase libre en la ronda siguiente.
+        do {
+            $resolved = 0;
+            $candidates = FiveQuillasMatch::query()->whereIn('id', $ids)
+                ->orderBy('round_number')->orderBy('bracket_order')->get();
+
+            foreach ($candidates as $candidate) {
+                if ($candidate->status === 'completed') {
+                    continue;
+                }
+                $sourceMatches = FiveQuillasMatch::query()
+                    ->where('next_match_id', $candidate->id)
+                    ->orWhere('loser_next_match_id', $candidate->id)
+                    ->get();
+                if ($sourceMatches->isNotEmpty() && $sourceMatches->every(fn ($source): bool => $source->status === 'completed')) {
+                    $before = $candidate->status;
+                    $this->resolveBye($candidate);
+                    $candidate->refresh();
+                    $resolved += $before !== 'completed' && $candidate->status === 'completed' ? 1 : 0;
+                }
             }
-            $sourceMatches = FiveQuillasMatch::query()
-                ->where('next_match_id', $candidate->id)
-                ->orWhere('loser_next_match_id', $candidate->id)
-                ->get();
-            if ($sourceMatches->isNotEmpty() && $sourceMatches->every(fn ($source): bool => $source->status === 'completed')) {
-                $this->resolveBye($candidate);
-            }
-        }
+        } while ($resolved > 0);
     }
 
     private function recalculateGroupStatistics(int $groupId): void
@@ -1095,9 +1122,25 @@ class FiveQuillasCompetitionService
     private function resolveBye($match): void
     {
         $players = collect([$match->player_one_entry_id, $match->player_two_entry_id])->filter();
-        if ($players->count() !== 1) {
+        if ($players->count() > 1) {
             return;
         }
+
+        if ($players->isEmpty()) {
+            $match->update([
+                'winner_entry_id' => null,
+                'set_scores' => ['bye' => true, 'sets' => []],
+                'player_one_actual_sets' => 0,
+                'player_two_actual_sets' => 0,
+                'player_one_computed_sets' => 0,
+                'player_two_computed_sets' => 0,
+                'is_bye' => true,
+                'status' => 'completed',
+            ]);
+
+            return;
+        }
+
         $winnerId = (int) $players->first();
         $match->update([
             'winner_entry_id' => $winnerId,
