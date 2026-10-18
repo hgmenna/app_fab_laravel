@@ -10,6 +10,7 @@ use App\Services\FiveQuillasCompetitionService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
@@ -58,23 +59,86 @@ class ManageTournamentCompetition extends Page
                         ->send();
                 }),
             Action::make('publish')
-                ->label(fn (): string => $this->competition()?->is_public ? 'Ocultar resultados públicos' : 'Mostrar resultados al público')
-                ->icon(fn (): string => $this->competition()?->is_public ? 'heroicon-o-eye-slash' : 'heroicon-o-eye')
-                ->color(fn (): string => $this->competition()?->is_public ? 'gray' : 'success')
+                ->label('Configurar vista pública')
+                ->icon('heroicon-o-eye')
+                ->color('success')
                 ->visible(fn (): bool => $this->competition() !== null)
-                ->requiresConfirmation()
-                ->action(function (): void {
+                ->fillForm(function (): array {
                     $competition = $this->competition();
-                    $publish = ! $competition->is_public;
-                    $competition->update(['is_public' => $publish, 'status' => $publish ? 'published' : 'draft']);
-                    $competition->phases()->update(['is_public' => false]);
-                    $competition->phases()->where('is_enabled', true)->update(['is_public' => $publish]);
-                    $competition->phases()->with('groups')->get()->flatMap->groups->each(function ($group) use ($publish): void {
-                        $phaseEnabled = (bool) $group->phase()->value('is_enabled');
-                        $group->update(['is_public' => $publish && $phaseEnabled]);
-                        $group->matches()->update(['is_public' => $publish && $phaseEnabled]);
+                    $competition->loadMissing(['phases.groups']);
+
+                    return [
+                        'is_public' => (bool) $competition->is_public,
+                        'phase_ids' => $competition->phases->where('is_public', true)->pluck('id')->map(fn ($id): string => (string) $id)->all(),
+                        'zone_slot_keys' => $competition->phases->where('phase_type', 'zones')->flatMap->groups
+                            ->where('is_public', true)->map(fn ($group): string => $group->tournament_slot_id ? 'slot_'.$group->tournament_slot_id : 'without_slot')->unique()->values()->all(),
+                        'show_final_standings' => (bool) data_get($competition->settings, 'public.show_final_standings', true),
+                    ];
+                })
+                ->schema([
+                    Toggle::make('is_public')
+                        ->label('Mostrar el desarrollo del torneo al público')
+                        ->live()
+                        ->helperText('Al desactivarlo, el acceso público completo queda oculto.'),
+                    CheckboxList::make('phase_ids')
+                        ->label('Fases visibles')
+                        ->options(fn (): array => $this->competition()->phases()
+                            ->where('is_enabled', true)->orderBy('sort_order')->pluck('name', 'id')->all())
+                        ->columns(2)
+                        ->visible(fn (Get $get): bool => (bool) $get('is_public')),
+                    CheckboxList::make('zone_slot_keys')
+                        ->label('Horarios de zonas visibles')
+                        ->options(function (): array {
+                            $groups = $this->competition()->phases()->where('phase_type', 'zones')
+                                ->with('groups.slot')->get()->flatMap->groups;
+
+                            return $groups->groupBy(fn ($group): string => $group->tournament_slot_id ? 'slot_'.$group->tournament_slot_id : 'without_slot')
+                                ->map(fn ($slotGroups, $key): string => $key === 'without_slot'
+                                    ? 'Sin horario asignado'
+                                    : ($slotGroups->first()?->slot?->name ?? 'Horario'))
+                                ->all();
+                        })
+                        ->columns(2)
+                        ->visible(fn (Get $get): bool => (bool) $get('is_public'))
+                        ->helperText('Podés publicar un horario de zonas sin mostrar los demás.'),
+                    Toggle::make('show_final_standings')
+                        ->label('Mostrar la pestaña Posiciones finales')
+                        ->default(true)
+                        ->visible(fn (Get $get): bool => (bool) $get('is_public')),
+                ])
+                ->modalHeading('Vista pública del torneo')
+                ->modalDescription('Elegí exactamente qué fases y horarios estarán disponibles para los usuarios.')
+                ->modalWidth('3xl')
+                ->action(function (array $data): void {
+                    $competition = $this->competition();
+                    $competition->loadMissing(['phases.groups']);
+                    $publish = (bool) ($data['is_public'] ?? false);
+                    $phaseIds = collect($data['phase_ids'] ?? [])->map(fn ($id): int => (int) $id);
+                    $slotKeys = collect($data['zone_slot_keys'] ?? [])->map(fn ($key): string => (string) $key);
+                    $settings = $competition->settings ?? [];
+                    data_set($settings, 'public.show_final_standings', (bool) ($data['show_final_standings'] ?? false));
+
+                    $competition->update([
+                        'is_public' => $publish,
+                        'status' => $publish && $competition->status === 'draft' ? 'published' : $competition->status,
+                        'settings' => $settings,
+                    ]);
+
+                    $competition->phases->each(function ($phase) use ($publish, $phaseIds, $slotKeys): void {
+                        $phasePublic = $publish && $phase->is_enabled && $phaseIds->contains((int) $phase->id);
+                        $phase->update(['is_public' => $phasePublic]);
+                        $phase->matches()->whereNull('group_id')->update(['is_public' => $phasePublic]);
+                        $phase->groups->each(function ($group) use ($phase, $phasePublic, $slotKeys): void {
+                            $slotKey = $group->tournament_slot_id ? 'slot_'.$group->tournament_slot_id : 'without_slot';
+                            $groupPublic = $phasePublic && ($phase->phase_type !== 'zones' || $slotKeys->contains($slotKey));
+                            $group->update(['is_public' => $groupPublic]);
+                            $group->matches()->update(['is_public' => $groupPublic]);
+                        });
                     });
-                    Notification::make()->success()->title($publish ? 'Los resultados ya están visibles para el público' : 'Los resultados dejaron de estar visibles para el público')->send();
+
+                    Notification::make()->success()
+                        ->title($publish ? 'Vista pública actualizada' : 'El desarrollo quedó oculto al público')
+                        ->send();
                 }),
             Action::make('configureFormat')
                 ->label('Configurar formato')
@@ -506,7 +570,8 @@ class ManageTournamentCompetition extends Page
                             ->columnSpan(3)->extraAttributes(['style' => 'font-weight:800;align-self:center']),
                         ...collect(range(1, $bestOf))->map(fn (int $setNumber) =>
                             TextInput::make('player_'.$playerNumber.'_set_'.$setNumber)
-                                ->hiddenLabel()->integer()->minValue(0)->maxValue($pointsPerSet)
+                                ->hiddenLabel()->numeric()->minValue(0)->maxValue($pointsPerSet)
+                                ->nullable()
                                 ->extraInputAttributes(['style' => $inputStyle, 'inputmode' => 'numeric'])
                         )->all(),
                     ];
@@ -533,15 +598,19 @@ class ManageTournamentCompetition extends Page
                     ->map(function (int $setNumber) use ($data): array {
                         $one = $data['player_one_set_'.$setNumber] ?? null;
                         $two = $data['player_two_set_'.$setNumber] ?? null;
-                        if (filled($one) !== filled($two)) {
+                        $one = is_string($one) ? trim($one) : $one;
+                        $two = is_string($two) ? trim($two) : $two;
+                        $oneFilled = $one !== null && $one !== '';
+                        $twoFilled = $two !== null && $two !== '';
+                        if ($oneFilled !== $twoFilled) {
                             throw ValidationException::withMessages([
                                 'scores' => 'Completá los dos puntajes del set '.$setNumber.' o dejá ambos vacíos.',
                             ]);
                         }
 
                         return [
-                            'player_one_points' => filled($one) ? (int) $one : null,
-                            'player_two_points' => filled($two) ? (int) $two : null,
+                            'player_one_points' => $oneFilled ? (int) $one : null,
+                            'player_two_points' => $twoFilled ? (int) $two : null,
                         ];
                     })
                     ->filter(fn (array $set): bool => $set['player_one_points'] !== null)

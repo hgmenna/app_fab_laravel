@@ -7,12 +7,24 @@ use App\Models\Category;
 use App\Models\Tournament;
 use App\Models\TournamentRegistration;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class UpcomingTournamentsController extends Controller
 {
-    public function __invoke(): JsonResponse
+    public function __invoke(Request $request): JsonResponse
     {
+        $filters = $request->validate([
+            'estado' => ['nullable', 'in:vigentes,finalizados,todos'],
+            'desde' => ['nullable', 'date_format:Y-m-d'],
+            'hasta' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:desde'],
+            'anio' => ['nullable', 'integer', 'min:2000', 'max:2100'],
+            'disciplina' => ['nullable', 'integer', 'min:1'],
+            'tipo' => ['nullable', 'integer', 'min:1'],
+            'categoria' => ['nullable', 'integer', 'min:1'],
+            'buscar' => ['nullable', 'string', 'max:120'],
+        ]);
+
         $monthNames = [
             1 => 'ENERO', 2 => 'FEBRERO', 3 => 'MARZO',
             4 => 'ABRIL', 5 => 'MAYO', 6 => 'JUNIO',
@@ -26,7 +38,10 @@ class UpcomingTournamentsController extends Controller
             ->get(['id', 'discipline_id', 'name'])
             ->groupBy('discipline_id');
 
-        $rows = Tournament::query()
+        $today = today('America/Argentina/Buenos_Aires');
+        $view = strtolower((string) ($filters['estado'] ?? 'vigentes'));
+
+        $query = Tournament::query()
             ->with([
                 'discipline:id,name',
                 'type:id,name,has_handicap,is_official,publication_logo_source,publication_federation_id',
@@ -44,12 +59,45 @@ class UpcomingTournamentsController extends Controller
                 'registrations:id,tournament_id,tournament_modality_id',
                 'registrations.participants:id,tournament_registration_id,player_id',
             ])
-            ->withCount('registrations')
-            ->whereDate('end_date', '>=', today('America/Argentina/Buenos_Aires'))
-            ->orderBy('start_date')
-            ->orderBy('id')
+            ->withCount('registrations');
+
+        match ($view) {
+            'finalizados' => $query->whereDate('end_date', '<', $today),
+            'todos' => $query,
+            default => $query->whereDate('end_date', '>=', $today),
+        };
+
+        $query
+            ->when(isset($filters['desde']), fn ($builder) => $builder->whereDate('end_date', '>=', $filters['desde']))
+            ->when(isset($filters['hasta']), fn ($builder) => $builder->whereDate('end_date', '<=', $filters['hasta']))
+            ->when(isset($filters['anio']), fn ($builder) => $builder->whereYear('end_date', (int) $filters['anio']))
+            ->when(isset($filters['disciplina']), fn ($builder) => $builder->where('discipline_id', (int) $filters['disciplina']))
+            ->when(isset($filters['tipo']), fn ($builder) => $builder->where('tournament_type_id', (int) $filters['tipo']))
+            ->when(isset($filters['categoria']), function ($builder) use ($filters): void {
+                $categoryId = (int) $filters['categoria'];
+                $builder->where(function ($categoryQuery) use ($categoryId): void {
+                    $categoryQuery->where('category_id', $categoryId)
+                        ->orWhereJsonContains('categories', $categoryId)
+                        ->orWhereJsonContains('categories', (string) $categoryId);
+                });
+            })
+            ->when(isset($filters['buscar']), function ($builder) use ($filters): void {
+                $search = trim((string) $filters['buscar']);
+                $builder->where(function ($searchQuery) use ($search): void {
+                    $searchQuery->where('name', 'like', "%{$search}%")
+                        ->orWhere('external_venue_name', 'like', "%{$search}%")
+                        ->orWhereHas('venue', fn ($venue) => $venue->where('name', 'like', "%{$search}%"));
+                });
+            });
+
+        $rows = $query
+            ->when(
+                $view === 'finalizados',
+                fn ($builder) => $builder->orderByDesc('end_date')->orderByDesc('id'),
+                fn ($builder) => $builder->orderBy('start_date')->orderBy('id'),
+            )
             ->get()
-            ->map(function (Tournament $tournament) use ($monthNames, $categoriesByDiscipline): array {
+            ->map(function (Tournament $tournament) use ($monthNames, $categoriesByDiscipline, $today): array {
                 $club = $tournament->venue;
 
                 $disciplineCategories = $categoriesByDiscipline
@@ -129,10 +177,18 @@ class UpcomingTournamentsController extends Controller
                 }
 
                 return [
+                    'id' => $tournament->id,
                     'mes' => $monthNames[$start->month].' '.$start->year,
                     'fecha' => $dayLabel,
+                    'fecha_inicio' => $start?->toDateString(),
+                    'fecha_fin' => $end?->toDateString(),
+                    'estado_torneo' => $end?->lt($today)
+                        ? 'Finalizado'
+                        : ($start?->gt($today) ? 'Próximo' : 'En curso'),
                     'torneo' => $tournament->name,
+                    'disciplina_id' => $tournament->discipline_id,
                     'disciplina' => $tournament->discipline?->name ?? '',
+                    'tipo_id' => $tournament->tournament_type_id,
                     'categorias' => $categories,
                     'club' => $tournament->venueName(),
                     'tipo' => $tournament->type?->name ?? '',
@@ -176,8 +232,30 @@ class UpcomingTournamentsController extends Controller
                 ];
             });
 
+        $years = Tournament::query()->whereNotNull('end_date')
+            ->selectRaw('YEAR(end_date) as year')->distinct()->orderByDesc('year')->pluck('year')
+            ->map(fn ($year): int => (int) $year)->values();
+
         return response()
-            ->json(['data' => $rows])
+            ->json([
+                'data' => $rows,
+                'meta' => [
+                    'estado' => $view,
+                    'total' => $rows->count(),
+                    'fecha_referencia' => $today->toDateString(),
+                    'anios' => $years,
+                    'filtros' => [
+                        'estado' => ['vigentes', 'finalizados', 'todos'],
+                        'desde' => 'YYYY-MM-DD',
+                        'hasta' => 'YYYY-MM-DD',
+                        'anio' => 'YYYY',
+                        'disciplina' => 'ID',
+                        'tipo' => 'ID',
+                        'categoria' => 'ID',
+                        'buscar' => 'Texto',
+                    ],
+                ],
+            ])
             ->withHeaders([
                 'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0',
                 'Pragma' => 'no-cache',

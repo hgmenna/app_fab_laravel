@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class FiveQuillasEntry extends Model
 {
-    protected $fillable = ['competition_id', 'tournament_registration_id', 'registration_participant_id', 'player_id', 'source_slot_id', 'entry_phase_id', 'national_ranking_snapshot', 'seed', 'status'];
+    protected $fillable = ['competition_id', 'tournament_registration_id', 'registration_participant_id', 'player_id', 'source_slot_id', 'entry_phase_id', 'national_ranking_snapshot', 'seed', 'final_position', 'status'];
 
     public function competition() { return $this->belongsTo(FiveQuillasCompetition::class, 'competition_id'); }
     public function registration() { return $this->belongsTo(TournamentRegistration::class, 'tournament_registration_id'); }

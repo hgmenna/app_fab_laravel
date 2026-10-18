@@ -23,7 +23,14 @@ class FiveQuillasCompetitionPublicController extends Controller
                 'phases.matches.playerOne.player:id,first_name,last_name',
                 'phases.matches.playerTwo.player:id,first_name,last_name',
                 'phases.matches.winner.player:id,first_name,last_name',
+                'entries' => fn ($query) => $query->whereNotNull('final_position')->orderBy('final_position'),
+                'entries.player:id,first_name,last_name,club_id,category_id',
+                'entries.player.club:id,name,short_name',
+                'entries.player.category:id,name,code',
+                'entries.registration:id,points,penalty_points',
             ])->firstOrFail();
+
+        $showFinalStandings = (bool) data_get($competition->settings, 'public.show_final_standings', true);
 
         return response()->json([
             'data' => [
@@ -35,6 +42,17 @@ class FiveQuillasCompetitionPublicController extends Controller
                 'informacion_disponible' => $competition->phases->contains(
                     fn ($phase): bool => $phase->groups->isNotEmpty() || $phase->matches->isNotEmpty()
                 ),
+                'mostrar_posiciones_finales' => $showFinalStandings,
+                'posiciones_finales' => $showFinalStandings
+                    ? $competition->entries->map(fn ($entry): array => [
+                        'posicion' => $entry->final_position,
+                        'jugador' => $entry->player?->full_name,
+                        'club' => $entry->player?->club?->short_name ?: $entry->player?->club?->name,
+                        'categoria' => $entry->player?->category?->code ?: $entry->player?->category?->name,
+                        'puntos' => $entry->registration?->points,
+                        'penalizacion' => $entry->registration?->penalty_points,
+                    ])->values()
+                    : [],
                 'fases' => $competition->phases->map(fn ($phase): array => [
                     'codigo' => $phase->code,
                     'nombre' => $phase->name,

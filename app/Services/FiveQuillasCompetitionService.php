@@ -720,6 +720,7 @@ class FiveQuillasCompetitionService
 
             $match->phase()->update(['status' => 'in_progress']);
             $match->phase->competition()->update(['status' => 'in_progress']);
+            $match->phase->competition->entries()->update(['final_position' => null]);
             if ($match->group_id) {
                 $match->group()->update(['status' => 'confirmed']);
                 $match->group->groupEntries()->update(['final_place' => null]);
@@ -754,7 +755,7 @@ class FiveQuillasCompetitionService
     {
         $tournament = $phase->competition->tournament;
         $tournament->loadMissing('type');
-        if (! $tournament->type?->assigns_points || $phase->phase_type !== 'bracket') {
+        if ($phase->phase_type !== 'bracket') {
             return;
         }
 
@@ -786,10 +787,15 @@ class FiveQuillasCompetitionService
 
         $entries = $phase->competition->entries()->with('registration')->whereIn('id', $placements->keys())->get()->keyBy('id');
         foreach ($placements as $entryId => $place) {
-            $registration = $entries->get($entryId)?->registration;
-            if (! $registration) { continue; }
-            $this->assignPointsForPlacement($tournament, $registration, $place);
-            $entries->get($entryId)?->update(['status' => $place === 1 ? 'qualified' : 'eliminated']);
+            $entry = $entries->get($entryId);
+            if (! $entry) { continue; }
+            $entry->update([
+                'final_position' => $place,
+                'status' => $place === 1 ? 'qualified' : 'eliminated',
+            ]);
+            if ($tournament->type?->assigns_points && $entry->registration) {
+                $this->assignPointsForPlacement($tournament, $entry->registration, $place);
+            }
         }
     }
 
@@ -797,10 +803,6 @@ class FiveQuillasCompetitionService
     {
         $phase->loadMissing('competition.tournament.type');
         $tournament = $phase->competition->tournament;
-        if (! $tournament->type?->assigns_points) {
-            return;
-        }
-
         $qualified = $this->qualifiedEntriesFromPhase($phase)->pluck('id')->map(fn ($id): int => (int) $id);
         $futureEntrants = $phase->competition->entries()
             ->whereHas('entryPhase', fn ($query) => $query->where('sort_order', '>', $phase->sort_order))
@@ -833,8 +835,11 @@ class FiveQuillasCompetitionService
 
         $position = $stillCompeting->count() + 1;
         foreach ($ordered as $entry) {
-            $entry->update(['status' => 'eliminated']);
-            $this->assignPointsForPlacement($tournament, $entry->registration, $position++);
+            $place = $position++;
+            $entry->update(['status' => 'eliminated', 'final_position' => $place]);
+            if ($tournament->type?->assigns_points) {
+                $this->assignPointsForPlacement($tournament, $entry->registration, $place);
+            }
         }
     }
 
