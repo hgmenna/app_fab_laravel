@@ -32,6 +32,9 @@ class FiveQuillasCompetitionPublicController extends Controller
                 'torneo' => $competition->tournament->name,
                 'fecha_inicio' => $competition->tournament->start_date?->toDateString(),
                 'fecha_fin' => $competition->tournament->end_date?->toDateString(),
+                'informacion_disponible' => $competition->phases->contains(
+                    fn ($phase): bool => $phase->groups->isNotEmpty() || $phase->matches->isNotEmpty()
+                ),
                 'fases' => $competition->phases
                     ->filter(fn ($phase): bool => $phase->phase_type !== 'play_in' || $phase->matches->isNotEmpty())
                     ->map(fn ($phase): array => [

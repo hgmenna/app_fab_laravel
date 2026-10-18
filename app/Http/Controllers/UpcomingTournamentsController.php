@@ -169,6 +169,8 @@ class UpcomingTournamentsController extends Controller
                     'desarrollo_disponible' => (bool) $competition?->is_public,
                     'desarrollo_slug' => $competition?->public_slug ?? '',
                     'desarrollo_estado' => $competition?->status ?? '',
+                    'desarrollo_texto' => 'Ver resultados',
+                    'desarrollo_mensaje' => 'Información no disponible en este momento',
                     'desarrollo_json_url' => $competitionJsonUrl,
                     'desarrollo_url' => $competitionPageUrl,
                 ];
