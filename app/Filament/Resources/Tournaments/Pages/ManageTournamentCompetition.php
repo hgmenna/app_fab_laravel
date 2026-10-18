@@ -351,6 +351,11 @@ class ManageTournamentCompetition extends Page
             ->icon('heroicon-o-squares-2x2')->color('warning')->size('sm')
             ->fillForm(function (array $arguments): array {
                 $slotId = (int) ($arguments['slotId'] ?? 0);
+                $competition = $this->competition();
+
+                if ($competition) {
+                    app(FiveQuillasCompetitionService::class)->syncApprovedEntries($competition);
+                }
 
                 return [
                     'slot_id' => $slotId ?: null,
