@@ -29,6 +29,9 @@
                     <small>{{ match($phase->status){'ready'=>'Preparada','in_progress'=>'En curso','completed'=>'Finalizada',default=>'Pendiente'} }}</small>
                 </button>
             @endforeach
+            <button type="button" class="fq-phase fq-phase-tab" :class="activePhase === 'positions' && 'is-active'" @click="activePhase = 'positions'">
+                <span class="fq-label">Clasificación</span><strong>Posiciones finales</strong><small>Puntuación del torneo</small>
+            </button>
         </div>
 
         @php
@@ -236,6 +239,25 @@
                 @endif
             </section>
         @endforeach
+        <section class="fq-phase-panel" x-show="activePhase === 'positions'" x-cloak>
+            <div class="fq-phase-heading"><h2>Posiciones finales</h2></div>
+            @php $finalEntries = $competition->entries->whereNotNull('final_position')->sortBy('final_position'); @endphp
+            @if($finalEntries->isEmpty())
+                <div class="fq-empty">Las posiciones se completan a medida que finaliza la participación de cada jugador.</div>
+            @else
+                <div class="fq-standings-wrap"><table class="fq-standings">
+                    <thead><tr><th>Pos</th><th>Jugador</th><th>Club</th><th>Cat</th><th>Instancia</th><th>Puntos</th><th>Acción</th></tr></thead>
+                    <tbody>@foreach($finalEntries as $entry)<tr>
+                        <td>{{ $entry->final_position }}</td><td>{{ $entry->player?->full_name }}</td>
+                        <td>{{ $entry->player?->club?->short_name ?: $entry->player?->club?->name }}</td>
+                        <td>{{ $entry->player?->category?->code ?: $entry->player?->category?->name }}</td>
+                        <td>{{ $this->finalInstanceLabel($entry) }}</td>
+                        <td>{{ $entry->registration?->points ?? '—' }}</td>
+                        <td>{{ ($this->editFinalScoreAction)(['entryId' => $entry->id]) }}</td>
+                    </tr>@endforeach</tbody>
+                </table></div>
+            @endif
+        </section>
         </div>
 
         @if($publicJsonUrl)

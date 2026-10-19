@@ -13,11 +13,11 @@
                             <article class="fq-match">
                                 <b class="fq-match-title">{{ $match->label === 'Partido de recuperación' ? 'Perdedores' : $match->label }}</b>
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_one_entry_id ? 'is-winner' : '' }}">
-                                    <span>{{ $match->playerOne?->player?->full_name ?? ($match->is_bye ? 'LIBRE' : 'A definir') }}</span>
+                                    <span><b>{{ $match->playerOne?->seed ?? '—' }}</b> · {{ $match->playerOne?->player?->full_name ?? ($match->is_bye ? 'LIBRE' : 'A definir') }}</span>
                                     <span>{{ $match->status === 'completed' ? $match->player_one_computed_sets : '—' }}</span>
                                 </div>
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_two_entry_id ? 'is-winner' : '' }}">
-                                    <span>{{ $match->playerTwo?->player?->full_name ?? ($match->is_bye ? 'LIBRE' : 'A definir') }}</span>
+                                    <span><b>{{ $match->playerTwo?->seed ?? '—' }}</b> · {{ $match->playerTwo?->player?->full_name ?? ($match->is_bye ? 'LIBRE' : 'A definir') }}</span>
                                     <span>{{ $match->status === 'completed' ? $match->player_two_computed_sets : '—' }}</span>
                                 </div>
                                 @if($match->scheduled_at)<small class="fq-match-time">{{ $match->scheduled_at->format('d/m/y · H:i') }}</small>@endif

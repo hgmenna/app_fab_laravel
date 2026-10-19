@@ -51,6 +51,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                         'categoria' => $entry->player?->category?->code ?: $entry->player?->category?->name,
                         'puntos' => $entry->registration?->points,
                         'penalizacion' => $entry->registration?->penalty_points,
+                        'instancia' => $this->finalInstance($competition, $entry),
                     ])->values()
                     : [],
                 'fases' => $competition->phases->map(fn ($phase): array => [
@@ -87,7 +88,9 @@ class FiveQuillasCompetitionPublicController extends Controller
                         'ronda' => $match->round_number, 'orden' => $match->bracket_order,
                         'etiqueta' => $match->label === 'Partido de recuperación' ? 'Perdedores' : $match->label,
                         'jugador_1' => $match->playerOne?->player?->full_name,
-                        'jugador_2' => $match->playerTwo?->player?->full_name, 'sets' => $match->set_scores,
+                        'numero_1' => $match->playerOne?->seed,
+                        'jugador_2' => $match->playerTwo?->player?->full_name,
+                        'numero_2' => $match->playerTwo?->seed, 'sets' => $match->set_scores,
                         'sets_reales' => [$match->player_one_actual_sets, $match->player_two_actual_sets],
                         'sets_computables' => [$match->player_one_computed_sets, $match->player_two_computed_sets],
                         'puntos' => [$match->player_one_points, $match->player_two_points],
@@ -100,5 +103,21 @@ class FiveQuillasCompetitionPublicController extends Controller
                 ])->values(),
             ],
         ])->withHeaders(['Cache-Control' => 'no-store', 'Access-Control-Allow-Origin' => '*']);
+    }
+
+    private function finalInstance(FiveQuillasCompetition $competition, $entry): string
+    {
+        $lastMatch = $competition->phases->where('phase_type', '!=', 'zones')->flatMap->matches
+            ->filter(fn ($match): bool => in_array((int) $entry->id, [
+                (int) $match->player_one_entry_id, (int) $match->player_two_entry_id,
+            ], true))
+            ->sortByDesc(fn ($match): string => sprintf('%05d-%05d', $match->phase->sort_order, $match->round_number))
+            ->first();
+        if ($lastMatch) {
+            return preg_replace('/\s+\d+$/', '', (string) $lastMatch->label) ?: $lastMatch->phase->name;
+        }
+        $zoneRow = $competition->phases->flatMap->groups->flatMap->groupEntries
+            ->firstWhere('entry_id', $entry->id);
+        return $zoneRow ? 'Zonas · '.$zoneRow->final_place.'.º puesto' : 'Sin instancia';
     }
 }

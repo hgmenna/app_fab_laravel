@@ -334,6 +334,12 @@ class FiveQuillasCompetitionService
             $from = filled($schedule['from_match'] ?? null) ? (int) $schedule['from_match'] : 1;
             $to = filled($schedule['to_match'] ?? null) ? (int) $schedule['to_match'] : $matches->count();
             $matches = $matches->slice($from - 1, max(0, $to - $from + 1))->values();
+            // Los pases libres ocupan un lugar en la grilla, pero no consumen mesa ni horario.
+            $matches = $matches->filter(fn ($match): bool =>
+                ! $match->is_bye
+                && filled($match->player_one_entry_id)
+                && filled($match->player_two_entry_id)
+            )->values();
             if ($matches->isEmpty()) {
                 throw ValidationException::withMessages([
                     'schedule' => "La fase todavía no tiene partidos creados para la ronda {$round}.",
@@ -411,6 +417,54 @@ class FiveQuillasCompetitionService
 
             return $count;
         });
+    }
+
+    public function drawCandidates(FiveQuillasPhase $phase)
+    {
+        $previous = $phase->competition->phases()->where('is_enabled', true)
+            ->where('sort_order', '<', $phase->sort_order)->orderByDesc('sort_order')->first();
+        $source = $previous
+            ? $this->qualifiedEntriesFromPhase($previous)
+            : $phase->competition->entries()->whereIn('status', ['eligible', 'assigned', 'qualified'])->get();
+        $direct = $phase->competition->entries()->where('entry_phase_id', $phase->id)
+            ->whereIn('status', ['eligible', 'assigned', 'qualified'])->get();
+
+        return collect($source)->merge($direct)->unique('id')->each->loadMissing('player')->values();
+    }
+
+    public function saveDrawNumbers(FiveQuillasPhase $phase, array $rows): void
+    {
+        $size = (int) data_get($phase->settings, 'bracket_size', 16);
+        $candidates = $this->drawCandidates($phase)->keyBy('id');
+        $numbers = collect($rows)->pluck('draw_number')->filter()->map(fn ($number): int => (int) $number);
+        if ($numbers->count() !== $candidates->count() || $numbers->duplicates()->isNotEmpty()) {
+            throw ValidationException::withMessages(['draws' => 'Cada clasificado debe tener un número de sorteo diferente.']);
+        }
+        if ($numbers->contains(fn (int $number): bool => $number < 1 || $number > $size)) {
+            throw ValidationException::withMessages(['draws' => "Los números deben estar comprendidos entre 1 y {$size}."]);
+        }
+        foreach ($rows as $row) {
+            $entry = $candidates->get((int) ($row['entry_id'] ?? 0));
+            if ($entry) { $entry->update(['seed' => (int) $row['draw_number']]); }
+        }
+    }
+
+    public function assignSelectedScoringRule(FiveQuillasEntry $entry, string $ruleKey): void
+    {
+        $entry->loadMissing(['competition.tournament.type', 'registration']);
+        if (! $entry->registration) {
+            throw ValidationException::withMessages(['scoring_rule' => 'El jugador no tiene una inscripción vinculada.']);
+        }
+        $scoring = app(TournamentScoringService::class);
+        if (str_starts_with($ruleKey, 'instance:')) {
+            $scoring->assignByTournamentInstance($entry->registration, (int) Str::after($ruleKey, 'instance:'));
+            return;
+        }
+        if (str_starts_with($ruleKey, 'code:')) {
+            $scoring->assignByCode($entry->registration, Str::after($ruleKey, 'code:'));
+            return;
+        }
+        throw ValidationException::withMessages(['scoring_rule' => 'Seleccioná una puntuación válida.']);
     }
 
     private function createSlotElimination(FiveQuillasPhase $phase, ?FiveQuillasPhase $previous): int
@@ -492,10 +546,27 @@ class FiveQuillasCompetitionService
             $direct->each(fn ($entry, $index) => $seeds[$index + 1] = $entry);
             $qualified->each(fn ($entry, $index) => $seeds[$directCount + 1 + $index] = $entry);
         } else {
-            $ordered = $phase->seeding_method === 'national_ranking'
-                ? $source->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->values()
-                : $source->values();
-            $ordered->take($size)->each(fn ($entry, $index) => $seeds[$index + 1] = $entry);
+            if ($phase->seeding_method === 'number_draw') {
+                $missing = $source->filter(fn ($entry): bool => ! $entry->seed || $entry->seed > $size);
+                if ($missing->isNotEmpty()) {
+                    throw ValidationException::withMessages([
+                        'draw_numbers' => 'Asigná un número de sorteo válido a cada clasificado antes de preparar la grilla.',
+                    ]);
+                }
+                if ($source->pluck('seed')->duplicates()->isNotEmpty()) {
+                    throw ValidationException::withMessages([
+                        'draw_numbers' => 'Los números de sorteo no pueden repetirse.',
+                    ]);
+                }
+                $source->each(fn ($entry) => $seeds[(int) $entry->seed] = $entry);
+            } else {
+                $ordered = match ($phase->seeding_method) {
+                    'national_ranking' => $source->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->values(),
+                    'previous_results' => $this->orderByPreviousPhaseResult($phase, $source),
+                    default => $source->values(),
+                };
+                $ordered->take($size)->each(fn ($entry, $index) => $seeds[$index + 1] = $entry);
+            }
         }
 
         foreach ($seeds as $seed => $entry) {
@@ -517,11 +588,7 @@ class FiveQuillasCompetitionService
                 $created[$round][$order] = $phase->matches()->create([
                     'round_number' => $round,
                     'bracket_order' => $order,
-                    'label' => $round === $rounds
-                        ? 'Final'
-                        : ($round === $roundsToCreate && $roundsToCreate < $rounds
-                            ? 'Clasificación · Partido '.$order
-                            : 'Ronda '.$round.' · Partido '.$order),
+                    'label' => $this->eliminationRoundLabel($size, $round).' '.$order,
                     'next_match_id' => $next?->id,
                     'next_match_position' => $next ? ($order % 2 === 1 ? 1 : 2) : null,
                     'is_public' => (bool) $phase->is_public,
@@ -545,8 +612,19 @@ class FiveQuillasCompetitionService
     {
         if ($phase->phase_type === 'zones') {
             return $phase->groups()->with('groupEntries.entry')->get()->flatMap(
-                fn ($group) => $group->groupEntries->whereIn('final_place', [1, 2])->pluck('entry')
-            )->filter()->unique('id')->values();
+                fn ($group) => $group->groupEntries->whereIn('final_place', [1, 2])
+            )->filter(fn ($row): bool => (bool) $row->entry)
+                ->sort(function ($left, $right): int {
+                    foreach ([
+                        [(int) $left->final_place, (int) $right->final_place, 'asc'],
+                        [(int) $left->sets_difference, (int) $right->sets_difference, 'desc'],
+                        [(float) $left->points_average, (float) $right->points_average, 'desc'],
+                        [(int) $left->points_for, (int) $right->points_for, 'desc'],
+                    ] as [$a, $b, $direction]) {
+                        if ($a !== $b) { return $direction === 'asc' ? $a <=> $b : $b <=> $a; }
+                    }
+                    return (int) $left->entry_id <=> (int) $right->entry_id;
+                })->pluck('entry')->unique('id')->values();
         }
         $stored = collect(data_get($phase->settings, 'qualified_entry_ids', []));
         $byes = collect(data_get($phase->settings, 'play_in_bye_entry_ids', []));
@@ -836,7 +914,21 @@ class FiveQuillasCompetitionService
         }
 
         $matches = $phase->matches()->where('status', 'completed')->get();
-        $ordered = $eliminated->sort(function ($left, $right) use ($matches): int {
+        $zoneRows = $phase->phase_type === 'zones'
+            ? $phase->groups()->with('groupEntries')->get()->flatMap->groupEntries->keyBy('entry_id')
+            : collect();
+        $ordered = $eliminated->sort(function ($left, $right) use ($matches, $zoneRows, $phase): int {
+            if ($phase->phase_type === 'zones') {
+                $leftRow = $zoneRows->get($left->id);
+                $rightRow = $zoneRows->get($right->id);
+                foreach ([
+                    [(int) ($leftRow?->final_place ?? 99), (int) ($rightRow?->final_place ?? 99), 'asc'],
+                    [(int) ($leftRow?->sets_difference ?? 0), (int) ($rightRow?->sets_difference ?? 0), 'desc'],
+                    [(float) ($leftRow?->points_average ?? 0), (float) ($rightRow?->points_average ?? 0), 'desc'],
+                ] as [$a, $b, $direction]) {
+                    if ($a !== $b) { return $direction === 'asc' ? $a <=> $b : $b <=> $a; }
+                }
+            }
             $leftStats = $this->entryPerformance($matches, (int) $left->id);
             $rightStats = $this->entryPerformance($matches, (int) $right->id);
             foreach (['wins', 'sets_difference', 'average', 'points_for'] as $field) {
@@ -882,6 +974,12 @@ class FiveQuillasCompetitionService
     private function assignPointsForPlacement(Tournament $tournament, $registration, int $place): void
     {
         if (! $registration) { return; }
+        // La inscripción es el registro de desempeño. Si ya fue puntuada, se conserva
+        // la asignación existente y se evita crear una segunda acreditación.
+        if ($registration->points !== null
+            && (filled($registration->result_code) || filled($registration->tournament_instance_id))) {
+            return;
+        }
         $scoring = app(TournamentScoringService::class);
         $rule = $this->ruleForPlacement($scoring->getRules($tournament), $place);
         if (! $rule) { return; }
@@ -890,6 +988,46 @@ class FiveQuillasCompetitionService
         } elseif (! empty($rule['code'])) {
             $scoring->assignByCode($registration, (string) $rule['code']);
         }
+    }
+
+    private function orderByPreviousPhaseResult(FiveQuillasPhase $phase, $source)
+    {
+        $previous = $phase->competition->phases()->where('is_enabled', true)
+            ->where('sort_order', '<', $phase->sort_order)->orderByDesc('sort_order')->first();
+        if (! $previous || $previous->phase_type !== 'zones') {
+            return collect($source)->values();
+        }
+
+        $rows = $previous->groups()->with('groupEntries')->get()->flatMap->groupEntries->keyBy('entry_id');
+        return collect($source)->sort(function ($left, $right) use ($rows): int {
+            $a = $rows->get($left->id);
+            $b = $rows->get($right->id);
+            foreach ([
+                [(int) ($a?->final_place ?? 99), (int) ($b?->final_place ?? 99), 'asc'],
+                [(int) ($a?->sets_difference ?? 0), (int) ($b?->sets_difference ?? 0), 'desc'],
+                [(float) ($a?->points_average ?? 0), (float) ($b?->points_average ?? 0), 'desc'],
+                [(int) ($a?->points_for ?? 0), (int) ($b?->points_for ?? 0), 'desc'],
+            ] as [$leftValue, $rightValue, $direction]) {
+                if ($leftValue !== $rightValue) {
+                    return $direction === 'asc' ? $leftValue <=> $rightValue : $rightValue <=> $leftValue;
+                }
+            }
+            return (int) $left->id <=> (int) $right->id;
+        })->values();
+    }
+
+    private function eliminationRoundLabel(int $bracketSize, int $round): string
+    {
+        $players = max(2, intdiv($bracketSize, 2 ** ($round - 1)));
+        return match ($players) {
+            2 => 'Final',
+            4 => 'Semifinal',
+            8 => 'Cuartos de final',
+            16 => 'Octavos de final',
+            32 => 'Dieciseisavos de final',
+            64 => 'Treintaidosavos de final',
+            default => 'Ronda de '.$players,
+        };
     }
 
     private function loserEntryId(FiveQuillasMatch $match): ?int
