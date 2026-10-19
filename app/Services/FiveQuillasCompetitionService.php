@@ -840,6 +840,42 @@ class FiveQuillasCompetitionService
         });
     }
 
+    public function declareMatchWinner(FiveQuillasMatch $match, int $winnerEntryId): FiveQuillasMatch
+    {
+        return DB::transaction(function () use ($match, $winnerEntryId): FiveQuillasMatch {
+            $match->loadMissing(['phase.competition']);
+            $players = collect([$match->player_one_entry_id, $match->player_two_entry_id])->filter()->map(fn ($id): int => (int) $id);
+            if ($match->group_id || $match->is_bye || $players->count() !== 2 || ! $players->contains($winnerEntryId)) {
+                throw ValidationException::withMessages(['winner' => 'Seleccioná uno de los dos jugadores de la partida final.']);
+            }
+            $previousWinnerId = (int) ($match->winner_entry_id ?? 0);
+            if ($previousWinnerId && $previousWinnerId !== $winnerEntryId) {
+                $dependentIds = collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique();
+                if (FiveQuillasMatch::query()->whereIn('id', $dependentIds)->where('status', 'completed')->where('is_bye', false)->exists()) {
+                    throw ValidationException::withMessages(['winner' => 'Primero reiniciá el partido posterior que ya fue disputado.']);
+                }
+                foreach ($dependentIds as $dependentId) { $this->resetAutomaticByeChain((int) $dependentId); }
+                $this->removeAdvancedEntry($match->next_match_id, $match->next_match_position, $previousWinnerId);
+                $this->removeAdvancedEntry($match->loser_next_match_id, $match->loser_next_match_position, $this->loserEntryId($match));
+            }
+            $loserId = $players->first(fn (int $id): bool => $id !== $winnerEntryId);
+            $match->update([
+                'set_scores' => ['manual_winner' => true, 'sets' => []],
+                'player_one_actual_sets' => 0, 'player_two_actual_sets' => 0,
+                'player_one_computed_sets' => 0, 'player_two_computed_sets' => 0,
+                'player_one_points' => 0, 'player_two_points' => 0,
+                'winner_entry_id' => $winnerEntryId, 'status' => 'completed',
+            ]);
+            $this->advanceEntry($match->next_match_id, $match->next_match_position, $winnerEntryId);
+            $this->advanceEntry($match->loser_next_match_id, $match->loser_next_match_position, $loserId);
+            $this->resolveReadyByes(collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique());
+            $match->phase()->update(['status' => 'in_progress']);
+            $match->phase->competition()->update(['status' => 'in_progress']);
+            $this->completePhaseWhenReady($match->phase_id);
+            return $match->fresh();
+        });
+    }
+
     public function resetMatchResult(FiveQuillasMatch $match): FiveQuillasMatch
     {
         return DB::transaction(function () use ($match): FiveQuillasMatch {

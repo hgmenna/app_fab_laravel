@@ -658,6 +658,8 @@ class ManageTournamentCompetition extends Page
                     'players_label' => $this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)),
                     'player_one_name' => $match?->playerOne?->player?->full_name ?? 'Jugador 1',
                     'player_two_name' => $match?->playerTwo?->player?->full_name ?? 'Jugador 2',
+                    'declare_without_scores' => (bool) data_get($match?->set_scores, 'manual_winner', false),
+                    'declared_winner_id' => data_get($match?->set_scores, 'manual_winner') ? $match?->winner_entry_id : null,
                     ...collect(range(1, max(1, (int) ($match?->phase?->sets_to_play ?? 3))))
                         ->flatMap(fn (int $setNumber): array => [
                             'player_one_set_'.$setNumber => data_get($sets, ($setNumber - 1).'.player_one_points'),
@@ -704,19 +706,44 @@ class ManageTournamentCompetition extends Page
                     Hidden::make('players_label'),
                     Hidden::make('player_one_name'),
                     Hidden::make('player_two_name'),
+                    Toggle::make('declare_without_scores')->label('Proclamar ganador sin informar los resultados de los sets')
+                        ->live()->visible(fn (): bool => ! (bool) $match?->group_id)->columnSpanFull(),
+                    Select::make('declared_winner_id')->label('Ganador de la partida')
+                        ->options(array_filter([
+                            $match?->player_one_entry_id => $playerNames[1],
+                            $match?->player_two_entry_id => $playerNames[2],
+                        ]))->required(fn (Get $get): bool => (bool) $get('declare_without_scores'))
+                        ->visible(fn (Get $get): bool => (bool) $get('declare_without_scores'))->columnSpanFull(),
                     Grid::make($bestOf + 3)
                         ->schema([...$headers, ...$playerRow(1), ...$playerRow(2)])
+                        ->visible(fn (Get $get): bool => ! (bool) $get('declare_without_scores'))
                         ->columnSpanFull(),
                 ];
             })
             ->modalHeading(fn (array $arguments): string => 'Resultado · '.$this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)))
-            ->modalDescription('Cargá los sets que ya finalizaron. Podés guardar avances parciales; el sistema solo proclama al ganador cuando corresponda.')
+            ->modalDescription('Cargá los sets que ya finalizaron o, en la Etapa Final, elegí la opción para proclamar directamente al ganador sin informar los resultados de los sets.')
             ->modalWidth('3xl')
             ->action(function (array $data, array $arguments, Action $action): void {
                 $match = FiveQuillasMatch::query()
                     ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
                     ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')->where('is_bye', false)
                     ->findOrFail((int) $arguments['matchId']);
+                if ((bool) ($data['declare_without_scores'] ?? false)) {
+                    try {
+                        $updatedMatch = app(FiveQuillasCompetitionService::class)->declareMatchWinner(
+                            $match, (int) ($data['declared_winner_id'] ?? 0),
+                        );
+                    } catch (ValidationException $exception) {
+                        Notification::make()->danger()->title('No se pudo proclamar al ganador')
+                            ->body(collect($exception->errors())->flatten()->first() ?? 'Revisá el jugador seleccionado.')
+                            ->persistent()->send();
+                        $action->halt();
+                        return;
+                    }
+                    Notification::make()->success()->title('Ganador proclamado')
+                        ->body('El jugador avanzó al cruce siguiente sin registrar resultados por set.')->send();
+                    return;
+                }
                 $scores = collect(range(1, max(1, (int) $match->phase()->value('sets_to_play'))))
                     ->map(function (int $setNumber) use ($data): array {
                         $one = $data['player_one_set_'.$setNumber] ?? null;
