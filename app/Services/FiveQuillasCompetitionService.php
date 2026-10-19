@@ -963,6 +963,26 @@ class FiveQuillasCompetitionService
         }
     }
 
+    public function recalculateFinalStandings(FiveQuillasCompetition $competition): void
+    {
+        DB::transaction(function () use ($competition): void {
+            $competition->entries()->update(['final_position' => null]);
+            $phases = $competition->phases()->where('is_enabled', true)
+                ->where('status', 'completed')->orderBy('sort_order')->get();
+
+            foreach ($phases as $phase) {
+                $hasLaterPhase = $competition->phases()->where('is_enabled', true)
+                    ->where('sort_order', '>', $phase->sort_order)->exists();
+
+                if (! $hasLaterPhase && $phase->phase_type === 'bracket') {
+                    $this->assignFinalPoints($phase);
+                } else {
+                    $this->assignPhaseEliminationPoints($phase);
+                }
+            }
+        });
+    }
+
     private function assignFinalPoints(FiveQuillasPhase $phase): void
     {
         $tournament = $phase->competition->tournament;
