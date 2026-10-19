@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\FiveQuillasCompetition;
+use App\Models\FiveQuillasEntry;
 use App\Models\FiveQuillasGroup;
 use App\Models\FiveQuillasMatch;
 use App\Models\FiveQuillasPhase;
@@ -370,6 +371,7 @@ class FiveQuillasCompetitionService
             }
             if ($phase->matches()->exists()) {
                 $hasStartedMatches = $phase->matches()
+                    ->where('is_bye', false)
                     ->where(function ($query): void {
                         $query->whereIn('status', ['called', 'in_progress', 'completed'])
                             ->orWhereNotNull('winner_entry_id')
@@ -382,8 +384,8 @@ class FiveQuillasCompetitionService
                     ]);
                 }
 
-                // La grilla puede haberse creado antes de que terminara la fase previa.
-                // En ese caso se vuelve a construir con los clasificados actuales.
+                // Los pases libres se resuelven automáticamente como completados. No son
+                // partidos disputados y no deben impedir reconstruir una grilla incorrecta.
                 $phase->matches()->delete();
             }
 

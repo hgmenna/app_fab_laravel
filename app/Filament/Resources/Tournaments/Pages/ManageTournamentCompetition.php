@@ -515,13 +515,28 @@ class ManageTournamentCompetition extends Page
             })
             ->requiresConfirmation()
             ->modalDescription('Actualiza los clasificados, incorpora quienes ingresan directamente en esta fase y vuelve a crear los cruces. Solo puede hacerse antes de iniciar los partidos. Si la fase se arma por sorteo, cargá aquí el número obtenido por cada jugador.')
-            ->action(function (array $data, array $arguments): void {
-                $phase = $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
-                    ->where('phase_type', '!=', 'zones')->where('is_enabled', true)->firstOrFail();
-                if ($phase->seeding_method === 'number_draw') {
-                    app(FiveQuillasCompetitionService::class)->saveDrawNumbers($phase, $data['draws'] ?? []);
+            ->action(function (Action $action, array $data, array $arguments): void {
+                try {
+                    $phase = $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
+                        ->where('phase_type', '!=', 'zones')->where('is_enabled', true)->firstOrFail();
+                    if ($phase->seeding_method === 'number_draw') {
+                        app(FiveQuillasCompetitionService::class)->saveDrawNumbers($phase, $data['draws'] ?? []);
+                    }
+                    $count = app(FiveQuillasCompetitionService::class)->preparePhase($phase);
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('No se pudo actualizar la grilla')
+                        ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
+                        ->persistent()->send();
+                    $action->halt();
+                    return;
+                } catch (\Throwable $exception) {
+                    report($exception);
+                    Notification::make()->danger()->title('No se pudo actualizar la grilla')
+                        ->body('Ocurrió un error al reconstruir los cruces. El detalle quedó registrado para su revisión.')
+                        ->persistent()->send();
+                    $action->halt();
+                    return;
                 }
-                $count = app(FiveQuillasCompetitionService::class)->preparePhase($phase);
                 Notification::make()->success()->title('Fase preparada')
                     ->body($count > 0 ? $count.' partidos quedaron creados.' : 'La fase no necesitó partidos adicionales.')->send();
             });
