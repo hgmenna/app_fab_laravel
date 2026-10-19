@@ -25,6 +25,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Storage;
 
 class ManageTournamentCompetition extends Page
 {
@@ -37,7 +38,11 @@ class ManageTournamentCompetition extends Page
     public function mount(int|string $record): void
     {
         $this->record = $this->resolveRecord($record);
-        $this->record->loadMissing(['discipline', 'type', 'slots']);
+        $this->record->loadMissing([
+            'discipline', 'type.publicationFederation', 'slots',
+            'venue.city.state.federation', 'externalVenueState.federation',
+            'tournamentModalities.modality',
+        ]);
         abort_unless($this->record->discipline?->code === 'five_quillas', 404);
     }
 
@@ -888,6 +893,9 @@ class ManageTournamentCompetition extends Page
     {
         $competition = $this->competition();
         $entries = $competition?->entries->where('status', '!=', 'withdrawn') ?? collect();
+        $logoPath = $this->record->publicationLogoPath();
+        $start = $this->record->start_date;
+        $end = $this->record->end_date;
 
         return [
             'competition' => $competition,
@@ -900,6 +908,19 @@ class ManageTournamentCompetition extends Page
             'publicPageUrl' => $competition?->is_public
                 ? route('five-quillas-competition.page', ['slug' => $competition->public_slug])
                 : null,
+            'tournamentInfo' => [
+                'name' => $this->record->name,
+                'venue' => $this->record->venueName(),
+                'date' => $start
+                    ? ($end && ! $end->isSameDay($start)
+                        ? $start->format('d/m/Y').' al '.$end->format('d/m/Y')
+                        : $start->format('d/m/Y'))
+                    : 'Sin fecha',
+                'type' => $this->record->type?->name ?? 'Sin tipo',
+                'official' => $this->record->type?->is_official ? 'Oficial' : 'No oficial',
+                'modality' => $this->record->tournamentModalities->pluck('modality.name')->filter()->implode(', ') ?: 'Sin modalidad',
+                'logo' => $logoPath ? Storage::disk('public_path')->url($logoPath) : null,
+            ],
         ];
     }
 }

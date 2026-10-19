@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\FiveQuillasCompetition;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Storage;
 
 class FiveQuillasCompetitionPublicController extends Controller
 {
@@ -13,7 +14,11 @@ class FiveQuillasCompetitionPublicController extends Controller
             ->where('public_slug', $slug)
             ->where('is_public', true)
             ->with([
-                'tournament:id,name,start_date,end_date,flyer_path',
+                'tournament',
+                'tournament.type.publicationFederation',
+                'tournament.venue.city.state.federation',
+                'tournament.externalVenueState.federation',
+                'tournament.tournamentModalities.modality',
                 'phases' => fn ($query) => $query->where('is_public', true)->where('is_enabled', true),
                 'phases.groups' => fn ($query) => $query->where('is_public', true),
                 'phases.groups.slot:id,name,starts_at',
@@ -31,12 +36,20 @@ class FiveQuillasCompetitionPublicController extends Controller
             ])->firstOrFail();
 
         $showFinalStandings = (bool) data_get($competition->settings, 'public.show_final_standings', true);
+        $tournament = $competition->tournament;
+        $logoPath = $tournament->publicationLogoPath();
 
         return response()->json([
             'data' => [
                 'slug' => $competition->public_slug,
                 'status' => $competition->status,
                 'torneo' => $competition->tournament->name,
+                'sede' => $tournament->venueName(),
+                'fecha' => $this->dateLabel($tournament->start_date, $tournament->end_date),
+                'tipo_torneo' => $tournament->type?->name,
+                'caracter' => $tournament->type?->is_official ? 'Oficial' : 'No oficial',
+                'modalidad' => $tournament->tournamentModalities->pluck('modality.name')->filter()->implode(', '),
+                'logo' => $logoPath ? Storage::disk('public_path')->url($logoPath) : null,
                 'fecha_inicio' => $competition->tournament->start_date?->toDateString(),
                 'fecha_fin' => $competition->tournament->end_date?->toDateString(),
                 'informacion_disponible' => $competition->phases->contains(
@@ -107,6 +120,17 @@ class FiveQuillasCompetitionPublicController extends Controller
                 ])->values(),
             ],
         ])->withHeaders(['Cache-Control' => 'no-store', 'Access-Control-Allow-Origin' => '*']);
+    }
+
+    private function dateLabel($start, $end): string
+    {
+        if (! $start) {
+            return 'Sin fecha';
+        }
+
+        return $end && ! $end->isSameDay($start)
+            ? $start->format('d/m/Y').' al '.$end->format('d/m/Y')
+            : $start->format('d/m/Y');
     }
 
     private function finalInstance(FiveQuillasCompetition $competition, $entry): string
