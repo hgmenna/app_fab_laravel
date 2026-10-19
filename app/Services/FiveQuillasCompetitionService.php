@@ -597,7 +597,11 @@ class FiveQuillasCompetitionService
                 ]);
             }
         }
-        $pairs = data_get($phase->settings, 'bracket_pairs', $this->officialBracketPairs($size));
+        $pairs = collect(data_get($phase->settings, 'bracket_pairs', []))->values()->all();
+        if (count($pairs) !== intdiv($size, 2)) {
+            $pairs = $this->officialBracketPairs($size);
+            $phase->update(['settings' => array_merge($phase->settings ?? [], ['bracket_pairs' => $pairs])]);
+        }
         foreach ($pairs as $index => $pair) {
             $match = $created[1][$index + 1];
             $match->update([
@@ -605,6 +609,16 @@ class FiveQuillasCompetitionService
                 'player_two_entry_id' => ($seeds[$pair[1]] ?? null)?->id,
             ]);
             $this->resolveBye($match->fresh());
+        }
+        $assignedSlots = $phase->matches()->where('round_number', 1)
+            ->get(['player_one_entry_id', 'player_two_entry_id'])
+            ->flatMap(fn ($match): array => [$match->player_one_entry_id, $match->player_two_entry_id])
+            ->filter()->unique()->count();
+        $expectedAssignments = min(count($seeds), $size);
+        if ($assignedSlots !== $expectedAssignments) {
+            throw ValidationException::withMessages([
+                'phase' => "La grilla esperaba {$expectedAssignments} clasificados y pudo ubicar {$assignedSlots}. Revisá la configuración del cuadro.",
+            ]);
         }
         $this->resolveReadyByes($phase->matches()->pluck('id'));
         return $phase->matches()->count();

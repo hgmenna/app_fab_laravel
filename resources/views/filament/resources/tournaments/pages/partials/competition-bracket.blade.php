@@ -9,15 +9,21 @@
             @foreach($matchesByRound as $roundMatches)
                 <section class="fq-round">
                     @foreach($roundMatches->sortBy('bracket_order') as $match)
+                        @php
+                            $pair = $match->round_number === 1
+                                ? data_get($match->phase?->settings, 'bracket_pairs.'.($match->bracket_order - 1), [])
+                                : [];
+                            $numberOne = $match->playerOne?->seed ?? ($pair[0] ?? '—');
+                            $numberTwo = $match->playerTwo?->seed ?? ($pair[1] ?? '—');
+                        @endphp
                         <div class="fq-match-shell">
                             <article class="fq-match">
-                                <b class="fq-match-title">{{ $match->label === 'Partido de recuperación' ? 'Perdedores' : $match->label }}</b>
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_one_entry_id ? 'is-winner' : '' }}">
-                                    <span><b>{{ $match->playerOne?->seed ?? '—' }}</b> · {{ $match->playerOne?->player?->full_name ?? ($match->is_bye ? 'LIBRE' : 'A definir') }}</span>
+                                    <span><b>{{ $numberOne }}</b> · {{ $match->playerOne?->player?->full_name ?? 'LIBRE' }}</span>
                                     <span>{{ $match->status === 'completed' ? $match->player_one_computed_sets : '—' }}</span>
                                 </div>
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_two_entry_id ? 'is-winner' : '' }}">
-                                    <span><b>{{ $match->playerTwo?->seed ?? '—' }}</b> · {{ $match->playerTwo?->player?->full_name ?? ($match->is_bye ? 'LIBRE' : 'A definir') }}</span>
+                                    <span><b>{{ $numberTwo }}</b> · {{ $match->playerTwo?->player?->full_name ?? 'LIBRE' }}</span>
                                     <span>{{ $match->status === 'completed' ? $match->player_two_computed_sets : '—' }}</span>
                                 </div>
                                 @if($match->scheduled_at)<small class="fq-match-time">{{ $match->scheduled_at->format('d/m/y · H:i') }}</small>@endif
