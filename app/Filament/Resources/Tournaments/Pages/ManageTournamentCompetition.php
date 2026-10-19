@@ -514,7 +514,7 @@ class ManageTournamentCompetition extends Page
                 ];
             })
             ->requiresConfirmation()
-            ->modalDescription('Actualiza los clasificados, incorpora quienes ingresan directamente en esta fase y vuelve a crear los cruces. Solo puede hacerse antes de iniciar los partidos. Si la fase se arma por sorteo, cargá aquí el número obtenido por cada jugador.')
+            ->modalDescription('Vuelve a tomar los clasificados y reconstruye toda la grilla. Si ya cargaste resultados en esta fase, serán eliminados para aplicar las correcciones realizadas en las etapas anteriores. Si la fase se arma por sorteo, cargá aquí el número obtenido por cada jugador.')
             ->action(function (Action $action, array $data, array $arguments): void {
                 try {
                     $phase = $this->competition()->phases()->whereKey((int) $arguments['phaseId'])

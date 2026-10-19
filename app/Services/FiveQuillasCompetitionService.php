@@ -370,22 +370,17 @@ class FiveQuillasCompetitionService
                 throw ValidationException::withMessages(['phase' => 'Las zonas se confeccionan con la acción Cargar zonas.']);
             }
             if ($phase->matches()->exists()) {
-                $hasStartedMatches = $phase->matches()
-                    ->where('is_bye', false)
-                    ->where(function ($query): void {
-                        $query->whereIn('status', ['called', 'in_progress', 'completed'])
-                            ->orWhereNotNull('winner_entry_id')
-                            ->orWhereNotNull('set_scores');
-                    })->exists();
-
-                if ($hasStartedMatches) {
-                    throw ValidationException::withMessages([
-                        'phase' => 'La grilla ya tiene partidos iniciados. Reiniciá esos resultados antes de volver a prepararla.',
-                    ]);
-                }
-
-                // Los pases libres se resuelven automáticamente como completados. No son
-                // partidos disputados y no deben impedir reconstruir una grilla incorrecta.
+                // Esta acción se usa también después de corregir resultados de zonas.
+                // La confirmación implica reconstruir la fase completa, incluidos los
+                // resultados que pudiera contener la grilla anterior.
+                $phaseEntryIds = $phase->matches()->get()
+                    ->flatMap(fn ($match): array => [
+                        $match->player_one_entry_id, $match->player_two_entry_id, $match->winner_entry_id,
+                    ])->filter()->unique();
+                $phase->competition->entries()->whereIn('id', $phaseEntryIds)->update([
+                    'final_position' => null,
+                    'status' => 'qualified',
+                ]);
                 $phase->matches()->delete();
             }
 
@@ -619,7 +614,12 @@ class FiveQuillasCompetitionService
     {
         $size = (int) data_get($phase->settings, 'bracket_size', 16);
         $rounds = (int) log($size, 2);
-        $roundsToCreate = min($rounds, max(1, (int) data_get($phase->settings, 'stop_after_rounds', $rounds)));
+        // Los cuadros finales normales siempre contienen todas las rondas desde el
+        // momento en que se preparan. El corte parcial se reserva exclusivamente para
+        // la fase especial Primera Nacional del Circuito Argentino.
+        $roundsToCreate = $phase->code === 'national'
+            ? min($rounds, max(1, (int) data_get($phase->settings, 'stop_after_rounds', $rounds)))
+            : $rounds;
         $created = [];
         for ($round = $roundsToCreate; $round >= 1; $round--) {
             $count = intdiv($size, 2 ** $round);
