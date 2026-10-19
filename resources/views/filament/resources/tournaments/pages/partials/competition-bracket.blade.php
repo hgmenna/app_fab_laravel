@@ -1,4 +1,6 @@
-@php($matchesByRound = collect($matches)->groupBy('round_number')->sortKeys())
+@php
+    $matchesByRound = collect($matches)->groupBy('round_number')->sortKeys();
+@endphp
 @if($matchesByRound->isEmpty())
     <div class="fq-empty">Todavía no hay partidos preparados para esta sección.</div>
 @else

@@ -17,7 +17,9 @@
             <div class="fq-card"><div class="fq-label">Fases</div><div class="fq-value">{{ $competition->phases->count() }}</div></div>
         </div>
 
-        @php($enabledPhases = $competition->phases->where('is_enabled', true)->values())
+        @php
+            $enabledPhases = $competition->phases->where('is_enabled', true)->values();
+        @endphp
         <div x-data="{ activePhase: @js((string) optional($enabledPhases->first())->id) }">
         <div class="fq-phases" role="tablist" aria-label="Fases del torneo">
             @foreach($competition->phases as $phase)
@@ -29,7 +31,9 @@
             @endforeach
         </div>
 
-        @php($pendingCount = $entriesByPhase->sum(fn($entries) => $entries->count()))
+        @php
+            $pendingCount = $entriesByPhase->sum(fn($entries) => $entries->count());
+        @endphp
         <details class="fq-pending">
             <summary>
                 <span>Jugadores pendientes de asignación</span>
@@ -51,7 +55,9 @@
             </div>
         </details>
 
-        @php($zonePhase = $competition->phases->first(fn($phase) => $phase->phase_type === 'zones' && $phase->is_enabled))
+        @php
+            $zonePhase = $competition->phases->first(fn($phase) => $phase->phase_type === 'zones' && $phase->is_enabled);
+        @endphp
         @if($zonePhase)
             <section class="fq-phase-panel" x-show="activePhase === @js((string)$zonePhase->id)" x-cloak>
             <div class="fq-phase-heading">
@@ -61,8 +67,10 @@
                 @endif
             </div>
         @if($zonePhase->groups->isNotEmpty())
-            @php($groupsBySlot = $zonePhase->groups->groupBy(fn($group) => (string)($group->slot_id ?? 0)))
-            @php($firstSlotKey = (string)$groupsBySlot->keys()->first())
+            @php
+                $groupsBySlot = $zonePhase->groups->groupBy(fn($group) => (string)($group->slot_id ?? 0));
+                $firstSlotKey = (string) $groupsBySlot->keys()->first();
+            @endphp
             <div x-data="{ activeSlot: @js($firstSlotKey) }">
                 <div class="fq-slot-tabs">
                     @foreach($groupsBySlot as $slotKey => $slotGroups)
@@ -79,18 +87,22 @@
                                 <div class="fq-zone-body">
                                     <div class="fq-zone-bracket-wrap">
                                     <div class="fq-zone-bracket">
-                                        @php($firstPlace = $group->groupEntries->firstWhere('final_place', 1)?->entry?->player?->full_name)
-                                        @php($secondPlace = $group->groupEntries->firstWhere('final_place', 2)?->entry?->player?->full_name)
+                                        @php
+                                            $firstPlace = $group->groupEntries->firstWhere('final_place', 1)?->entry?->player?->full_name;
+                                            $secondPlace = $group->groupEntries->firstWhere('final_place', 2)?->entry?->player?->full_name;
+                                        @endphp
                                         @foreach($group->matches->sortBy(fn($match) => [$match->round_number, $match->bracket_order]) as $match)
-                                            @php($zoneMatchClass = match($match->label) {
+                                            @php
+                                                $zoneMatchClass = match($match->label) {
                                                 'Partido 1' => 'z-m1',
                                                 'Partido 2' => 'z-m2',
                                                 'Definición del primer puesto' => 'z-win',
                                                 'Partido de recuperación', 'Perdedores' => 'z-loss',
                                                 'Definición del segundo puesto' => 'z-second',
                                                 default => '',
-                                            })
-                                            @php($matchSets = collect(data_get($match->set_scores, 'sets', [])))
+                                                };
+                                                $matchSets = collect(data_get($match->set_scores, 'sets', []));
+                                            @endphp
                                             <div class="fq-match-shell {{ $zoneMatchClass }}">
                                                 <article class="fq-match">
                                                     <b class="fq-match-title">{{ $match->label === 'Partido de recuperación' ? 'Perdedores' : $match->label }}</b>
@@ -154,8 +166,10 @@
         @endif
 
         @foreach($competition->phases->where('phase_type', '!=', 'zones')->where('is_enabled', true) as $phase)
-            @php($previousPhase = $competition->phases->where('is_enabled', true)->where('sort_order', '<', $phase->sort_order)->sortByDesc('sort_order')->first())
-            @php($phaseSchedules = collect(data_get($phase->settings, 'schedules', []))->values())
+            @php
+                $previousPhase = $competition->phases->where('is_enabled', true)->where('sort_order', '<', $phase->sort_order)->sortByDesc('sort_order')->first();
+                $phaseSchedules = collect(data_get($phase->settings, 'schedules', []))->values();
+            @endphp
             @php
                 $scheduledMatchIds = $phaseSchedules->flatMap(function ($schedule) use ($phase) {
                     return $phase->matches->filter(function ($match) use ($schedule) {
