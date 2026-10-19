@@ -539,14 +539,24 @@ class FiveQuillasCompetitionService
         $source = collect($source)->unique('id')->values();
         $seeds = [];
 
-        if ((int) data_get($phase->settings, 'direct_entry_seed_count', 0) > 0) {
-            $directCount = (int) data_get($phase->settings, 'direct_entry_seed_count');
-            $direct = $source->where('entry_phase_id', $phase->id)
-                ->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->take($directCount)->values();
+        $configuredDirectCount = (int) data_get($phase->settings, 'direct_entry_seed_count', 0);
+        $direct = $configuredDirectCount > 0
+            ? $source->where('entry_phase_id', $phase->id)
+                ->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)
+                ->take($configuredDirectCount)->values()
+            : collect();
+
+        if ($direct->isNotEmpty()) {
+            // Solo se reservan posiciones para los jugadores que realmente ingresan
+            // en esta fase. Una configuración antigua podía reservar 32 lugares aun
+            // cuando no había ingresos directos y desplazaba a todos los clasificados
+            // a las posiciones 33 en adelante, fuera de una grilla de 32.
+            $directCount = $direct->count();
             $qualified = $source->where('entry_phase_id', '!=', $phase->id)
                 ->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->values();
             $direct->each(fn ($entry, $index) => $seeds[$index + 1] = $entry);
-            $qualified->each(fn ($entry, $index) => $seeds[$directCount + 1 + $index] = $entry);
+            $qualified->take(max(0, $size - $directCount))
+                ->each(fn ($entry, $index) => $seeds[$directCount + 1 + $index] = $entry);
         } else {
             if ($phase->seeding_method === 'number_draw') {
                 $missing = $source->filter(fn ($entry): bool => ! $entry->seed || $entry->seed > $size);
