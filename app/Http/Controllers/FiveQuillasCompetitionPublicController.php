@@ -25,11 +25,11 @@ class FiveQuillasCompetitionPublicController extends Controller
                 'phases.groups.groupEntries.entry.player:id,first_name,last_name,club_id',
                 'phases.groups.groupEntries.entry.player.club:id,name,short_name',
                 'phases.matches' => fn ($query) => $query->where('is_public', true),
-                'phases.matches.playerOne.player:id,first_name,last_name',
-                'phases.matches.playerTwo.player:id,first_name,last_name',
-                'phases.matches.winner.player:id,first_name,last_name',
+                'phases.matches.playerOne.player:id,first_name,last_name,photo_path',
+                'phases.matches.playerTwo.player:id,first_name,last_name,photo_path',
+                'phases.matches.winner.player:id,first_name,last_name,photo_path',
                 'entries' => fn ($query) => $query->whereNotNull('final_position')->orderBy('final_position'),
-                'entries.player:id,first_name,last_name,club_id,category_id',
+                'entries.player:id,first_name,last_name,club_id,category_id,photo_path',
                 'entries.player.club:id,name,short_name',
                 'entries.player.category:id,name,code',
                 'entries.registration:id,points,penalty_points',
@@ -38,6 +38,10 @@ class FiveQuillasCompetitionPublicController extends Controller
         $showFinalStandings = (bool) data_get($competition->settings, 'public.show_final_standings', true);
         $tournament = $competition->tournament;
         $logoPath = $tournament->publicationLogoPath();
+        $championEntry = $competition->entries->firstWhere('final_position', 1)
+            ?: $competition->phases->where('phase_type', '!=', 'zones')->sortByDesc('sort_order')
+                ->flatMap->matches->where('status', 'completed')->sortByDesc('round_number')->first()?->winner;
+        $championPhoto = $championEntry?->player?->photo_path;
 
         return response()->json([
             'data' => [
@@ -50,6 +54,10 @@ class FiveQuillasCompetitionPublicController extends Controller
                 'caracter' => $tournament->type?->is_official ? 'Oficial' : 'No oficial',
                 'modalidad' => $tournament->tournamentModalities->pluck('modality.name')->filter()->implode(', '),
                 'logo' => $logoPath ? Storage::disk('public_path')->url($logoPath) : null,
+                'campeon' => $championEntry?->player ? [
+                    'nombre' => $championEntry->player->full_name,
+                    'foto' => $championPhoto ? Storage::disk('public_path')->url($championPhoto) : null,
+                ] : null,
                 'fecha_inicio' => $competition->tournament->start_date?->toDateString(),
                 'fecha_fin' => $competition->tournament->end_date?->toDateString(),
                 'informacion_disponible' => $competition->phases->contains(

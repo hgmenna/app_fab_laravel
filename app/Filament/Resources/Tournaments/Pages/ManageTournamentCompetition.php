@@ -331,7 +331,7 @@ class ManageTournamentCompetition extends Page
     {
         return FiveQuillasCompetition::query()
             ->where('tournament_id', $this->record->id)
-            ->with(['phases.groups.slot', 'phases.groups.groupEntries.entry.player.club', 'phases.groups.matches.playerOne.player', 'phases.groups.matches.playerTwo.player', 'phases.matches.playerOne.player', 'phases.matches.playerTwo.player', 'entries.player.club', 'entries.player.category', 'entries.sourceSlot', 'entries.entryPhase', 'entries.registration'])
+            ->with(['phases.groups.slot', 'phases.groups.groupEntries.entry.player.club', 'phases.groups.matches.playerOne.player', 'phases.groups.matches.playerTwo.player', 'phases.matches.playerOne.player', 'phases.matches.playerTwo.player', 'phases.matches.winner.player', 'entries.player.club', 'entries.player.category', 'entries.sourceSlot', 'entries.entryPhase', 'entries.registration'])
             ->first();
     }
 
@@ -896,6 +896,10 @@ class ManageTournamentCompetition extends Page
         $logoPath = $this->record->publicationLogoPath();
         $start = $this->record->start_date;
         $end = $this->record->end_date;
+        $championEntry = $competition?->entries->firstWhere('final_position', 1)
+            ?: $competition?->phases->where('phase_type', '!=', 'zones')->sortByDesc('sort_order')
+                ->flatMap->matches->where('status', 'completed')->sortByDesc('round_number')->first()?->winner;
+        $championPhoto = $championEntry?->player?->photo_path;
 
         return [
             'competition' => $competition,
@@ -921,6 +925,10 @@ class ManageTournamentCompetition extends Page
                 'modality' => $this->record->tournamentModalities->pluck('modality.name')->filter()->implode(', ') ?: 'Sin modalidad',
                 'logo' => $logoPath ? Storage::disk('public_path')->url($logoPath) : null,
             ],
+            'champion' => $championEntry?->player ? [
+                'name' => $championEntry->player->full_name,
+                'photo' => $championPhoto ? Storage::disk('public_path')->url($championPhoto) : null,
+            ] : null,
         ];
     }
 }
