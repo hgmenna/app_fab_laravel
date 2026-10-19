@@ -413,7 +413,35 @@ class FiveQuillasCompetitionService
                 return $this->createPlayIn($phase, $source);
             }
 
-            $seeded = $this->seedBracketEntries($phase, $source);
+            if ($previous?->phase_type === 'zones'
+                && in_array($phase->seeding_method, ['previous_results', 'manual'], true)) {
+                $size = (int) data_get($phase->settings, 'bracket_size', 16);
+                $seeded = [];
+                $this->orderByPreviousPhaseResult($phase, $source)->take($size)
+                    ->each(function ($entry, int $index) use (&$seeded): void {
+                        $seed = $index + 1;
+                        $entry->update(['seed' => $seed, 'status' => 'assigned']);
+                        $seeded[$seed] = $entry;
+                    });
+            } else {
+                $seeded = $this->seedBracketEntries($phase, $source);
+            }
+            if ($seeded === [] && $source->isNotEmpty()) {
+                $size = (int) data_get($phase->settings, 'bracket_size', 16);
+                $ordered = $previous?->phase_type === 'zones'
+                    ? $this->orderByPreviousPhaseResult($phase, $source)
+                    : collect($source)->values();
+                $ordered->take($size)->each(function ($entry, int $index) use (&$seeded): void {
+                    $seed = $index + 1;
+                    $entry->update(['seed' => $seed, 'status' => 'assigned']);
+                    $seeded[$seed] = $entry;
+                });
+            }
+            if ($seeded === []) {
+                throw ValidationException::withMessages([
+                    'phase' => 'No se encontraron jugadores clasificados para completar la grilla final.',
+                ]);
+            }
             $count = $this->createEliminationBracket($phase, $seeded);
             $phase->update(['status' => 'ready']);
 
