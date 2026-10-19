@@ -637,9 +637,7 @@ class FiveQuillasCompetitionService
     private function qualifiedEntriesFromPhase(FiveQuillasPhase $phase)
     {
         if ($phase->phase_type === 'zones') {
-            return $phase->groups()->with('groupEntries.entry')->get()->flatMap(
-                fn ($group) => $group->groupEntries->whereIn('final_place', [1, 2])
-            )->filter(fn ($row): bool => (bool) $row->entry)
+            return $this->qualifiedZoneRows($phase)
                 ->sort(function ($left, $right): int {
                     foreach ([
                         [(int) $left->final_place, (int) $right->final_place, 'asc'],
@@ -658,6 +656,37 @@ class FiveQuillasCompetitionService
         $winners = $phase->matches()->where('round_number', $lastRound)->where('status', 'completed')
             ->pluck('winner_entry_id')->filter();
         return $phase->competition->entries()->whereIn('id', $stored->merge($byes)->merge($winners)->unique())->get();
+    }
+
+    private function qualifiedZoneRows(FiveQuillasPhase $phase)
+    {
+        return $phase->groups()->with('groupEntries.entry')->get()->flatMap(function ($group) {
+            $rows = $group->groupEntries->filter(fn ($row): bool => (bool) $row->entry);
+            $qualified = $rows->whereIn('final_place', [1, 2]);
+            if ($qualified->count() === 2) {
+                return $qualified;
+            }
+
+            // Recuperación para zonas antiguas que quedaron marcadas como finalizadas
+            // sin haber persistido final_place. Se reconstruye la clasificación con
+            // los mismos criterios deportivos mostrados en la tabla de la zona.
+            $ordered = $rows->sort(function ($left, $right): int {
+                foreach ([
+                    [(int) $left->match_wins, (int) $right->match_wins],
+                    [(int) $left->sets_difference, (int) $right->sets_difference],
+                    [(float) $left->points_average, (float) $right->points_average],
+                    [(int) $left->points_for, (int) $right->points_for],
+                ] as [$a, $b]) {
+                    if ($a !== $b) { return $b <=> $a; }
+                }
+                return (int) $left->position <=> (int) $right->position;
+            })->values();
+            $ordered->each(function ($row, int $index): void {
+                if (! $row->final_place) { $row->update(['final_place' => $index + 1]); }
+            });
+
+            return $ordered->take(2);
+        })->filter(fn ($row): bool => (bool) $row->entry)->values();
     }
 
     public function recordMatchResult(FiveQuillasMatch $match, array $scores): FiveQuillasMatch

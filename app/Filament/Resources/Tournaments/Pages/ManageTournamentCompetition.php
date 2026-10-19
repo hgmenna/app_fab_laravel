@@ -523,6 +523,15 @@ class ManageTournamentCompetition extends Page
                         app(FiveQuillasCompetitionService::class)->saveDrawNumbers($phase, $data['draws'] ?? []);
                     }
                     $count = app(FiveQuillasCompetitionService::class)->preparePhase($phase);
+                    $assignedPlayers = $phase->matches()->where('round_number', 1)
+                        ->get(['player_one_entry_id', 'player_two_entry_id'])
+                        ->flatMap(fn ($match): array => [$match->player_one_entry_id, $match->player_two_entry_id])
+                        ->filter()->unique()->count();
+                    if ($assignedPlayers < 1) {
+                        throw ValidationException::withMessages([
+                            'phase' => 'No se pudo ubicar ningún clasificado. Revisá que las zonas tengan resultados finalizados.',
+                        ]);
+                    }
                 } catch (ValidationException $exception) {
                     Notification::make()->danger()->title('No se pudo actualizar la grilla')
                         ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
@@ -538,7 +547,7 @@ class ManageTournamentCompetition extends Page
                     return;
                 }
                 Notification::make()->success()->title('Fase preparada')
-                    ->body($count > 0 ? $count.' partidos quedaron creados.' : 'La fase no necesitó partidos adicionales.')->send();
+                    ->body($assignedPlayers.' clasificados fueron ubicados en '.$count.' cruces de la grilla.')->send();
             });
     }
 
