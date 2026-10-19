@@ -58,12 +58,25 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
                 ];
             });
 
+        $isBracket = $phase?->phase_type === 'bracket';
+        $maxRoundMatches = $isBracket
+            ? max(1, (int) $phase->matches->groupBy('round_number')->max(fn ($roundMatches) => $roundMatches->count()))
+            : 1;
+        // La grilla debe conservar todas sus rondas alineadas en una misma hoja.
+        // A3 horizontal aporta el alto necesario; cada ronda usa exactamente la
+        // misma altura total y centra sus partidos respecto de la ronda anterior.
+        $bracketSlotHeight = $isBracket
+            ? max(18, min(42, (int) floor(620 / $maxRoundMatches)))
+            : 42;
+
         return Pdf::loadView('pdf.five-quillas-competition-section', [
             'competition' => $competition,
             'phase' => $phase,
             'section' => $section,
             'logoFile' => $logoFile && is_file($logoFile) ? $logoFile : null,
             'finalRows' => $finalRows,
+            'maxRoundMatches' => $maxRoundMatches,
+            'bracketSlotHeight' => $bracketSlotHeight,
             'tournamentInfo' => [
                 'name' => $tournament->name,
                 'venue' => $tournament->venueName(),
@@ -75,7 +88,7 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
                 'official' => $tournament->type?->is_official ? 'Oficial' : 'No oficial',
                 'modality' => $tournament->tournamentModalities->pluck('modality.name')->filter()->implode(', ') ?: 'Sin modalidad',
             ],
-        ])->setPaper('a4', 'landscape')->stream(
+        ])->setPaper($isBracket ? 'a3' : 'a4', 'landscape')->stream(
             str($tournament->name.'-'.($phase?->name ?? 'posiciones-finales'))->slug().'.pdf',
             ['Attachment' => false]
         );

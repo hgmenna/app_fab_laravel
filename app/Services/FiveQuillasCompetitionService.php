@@ -985,7 +985,10 @@ class FiveQuillasCompetitionService
                 ->filter()->unique()->sort(function (int $left, int $right) use ($matches): int {
                     $leftStats = $this->entryPerformance($matches, $left);
                     $rightStats = $this->entryPerformance($matches, $right);
-                    foreach (['wins', 'sets_difference', 'average', 'points_for'] as $field) {
+                    // Todos los jugadores de este bloque fueron eliminados en la
+                    // misma ronda. El orden deportivo se define exclusivamente
+                    // por diferencia de sets y, en caso de igualdad, promedio.
+                    foreach (['sets_difference', 'average'] as $field) {
                         if ($leftStats[$field] !== $rightStats[$field]) {
                             return $rightStats[$field] <=> $leftStats[$field];
                         }
@@ -1047,10 +1050,21 @@ class FiveQuillasCompetitionService
                 ] as [$a, $b, $direction]) {
                     if ($a !== $b) { return $direction === 'asc' ? $a <=> $b : $b <=> $a; }
                 }
+
+                return (int) $left->id <=> (int) $right->id;
             }
+
+            // Una eliminación en una ronda posterior siempre representa una
+            // mejor posición. Dentro de la misma ronda se aplican DS y promedio.
+            $leftRound = $this->lastRoundPlayed($matches, (int) $left->id);
+            $rightRound = $this->lastRoundPlayed($matches, (int) $right->id);
+            if ($leftRound !== $rightRound) {
+                return $rightRound <=> $leftRound;
+            }
+
             $leftStats = $this->entryPerformance($matches, (int) $left->id);
             $rightStats = $this->entryPerformance($matches, (int) $right->id);
-            foreach (['wins', 'sets_difference', 'average', 'points_for'] as $field) {
+            foreach (['sets_difference', 'average'] as $field) {
                 if ($leftStats[$field] !== $rightStats[$field]) {
                     return $rightStats[$field] <=> $leftStats[$field];
                 }
@@ -1067,6 +1081,16 @@ class FiveQuillasCompetitionService
                 $this->assignPointsForPlacement($tournament, $entry->registration, $place);
             }
         }
+    }
+
+    private function lastRoundPlayed($matches, int $entryId): int
+    {
+        return (int) $matches
+            ->filter(fn ($match): bool => in_array($entryId, [
+                (int) $match->player_one_entry_id,
+                (int) $match->player_two_entry_id,
+            ], true))
+            ->max('round_number');
     }
 
     private function entryPerformance($matches, int $entryId): array
