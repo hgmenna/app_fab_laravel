@@ -117,7 +117,7 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
     private function entryPerformance(FiveQuillasCompetition $competition, int $entryId): array
     {
         $setsFor = $setsAgainst = $pointsFor = $pointsAgainst = 0;
-        foreach ($competition->phases->flatMap->matches->where('status', 'completed')->where('is_bye', false) as $match) {
+        foreach ($competition->phases->flatMap->matches->where('status', 'completed') as $match) {
             $isOne = (int) $match->player_one_entry_id === $entryId;
             $isTwo = (int) $match->player_two_entry_id === $entryId;
             if (! $isOne && ! $isTwo) { continue; }

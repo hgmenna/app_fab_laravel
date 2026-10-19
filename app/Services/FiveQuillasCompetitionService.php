@@ -1076,14 +1076,49 @@ class FiveQuillasCompetitionService
 
     public function ensureFinalStandingsOrder(FiveQuillasCompetition $competition): void
     {
-        if ((int) data_get($competition->settings, 'standings_order_version', 0) >= 3) {
+        if ((int) data_get($competition->settings, 'standings_order_version', 0) >= 4) {
             return;
         }
 
+        $this->normalizeByeScores($competition);
         $this->recalculateFinalStandings($competition);
         $competition->update([
-            'settings' => array_merge($competition->settings ?? [], ['standings_order_version' => 3]),
+            'settings' => array_merge($competition->settings ?? [], ['standings_order_version' => 4]),
         ]);
+    }
+
+    private function normalizeByeScores(FiveQuillasCompetition $competition): void
+    {
+        $groupIds = collect();
+        $matches = FiveQuillasMatch::query()->with('phase')
+            ->whereHas('phase', fn ($query) => $query->where('competition_id', $competition->id))
+            ->where('status', 'completed')
+            ->where(fn ($query) => $query
+                ->where(fn ($one) => $one->whereNotNull('player_one_entry_id')->whereNull('player_two_entry_id'))
+                ->orWhere(fn ($two) => $two->whereNull('player_one_entry_id')->whereNotNull('player_two_entry_id')))
+            ->get();
+
+        foreach ($matches as $match) {
+            $bestOf = (int) $match->phase->sets_to_play;
+            $winsNeeded = intdiv($bestOf, 2) + 1;
+            $winnerIsOne = filled($match->player_one_entry_id);
+            $match->update([
+                'winner_entry_id' => $winnerIsOne ? $match->player_one_entry_id : $match->player_two_entry_id,
+                'set_scores' => ['bye' => true, 'sets' => []],
+                'player_one_actual_sets' => $winnerIsOne ? $winsNeeded : 0,
+                'player_two_actual_sets' => $winnerIsOne ? 0 : $winsNeeded,
+                'player_one_computed_sets' => $winnerIsOne ? $bestOf : 0,
+                'player_two_computed_sets' => $winnerIsOne ? 0 : $bestOf,
+                'player_one_points' => 0,
+                'player_two_points' => 0,
+                'is_bye' => true,
+            ]);
+            if ($match->group_id) {
+                $groupIds->push((int) $match->group_id);
+            }
+        }
+
+        $groupIds->unique()->each(fn (int $groupId) => $this->recalculateGroupStatistics($groupId));
     }
 
     public function finalStandingPerformance(FiveQuillasCompetition $competition, int $entryId): array
@@ -1098,7 +1133,7 @@ class FiveQuillasCompetitionService
 
         if ($phase) {
             return $this->entryPerformance(
-                $phase->matches()->where('status', 'completed')->where('is_bye', false)->get(),
+                $phase->matches()->where('status', 'completed')->get(),
                 $entryId,
             );
         }
