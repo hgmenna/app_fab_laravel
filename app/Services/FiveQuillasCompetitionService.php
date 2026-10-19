@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\FiveQuillasCompetition;
 use App\Models\FiveQuillasEntry;
 use App\Models\FiveQuillasGroup;
+use App\Models\FiveQuillasGroupEntry;
 use App\Models\FiveQuillasMatch;
 use App\Models\FiveQuillasPhase;
 use App\Models\Category;
@@ -981,6 +982,48 @@ class FiveQuillasCompetitionService
                 }
             }
         });
+    }
+
+    public function ensureFinalStandingsOrder(FiveQuillasCompetition $competition): void
+    {
+        if ((int) data_get($competition->settings, 'standings_order_version', 0) >= 3) {
+            return;
+        }
+
+        $this->recalculateFinalStandings($competition);
+        $competition->update([
+            'settings' => array_merge($competition->settings ?? [], ['standings_order_version' => 3]),
+        ]);
+    }
+
+    public function finalStandingPerformance(FiveQuillasCompetition $competition, int $entryId): array
+    {
+        $phase = $competition->phases()
+            ->where('phase_type', '!=', 'zones')
+            ->whereHas('matches', fn ($query) => $query
+                ->where(fn ($players) => $players->where('player_one_entry_id', $entryId)
+                    ->orWhere('player_two_entry_id', $entryId)))
+            ->orderByDesc('sort_order')
+            ->first();
+
+        if ($phase) {
+            return $this->entryPerformance(
+                $phase->matches()->where('status', 'completed')->where('is_bye', false)->get(),
+                $entryId,
+            );
+        }
+
+        $zoneRow = FiveQuillasGroupEntry::query()->where('entry_id', $entryId)
+            ->whereHas('group.phase', fn ($query) => $query
+                ->where('competition_id', $competition->id)->where('phase_type', 'zones'))
+            ->first();
+
+        return [
+            'wins' => (int) ($zoneRow?->match_wins ?? 0),
+            'sets_difference' => (int) ($zoneRow?->sets_difference ?? 0),
+            'average' => (float) ($zoneRow?->points_average ?? 0),
+            'points_for' => (int) ($zoneRow?->points_for ?? 0),
+        ];
     }
 
     private function assignFinalPoints(FiveQuillasPhase $phase): void

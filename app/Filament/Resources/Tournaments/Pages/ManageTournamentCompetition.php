@@ -626,19 +626,12 @@ class ManageTournamentCompetition extends Page
 
     public function finalPerformance(FiveQuillasEntry $entry): array
     {
-        $setsFor = 0; $setsAgainst = 0; $pointsFor = 0; $pointsAgainst = 0;
-        foreach ($this->competition()?->phases->flatMap->matches->where('status', 'completed')->where('is_bye', false) ?? [] as $match) {
-            $isOne = (int) $match->player_one_entry_id === (int) $entry->id;
-            $isTwo = (int) $match->player_two_entry_id === (int) $entry->id;
-            if (! $isOne && ! $isTwo) { continue; }
-            $setsFor += $isOne ? (int) $match->player_one_computed_sets : (int) $match->player_two_computed_sets;
-            $setsAgainst += $isOne ? (int) $match->player_two_computed_sets : (int) $match->player_one_computed_sets;
-            $pointsFor += $isOne ? (int) $match->player_one_points : (int) $match->player_two_points;
-            $pointsAgainst += $isOne ? (int) $match->player_two_points : (int) $match->player_one_points;
-        }
+        $performance = app(FiveQuillasCompetitionService::class)
+            ->finalStandingPerformance($this->competition(), (int) $entry->id);
+
         return [
-            'sets_difference' => $setsFor - $setsAgainst,
-            'average' => number_format($pointsAgainst > 0 ? $pointsFor / $pointsAgainst : 0, 3, ',', '.'),
+            'sets_difference' => $performance['sets_difference'],
+            'average' => number_format($performance['average'], 3, ',', '.'),
         ];
     }
 
@@ -892,6 +885,10 @@ class ManageTournamentCompetition extends Page
     protected function getViewData(): array
     {
         $competition = $this->competition();
+        if ($competition) {
+            app(FiveQuillasCompetitionService::class)->ensureFinalStandingsOrder($competition);
+            $competition = $this->competition();
+        }
         $entries = $competition?->entries->where('status', '!=', 'withdrawn') ?? collect();
         $logoPath = $this->record->publicationLogoPath();
         $start = $this->record->start_date;

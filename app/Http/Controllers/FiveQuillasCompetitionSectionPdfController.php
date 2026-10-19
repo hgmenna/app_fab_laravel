@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\FiveQuillasCompetition;
+use App\Services\FiveQuillasCompetitionService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
@@ -30,6 +31,10 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
             ])->firstOrFail();
 
         abort_unless($competition->is_public || auth()->check(), 404);
+        app(FiveQuillasCompetitionService::class)->ensureFinalStandingsOrder($competition);
+        $competition->unsetRelation('entries')->load([
+            'entries.player.club', 'entries.player.category', 'entries.registration',
+        ]);
 
         $phase = null;
         if ($section !== 'positions') {
@@ -43,7 +48,8 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
         $logoFile = $logoPath ? Storage::disk('public_path')->path($logoPath) : null;
         $finalRows = $competition->entries->whereNotNull('final_position')->sortBy('final_position')
             ->map(function ($entry) use ($competition): array {
-                $performance = $this->entryPerformance($competition, (int) $entry->id);
+                $performance = app(FiveQuillasCompetitionService::class)
+                    ->finalStandingPerformance($competition, (int) $entry->id);
 
                 return [
                     'position' => $entry->final_position,

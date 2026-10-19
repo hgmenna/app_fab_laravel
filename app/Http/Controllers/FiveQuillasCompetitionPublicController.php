@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\FiveQuillasCompetition;
+use App\Services\FiveQuillasCompetitionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 
@@ -35,6 +36,15 @@ class FiveQuillasCompetitionPublicController extends Controller
                 'entries.registration:id,points,penalty_points',
             ])->firstOrFail();
 
+        app(FiveQuillasCompetitionService::class)->ensureFinalStandingsOrder($competition);
+        $competition->unsetRelation('entries')->load([
+            'entries' => fn ($query) => $query->whereNotNull('final_position')->orderBy('final_position'),
+            'entries.player:id,first_name,last_name,club_id,category_id,photo_path',
+            'entries.player.club:id,name,short_name',
+            'entries.player.category:id,name,code',
+            'entries.registration:id,points,penalty_points',
+        ]);
+
         $showFinalStandings = (bool) data_get($competition->settings, 'public.show_final_standings', true);
         $tournament = $competition->tournament;
         $logoPath = $tournament->publicationLogoPath();
@@ -66,7 +76,8 @@ class FiveQuillasCompetitionPublicController extends Controller
                 'mostrar_posiciones_finales' => $showFinalStandings,
                 'posiciones_finales' => $showFinalStandings
                     ? $competition->entries->map(function ($entry) use ($competition): array {
-                        $performance = $this->entryPerformance($competition, (int) $entry->id);
+                        $performance = app(FiveQuillasCompetitionService::class)
+                            ->finalStandingPerformance($competition, (int) $entry->id);
                         return [
                         'posicion' => $entry->final_position,
                         'jugador' => $entry->player?->full_name,
