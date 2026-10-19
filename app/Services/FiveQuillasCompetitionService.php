@@ -12,6 +12,7 @@ use App\Models\Category;
 use App\Models\GeneralRanking;
 use App\Models\Player;
 use App\Models\Tournament;
+use App\Models\TournamentRegistration;
 use App\Services\TournamentScoringService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -491,6 +492,95 @@ class FiveQuillasCompetitionService
             return;
         }
         throw ValidationException::withMessages(['scoring_rule' => 'Seleccioná una puntuación válida.']);
+    }
+
+    public function proposedPointsForPlacement(Tournament $tournament, int $place): ?float
+    {
+        $rule = $this->ruleForPlacement(
+            app(TournamentScoringService::class)->getRules($tournament),
+            $place,
+        );
+
+        return $rule && array_key_exists('points', $rule) ? (float) $rule['points'] : null;
+    }
+
+    public function commitFinalScoring(FiveQuillasCompetition $competition): array
+    {
+        $competition->loadMissing('tournament.type');
+        $tournament = $competition->tournament;
+        $scoring = app(TournamentScoringService::class);
+        $rules = $scoring->getRules($tournament);
+
+        if ($competition->status !== 'completed'
+            || $competition->phases()->where('is_enabled', true)->where('status', '!=', 'completed')->exists()) {
+            throw ValidationException::withMessages([
+                'scoring' => 'Finalizá todas las fases antes de guardar la puntuación definitiva.',
+            ]);
+        }
+
+        if (! $tournament->type?->assigns_points || $tournament->type?->scoring_method !== 'position') {
+            throw ValidationException::withMessages([
+                'scoring' => 'El tipo de torneo no está configurado para asignar puntuación por posición.',
+            ]);
+        }
+        if ($rules === []) {
+            throw ValidationException::withMessages([
+                'scoring' => 'El tipo de torneo no tiene una tabla de puntuación configurada.',
+            ]);
+        }
+
+        $summary = DB::transaction(function () use ($competition, $tournament, $scoring, $rules): array {
+            $entries = $competition->entries()->whereNotNull('final_position')
+                ->orderBy('final_position')->get()
+                ->unique('tournament_registration_id')->values();
+            $registrationIds = $entries->pluck('tournament_registration_id')->filter()->values();
+            $registrations = TournamentRegistration::query()->where('tournament_id', $tournament->id)
+                ->whereKey($registrationIds)->lockForUpdate()->get()->keyBy('id');
+            $result = ['assigned' => 0, 'existing' => 0, 'without_rule' => 0, 'without_registration' => 0];
+
+            foreach ($entries as $entry) {
+                $registration = $registrations->get((int) $entry->tournament_registration_id);
+                if (! $registration) {
+                    $result['without_registration']++;
+                    continue;
+                }
+                if ($registration->points !== null
+                    || filled($registration->result_code)
+                    || filled($registration->tournament_instance_id)) {
+                    $result['existing']++;
+                    continue;
+                }
+
+                $rule = $this->ruleForPlacement($rules, (int) $entry->final_position);
+                if (! $rule) {
+                    $result['without_rule']++;
+                    continue;
+                }
+
+                if ($scoring->usesOfficialInstances($tournament) && ! empty($rule['tournament_instance_id'])) {
+                    $scoring->assignByTournamentInstance($registration, (int) $rule['tournament_instance_id']);
+                } elseif (! empty($rule['code'])) {
+                    $scoring->assignByCode($registration, (string) $rule['code']);
+                } else {
+                    $result['without_rule']++;
+                    continue;
+                }
+                $result['assigned']++;
+            }
+
+            $competition->update(['settings' => array_merge($competition->settings ?? [], [
+                'scoring_confirmed_at' => now()->toIso8601String(),
+                'scoring_confirmed_by' => auth()->id(),
+            ])]);
+
+            return $result;
+        });
+
+        if ($summary['assigned'] > 0 && $tournament->type?->affects_ranking) {
+            RankingService::syncGeneralRanking();
+        }
+
+        return $summary;
     }
 
     private function createSlotElimination(FiveQuillasPhase $phase, ?FiveQuillasPhase $previous): int
@@ -1028,13 +1118,11 @@ class FiveQuillasCompetitionService
 
     private function assignFinalPoints(FiveQuillasPhase $phase): void
     {
-        $tournament = $phase->competition->tournament;
-        $tournament->loadMissing('type');
         if ($phase->phase_type !== 'bracket') {
             return;
         }
 
-        $matches = $phase->matches()->with(['playerOne.registration', 'playerTwo.registration', 'winner'])->get();
+        $matches = $phase->matches()->with('winner')->get();
         $lastRound = (int) $matches->max('round_number');
         $final = $matches->where('round_number', $lastRound)->first();
         if (! $final?->winner_entry_id) { return; }
@@ -1071,16 +1159,11 @@ class FiveQuillasCompetitionService
                 'final_position' => $place,
                 'status' => $place === 1 ? 'qualified' : 'eliminated',
             ]);
-            if ($tournament->type?->assigns_points && $entry->registration) {
-                $this->assignPointsForPlacement($tournament, $entry->registration, $place);
-            }
         }
     }
 
     private function assignPhaseEliminationPoints(FiveQuillasPhase $phase): void
     {
-        $phase->loadMissing('competition.tournament.type');
-        $tournament = $phase->competition->tournament;
         $qualified = $this->qualifiedEntriesFromPhase($phase)->pluck('id')->map(fn ($id): int => (int) $id);
         $futureEntrants = $phase->competition->entries()
             ->whereHas('entryPhase', fn ($query) => $query->where('sort_order', '>', $phase->sort_order))
@@ -1140,9 +1223,6 @@ class FiveQuillasCompetitionService
         foreach ($ordered as $entry) {
             $place = $position++;
             $entry->update(['status' => 'eliminated', 'final_position' => $place]);
-            if ($tournament->type?->assigns_points) {
-                $this->assignPointsForPlacement($tournament, $entry->registration, $place);
-            }
         }
     }
 
@@ -1175,25 +1255,6 @@ class FiveQuillasCompetitionService
             'average' => $pointsAgainst > 0 ? $pointsFor / $pointsAgainst : 0,
             'points_for' => $pointsFor,
         ];
-    }
-
-    private function assignPointsForPlacement(Tournament $tournament, $registration, int $place): void
-    {
-        if (! $registration) { return; }
-        // La inscripción es el registro de desempeño. Si ya fue puntuada, se conserva
-        // la asignación existente y se evita crear una segunda acreditación.
-        if ($registration->points !== null
-            && (filled($registration->result_code) || filled($registration->tournament_instance_id))) {
-            return;
-        }
-        $scoring = app(TournamentScoringService::class);
-        $rule = $this->ruleForPlacement($scoring->getRules($tournament), $place);
-        if (! $rule) { return; }
-        if ($scoring->usesOfficialInstances($tournament) && ! empty($rule['tournament_instance_id'])) {
-            $scoring->assignByTournamentInstance($registration, (int) $rule['tournament_instance_id']);
-        } elseif (! empty($rule['code'])) {
-            $scoring->assignByCode($registration, (string) $rule['code']);
-        }
     }
 
     private function orderByPreviousPhaseResult(FiveQuillasPhase $phase, $source)

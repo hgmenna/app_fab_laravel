@@ -596,6 +596,38 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    public function saveFinalScoringAction(): Action
+    {
+        return Action::make('saveFinalScoring')
+            ->label('Guardar puntuación')
+            ->icon('heroicon-o-check-badge')
+            ->color('success')
+            ->size('sm')
+            ->visible(fn (): bool => (bool) $this->record->type?->assigns_points
+                && $this->competition()?->status === 'completed'
+                && $this->competition()?->entries()->whereNotNull('final_position')->exists())
+            ->requiresConfirmation()
+            ->modalHeading('Guardar la puntuación definitiva')
+            ->modalDescription('Se aplicará la tabla configurada para el tipo de torneo según las posiciones verificadas. Las inscripciones que ya tengan puntuación serán omitidas para evitar duplicados.')
+            ->action(function (): void {
+                $summary = app(FiveQuillasCompetitionService::class)
+                    ->commitFinalScoring($this->competition());
+                Notification::make()->success()->title('Puntuación procesada')->body(sprintf(
+                    '%d guardadas · %d ya existentes · %d sin regla · %d sin inscripción.',
+                    $summary['assigned'],
+                    $summary['existing'],
+                    $summary['without_rule'],
+                    $summary['without_registration'],
+                ))->send();
+            });
+    }
+
+    public function proposedFinalPoints(FiveQuillasEntry $entry): ?float
+    {
+        return app(FiveQuillasCompetitionService::class)
+            ->proposedPointsForPlacement($this->record, (int) $entry->final_position);
+    }
+
     private function scoringRuleOptions(): array
     {
         $tournament = $this->record->loadMissing('type');

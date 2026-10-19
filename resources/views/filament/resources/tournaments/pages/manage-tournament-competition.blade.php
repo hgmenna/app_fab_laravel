@@ -215,7 +215,7 @@
             </section>
         @endforeach
         <section class="fq-phase-panel" id="fq-section-positions" x-show="activePhase === 'positions'" x-cloak>
-            <div class="fq-phase-heading"><h2>Posiciones finales</h2>@include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => 'Posiciones finales', 'sectionKey' => 'positions'])</div>
+            <div class="fq-phase-heading"><h2>Posiciones finales</h2><div class="fq-phase-actions">{{ $this->saveFinalScoringAction }}@include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => 'Posiciones finales', 'sectionKey' => 'positions'])</div></div>
             @php $finalEntries = $competition->entries->whereNotNull('final_position')->sortBy('final_position'); @endphp
             @if($finalEntries->isEmpty())
                 <div class="fq-empty">Las posiciones se completan a medida que finaliza la participación de cada jugador.</div>
@@ -225,6 +225,7 @@
                     <tbody>@foreach($finalEntries as $entry)
                     @php
                         $performance = $this->finalPerformance($entry);
+                        $proposedPoints = $entry->registration?->points === null ? $this->proposedFinalPoints($entry) : null;
                     @endphp
                     <tr>
                         <td>{{ $entry->final_position }}</td><td>{{ $entry->player?->full_name }}</td>
@@ -232,7 +233,15 @@
                         <td>{{ $entry->player?->category?->code ?: $entry->player?->category?->name }}</td>
                         <td>{{ $this->finalInstanceLabel($entry) }}</td>
                         <td>{{ $performance['sets_difference'] }}</td><td>{{ $performance['average'] }}</td>
-                        <td>{{ $entry->registration?->points ?? '—' }}</td>
+                        <td>
+                            @if($entry->registration?->points !== null)
+                                {{ number_format((float) $entry->registration->points, 2, ',', '.') }}
+                            @elseif($proposedPoints !== null)
+                                {{ number_format($proposedPoints, 2, ',', '.') }} <small style="color:#d97706;font-weight:800">Pendiente</small>
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td>{{ ($this->editFinalScoreAction)(['entryId' => $entry->id]) }}</td>
                     </tr>@endforeach</tbody>
                 </table></div>
