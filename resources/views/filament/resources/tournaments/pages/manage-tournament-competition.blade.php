@@ -76,7 +76,7 @@
                 <h2>{{ $zonePhase->name }}</h2>
                 <div class="fq-phase-actions">
                     @if($zonePhase->status !== 'completed'){{ ($this->createZonesAction)(['phaseId' => $zonePhase->id]) }}@endif
-                    @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionId' => 'fq-section-'.$zonePhase->id, 'sectionTitle' => $zonePhase->name])
+                    @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => $zonePhase->name, 'sectionKey' => 'phase-'.$zonePhase->id])
                 </div>
             </div>
         @if($zonePhase->groups->isNotEmpty())
@@ -198,17 +198,17 @@
                                     {{ ($this->schedulePhaseAction)(['phaseId' => $phase->id, 'scheduleIndex' => $scheduleIndex]) }}
                                 @endforeach
                             @endif
-                            @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionId' => 'fq-section-'.$phase->id, 'sectionTitle' => $phase->name])
+                            @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => $phase->name, 'sectionKey' => 'phase-'.$phase->id])
                         </div>
                     @else
-                        @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionId' => 'fq-section-'.$phase->id, 'sectionTitle' => $phase->name])
+                        @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => $phase->name, 'sectionKey' => 'phase-'.$phase->id])
                     @endif
                 </div>
                 @include('filament.resources.tournaments.pages.partials.competition-bracket', ['matches' => $phase->matches])
             </section>
         @endforeach
         <section class="fq-phase-panel" id="fq-section-positions" x-show="activePhase === 'positions'" x-cloak>
-            <div class="fq-phase-heading"><h2>Posiciones finales</h2>@include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionId' => 'fq-section-positions', 'sectionTitle' => 'Posiciones finales'])</div>
+            <div class="fq-phase-heading"><h2>Posiciones finales</h2>@include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => 'Posiciones finales', 'sectionKey' => 'positions'])</div>
             @php $finalEntries = $competition->entries->whereNotNull('final_position')->sortBy('final_position'); @endphp
             @if($finalEntries->isEmpty())
                 <div class="fq-empty">Las posiciones se completan a medida que finaliza la participación de cada jugador.</div>
@@ -241,21 +241,4 @@
             </div>
         @endif
     @endif
-    <script>
-        window.fqTournamentInfo = @json($tournamentInfo ?? []);
-        window.fqSectionText = title => `${window.fqTournamentInfo.name}\n${title}\nSede: ${window.fqTournamentInfo.venue}\nFecha: ${window.fqTournamentInfo.date}\nTipo: ${window.fqTournamentInfo.type} · ${window.fqTournamentInfo.official}\nModalidad: ${window.fqTournamentInfo.modality}`;
-        window.fqShareSection = async title => {
-            const payload = {title: `${window.fqTournamentInfo.name} · ${title}`, text: window.fqSectionText(title), url: @json($publicPageUrl ?? request()->fullUrl())};
-            if (navigator.share) return navigator.share(payload);
-            await navigator.clipboard.writeText(`${payload.text}\n${payload.url}`);
-            alert('La información fue copiada para compartir.');
-        };
-        window.fqPrintSection = (id, title) => {
-            const section = document.getElementById(id); if (!section) return;
-            const info = window.fqTournamentInfo, win = window.open('', '_blank', 'width=1200,height=800');
-            const logo = info.logo ? `<img src="${info.logo}" alt="Logo">` : '';
-            win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${info.name} · ${title}</title><style>@@page{size:landscape;margin:10mm}body{font:12px Arial;color:#17253a}header{display:grid;grid-template-columns:80px 1fr;gap:18px;align-items:center;border-bottom:3px solid #173d7c;padding-bottom:10px;margin-bottom:16px}header img{max-width:72px;max-height:72px}h1{margin:0 0 7px}.meta{display:flex;gap:18px;flex-wrap:wrap}.meta span{display:block}.fq-phase-actions,.fq-match-actions,button{display:none!important}.fq-bracket-scroll,.fq-zone-bracket-wrap,.fq-standings-wrap{overflow:visible!important}.fq-bracket{min-width:0!important}.fq-zone{break-inside:avoid;margin-bottom:10px}.fq-zone-body{display:grid;grid-template-columns:1.2fr .8fr;gap:10px}.fq-zone-bracket{min-width:0!important}.fq-standings{width:100%;border-collapse:collapse}.fq-standings th,.fq-standings td{border:1px solid #aaa;padding:4px}.fq-match{border:1px solid #aaa;border-left:3px solid #2464ce;padding:5px}.fq-round{display:flex;flex-direction:column;justify-content:space-around;gap:6px}${'</sty'+'le>'}</head><body><header>${logo}<div><h1>${info.name}</h1><div class="meta"><span><b>Sección:</b> ${title}</span><span><b>Sede:</b> ${info.venue}</span><span><b>Fecha:</b> ${info.date}</span><span><b>Tipo:</b> ${info.type} · ${info.official}</span><span><b>Modalidad:</b> ${info.modality}</span></div></div></header>${section.innerHTML}</body></html>`);
-            win.document.close(); win.onload = () => { win.focus(); win.print(); };
-        };
-    </script>
 </x-filament-panels::page>

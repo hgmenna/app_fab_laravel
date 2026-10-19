@@ -72,6 +72,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                     ]; })->values()
                     : [],
                 'fases' => $competition->phases->map(fn ($phase): array => [
+                    'id' => $phase->id,
                     'codigo' => $phase->code,
                     'nombre' => $phase->name,
                     'tipo' => $phase->phase_type,

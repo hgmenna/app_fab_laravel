@@ -11,6 +11,7 @@ use App\Http\Controllers\MembershipPaymentPdfController;
 use App\Http\Controllers\MembershipEntityStatementPdfController;
 use App\Http\Controllers\FiveQuillasCompetitionPublicController;
 use App\Http\Controllers\FiveQuillasCompetitionPageController;
+use App\Http\Controllers\FiveQuillasCompetitionSectionPdfController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/torneos-proximos.json', UpcomingTournamentsController::class);
@@ -23,6 +24,8 @@ Route::get('/torneos/5-quillas/{slug}/competencia.json', FiveQuillasCompetitionP
     ->name('five-quillas-competition.public');
 Route::get('/torneos/5-quillas/{slug}', FiveQuillasCompetitionPageController::class)
     ->name('five-quillas-competition.page');
+Route::get('/torneos/5-quillas/{slug}/secciones/{section}/pdf', FiveQuillasCompetitionSectionPdfController::class)
+    ->name('five-quillas-competition.section-pdf');
 Route::get('/ordenes-transferencia/{order}/pdf', BankTransferOrderPdfController::class)
     ->middleware('signed')
     ->name('bank-transfer-orders.pdf');
