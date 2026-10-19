@@ -619,6 +619,24 @@ class ManageTournamentCompetition extends Page
         return $zoneRow ? 'Zonas · '.$zoneRow->final_place.'.º puesto' : 'Sin instancia';
     }
 
+    public function finalPerformance(FiveQuillasEntry $entry): array
+    {
+        $setsFor = 0; $setsAgainst = 0; $pointsFor = 0; $pointsAgainst = 0;
+        foreach ($this->competition()?->phases->flatMap->matches->where('status', 'completed')->where('is_bye', false) ?? [] as $match) {
+            $isOne = (int) $match->player_one_entry_id === (int) $entry->id;
+            $isTwo = (int) $match->player_two_entry_id === (int) $entry->id;
+            if (! $isOne && ! $isTwo) { continue; }
+            $setsFor += $isOne ? (int) $match->player_one_computed_sets : (int) $match->player_two_computed_sets;
+            $setsAgainst += $isOne ? (int) $match->player_two_computed_sets : (int) $match->player_one_computed_sets;
+            $pointsFor += $isOne ? (int) $match->player_one_points : (int) $match->player_two_points;
+            $pointsAgainst += $isOne ? (int) $match->player_two_points : (int) $match->player_one_points;
+        }
+        return [
+            'sets_difference' => $setsFor - $setsAgainst,
+            'average' => number_format($pointsAgainst > 0 ? $pointsFor / $pointsAgainst : 0, 3, ',', '.'),
+        ];
+    }
+
     public function recordResultAction(): Action
     {
         return Action::make('recordResult')

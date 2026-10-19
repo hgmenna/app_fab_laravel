@@ -44,7 +44,9 @@ class FiveQuillasCompetitionPublicController extends Controller
                 ),
                 'mostrar_posiciones_finales' => $showFinalStandings,
                 'posiciones_finales' => $showFinalStandings
-                    ? $competition->entries->map(fn ($entry): array => [
+                    ? $competition->entries->map(function ($entry) use ($competition): array {
+                        $performance = $this->entryPerformance($competition, (int) $entry->id);
+                        return [
                         'posicion' => $entry->final_position,
                         'jugador' => $entry->player?->full_name,
                         'club' => $entry->player?->club?->short_name ?: $entry->player?->club?->name,
@@ -52,7 +54,9 @@ class FiveQuillasCompetitionPublicController extends Controller
                         'puntos' => $entry->registration?->points,
                         'penalizacion' => $entry->registration?->penalty_points,
                         'instancia' => $this->finalInstance($competition, $entry),
-                    ])->values()
+                        'diferencia_sets' => $performance['sets_difference'],
+                        'promedio' => number_format($performance['average'], 3, '.', ''),
+                    ]; })->values()
                     : [],
                 'fases' => $competition->phases->map(fn ($phase): array => [
                     'codigo' => $phase->code,
@@ -119,5 +123,23 @@ class FiveQuillasCompetitionPublicController extends Controller
         $zoneRow = $competition->phases->flatMap->groups->flatMap->groupEntries
             ->firstWhere('entry_id', $entry->id);
         return $zoneRow ? 'Zonas · '.$zoneRow->final_place.'.º puesto' : 'Sin instancia';
+    }
+
+    private function entryPerformance(FiveQuillasCompetition $competition, int $entryId): array
+    {
+        $setsFor = 0; $setsAgainst = 0; $pointsFor = 0; $pointsAgainst = 0;
+        foreach ($competition->phases->flatMap->matches->where('status', 'completed')->where('is_bye', false) as $match) {
+            $isOne = (int) $match->player_one_entry_id === $entryId;
+            $isTwo = (int) $match->player_two_entry_id === $entryId;
+            if (! $isOne && ! $isTwo) { continue; }
+            $setsFor += $isOne ? (int) $match->player_one_computed_sets : (int) $match->player_two_computed_sets;
+            $setsAgainst += $isOne ? (int) $match->player_two_computed_sets : (int) $match->player_one_computed_sets;
+            $pointsFor += $isOne ? (int) $match->player_one_points : (int) $match->player_two_points;
+            $pointsAgainst += $isOne ? (int) $match->player_two_points : (int) $match->player_one_points;
+        }
+        return [
+            'sets_difference' => $setsFor - $setsAgainst,
+            'average' => $pointsAgainst > 0 ? $pointsFor / $pointsAgainst : 0,
+        ];
     }
 }

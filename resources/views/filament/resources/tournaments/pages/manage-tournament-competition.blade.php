@@ -246,12 +246,17 @@
                 <div class="fq-empty">Las posiciones se completan a medida que finaliza la participación de cada jugador.</div>
             @else
                 <div class="fq-standings-wrap"><table class="fq-standings">
-                    <thead><tr><th>Pos</th><th>Jugador</th><th>Club</th><th>Cat</th><th>Instancia</th><th>Puntos</th><th>Acción</th></tr></thead>
-                    <tbody>@foreach($finalEntries as $entry)<tr>
+                    <thead><tr><th>Pos</th><th>Jugador</th><th>Club</th><th>Cat</th><th>Instancia</th><th>DS</th><th>Prom</th><th>Puntos</th><th>Acción</th></tr></thead>
+                    <tbody>@foreach($finalEntries as $entry)
+                    @php
+                        $performance = $this->finalPerformance($entry);
+                    @endphp
+                    <tr>
                         <td>{{ $entry->final_position }}</td><td>{{ $entry->player?->full_name }}</td>
                         <td>{{ $entry->player?->club?->short_name ?: $entry->player?->club?->name }}</td>
                         <td>{{ $entry->player?->category?->code ?: $entry->player?->category?->name }}</td>
                         <td>{{ $this->finalInstanceLabel($entry) }}</td>
+                        <td>{{ $performance['sets_difference'] }}</td><td>{{ $performance['average'] }}</td>
                         <td>{{ $entry->registration?->points ?? '—' }}</td>
                         <td>{{ ($this->editFinalScoreAction)(['entryId' => $entry->id]) }}</td>
                     </tr>@endforeach</tbody>
