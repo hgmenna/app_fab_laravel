@@ -251,7 +251,6 @@ class TournamentRegistrationResource extends Resource
                 'participants.player.category',
                 'tournamentModality.modality',
                 'slot',
-                'fiveQuillasEntries',
                 'tournamentInstance',
             ]);
 
@@ -282,9 +281,6 @@ class TournamentRegistrationResource extends Resource
             return $registration->participants->map(function ($participant) use ($registration) {
                 $player = $participant->player;
                 $generalRanking = GeneralRanking::where('player_id', $player?->id)->first();
-                $competitionPosition = $registration->fiveQuillasEntries
-                    ->firstWhere('player_id', $player?->id)
-                    ?->final_position;
 
                 return (object) [
                     'last_name' => $player?->last_name ?? 'N/A',
@@ -293,9 +289,8 @@ class TournamentRegistrationResource extends Resource
                     'provincia_display' => $player?->club?->city?->state?->name ?? 'N/A',
                     'ranking_category' => $generalRanking?->category ?? $player?->category?->code ?? '-',
                     'ranking_rg' => Str::limit($generalRanking?->RG ?? 9999, 4),
-                    'position' => $competitionPosition
-                        ?? $registration->tournamentInstance?->description
-                        ?? '-',
+                    'position' => $registration->result_description
+                        ?: ($registration->tournamentInstance?->description ?: '-'),
                     'slot_name' => implode(' · ', array_filter([
                         $registration->tournamentModality?->modality?->name,
                         $registration->slot?->name ?? 'Sin horario',

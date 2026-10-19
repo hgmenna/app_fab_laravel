@@ -49,7 +49,6 @@ class TournamentRegistrationsTable
     {
         return $table
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
-                'fiveQuillasEntries',
                 'tournamentInstance',
             ]))
             ->columns([
@@ -102,22 +101,9 @@ class TournamentRegistrationsTable
                 TextColumn::make('competition_position')
                     ->label('Posición')
                     ->alignCenter()
-                    ->getStateUsing(function (TournamentRegistration $record): string {
-                        $positions = $record->fiveQuillasEntries
-                            ->pluck('final_position')
-                            ->filter(fn ($position) => $position !== null)
-                            ->unique()
-                            ->sort()
-                            ->values();
-
-                        if ($positions->isNotEmpty()) {
-                            return $positions->implode(' / ');
-                        }
-
-                        return filled($record->tournamentInstance?->description)
-                            ? $record->tournamentInstance->description
-                            : '—';
-                    })
+                    ->getStateUsing(fn (TournamentRegistration $record): string =>
+                        $record->result_description
+                            ?: ($record->tournamentInstance?->description ?: '—'))
                     ->visible(fn () => Auth::user()?->canGloballyOrInAnyDiscipline('EditField')
                     ),
 
@@ -198,8 +184,9 @@ class TournamentRegistrationsTable
                     ->toggle()
                     ->query(function (Builder $query) {
                         return $query
-                            ->whereDoesntHave('fiveQuillasEntries', function (Builder $entries) {
-                                $entries->whereNotNull('final_position');
+                            ->where(function (Builder $result) {
+                                $result->whereNull('result_description')
+                                    ->orWhere('result_description', '');
                             })
                             ->where(function ($q) {
                                 $q->whereDoesntHave('tournamentInstance') // sin relación

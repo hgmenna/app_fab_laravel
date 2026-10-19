@@ -125,11 +125,6 @@ class TournamentRegistration extends Model
         return $this->belongsTo(TournamentInstance::class, 'tournament_instance_id');
     }
 
-    public function fiveQuillasEntries()
-    {
-        return $this->hasMany(FiveQuillasEntry::class, 'tournament_registration_id');
-    }
-
     protected static function booted()
     {
         static::saving(function (TournamentRegistration $registration) {
