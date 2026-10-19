@@ -251,6 +251,8 @@ class TournamentRegistrationResource extends Resource
                 'participants.player.category',
                 'tournamentModality.modality',
                 'slot',
+                'fiveQuillasEntries',
+                'tournamentInstance',
             ]);
 
         // Aplicar filtro por horario si esta seleccionado
@@ -280,6 +282,9 @@ class TournamentRegistrationResource extends Resource
             return $registration->participants->map(function ($participant) use ($registration) {
                 $player = $participant->player;
                 $generalRanking = GeneralRanking::where('player_id', $player?->id)->first();
+                $competitionPosition = $registration->fiveQuillasEntries
+                    ->firstWhere('player_id', $player?->id)
+                    ?->final_position;
 
                 return (object) [
                     'last_name' => $player?->last_name ?? 'N/A',
@@ -288,6 +293,9 @@ class TournamentRegistrationResource extends Resource
                     'provincia_display' => $player?->club?->city?->state?->name ?? 'N/A',
                     'ranking_category' => $generalRanking?->category ?? $player?->category?->code ?? '-',
                     'ranking_rg' => Str::limit($generalRanking?->RG ?? 9999, 4),
+                    'position' => $competitionPosition
+                        ?? $registration->tournamentInstance?->description
+                        ?? '-',
                     'slot_name' => implode(' · ', array_filter([
                         $registration->tournamentModality?->modality?->name,
                         $registration->slot?->name ?? 'Sin horario',
@@ -306,6 +314,7 @@ class TournamentRegistrationResource extends Resource
             ['label' => 'PROVINCIA', 'field' => 'provincia_display', 'width' => 150],
             ['label' => 'CAT', 'field' => 'ranking_category', 'width' => 35],
             ['label' => 'RG', 'field' => 'ranking_rg', 'width' => 35],
+            ['label' => 'POS', 'field' => 'position', 'width' => 35],
         ];
 
         // 4. Generar PDF con la vista genérica (asegúrate de que use el encabezado de tabla solicitado)
