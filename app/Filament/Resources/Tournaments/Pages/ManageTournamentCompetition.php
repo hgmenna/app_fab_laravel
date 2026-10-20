@@ -529,10 +529,6 @@ class ManageTournamentCompetition extends Page
                                     $selectedEntryIds,
                                 );
                             })
-                            ->key(fn (Get $get): string => 'zone-player-'.md5(json_encode([
-                                $get('group_id'), $get('name'), $position, $get('player_'.$position),
-                                $this->selectedZoneEntryIds($get),
-                            ], JSON_THROW_ON_ERROR)))
                             ->searchable()->preload()->native(false)->placeholder('LIBRE')->live()
                             ->disableOptionWhen(function (string $value, $state, Get $get): bool {
                                 $currentEntryId = (int) ($state ?? 0);
