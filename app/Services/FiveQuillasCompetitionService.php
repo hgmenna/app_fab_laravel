@@ -212,6 +212,17 @@ class FiveQuillasCompetitionService
                     ]);
                 }
                 $qualifiers = filled($row['qualifiers'] ?? null) ? (int) $row['qualifiers'] : null;
+                $bracketSize = filled($row['bracket_size'] ?? null) ? (int) $row['bracket_size'] : null;
+                $directEntrySeeds = filled($row['direct_entry_seed_count'] ?? null)
+                    ? (int) $row['direct_entry_seed_count']
+                    : 0;
+                if (($row['phase_type'] ?? null) === 'bracket'
+                    && $bracketSize
+                    && $directEntrySeeds > $bracketSize) {
+                    throw ValidationException::withMessages([
+                        'phases' => 'Las posiciones reservadas para ingreso directo no pueden superar el tamaño del cuadro en la fase '.($index + 1).'.',
+                    ]);
+                }
                 if (($row['phase_type'] ?? null) === 'bracket'
                     && $index !== $lastEnabledIndex
                     && $qualifiers !== null
@@ -268,7 +279,10 @@ class FiveQuillasCompetitionService
                             ? $this->officialBracketPairs((int) $row['bracket_size'])
                             : [],
                         'stop_after_rounds' => data_get($phase?->settings, 'stop_after_rounds'),
-                        'direct_entry_seed_count' => data_get($phase?->settings, 'direct_entry_seed_count'),
+                        'direct_entry_seed_count' => ($row['phase_type'] ?? null) === 'bracket'
+                            && filled($row['direct_entry_seed_count'] ?? null)
+                                ? max(0, (int) $row['direct_entry_seed_count'])
+                                : data_get($phase?->settings, 'direct_entry_seed_count'),
                         'schedules' => $row['phase_type'] === 'zones'
                             ? []
                             : collect($row['schedules'] ?? [])->map(fn (array $schedule): array => [

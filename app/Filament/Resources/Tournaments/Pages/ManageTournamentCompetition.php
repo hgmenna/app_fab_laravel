@@ -179,6 +179,7 @@ class ManageTournamentCompetition extends Page
                                 'final' => 16,
                                 default => null,
                             },
+                        'direct_entry_seed_count' => data_get($phase->settings, 'direct_entry_seed_count'),
                         'schedules' => $phase->phase_type === 'zones'
                             ? []
                             : (data_get($phase->settings, 'schedules') ?: [[
@@ -206,7 +207,14 @@ class ManageTournamentCompetition extends Page
                             ])->required()->native(false)->live()
                                 ->afterStateUpdated(fn (Set $set) => $set('seeding_method', 'manual'))
                                 ->columnSpan(2),
-                            TextInput::make('sets_to_play')->label('Sets')->integer()->minValue(1)->default(3)->required(),
+                            TextInput::make('sets_to_play')
+                                ->label(fn (Get $get): string => $get('phase_type') === 'play_in'
+                                    ? 'Sets de los emparejamientos'
+                                    : 'Sets')
+                                ->integer()->minValue(1)->default(3)->required()
+                                ->helperText(fn (Get $get): ?string => $get('phase_type') === 'play_in'
+                                    ? 'Se aplica solamente a los partidos de reclasificación. Para Circuito Argentino usá 3 sets aquí y creá después el cuadro Nacional de 64 con 5 sets.'
+                                    : null),
                             TextInput::make('points_per_set')->label('Puntos por set')->integer()->minValue(1)->default(60)->required(),
                             Select::make('seeding_method')->label('Ubicación de jugadores')
                                 ->options(fn (Get $get): array => match ($get('phase_type')) {
@@ -232,15 +240,19 @@ class ManageTournamentCompetition extends Page
                                     ],
                                 })
                                 ->default('manual')->required()->native(false)->columnSpan(2)
-                                ->helperText(fn (Get $get): ?string => $get('phase_type') === 'bracket'
-                                    ? 'El sorteo presencial se usa cuando cada jugador extrae el número de su posición en el cuadro.'
-                                    : null),
+                                ->helperText(fn (Get $get): ?string => match ($get('phase_type')) {
+                                    'bracket' => 'El sorteo presencial se usa cuando cada jugador extrae el número de su posición en el cuadro.',
+                                    'play_in' => 'En Circuito Argentino elegí Ranking nacional: los clasificados se ordenan por ranking para determinar quiénes deben disputar la reclasificación.',
+                                    default => null,
+                                }),
                             Select::make('entry_category_ids')->label('Categorías que ingresan en esta fase')
                                 ->options(fn (): array => Category::query()
                                     ->where('discipline_id', $this->record->discipline_id)
                                     ->orderBy('order')->orderBy('name')->pluck('name', 'id')->all())
                                 ->multiple()->searchable()->preload()->native(false)->columnSpan(2)
-                                ->helperText('Los inscriptos de estas categorías se incorporan directamente aquí. Las categorías no asignadas ingresan en la primera fase.'),
+                                ->helperText(fn (Get $get): string => $get('phase_type') === 'play_in'
+                                    ? 'En Circuito Argentino, la categoría Primera Nacional debe ingresar en el cuadro Nacional de 64 posterior, no en esta reclasificación.'
+                                    : 'Los inscriptos de estas categorías se incorporan directamente aquí. En el cuadro Nacional se ordenan por ranking antes de ocupar sus posiciones.'),
                             Select::make('previous_phase_id')->label('Fase anterior')
                                 ->options(fn (): array => $this->competition()->phases()
                                     ->orderBy('sort_order')->pluck('name', 'id')->all())
@@ -273,6 +285,11 @@ class ManageTournamentCompetition extends Page
                                 ->required(fn (Get $get): bool => $get('phase_type') === 'bracket')
                                 ->helperText('Al preparar la fase, el sistema ajusta el cuadro automáticamente a la cantidad real de jugadores.')
                                 ->native(false),
+                            TextInput::make('direct_entry_seed_count')
+                                ->label('Posiciones reservadas para ingreso directo')
+                                ->integer()->minValue(0)
+                                ->visible(fn (Get $get): bool => $get('phase_type') === 'bracket')
+                                ->helperText('Ejemplo Circuito Argentino: 32. La categoría que ingresa en esta fase ocupa las posiciones 1 a 32 por ranking; los clasificados de la fase anterior ocupan las restantes.'),
                             Toggle::make('split_by_slot')->label('Usar los horarios definidos en el torneo')->inline(false)
                                 ->helperText('Cada horario conserva sus propios inscriptos, zonas y partidos.'),
                             Toggle::make('is_enabled')->label('Fase habilitada')->default(true)->inline(false),
@@ -494,6 +511,30 @@ class ManageTournamentCompetition extends Page
                                 );
                             })
                             ->searchable()->preload()->native(false)->placeholder('LIBRE')->live()
+                            ->disableOptionWhen(function (string $value, $state, Get $get): bool {
+                                $currentEntryId = (int) ($state ?? 0);
+                                if ((int) $value === $currentEntryId) {
+                                    return false;
+                                }
+
+                                return collect($get('../../zones') ?? [])
+                                    ->flatMap(fn (array $zone): array => collect(range(1, 4))
+                                        ->map(fn (int $zonePosition): int => (int) ($zone['player_'.$zonePosition] ?? 0))
+                                        ->all())
+                                    ->filter()
+                                    ->contains((int) $value);
+                            })
+                            ->afterStateUpdated(function ($state, Get $get, Set $set) use ($position): void {
+                                if (! filled($state)) {
+                                    return;
+                                }
+                                foreach (range(1, 4) as $otherPosition) {
+                                    if ($otherPosition !== $position
+                                        && (int) ($get('player_'.$otherPosition) ?? 0) === (int) $state) {
+                                        $set('player_'.$otherPosition, null);
+                                    }
+                                }
+                            })
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')))->all(),
                     ])
                     ->defaultItems(1)->minItems(1)->addActionLabel('Agregar zona')
