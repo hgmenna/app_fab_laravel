@@ -167,6 +167,7 @@ class ManageTournamentCompetition extends Page
                         'qualifiers' => data_get($phase->settings, 'qualifiers'),
                         'previous_phase_id' => data_get($phase->settings, 'previous_phase_id'),
                         'next_phase_id' => data_get($phase->settings, 'next_phase_id'),
+                        'progressive_fill' => (bool) data_get($phase->settings, 'progressive_fill', false),
                         'entry_category_ids' => data_get($phase->settings, 'entry_category_ids', []),
                         'tables' => data_get($phase->settings, 'tables'),
                         'estimated_minutes' => data_get($phase->settings, 'estimated_minutes'),
@@ -250,6 +251,10 @@ class ManageTournamentCompetition extends Page
                                     ->orderBy('sort_order')->pluck('name', 'id')->all())
                                 ->native(false)->searchable()->placeholder('Última fase')
                                 ->helperText('Los clasificados de la fase actual pasarán a esta fase.'),
+                            Toggle::make('progressive_fill')->label('Completar la grilla progresivamente')
+                                ->visible(fn (Get $get): bool => $get('phase_type') === 'bracket')
+                                ->helperText('Permite preparar el cuadro antes de finalizar la fase anterior e incorpora cada clasificado en su número de sorteo.')
+                                ->inline(false),
                             TextInput::make('qualifiers')->label('Clasificados a la siguiente fase')->integer()->minValue(1)
                                 ->helperText('En la última fase se ignora porque allí finaliza el torneo.'),
                             TextInput::make('tables')->label('Mesas disponibles')->integer()->minValue(1),

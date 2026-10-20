@@ -220,6 +220,12 @@ class FiveQuillasCompetitionService
                         'phases' => 'En una fase de eliminación directa, la cantidad de clasificados debe ser 1, 2, 4, 8, 16, 32, 64 o 128 para conservar una grilla eliminatoria válida.',
                     ]);
                 }
+                if ((bool) ($row['progressive_fill'] ?? false)
+                    && ($row['seeding_method'] ?? null) !== 'number_draw') {
+                    throw ValidationException::withMessages([
+                        'phases' => 'La carga progresiva requiere la ubicación por sorteo presencial para conservar fija la posición de cada jugador.',
+                    ]);
+                }
                 $phase = filled($row['id'] ?? null) ? $existing->get((int) $row['id']) : null;
                 if ($phase && ($phase->groups_count > 0 || $phase->matches_count > 0)
                     && $phase->phase_type !== $row['phase_type']) {
@@ -249,6 +255,7 @@ class FiveQuillasCompetitionService
                         'next_phase_id' => filled($row['next_phase_id'] ?? null)
                             ? (int) $row['next_phase_id']
                             : null,
+                        'progressive_fill' => (bool) ($row['progressive_fill'] ?? false),
                         'entry_category_ids' => collect($row['entry_category_ids'] ?? [])->filter()
                             ->map(fn ($id): int => (int) $id)->unique()->values()->all(),
                         'tables' => filled($row['tables'] ?? null) ? (int) $row['tables'] : null,
@@ -372,11 +379,13 @@ class FiveQuillasCompetitionService
             $to = filled($schedule['to_match'] ?? null) ? (int) $schedule['to_match'] : $matches->count();
             $matches = $matches->slice($from - 1, max(0, $to - $from + 1))->values();
             // Los pases libres ocupan un lugar en la grilla, pero no consumen mesa ni horario.
-            $matches = $matches->filter(fn ($match): bool =>
-                ! $match->is_bye
-                && filled($match->player_one_entry_id)
-                && filled($match->player_two_entry_id)
-            )->values();
+            if (! (bool) data_get($phase->settings, 'progressive_fill', false)) {
+                $matches = $matches->filter(fn ($match): bool =>
+                    ! $match->is_bye
+                    && filled($match->player_one_entry_id)
+                    && filled($match->player_two_entry_id)
+                )->values();
+            }
             if ($matches->isEmpty()) {
                 throw ValidationException::withMessages([
                     'schedule' => "La fase todavía no tiene partidos creados para la ronda {$round}.",
@@ -405,7 +414,10 @@ class FiveQuillasCompetitionService
             if ($phase->phase_type === 'zones') {
                 throw ValidationException::withMessages(['phase' => 'Las zonas se confeccionan con la acción Cargar zonas.']);
             }
-            if ($phase->matches()->exists() && $phase->phase_type !== 'slot_elimination') {
+            $progressiveFill = (bool) data_get($phase->settings, 'progressive_fill', false);
+            if ($phase->matches()->exists()
+                && $phase->phase_type !== 'slot_elimination'
+                && ! $progressiveFill) {
                 // Esta acción se usa también después de corregir resultados de zonas.
                 // La confirmación implica reconstruir la fase completa, incluidos los
                 // resultados que pudiera contener la grilla anterior.
@@ -422,7 +434,9 @@ class FiveQuillasCompetitionService
 
             $previous = $this->previousPhase($phase);
 
-            if ($previous && $phase->phase_type !== 'slot_elimination' && $previous->status !== 'completed') {
+            if ($previous && $phase->phase_type !== 'slot_elimination'
+                && ! $progressiveFill
+                && $previous->status !== 'completed') {
                 throw ValidationException::withMessages([
                     'phase' => "La fase {$previous->name} debe finalizar completamente antes de reunir sus clasificados en {$phase->name}.",
                 ]);
@@ -435,7 +449,7 @@ class FiveQuillasCompetitionService
                 ->whereIn('status', ['eligible', 'assigned', 'qualified'])->get();
             $source = collect($source)->merge($directEntries)->unique('id')->values();
 
-            if ($source->isEmpty()) {
+            if ($source->isEmpty() && ! ($progressiveFill && $phase->phase_type === 'bracket')) {
                 throw ValidationException::withMessages(['phase' => 'La fase anterior todavía no tiene clasificados disponibles.']);
             }
 
@@ -449,7 +463,9 @@ class FiveQuillasCompetitionService
 
             if ($phase->phase_type === 'bracket') {
                 $qualifiers = (int) data_get($phase->settings, 'qualifiers', 0);
-                if ($qualifiers > 0 && $source->count() <= $qualifiers) {
+                if ($qualifiers > 0
+                    && $source->count() <= $qualifiers
+                    && (! $progressiveFill || $previous?->status === 'completed')) {
                     $phase->update([
                         'status' => 'completed',
                         'settings' => array_merge($phase->settings ?? [], [
@@ -461,7 +477,16 @@ class FiveQuillasCompetitionService
                     return 0;
                 }
                 $configuredSize = (int) data_get($phase->settings, 'bracket_size', 0);
-                $requiredSize = max($configuredSize, $this->nextPowerOfTwo(max(2, $source->count())));
+                $expectedFromPrevious = $previous
+                    ? (int) data_get($previous->settings, 'qualifiers', 0)
+                    : 0;
+                $expectedParticipants = $progressiveFill && $expectedFromPrevious > 0
+                    ? max($source->count(), $expectedFromPrevious + $directEntries->count())
+                    : $source->count();
+                $automaticSize = $this->nextPowerOfTwo(max(2, $expectedParticipants));
+                $requiredSize = $progressiveFill && $expectedFromPrevious > 0
+                    ? $automaticSize
+                    : max($configuredSize, $automaticSize);
                 if ((int) data_get($phase->settings, 'bracket_size', 0) !== $requiredSize) {
                     $phase->update(['settings' => array_merge($phase->settings ?? [], [
                         'bracket_size' => $requiredSize,
@@ -495,12 +520,20 @@ class FiveQuillasCompetitionService
                     $seeded[$seed] = $entry;
                 });
             }
-            if ($seeded === []) {
+            if ($seeded === [] && ! $progressiveFill) {
                 throw ValidationException::withMessages([
                     'phase' => 'No se encontraron jugadores clasificados para completar la grilla final.',
                 ]);
             }
-            $count = $this->createEliminationBracket($phase, $seeded);
+            if ($progressiveFill && $phase->matches()->exists()) {
+                $count = $this->syncProgressiveBracket($phase, $seeded, $previous?->status === 'completed');
+            } else {
+                $count = $this->createEliminationBracket(
+                    $phase,
+                    $seeded,
+                    ! $progressiveFill || $previous?->status === 'completed',
+                );
+            }
             $phase->update(['status' => 'ready']);
 
             return $count;
@@ -533,6 +566,9 @@ class FiveQuillasCompetitionService
         foreach ($rows as $row) {
             $entry = $candidates->get((int) ($row['entry_id'] ?? 0));
             if ($entry) { $entry->update(['seed' => (int) $row['draw_number']]); }
+        }
+        if ((bool) data_get($phase->settings, 'progressive_fill', false)) {
+            $this->preparePhase($phase->fresh());
         }
     }
 
@@ -784,7 +820,7 @@ class FiveQuillasCompetitionService
         return $seeds;
     }
 
-    private function createEliminationBracket(FiveQuillasPhase $phase, array $seeds): int
+    private function createEliminationBracket(FiveQuillasPhase $phase, array $seeds, bool $finalizeByes = true): int
     {
         $size = (int) data_get($phase->settings, 'bracket_size', 16);
         $rounds = (int) log($size, 2);
@@ -824,7 +860,9 @@ class FiveQuillasCompetitionService
                 'player_one_entry_id' => ($seeds[$pair[0]] ?? null)?->id,
                 'player_two_entry_id' => ($seeds[$pair[1]] ?? null)?->id,
             ]);
-            $this->resolveBye($match->fresh());
+            if ($finalizeByes) {
+                $this->resolveBye($match->fresh());
+            }
         }
         $assignedSlots = $phase->matches()->where('round_number', 1)
             ->get(['player_one_entry_id', 'player_two_entry_id'])
@@ -836,7 +874,33 @@ class FiveQuillasCompetitionService
                 'phase' => "La grilla esperaba {$expectedAssignments} clasificados y pudo ubicar {$assignedSlots}. Revisá la configuración del cuadro.",
             ]);
         }
-        $this->resolveReadyByes($phase->matches()->pluck('id'));
+        if ($finalizeByes) {
+            $this->resolveReadyByes($phase->matches()->pluck('id'));
+        }
+        return $phase->matches()->count();
+    }
+
+    private function syncProgressiveBracket(FiveQuillasPhase $phase, array $seeds, bool $finalizeByes): int
+    {
+        $pairs = collect(data_get($phase->settings, 'bracket_pairs', []))->values();
+        $firstRound = $phase->matches()->where('round_number', 1)->orderBy('bracket_order')->get()->values();
+        foreach ($pairs as $index => $pair) {
+            $match = $firstRound->get($index);
+            if (! $match || in_array($match->status, ['in_progress', 'completed'], true)) {
+                continue;
+            }
+            $match->update([
+                'player_one_entry_id' => ($seeds[$pair[0]] ?? null)?->id,
+                'player_two_entry_id' => ($seeds[$pair[1]] ?? null)?->id,
+                'is_bye' => false,
+                'status' => $match->status,
+            ]);
+        }
+        if ($finalizeByes) {
+            $firstRound->each(fn ($match) => $this->resolveBye($match->fresh()));
+            $this->resolveReadyByes($phase->matches()->pluck('id'));
+        }
+
         return $phase->matches()->count();
     }
 
