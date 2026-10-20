@@ -243,6 +243,12 @@ class FiveQuillasCompetitionService
                         'qualifiers' => $index === $lastEnabledIndex
                             ? null
                             : (filled($row['qualifiers'] ?? null) ? (int) $row['qualifiers'] : null),
+                        'previous_phase_id' => filled($row['previous_phase_id'] ?? null)
+                            ? (int) $row['previous_phase_id']
+                            : null,
+                        'next_phase_id' => filled($row['next_phase_id'] ?? null)
+                            ? (int) $row['next_phase_id']
+                            : null,
                         'entry_category_ids' => collect($row['entry_category_ids'] ?? [])->filter()
                             ->map(fn ($id): int => (int) $id)->unique()->values()->all(),
                         'tables' => filled($row['tables'] ?? null) ? (int) $row['tables'] : null,
@@ -277,6 +283,25 @@ class FiveQuillasCompetitionService
                 }
                 $retainedIds->push($phase->id);
                 $usedCodes->push($code);
+            }
+
+            $enabledPhases = $competition->phases()->whereIn('id', $retainedIds)
+                ->where('is_enabled', true)->orderBy('sort_order')->get()->values();
+            foreach ($enabledPhases as $index => $phase) {
+                $settings = $phase->settings ?? [];
+                $configuredPrevious = (int) data_get($settings, 'previous_phase_id', 0);
+                $configuredNext = (int) data_get($settings, 'next_phase_id', 0);
+                $configuredPreviousPhase = $enabledPhases->firstWhere('id', $configuredPrevious);
+                $configuredNextPhase = $enabledPhases->firstWhere('id', $configuredNext);
+                $settings['previous_phase_id'] = $configuredPreviousPhase
+                    && (int) $configuredPreviousPhase->sort_order < (int) $phase->sort_order
+                        ? $configuredPrevious
+                        : $enabledPhases->get($index - 1)?->id;
+                $settings['next_phase_id'] = $configuredNextPhase
+                    && (int) $configuredNextPhase->sort_order > (int) $phase->sort_order
+                        ? $configuredNext
+                        : $enabledPhases->get($index + 1)?->id;
+                $phase->update(['settings' => $settings]);
             }
 
             foreach ($existing->whereNotIn('id', $retainedIds) as $phase) {
@@ -395,10 +420,13 @@ class FiveQuillasCompetitionService
                 $phase->matches()->delete();
             }
 
-            $previous = $phase->competition->phases()
-                ->where('is_enabled', true)
-                ->where('sort_order', '<', $phase->sort_order)
-                ->orderByDesc('sort_order')->first();
+            $previous = $this->previousPhase($phase);
+
+            if ($previous && $phase->phase_type !== 'slot_elimination' && $previous->status !== 'completed') {
+                throw ValidationException::withMessages([
+                    'phase' => "La fase {$previous->name} debe finalizar completamente antes de reunir sus clasificados en {$phase->name}.",
+                ]);
+            }
 
             $source = $previous
                 ? $this->qualifiedEntriesFromPhase($previous)
@@ -481,8 +509,7 @@ class FiveQuillasCompetitionService
 
     public function drawCandidates(FiveQuillasPhase $phase)
     {
-        $previous = $phase->competition->phases()->where('is_enabled', true)
-            ->where('sort_order', '<', $phase->sort_order)->orderByDesc('sort_order')->first();
+        $previous = $this->previousPhase($phase);
         $source = $previous
             ? $this->qualifiedEntriesFromPhase($previous)
             : $phase->competition->entries()->whereIn('status', ['eligible', 'assigned', 'qualified'])->get();
@@ -1099,8 +1126,7 @@ class FiveQuillasCompetitionService
     {
         $phase = FiveQuillasPhase::query()->with('competition.tournament.type')->findOrFail($phaseId);
         if ($phase->phase_type === 'slot_elimination') {
-            $previous = $phase->competition->phases()->where('is_enabled', true)
-                ->where('sort_order', '<', $phase->sort_order)->orderByDesc('sort_order')->first();
+            $previous = $this->previousPhase($phase);
             if ($previous && $previous->status !== 'completed') {
                 $phase->update(['status' => 'in_progress']);
                 $phase->competition()->update(['status' => 'in_progress']);
@@ -1109,7 +1135,11 @@ class FiveQuillasCompetitionService
         }
         if ($phase->matches()->exists() && $phase->matches()->where('status', '!=', 'completed')->doesntExist()) {
             $phase->update(['status' => 'completed']);
-            $next = $phase->competition->phases()->where('is_enabled', true)
+            $nextId = (int) data_get($phase->settings, 'next_phase_id', 0);
+            $next = $nextId > 0
+                ? $phase->competition->phases()->where('is_enabled', true)->find($nextId)
+                : null;
+            $next ??= $phase->competition->phases()->where('is_enabled', true)
                 ->where('sort_order', '>', $phase->sort_order)->orderBy('sort_order')->first();
             if (! $next) {
                 $phase->competition->update(['status' => 'completed']);
@@ -1363,8 +1393,7 @@ class FiveQuillasCompetitionService
 
     private function orderByPreviousPhaseResult(FiveQuillasPhase $phase, $source)
     {
-        $previous = $phase->competition->phases()->where('is_enabled', true)
-            ->where('sort_order', '<', $phase->sort_order)->orderByDesc('sort_order')->first();
+        $previous = $this->previousPhase($phase);
         if (! $previous || $previous->phase_type !== 'zones') {
             return collect($source)->values();
         }
@@ -1728,6 +1757,8 @@ class FiveQuillasCompetitionService
     private function officialBracketPairs(int $size): array
     {
         return match ($size) {
+            2 => [[1,2]],
+            4 => [[1,4],[2,3]],
             8 => [[1,8],[4,5],[3,6],[7,2]],
             16 => [[1,16],[9,8],[5,12],[13,4],[3,14],[11,6],[7,10],[15,2]],
             32 => [[1,32],[16,17],[9,24],[25,8],[5,28],[12,21],[13,20],[29,4],
@@ -1738,9 +1769,23 @@ class FiveQuillasCompetitionService
                 [7,58],[39,26],[23,42],[55,10],[15,50],[47,18],[31,34],[63,2]],
             128, 256 => $this->generatedBracketPairs($size),
             default => throw ValidationException::withMessages([
-                'phases' => 'El cuadro debe tener 8, 16, 32, 64, 128 o 256 posiciones.',
+                'phases' => 'El cuadro debe tener 2, 4, 8, 16, 32, 64, 128 o 256 posiciones.',
             ]),
         };
+    }
+
+    private function previousPhase(FiveQuillasPhase $phase): ?FiveQuillasPhase
+    {
+        $configuredId = (int) data_get($phase->settings, 'previous_phase_id', 0);
+        if ($configuredId > 0) {
+            $configured = $phase->competition->phases()->where('is_enabled', true)->find($configuredId);
+            if ($configured) {
+                return $configured;
+            }
+        }
+
+        return $phase->competition->phases()->where('is_enabled', true)
+            ->where('sort_order', '<', $phase->sort_order)->orderByDesc('sort_order')->first();
     }
 
     private function generatedBracketPairs(int $size): array

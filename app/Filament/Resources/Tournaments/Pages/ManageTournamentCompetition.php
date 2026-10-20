@@ -165,6 +165,8 @@ class ManageTournamentCompetition extends Page
                         'split_by_slot' => $phase->split_by_slot,
                         'is_enabled' => $phase->is_enabled ?? true,
                         'qualifiers' => data_get($phase->settings, 'qualifiers'),
+                        'previous_phase_id' => data_get($phase->settings, 'previous_phase_id'),
+                        'next_phase_id' => data_get($phase->settings, 'next_phase_id'),
                         'entry_category_ids' => data_get($phase->settings, 'entry_category_ids', []),
                         'tables' => data_get($phase->settings, 'tables'),
                         'estimated_minutes' => data_get($phase->settings, 'estimated_minutes'),
@@ -238,12 +240,24 @@ class ManageTournamentCompetition extends Page
                                     ->orderBy('order')->orderBy('name')->pluck('name', 'id')->all())
                                 ->multiple()->searchable()->preload()->native(false)->columnSpan(2)
                                 ->helperText('Los inscriptos de estas categorías se incorporan directamente aquí. Las categorías no asignadas ingresan en la primera fase.'),
+                            Select::make('previous_phase_id')->label('Fase anterior')
+                                ->options(fn (): array => $this->competition()->phases()
+                                    ->orderBy('sort_order')->pluck('name', 'id')->all())
+                                ->native(false)->searchable()->placeholder('Primera fase')
+                                ->helperText('Los clasificados de esta fase serán los participantes de la fase actual.'),
+                            Select::make('next_phase_id')->label('Fase posterior')
+                                ->options(fn (): array => $this->competition()->phases()
+                                    ->orderBy('sort_order')->pluck('name', 'id')->all())
+                                ->native(false)->searchable()->placeholder('Última fase')
+                                ->helperText('Los clasificados de la fase actual pasarán a esta fase.'),
                             TextInput::make('qualifiers')->label('Clasificados a la siguiente fase')->integer()->minValue(1)
                                 ->helperText('En la última fase se ignora porque allí finaliza el torneo.'),
                             TextInput::make('tables')->label('Mesas disponibles')->integer()->minValue(1),
                             TextInput::make('estimated_minutes')->label('Duración por partido')->suffix('min')->integer()->minValue(1),
                             TextInput::make('rest_minutes')->label('Descanso entre partidos')->suffix('min')->integer()->minValue(0)->default(0),
                             Select::make('bracket_size')->label('Tamaño del cuadro')->options([
+                                2 => '2 posiciones',
+                                4 => '4 posiciones',
                                 8 => '8 posiciones',
                                 16 => '16 posiciones',
                                 32 => '32 posiciones',
