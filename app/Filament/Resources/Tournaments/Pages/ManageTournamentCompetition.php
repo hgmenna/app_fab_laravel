@@ -244,11 +244,15 @@ class ManageTournamentCompetition extends Page
                             TextInput::make('estimated_minutes')->label('Duración por partido')->suffix('min')->integer()->minValue(1),
                             TextInput::make('rest_minutes')->label('Descanso entre partidos')->suffix('min')->integer()->minValue(0)->default(0),
                             Select::make('bracket_size')->label('Tamaño del cuadro')->options([
+                                8 => '8 posiciones',
                                 16 => '16 posiciones',
                                 32 => '32 posiciones',
                                 64 => '64 posiciones',
+                                128 => '128 posiciones',
+                                256 => '256 posiciones',
                             ])->visible(fn (Get $get): bool => $get('phase_type') === 'bracket')
                                 ->required(fn (Get $get): bool => $get('phase_type') === 'bracket')
+                                ->helperText('Al preparar la fase, el sistema ajusta el cuadro automáticamente a la cantidad real de jugadores.')
                                 ->native(false),
                             Toggle::make('split_by_slot')->label('Usar los horarios definidos en el torneo')->inline(false)
                                 ->helperText('Cada horario conserva sus propios inscriptos, zonas y partidos.'),

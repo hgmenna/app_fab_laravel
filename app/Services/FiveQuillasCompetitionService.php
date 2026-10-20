@@ -211,6 +211,15 @@ class FiveQuillasCompetitionService
                         'phases' => 'El método de ubicación elegido no corresponde a la fase '.($index + 1).'.',
                     ]);
                 }
+                $qualifiers = filled($row['qualifiers'] ?? null) ? (int) $row['qualifiers'] : null;
+                if (($row['phase_type'] ?? null) === 'bracket'
+                    && $index !== $lastEnabledIndex
+                    && $qualifiers !== null
+                    && ($qualifiers < 1 || ($qualifiers & ($qualifiers - 1)) !== 0)) {
+                    throw ValidationException::withMessages([
+                        'phases' => 'En una fase de eliminación directa, la cantidad de clasificados debe ser 1, 2, 4, 8, 16, 32, 64 o 128 para conservar una grilla eliminatoria válida.',
+                    ]);
+                }
                 $phase = filled($row['id'] ?? null) ? $existing->get((int) $row['id']) : null;
                 if ($phase && ($phase->groups_count > 0 || $phase->matches_count > 0)
                     && $phase->phase_type !== $row['phase_type']) {
@@ -371,7 +380,7 @@ class FiveQuillasCompetitionService
             if ($phase->phase_type === 'zones') {
                 throw ValidationException::withMessages(['phase' => 'Las zonas se confeccionan con la acción Cargar zonas.']);
             }
-            if ($phase->matches()->exists()) {
+            if ($phase->matches()->exists() && $phase->phase_type !== 'slot_elimination') {
                 // Esta acción se usa también después de corregir resultados de zonas.
                 // La confirmación implica reconstruir la fase completa, incluidos los
                 // resultados que pudiera contener la grilla anterior.
@@ -408,6 +417,30 @@ class FiveQuillasCompetitionService
 
             if ($phase->phase_type === 'play_in') {
                 return $this->createPlayIn($phase, $source);
+            }
+
+            if ($phase->phase_type === 'bracket') {
+                $qualifiers = (int) data_get($phase->settings, 'qualifiers', 0);
+                if ($qualifiers > 0 && $source->count() <= $qualifiers) {
+                    $phase->update([
+                        'status' => 'completed',
+                        'settings' => array_merge($phase->settings ?? [], [
+                            'qualified_entry_ids' => $source->pluck('id')->values()->all(),
+                        ]),
+                    ]);
+                    $source->each(fn ($entry) => $entry->update(['status' => 'qualified']));
+
+                    return 0;
+                }
+                $configuredSize = (int) data_get($phase->settings, 'bracket_size', 0);
+                $requiredSize = max($configuredSize, $this->nextPowerOfTwo(max(2, $source->count())));
+                if ((int) data_get($phase->settings, 'bracket_size', 0) !== $requiredSize) {
+                    $phase->update(['settings' => array_merge($phase->settings ?? [], [
+                        'bracket_size' => $requiredSize,
+                        'bracket_pairs' => $this->officialBracketPairs($requiredSize),
+                    ])]);
+                    $phase->refresh();
+                }
             }
 
             if ($previous?->phase_type === 'zones'
@@ -592,6 +625,7 @@ class FiveQuillasCompetitionService
         $groups = $previous->groups()->with(['groupEntries.entry'])->orderBy('tournament_slot_id')->orderBy('sort_order')->get()
             ->groupBy('tournament_slot_id');
         $order = 0;
+        $availableMatches = 0;
         foreach ($groups as $slotGroups) {
             $slotGroups = $slotGroups->values();
             for ($index = 0; $index < $slotGroups->count(); $index += 2) {
@@ -601,23 +635,45 @@ class FiveQuillasCompetitionService
                 $leftRows = $left->groupEntries->keyBy('final_place');
                 $rightRows = $right->groupEntries->keyBy('final_place');
                 foreach ([[$leftRows->get(1), $rightRows->get(2)], [$rightRows->get(1), $leftRows->get(2)]] as $pair) {
-                    if (! $pair[0] || ! $pair[1]) { continue; }
                     $order++;
-                    $phase->matches()->create([
+                    if (! $pair[0] || ! $pair[1]) { continue; }
+                    $availableMatches++;
+                    $match = $phase->matches()->where('round_number', 1)
+                        ->where('bracket_order', $order)->first();
+                    $attributes = [
                         'round_number' => 1, 'bracket_order' => $order,
                         'label' => 'Cruce por horario '.$order,
                         'player_one_entry_id' => $pair[0]->entry_id,
                         'player_two_entry_id' => $pair[1]->entry_id,
                         'is_public' => (bool) $phase->is_public,
-                    ]);
+                    ];
+                    if (! $match) {
+                        $phase->matches()->create($attributes);
+                    } elseif ($match->status !== 'completed') {
+                        $match->update($attributes);
+                    }
                 }
             }
         }
-        if ($order === 0) {
+        if ($availableMatches === 0) {
             throw ValidationException::withMessages(['phase' => 'Finalizá y clasificá las zonas antes de crear los cruces.']);
         }
-        $phase->update(['status' => 'ready']);
-        return $order;
+        $phase->update([
+            'status' => $phase->matches()->whereIn('status', ['in_progress', 'completed'])->exists()
+                ? 'in_progress'
+                : 'ready',
+        ]);
+        return $availableMatches;
+    }
+
+    private function nextPowerOfTwo(int $value): int
+    {
+        $size = 2;
+        while ($size < $value) {
+            $size *= 2;
+        }
+
+        return $size;
     }
 
     private function createPlayIn(FiveQuillasPhase $phase, $source): int
@@ -708,9 +764,13 @@ class FiveQuillasCompetitionService
         // Los cuadros finales normales siempre contienen todas las rondas desde el
         // momento en que se preparan. El corte parcial se reserva exclusivamente para
         // la fase especial Primera Nacional del Circuito Argentino.
-        $roundsToCreate = $phase->code === 'national'
-            ? min($rounds, max(1, (int) data_get($phase->settings, 'stop_after_rounds', $rounds)))
+        $qualifiers = (int) data_get($phase->settings, 'qualifiers', 0);
+        $roundsForQualifiers = $qualifiers > 0 && $qualifiers < $size
+            ? max(1, (int) ceil(log($size / $qualifiers, 2)))
             : $rounds;
+        $roundsToCreate = $phase->code === 'national'
+            ? min($roundsForQualifiers, max(1, (int) data_get($phase->settings, 'stop_after_rounds', $roundsForQualifiers)))
+            : $roundsForQualifiers;
         $created = [];
         for ($round = $roundsToCreate; $round >= 1; $round--) {
             $count = intdiv($size, 2 ** $round);
@@ -1038,6 +1098,15 @@ class FiveQuillasCompetitionService
     private function completePhaseWhenReady(int $phaseId): void
     {
         $phase = FiveQuillasPhase::query()->with('competition.tournament.type')->findOrFail($phaseId);
+        if ($phase->phase_type === 'slot_elimination') {
+            $previous = $phase->competition->phases()->where('is_enabled', true)
+                ->where('sort_order', '<', $phase->sort_order)->orderByDesc('sort_order')->first();
+            if ($previous && $previous->status !== 'completed') {
+                $phase->update(['status' => 'in_progress']);
+                $phase->competition()->update(['status' => 'in_progress']);
+                return;
+            }
+        }
         if ($phase->matches()->exists() && $phase->matches()->where('status', '!=', 'completed')->doesntExist()) {
             $phase->update(['status' => 'completed']);
             $next = $phase->competition->phases()->where('is_enabled', true)
@@ -1659,6 +1728,7 @@ class FiveQuillasCompetitionService
     private function officialBracketPairs(int $size): array
     {
         return match ($size) {
+            8 => [[1,8],[4,5],[3,6],[7,2]],
             16 => [[1,16],[9,8],[5,12],[13,4],[3,14],[11,6],[7,10],[15,2]],
             32 => [[1,32],[16,17],[9,24],[25,8],[5,28],[12,21],[13,20],[29,4],
                 [3,30],[14,19],[11,22],[27,6],[7,26],[10,23],[15,18],[31,2]],
@@ -1666,10 +1736,27 @@ class FiveQuillasCompetitionService
                 [5,60],[28,37],[12,53],[21,44],[13,52],[20,45],[29,36],[61,4],
                 [3,62],[30,35],[19,46],[51,14],[11,54],[43,22],[27,38],[59,6],
                 [7,58],[39,26],[23,42],[55,10],[15,50],[47,18],[31,34],[63,2]],
+            128, 256 => $this->generatedBracketPairs($size),
             default => throw ValidationException::withMessages([
-                'phases' => 'El cuadro debe tener 16, 32 o 64 posiciones.',
+                'phases' => 'El cuadro debe tener 8, 16, 32, 64, 128 o 256 posiciones.',
             ]),
         };
+    }
+
+    private function generatedBracketPairs(int $size): array
+    {
+        $order = [1, 2];
+        while (count($order) < $size) {
+            $sum = count($order) * 2 + 1;
+            $next = [];
+            foreach ($order as $seed) {
+                $next[] = $seed;
+                $next[] = $sum - $seed;
+            }
+            $order = $next;
+        }
+
+        return collect($order)->chunk(2)->map(fn ($pair): array => $pair->values()->all())->all();
     }
 
     private function phase(string $code, string $name, string $type, int $order, int $sets, string $seeding, bool $split, array $settings = []): array
