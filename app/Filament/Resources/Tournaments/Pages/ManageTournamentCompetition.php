@@ -620,6 +620,87 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    public function configureSlotCrossingsAction(): Action
+    {
+        return Action::make('configureSlotCrossings')
+            ->label('Configurar cruces')->icon('heroicon-o-arrows-right-left')->color('warning')->size('sm')
+            ->fillForm(function (array $arguments): array {
+                $phase = $this->competition()->phases()->findOrFail((int) ($arguments['phaseId'] ?? 0));
+                $rows = $phase->matches()->with(['playerOne', 'playerTwo'])
+                    ->orderBy('bracket_order')->get()->map(fn ($match): array => [
+                        'slot_id' => $match->playerOne?->source_slot_id,
+                        'player_one_entry_id' => $match->player_one_entry_id,
+                        'player_two_entry_id' => $match->player_two_entry_id,
+                    ])->all();
+
+                return ['crossings' => $rows ?: [['slot_id' => null]]];
+            })
+            ->schema(function (array $arguments): array {
+                $phaseId = (int) ($arguments['phaseId'] ?? 0);
+                return [
+                Repeater::make('crossings')->label('Enfrentamientos por horario')
+                    ->table([
+                        TableColumn::make('Horario')->width('24%'),
+                        TableColumn::make('1.º o 2.º clasificado')->width('36%'),
+                        TableColumn::make('Rival de otra zona')->width('36%'),
+                    ])
+                    ->schema([
+                        Select::make('slot_id')->hiddenLabel()->required()->native(false)->live()
+                            ->options(function () use ($phaseId): array {
+                                $phase = $this->competition()->phases()->find($phaseId);
+                                if (! $phase) { return []; }
+                                return app(FiveQuillasCompetitionService::class)->slotEliminationCandidates($phase)
+                                    ->groupBy(fn ($row) => (int) $row->group?->tournament_slot_id)
+                                    ->map(fn ($rows): string => $rows->first()?->group?->slot?->name ?? 'SIN HORARIO')
+                                    ->all();
+                            })
+                            ->afterStateUpdated(function (Set $set): void {
+                                $set('player_one_entry_id', null);
+                                $set('player_two_entry_id', null);
+                            }),
+                        Select::make('player_one_entry_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
+                            ->options(fn (Get $get): array => $this->slotQualifiedOptions(
+                                $phaseId, (int) ($get('slot_id') ?? 0),
+                            ))->live(),
+                        Select::make('player_two_entry_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
+                            ->options(fn (Get $get): array => $this->slotQualifiedOptions(
+                                $phaseId, (int) ($get('slot_id') ?? 0),
+                                [(int) ($get('player_one_entry_id') ?? 0)],
+                            ))->live(),
+                    ])
+                    ->defaultItems(1)->minItems(1)->addActionLabel('Agregar cruce')
+                    ->reorderable(false)->columnSpanFull(),
+                ];
+            })
+            ->modalHeading('Cruces manuales por horario')
+            ->modalDescription('Seleccioná un 1.º y un 2.º clasificado de zonas distintas del mismo horario. Solo se muestran jugadores clasificados en las zonas.')
+            ->modalWidth('7xl')->requiresConfirmation()
+            ->action(function (array $data, array $arguments): void {
+                $phase = $this->competition()->phases()->whereKey((int) ($arguments['phaseId'] ?? 0))
+                    ->where('phase_type', 'slot_elimination')->where('is_enabled', true)->firstOrFail();
+                $count = app(FiveQuillasCompetitionService::class)
+                    ->createManualSlotElimination($phase, $data['crossings'] ?? []);
+                Notification::make()->success()->title('Cruces preparados')
+                    ->body($count.' enfrentamientos quedaron cargados.')->send();
+            });
+    }
+
+    public function slotQualifiedOptions(int $phaseId, int $slotId, array $excluded = []): array
+    {
+        if ($phaseId < 1 || $slotId < 1) { return []; }
+        $phase = $this->competition()->phases()->find($phaseId);
+        if (! $phase) { return []; }
+
+        return app(FiveQuillasCompetitionService::class)->slotEliminationCandidates($phase)
+            ->filter(fn ($row): bool => (int) $row->group?->tournament_slot_id === $slotId)
+            ->reject(fn ($row): bool => in_array((int) $row->entry_id, $excluded, true))
+            ->sortBy(fn ($row): array => [(int) $row->final_place, (int) $row->entry?->national_ranking_snapshot])
+            ->mapWithKeys(fn ($row): array => [
+                $row->entry_id => $row->final_place.'.º · '.($row->entry?->player?->full_name ?? 'Jugador')
+                    .' — '.($row->group?->name ?? 'Zona'),
+            ])->all();
+    }
+
     public function schedulePhaseAction(): Action
     {
         return Action::make('schedulePhase')

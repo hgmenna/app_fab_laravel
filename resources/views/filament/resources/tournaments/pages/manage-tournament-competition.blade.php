@@ -195,7 +195,9 @@
                     <h2>{{ $phase->name }}</h2>
                     @if($phase->status !== 'completed')
                         <div class="fq-phase-actions">
-                            @if($phase->matches->isNotEmpty() || !$previousPhase || $previousPhase->status === 'completed')
+                            @if($phase->phase_type === 'slot_elimination')
+                                {{ ($this->configureSlotCrossingsAction)(['phaseId' => $phase->id]) }}
+                            @elseif($phase->matches->isNotEmpty() || !$previousPhase || $previousPhase->status === 'completed')
                                 {{ ($this->preparePhaseAction)(['phaseId' => $phase->id]) }}
                             @else
                                 <small>Pendiente de finalizar {{ $previousPhase->name }}</small>
