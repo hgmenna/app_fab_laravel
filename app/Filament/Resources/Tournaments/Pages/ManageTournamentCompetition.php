@@ -419,6 +419,33 @@ class ManageTournamentCompetition extends Page
             ])->all();
     }
 
+    private function zoneFormRows(Get $get): array
+    {
+        $zones = $get('../../zones');
+        if (is_array($zones)) {
+            return $zones;
+        }
+
+        $root = $get('../../');
+        if (is_array($root) && is_array($root['zones'] ?? null)) {
+            return $root['zones'];
+        }
+
+        $zones = $get('../../../zones');
+        return is_array($zones) ? $zones : [];
+    }
+
+    private function selectedZoneEntryIds(Get $get, int $currentEntryId = 0): array
+    {
+        return collect($this->zoneFormRows($get))
+            ->flatMap(fn (array $zone): array => collect(range(1, 4))
+                ->map(fn (int $position): int => (int) ($zone['player_'.$position] ?? 0))
+                ->all())
+            ->filter()
+            ->reject(fn (int $entryId): bool => $currentEntryId > 0 && $entryId === $currentEntryId)
+            ->unique()->values()->all();
+    }
+
     public function zoneRowsForSlot(int $slotId): array
     {
         if ($slotId < 1 || ! $this->competition()) {
@@ -495,21 +522,17 @@ class ManageTournamentCompetition extends Page
                             ->hiddenLabel()
                             ->options(function (Get $get) use ($position): array {
                                 $currentEntryId = (int) ($get('player_'.$position) ?? 0);
-                                $selectedEntryIds = collect($get('../../zones') ?? [])
-                                    ->flatMap(fn (array $zone): array => collect(range(1, 4))
-                                        ->map(fn (int $zonePosition): int => (int) ($zone['player_'.$zonePosition] ?? 0))
-                                        ->all())
-                                    ->filter()
-                                    ->reject(fn (int $entryId): bool => $entryId === $currentEntryId)
-                                    ->unique()
-                                    ->values()
-                                    ->all();
+                                $selectedEntryIds = $this->selectedZoneEntryIds($get, $currentEntryId);
 
                                 return $this->entryOptionsForSlot(
                                     (int) $get('../../slot_id'),
                                     $selectedEntryIds,
                                 );
                             })
+                            ->key(fn (Get $get): string => 'zone-player-'.md5(json_encode([
+                                $get('group_id'), $get('name'), $position, $get('player_'.$position),
+                                $this->selectedZoneEntryIds($get),
+                            ], JSON_THROW_ON_ERROR)))
                             ->searchable()->preload()->native(false)->placeholder('LIBRE')->live()
                             ->disableOptionWhen(function (string $value, $state, Get $get): bool {
                                 $currentEntryId = (int) ($state ?? 0);
@@ -517,12 +540,7 @@ class ManageTournamentCompetition extends Page
                                     return false;
                                 }
 
-                                return collect($get('../../zones') ?? [])
-                                    ->flatMap(fn (array $zone): array => collect(range(1, 4))
-                                        ->map(fn (int $zonePosition): int => (int) ($zone['player_'.$zonePosition] ?? 0))
-                                        ->all())
-                                    ->filter()
-                                    ->contains((int) $value);
+                                return in_array((int) $value, $this->selectedZoneEntryIds($get, $currentEntryId), true);
                             })
                             ->afterStateUpdated(function ($state, Get $get, Set $set) use ($position): void {
                                 if (! filled($state)) {
