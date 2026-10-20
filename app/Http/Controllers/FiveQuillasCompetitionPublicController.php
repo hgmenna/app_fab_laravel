@@ -107,7 +107,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                     'zonas' => $phase->groups->map(fn ($group): array => [
                         'id' => $group->id, 'nombre' => $group->name, 'estado' => $group->status,
                         'horario' => $group->slot?->name,
-                        'inicio' => $group->slot?->starts_at?->toIso8601String(),
+                        'inicio' => $this->dateTimeLabel($group->slot?->starts_at),
                         'jugadores' => $group->groupEntries->map(fn ($row): array => [
                             'posicion' => $row->position,
                             'nombre' => $row->entry->player->full_name,
@@ -132,7 +132,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                         'sets_computables' => [$match->player_one_computed_sets, $match->player_two_computed_sets],
                         'puntos' => [$match->player_one_points, $match->player_two_points],
                         'ganador' => $match->winner?->player?->full_name, 'mesa' => $match->table_number,
-                        'horario' => $match->scheduled_at?->toIso8601String(), 'pase_automatico' => $match->is_bye,
+                        'horario' => $this->dateTimeLabel($match->scheduled_at), 'pase_automatico' => $match->is_bye,
                         'siguiente_partido_id' => $match->next_match_id,
                         'siguiente_posicion' => $match->next_match_position,
                         'estado' => $match->status,
@@ -151,6 +151,11 @@ class FiveQuillasCompetitionPublicController extends Controller
         return $end && ! $end->isSameDay($start)
             ? $start->format('d/m/Y').' al '.$end->format('d/m/Y')
             : $start->format('d/m/Y');
+    }
+
+    private function dateTimeLabel($dateTime): ?string
+    {
+        return $dateTime?->format('d/m/Y · H:i');
     }
 
     private function finalInstance(FiveQuillasCompetition $competition, $entry): string

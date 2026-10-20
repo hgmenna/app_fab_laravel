@@ -88,7 +88,7 @@
             </div>
         @if($zonePhase->groups->isNotEmpty())
             @php
-                $groupsBySlot = $zonePhase->groups->groupBy(fn($group) => (string)($group->slot_id ?? 0));
+                $groupsBySlot = $zonePhase->groups->groupBy(fn($group) => (string)($group->tournament_slot_id ?? 0));
                 $firstSlotKey = (string) $groupsBySlot->keys()->first();
             @endphp
             <div x-data="{ activeSlot: @js($firstSlotKey) }">
