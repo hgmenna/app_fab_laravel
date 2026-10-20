@@ -419,25 +419,11 @@ class ManageTournamentCompetition extends Page
             ])->all();
     }
 
-    private function zoneFormRows(Get $get): array
+    private function selectedZoneEntryIds(Select $component, int $currentEntryId = 0): array
     {
-        $zones = $get('../../zones');
-        if (is_array($zones)) {
-            return $zones;
-        }
+        $repeater = $component->getParentRepeater();
 
-        $root = $get('../../');
-        if (is_array($root) && is_array($root['zones'] ?? null)) {
-            return $root['zones'];
-        }
-
-        $zones = $get('../../../zones');
-        return is_array($zones) ? $zones : [];
-    }
-
-    private function selectedZoneEntryIds(Get $get, int $currentEntryId = 0): array
-    {
-        return collect($this->zoneFormRows($get))
+        return collect($repeater?->getRawState() ?? [])
             ->flatMap(fn (array $zone): array => collect(range(1, 4))
                 ->map(fn (int $position): int => (int) ($zone['player_'.$position] ?? 0))
                 ->all())
@@ -448,15 +434,23 @@ class ManageTournamentCompetition extends Page
 
     public function zoneRowsForSlot(int $slotId): array
     {
+        $emptyZone = [
+            'name' => 'Zona 1',
+            'player_1' => '__free__',
+            'player_2' => '__free__',
+            'player_3' => '__free__',
+            'player_4' => '__free__',
+        ];
+
         if ($slotId < 1 || ! $this->competition()) {
-            return [['name' => 'Zona 1']];
+            return [$emptyZone];
         }
 
         $phase = $this->competition()->phases
             ->first(fn ($phase): bool => $phase->phase_type === 'zones' && $phase->is_enabled);
 
         if (! $phase) {
-            return [['name' => 'Zona 1']];
+            return [$emptyZone];
         }
 
         $rows = $phase->groups()
@@ -472,14 +466,14 @@ class ManageTournamentCompetition extends Page
                     'locked' => $group->matches->contains(fn ($match): bool => $match->status !== 'pending'),
                     'name' => $group->name,
                     ...collect(range(1, 4))->mapWithKeys(fn (int $position): array => [
-                        'player_'.$position => $entries->get($position)?->entry_id,
+                        'player_'.$position => $entries->get($position)?->entry_id ?? '__free__',
                     ])->all(),
                 ];
             })
             ->values()
             ->all();
 
-        return $rows ?: [['name' => 'Zona 1']];
+        return $rows ?: [$emptyZone];
     }
 
     public function createZonesAction(): Action
@@ -520,34 +514,44 @@ class ManageTournamentCompetition extends Page
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')),
                         ...collect(range(1, 4))->map(fn (int $position) => Select::make('player_'.$position)
                             ->hiddenLabel()
-                            ->options(function (Get $get) use ($position): array {
+                            ->options(function (Get $get, Select $component) use ($position): array {
                                 $currentEntryId = (int) ($get('player_'.$position) ?? 0);
-                                $selectedEntryIds = $this->selectedZoneEntryIds($get, $currentEntryId);
+                                $selectedEntryIds = $this->selectedZoneEntryIds($component, $currentEntryId);
 
-                                return $this->entryOptionsForSlot(
+                                return ['__free__' => 'LIBRE'] + $this->entryOptionsForSlot(
                                     (int) $get('../../slot_id'),
                                     $selectedEntryIds,
                                 );
                             })
-                            ->searchable()->preload()->native(false)->placeholder('LIBRE')->live()
-                            ->disableOptionWhen(function (string $value, $state, Get $get): bool {
+                            ->default('__free__')
+                            ->searchable()->preload()->native(false)->live()
+                            ->extraAlpineAttributes([
+                                'x-on:refresh-zone-player-options.window' => 'select.renderOptions()',
+                            ])
+                            ->disableOptionWhen(function (string $value, $state, Select $component): bool {
+                                if ($value === '__free__') {
+                                    return false;
+                                }
+
                                 $currentEntryId = (int) ($state ?? 0);
                                 if ((int) $value === $currentEntryId) {
                                     return false;
                                 }
 
-                                return in_array((int) $value, $this->selectedZoneEntryIds($get, $currentEntryId), true);
+                                return in_array((int) $value, $this->selectedZoneEntryIds($component, $currentEntryId), true);
                             })
                             ->afterStateUpdated(function ($state, Get $get, Set $set) use ($position): void {
-                                if (! filled($state)) {
+                                if (! filled($state) || $state === '__free__') {
                                     return;
                                 }
                                 foreach (range(1, 4) as $otherPosition) {
                                     if ($otherPosition !== $position
                                         && (int) ($get('player_'.$otherPosition) ?? 0) === (int) $state) {
-                                        $set('player_'.$otherPosition, null);
+                                        $set('player_'.$otherPosition, '__free__');
                                     }
                                 }
+
+                                $this->dispatch('refresh-zone-player-options');
                             })
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')))->all(),
                     ])
