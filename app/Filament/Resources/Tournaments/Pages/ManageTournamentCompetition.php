@@ -526,7 +526,13 @@ class ManageTournamentCompetition extends Page
                             ->default('__free__')
                             ->searchable()->preload()->native(false)->live()
                             ->extraAlpineAttributes([
-                                'x-on:refresh-zone-player-options.window' => 'select.renderOptions()',
+                                'x-on:refresh-zone-player-options.window' => <<<'JS'
+                                    setTimeout(() => {
+                                        if ($el.isConnected && select) {
+                                            select.renderOptions()
+                                        }
+                                    }, 100)
+                                    JS,
                             ])
                             ->disableOptionWhen(function (string $value, $state, Select $component): bool {
                                 if ($value === '__free__') {
