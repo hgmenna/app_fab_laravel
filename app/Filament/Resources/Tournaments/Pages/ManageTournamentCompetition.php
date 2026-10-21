@@ -18,6 +18,7 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\ToggleButtons;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Grid;
@@ -910,7 +911,6 @@ class ManageTournamentCompetition extends Page
                     'players_label' => $this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)),
                     'player_one_name' => $match?->playerOne?->player?->full_name ?? 'Jugador 1',
                     'player_two_name' => $match?->playerTwo?->player?->full_name ?? 'Jugador 2',
-                    'declare_without_scores' => (bool) data_get($match?->set_scores, 'manual_winner', false),
                     'declared_winner_id' => data_get($match?->set_scores, 'manual_winner') ? $match?->winner_entry_id : null,
                     ...collect(range(1, max(1, (int) ($match?->phase?->sets_to_play ?? 3))))
                         ->flatMap(fn (int $setNumber): array => [
@@ -958,17 +958,25 @@ class ManageTournamentCompetition extends Page
                     Hidden::make('players_label'),
                     Hidden::make('player_one_name'),
                     Hidden::make('player_two_name'),
-                    Toggle::make('declare_without_scores')->label('Proclamar ganador sin informar los resultados de los sets')
-                        ->live()->columnSpanFull(),
-                    Select::make('declared_winner_id')->label('Ganador de la partida')
+                    ToggleButtons::make('declared_winner_id')->label('Proclamar ganador sin cargar los sets')
                         ->options(array_filter([
                             $match?->player_one_entry_id => $playerNames[1],
                             $match?->player_two_entry_id => $playerNames[2],
-                        ]))->required(fn (Get $get): bool => (bool) $get('declare_without_scores'))
-                        ->visible(fn (Get $get): bool => (bool) $get('declare_without_scores'))->columnSpanFull(),
+                        ]))
+                        ->icons(array_filter([
+                            $match?->player_one_entry_id => 'heroicon-o-trophy',
+                            $match?->player_two_entry_id => 'heroicon-o-trophy',
+                        ]))
+                        ->colors(array_filter([
+                            $match?->player_one_entry_id => 'warning',
+                            $match?->player_two_entry_id => 'warning',
+                        ]))
+                        ->inline()->grouped()->live()
+                        ->helperText('Seleccioná el nombre del ganador y presioná Confirmar. No se cargarán resultados por set.')
+                        ->columnSpanFull(),
                     Grid::make($bestOf + 3)
                         ->schema([...$headers, ...$playerRow(1), ...$playerRow(2)])
-                        ->visible(fn (Get $get): bool => ! (bool) $get('declare_without_scores'))
+                        ->visible(fn (Get $get): bool => blank($get('declared_winner_id')))
                         ->columnSpanFull(),
                 ];
             })
@@ -980,7 +988,7 @@ class ManageTournamentCompetition extends Page
                     ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
                     ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')->where('is_bye', false)
                     ->findOrFail((int) $arguments['matchId']);
-                if ((bool) ($data['declare_without_scores'] ?? false)) {
+                if (filled($data['declared_winner_id'] ?? null)) {
                     try {
                         $updatedMatch = app(FiveQuillasCompetitionService::class)->declareMatchWinner(
                             $match, (int) ($data['declared_winner_id'] ?? 0),
