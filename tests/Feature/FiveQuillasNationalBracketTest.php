@@ -105,11 +105,17 @@ it('moves direct overflow to reclassification without colliding seeds', function
         'status' => 'qualified',
     ])->id);
     $previous->update(['settings' => ['qualifiers' => 32, 'qualified_entry_ids' => $qualifiedIds->all()]]);
-    collect(range(1, 33))->each(fn (int $ranking) => FiveQuillasEntry::create([
+    $directIds = collect(range(1, 33))->map(fn (int $ranking): int => FiveQuillasEntry::create([
         'competition_id' => $competition->id, 'player_id' => Player::factory()->create()->id,
         'entry_phase_id' => $phase->id, 'national_ranking_snapshot' => $ranking,
         'status' => 'eligible',
-    ]));
+    ])->id);
+    $phase->update(['settings' => array_merge($phase->settings, [
+        'participant_seed_overrides' => [
+            $directIds->first() => 65,
+            $qualifiedIds->first() => 33,
+        ],
+    ])]);
 
     $service = app(FiveQuillasCompetitionService::class);
     $rows = collect($service->bracketParticipantRows($phase));
@@ -117,7 +123,8 @@ it('moves direct overflow to reclassification without colliding seeds', function
         ->and($rows->where('origin_type', 'direct'))->toHaveCount(32)
         ->and($rows->where('origin_type', 'qualified'))->toHaveCount(29)
         ->and($rows->pluck('seed_position')->unique())->toHaveCount(61)
-        ->and($rows->max('seed_position'))->toBe(61);
+        ->and($rows->max('seed_position'))->toBe(61)
+        ->and(data_get($phase->fresh()->settings, 'bracket_size'))->toBe(64);
 
     $service->saveBracketParticipantOrder($phase, $rows->all());
     $service->preparePhase($phase->fresh());

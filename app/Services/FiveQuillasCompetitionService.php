@@ -469,9 +469,16 @@ class FiveQuillasCompetitionService
                 throw ValidationException::withMessages(['phase' => 'Las zonas se confeccionan con la acción Cargar zonas.']);
             }
             $progressiveFill = (bool) data_get($phase->settings, 'progressive_fill', false);
+            $preserveStartedMatches = $phase->matches()->where(function ($query): void {
+                $query->where('status', 'in_progress')
+                    ->orWhere(function ($completed): void {
+                        $completed->where('status', 'completed')->where('is_bye', false);
+                    });
+            })->exists();
             if ($phase->matches()->exists()
                 && $phase->phase_type !== 'slot_elimination'
-                && ! $progressiveFill) {
+                && ! $progressiveFill
+                && ! $preserveStartedMatches) {
                 // Esta acción se usa también después de corregir resultados de zonas.
                 // La confirmación implica reconstruir la fase completa, incluidos los
                 // resultados que pudiera contener la grilla anterior.
@@ -595,7 +602,24 @@ class FiveQuillasCompetitionService
                     'phase' => 'No se encontraron jugadores clasificados para completar la grilla final.',
                 ]);
             }
-            if ($progressiveFill && $phase->matches()->exists()) {
+            if ($preserveStartedMatches) {
+                // Los pases LIBRES automáticos no son resultados deportivos y se
+                // pueden recalcular. Los partidos realmente iniciados permanecen
+                // intactos; solamente se actualizan los cruces todavía pendientes.
+                $phase->matches()->where('is_bye', true)->update([
+                    'set_scores' => null,
+                    'player_one_actual_sets' => 0,
+                    'player_two_actual_sets' => 0,
+                    'player_one_computed_sets' => 0,
+                    'player_two_computed_sets' => 0,
+                    'player_one_points' => 0,
+                    'player_two_points' => 0,
+                    'winner_entry_id' => null,
+                    'is_bye' => false,
+                    'status' => 'pending',
+                ]);
+                $count = $this->syncProgressiveBracket($phase, $seeded, true);
+            } elseif ($progressiveFill && $phase->matches()->exists()) {
                 $count = $this->syncProgressiveBracket($phase, $seeded, $previous?->status === 'completed');
             } else {
                 $count = $this->createEliminationBracket(
@@ -654,12 +678,43 @@ class FiveQuillasCompetitionService
         $direct = $directCapacity > 0 ? $direct->take($directCapacity)->values() : $direct;
         $qualified = $qualified->concat($directOverflow)->unique('id')->sortBy($rank)->values();
 
+        // Descarta posiciones heredadas de cuadros anteriores (por ejemplo 128)
+        // y cualquier duplicado. Así todos los jugadores aparecen una sola vez en
+        // la grilla vigente y el formulario puede guardarse sin falsas diferencias.
+        $usedSeeds = collect();
+        $assignSeeds = function ($entries, int $start, int $end) use ($overrides, $usedSeeds): array {
+            $next = $start;
+            return $entries->mapWithKeys(function ($entry) use ($overrides, $usedSeeds, &$next, $start, $end): array {
+                $requested = (int) $overrides->get((int) $entry->id, 0);
+                $seed = $requested >= $start && $requested <= $end && ! $usedSeeds->contains($requested)
+                    ? $requested
+                    : 0;
+                while ($seed === 0 && $next <= $end) {
+                    if (! $usedSeeds->contains($next)) { $seed = $next; }
+                    $next++;
+                }
+                $usedSeeds->push($seed);
+                return [(int) $entry->id => $seed];
+            })->all();
+        };
+        $directSeeds = $assignSeeds($direct, 1, max(1, $directCapacity));
+        $qualifiedStart = $directCapacity + 1;
+        $qualifiedSeeds = $assignSeeds($qualified, $qualifiedStart, $directCapacity + $qualified->count());
+        $requiredSize = $this->nextPowerOfTwo(max(2, $directCapacity + $qualified->count()));
+        if ((int) data_get($phase->settings, 'bracket_size', 0) !== $requiredSize) {
+            $phase->update(['settings' => array_merge($phase->settings ?? [], [
+                'bracket_size' => $requiredSize,
+                'bracket_pairs' => $this->officialBracketPairs($requiredSize),
+                'participant_seed_overrides' => [],
+            ])]);
+        }
+
         return $direct->map(fn ($entry, int $index): array => [
             'entry_id' => (int) $entry->id,
             'player_name' => (string) ($entry->player?->full_name ?? 'Jugador sin nombre'),
             'origin' => 'Ingreso directo en '.$phase->name,
             'ranking' => $entry->national_ranking_snapshot,
-            'seed_position' => $overrides->get((int) $entry->id, $index + 1),
+            'seed_position' => $directSeeds[(int) $entry->id],
             'origin_type' => 'direct',
         ])->concat($qualified->map(fn ($entry, int $index): array => [
             'entry_id' => (int) $entry->id,
@@ -668,7 +723,7 @@ class FiveQuillasCompetitionService
                 ? 'Emparejamiento / reclasificación por ranking'
                 : 'Clasificado de '.($previous?->name ?? 'la fase anterior'),
             'ranking' => $entry->national_ranking_snapshot,
-            'seed_position' => $overrides->get((int) $entry->id, $directCapacity + $index + 1),
+            'seed_position' => $qualifiedSeeds[(int) $entry->id],
             'origin_type' => 'qualified',
         ]))->sortBy('seed_position')->values()->all();
     }
