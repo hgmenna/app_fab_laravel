@@ -378,16 +378,13 @@ class ManageTournamentCompetition extends Page
     public function entryOptionsForSlot(int $slotId, array $excludedEntryIds = []): array
     {
         $competition = $this->competition();
-        $zonePhaseId = $competition?->phases
-            ->first(fn ($phase): bool => $phase->phase_type === 'zones' && $phase->is_enabled)?->id;
 
-        if ($slotId < 1 || ! $competition || ! $zonePhaseId) {
+        if ($slotId < 1 || ! $competition) {
             return [];
         }
 
         return $competition->entries()
             ->where('source_slot_id', $slotId)
-            ->where('entry_phase_id', $zonePhaseId)
             ->whereIn('status', ['eligible', 'assigned'])
             ->when($excludedEntryIds !== [], fn ($query) => $query->whereNotIn('id', $excludedEntryIds))
             ->with(['player.club', 'player.category'])
@@ -427,15 +424,12 @@ class ManageTournamentCompetition extends Page
     public function zoneEntryOptions(): array
     {
         $competition = $this->competition();
-        $zonePhaseId = $competition?->phases
-            ->first(fn ($phase): bool => $phase->phase_type === 'zones' && $phase->is_enabled)?->id;
 
-        if (! $competition || ! $zonePhaseId) {
+        if (! $competition) {
             return [];
         }
 
         return $competition->entries()
-            ->where('entry_phase_id', $zonePhaseId)
             ->whereIn('status', ['eligible', 'assigned'])
             ->with(['player.club', 'player.category'])
             ->get()

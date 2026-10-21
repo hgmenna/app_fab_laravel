@@ -112,7 +112,6 @@ class FiveQuillasCompetitionService
 
             $availableEntries = $competition->entries()
                 ->where('source_slot_id', $slotId)
-                ->where('entry_phase_id', $phase->id)
                 ->whereIn('status', ['eligible', 'assigned'])
                 ->whereNotIn('id', $lockedEntryIds)
                 ->get()->keyBy('id');
@@ -162,7 +161,10 @@ class FiveQuillasCompetitionService
                 foreach ($zone['positions']->filter() as $position => $entryId) {
                     $entry = $availableEntries->get($entryId);
                     $group->groupEntries()->create(['entry_id' => $entry->id, 'position' => $position]);
-                    $entry->update(['status' => 'assigned']);
+                    $entry->update([
+                        'status' => 'assigned',
+                        'entry_phase_id' => $phase->id,
+                    ]);
                 }
                 $this->createZoneBracket($phase, $group, $zone['positions']->map(fn ($entryId) => $entryId ? $availableEntries->get($entryId) : null));
                 $this->recalculateGroupStatistics($group->id);
