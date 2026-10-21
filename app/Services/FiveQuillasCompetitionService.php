@@ -811,26 +811,25 @@ class FiveQuillasCompetitionService
                 throw ValidationException::withMessages(['crossings' => 'Cada puesto clasificado de una zona puede utilizarse una sola vez.']);
             }
 
-            $savedRows = collect(data_get($phase->settings, 'slot_crossings', []))
+            $normalizeCrossings = fn ($crossings) => collect($crossings)
+                ->filter(fn ($row): bool => is_array($row))
                 ->map(fn (array $row): array => [
                     'slot_id' => (int) ($row['slot_id'] ?? 0),
                     'first_group_id' => (int) ($row['first_group_id'] ?? 0),
                     'second_group_id' => (int) ($row['second_group_id'] ?? 0),
                 ])->filter(fn (array $row): bool => $row['first_group_id'] > 0 || $row['second_group_id'] > 0)
-                ->values();
-            if ($savedRows->isEmpty()) {
-                $savedRows = $phase->matches()->orderBy('bracket_order')->get()
-                    ->map(fn ($match) => data_get($match->set_scores, 'slot_crossing'))
-                    ->filter(fn ($row): bool => is_array($row))
-                    ->map(fn (array $row): array => [
-                        'slot_id' => (int) ($row['slot_id'] ?? 0),
-                        'first_group_id' => (int) ($row['first_group_id'] ?? 0),
-                        'second_group_id' => (int) ($row['second_group_id'] ?? 0),
-                    ])->values();
-            }
+                ->sortBy(fn (array $row): string => sprintf(
+                    '%010d:%010d:%010d',
+                    $row['slot_id'], $row['first_group_id'], $row['second_group_id'],
+                ))->values();
+            $configuredRows = $normalizeCrossings(data_get($phase->settings, 'slot_crossings', []));
+            $matchRows = $normalizeCrossings($phase->matches()->orderBy('bracket_order')->get()
+                ->map(fn ($match) => data_get($match->set_scores, 'slot_crossing')));
+            $submittedRows = $normalizeCrossings($rows);
 
             if ($phase->matches()->whereIn('status', ['in_progress', 'completed'])->exists()) {
-                if ($savedRows->all() === $rows->all()) {
+                if ($configuredRows->all() === $submittedRows->all()
+                    || $matchRows->all() === $submittedRows->all()) {
                     return $rows->count();
                 }
 
