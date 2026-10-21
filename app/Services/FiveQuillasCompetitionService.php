@@ -813,6 +813,14 @@ class FiveQuillasCompetitionService
             }
 
             $existingMatches = $phase->matches()->get()->keyBy('id');
+            $matchesByOrder = $existingMatches->keyBy(fn ($match): int => (int) $match->bracket_order);
+            $rows = $rows->map(function (array $row, int $index) use ($matchesByOrder): array {
+                if ($row['match_id'] < 1 && $matchesByOrder->has($index + 1)) {
+                    $row['match_id'] = (int) $matchesByOrder->get($index + 1)->id;
+                }
+
+                return $row;
+            });
             $submittedMatchIds = $rows->pluck('match_id')->filter()->unique();
             $removedLockedMatch = $existingMatches->first(fn ($match): bool =>
                 in_array($match->status, ['in_progress', 'completed'], true)
@@ -874,6 +882,15 @@ class FiveQuillasCompetitionService
 
             return $rows->count();
         });
+    }
+
+    private function scoresWithCrossingMetadata(FiveQuillasMatch $match, array $scores): array
+    {
+        $crossing = data_get($match->set_scores, 'slot_crossing');
+
+        return is_array($crossing)
+            ? ['slot_crossing' => $crossing, ...$scores]
+            : $scores;
     }
 
     private function nextPowerOfTwo(int $value): int
@@ -1192,7 +1209,10 @@ class FiveQuillasCompetitionService
             }
 
             $match->update([
-                'set_scores' => ['bye' => false, 'sets' => $normalizedScores->all()],
+                'set_scores' => $this->scoresWithCrossingMetadata($match, [
+                    'bye' => false,
+                    'sets' => $normalizedScores->all(),
+                ]),
                 'player_one_actual_sets' => $oneWins,
                 'player_two_actual_sets' => $twoWins,
                 'player_one_computed_sets' => $oneComputed,
@@ -1251,7 +1271,11 @@ class FiveQuillasCompetitionService
             $bestOf = max(1, (int) $match->phase->sets_to_play);
             $winnerIsOne = (int) $match->player_one_entry_id === $winnerEntryId;
             $match->update([
-                'set_scores' => ['manual_winner' => true, 'sets' => [], 'computed_sets' => $bestOf],
+                'set_scores' => $this->scoresWithCrossingMetadata($match, [
+                    'manual_winner' => true,
+                    'sets' => [],
+                    'computed_sets' => $bestOf,
+                ]),
                 'player_one_actual_sets' => $winnerIsOne ? $bestOf : 0,
                 'player_two_actual_sets' => $winnerIsOne ? 0 : $bestOf,
                 'player_one_computed_sets' => $winnerIsOne ? $bestOf : 0,
@@ -1314,7 +1338,7 @@ class FiveQuillasCompetitionService
             $this->removeAdvancedEntry($match->loser_next_match_id, $match->loser_next_match_position, $loserId);
 
             $match->update([
-                'set_scores' => null,
+                'set_scores' => $this->scoresWithCrossingMetadata($match, []),
                 'player_one_actual_sets' => 0,
                 'player_two_actual_sets' => 0,
                 'player_one_computed_sets' => 0,

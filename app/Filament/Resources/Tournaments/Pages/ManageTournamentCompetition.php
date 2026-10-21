@@ -730,7 +730,7 @@ class ManageTournamentCompetition extends Page
                 }
 
                 $matches = $phase->matches()->orderBy('bracket_order')->get();
-                $rows = collect($rows)->map(function (array $row) use ($matches): array {
+                $rows = collect($rows)->map(function (array $row, int|string $index) use ($matches): array {
                     $match = $matches->first(function ($match) use ($row): bool {
                         $source = data_get($match->set_scores, 'slot_crossing');
 
@@ -739,6 +739,7 @@ class ManageTournamentCompetition extends Page
                             && (int) ($source['first_group_id'] ?? 0) === (int) ($row['first_group_id'] ?? 0)
                             && (int) ($source['second_group_id'] ?? 0) === (int) ($row['second_group_id'] ?? 0);
                     });
+                    $match ??= $matches->firstWhere('bracket_order', ((int) $index) + 1);
 
                     return [
                         ...$row,
