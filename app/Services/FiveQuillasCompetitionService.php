@@ -1395,8 +1395,21 @@ class FiveQuillasCompetitionService
         }
     }
 
-    public function reopenIncompleteSlotEliminationPhases(FiveQuillasCompetition $competition): void
+    public function reopenIncompleteConcurrentPhases(FiveQuillasCompetition $competition): void
     {
+        $competition->phases()->where('phase_type', 'zones')
+            ->where('is_enabled', true)->where('status', 'completed')->get()
+            ->each(function (FiveQuillasPhase $phase) use ($competition): void {
+                if ($this->zonesHaveEveryScheduledPlayer($phase)) {
+                    return;
+                }
+
+                $phase->update(['status' => 'in_progress']);
+                if ($competition->status === 'completed') {
+                    $competition->update(['status' => 'in_progress']);
+                }
+            });
+
         $competition->phases()->where('phase_type', 'slot_elimination')
             ->where('is_enabled', true)->where('status', 'completed')->get()
             ->each(function (FiveQuillasPhase $phase) use ($competition): void {
@@ -1409,6 +1422,28 @@ class FiveQuillasCompetitionService
                     $competition->update(['status' => 'in_progress']);
                 }
             });
+    }
+
+    private function zonesHaveEveryScheduledPlayer(FiveQuillasPhase $phase): bool
+    {
+        $expectedEntryIds = $phase->competition->entries()
+            ->where('entry_phase_id', $phase->id)
+            ->whereNotNull('source_slot_id')
+            ->where('status', '!=', 'withdrawn')
+            ->pluck('id')->map(fn ($id): int => (int) $id)->unique();
+        if ($expectedEntryIds->isEmpty()) {
+            return false;
+        }
+
+        $groups = $phase->groups()->with('groupEntries:id,group_id,entry_id')->get();
+        if ($groups->isEmpty() || $groups->contains(fn ($group): bool => $group->status !== 'completed')) {
+            return false;
+        }
+
+        $assignedEntryIds = $groups->flatMap->groupEntries->pluck('entry_id')
+            ->map(fn ($id): int => (int) $id)->unique();
+
+        return $expectedEntryIds->diff($assignedEntryIds)->isEmpty();
     }
 
     private function slotEliminationHasEveryCrossing(FiveQuillasPhase $phase): bool
@@ -1895,8 +1930,14 @@ class FiveQuillasCompetitionService
             }
             $group->update(['status' => 'completed']);
             if ($group->phase->groups()->where('status', '!=', 'completed')->doesntExist()) {
-                $group->phase()->update(['status' => 'completed']);
-                $this->assignPhaseEliminationPoints($group->phase()->first());
+                $zonePhase = $group->phase()->first();
+                if ($this->zonesHaveEveryScheduledPlayer($zonePhase)) {
+                    $zonePhase->update(['status' => 'completed']);
+                    $this->assignPhaseEliminationPoints($zonePhase);
+                } else {
+                    $zonePhase->update(['status' => 'in_progress']);
+                    $zonePhase->competition()->update(['status' => 'in_progress']);
+                }
             }
         }
     }

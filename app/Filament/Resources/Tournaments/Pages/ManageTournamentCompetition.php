@@ -1224,7 +1224,7 @@ class ManageTournamentCompetition extends Page
         $competition = $this->competition();
         if ($competition) {
             $service = app(FiveQuillasCompetitionService::class);
-            $service->reopenIncompleteSlotEliminationPhases($competition);
+            $service->reopenIncompleteConcurrentPhases($competition);
             $service->ensureFinalStandingsOrder($competition);
             $competition = $this->competition();
         }
