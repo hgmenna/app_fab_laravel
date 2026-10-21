@@ -579,6 +579,17 @@ class ManageTournamentCompetition extends Page
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')))->all(),
                     ])
                     ->defaultItems(1)->minItems(1)->addActionLabel('Agregar zona')
+                    ->addAction(fn (Action $action): Action => $action->after(function (Repeater $component): void {
+                        $zones = $component->getRawState() ?? [];
+
+                        foreach (array_keys($zones) as $index => $key) {
+                            if (blank($zones[$key]['name'] ?? null)) {
+                                $zones[$key]['name'] = 'Zona '.($index + 1);
+                            }
+                        }
+
+                        $component->rawState($zones);
+                    }))
                     ->reorderable(false)->columnSpanFull(),
             ])
             ->modalHeading('Carga manual de zonas')
