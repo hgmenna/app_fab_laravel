@@ -729,10 +729,14 @@ class ManageTournamentCompetition extends Page
                         })->filter()->values()->all();
                 }
 
-                return ['crossings' => $rows ?: [['slot_id' => null]]];
+                $rows = $rows ?: [['slot_id' => null]];
+
+                return ['crossings' => $rows];
             })
             ->schema(function (array $arguments): array {
                 $phaseId = (int) ($arguments['phaseId'] ?? 0);
+                $locked = (bool) $this->competition()?->phases()->find($phaseId)?->matches()
+                    ->whereIn('status', ['in_progress', 'completed'])->exists();
                 return [
                 Repeater::make('crossings')->label('Enfrentamientos por horario')
                     ->table([
@@ -741,20 +745,20 @@ class ManageTournamentCompetition extends Page
                         TableColumn::make('2.º de la zona')->width('36%'),
                     ])
                     ->schema([
-                        Select::make('slot_id')->hiddenLabel()->required()->native(false)->live()
+                        Select::make('slot_id')->hiddenLabel()->required()->native(false)->live()->disabled($locked)
                             ->options(fn (): array => $this->record->slots()->where('is_active', true)
                                 ->orderBy('starts_at')->pluck('name', 'id')->all())
                             ->afterStateUpdated(function (Set $set): void {
                                 $set('first_group_id', null);
                                 $set('second_group_id', null);
                             }),
-                        Select::make('first_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
+                        Select::make('first_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)->disabled($locked)
                             ->options(fn (Get $get, Select $component): array => $this->availableSlotCrossingOptions(
                                 $this->slotZonePositionOptions($phaseId, (int) ($get('slot_id') ?? 0), 1),
                                 $component,
                                 'first_group_id',
                             ))->live(),
-                        Select::make('second_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
+                        Select::make('second_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)->disabled($locked)
                             ->options(fn (Get $get, Select $component): array => $this->availableSlotCrossingOptions(
                                 $this->slotZonePositionOptions(
                                     $phaseId, (int) ($get('slot_id') ?? 0), 2,
@@ -765,6 +769,7 @@ class ManageTournamentCompetition extends Page
                             ))->live(),
                     ])
                     ->defaultItems(1)->minItems(1)->addActionLabel('Agregar cruce')
+                    ->addable(! $locked)->deletable(! $locked)
                     ->reorderable(false)->columnSpanFull(),
                 ];
             })
@@ -775,8 +780,15 @@ class ManageTournamentCompetition extends Page
                 try {
                     $phase = $this->competition()->phases()->whereKey((int) ($arguments['phaseId'] ?? 0))
                         ->where('phase_type', 'slot_elimination')->where('is_enabled', true)->firstOrFail();
+                    if ($phase->matches()->whereIn('status', ['in_progress', 'completed'])->exists()) {
+                        Notification::make()->success()->title('Cruces conservados')
+                            ->body('Los partidos iniciados o finalizados permanecen sin cambios.')->send();
+
+                        return;
+                    }
+                    $crossings = $data['crossings'] ?? [];
                     $count = app(FiveQuillasCompetitionService::class)
-                        ->createManualSlotElimination($phase, $data['crossings'] ?? []);
+                        ->createManualSlotElimination($phase, $crossings);
                 } catch (ValidationException $exception) {
                     Notification::make()->danger()->title('No se pudieron guardar los cruces')
                         ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
