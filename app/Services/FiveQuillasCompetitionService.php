@@ -70,10 +70,16 @@ class FiveQuillasCompetitionService
                 if (! Player::query()->whereKey($participant->player_id)->exists()) {
                     continue;
                 }
-                $ranking = GeneralRanking::query()->where('player_id', $participant->player_id)->value('RG');
+                $rankingRow = GeneralRanking::query()->where('player_id', $participant->player_id)
+                    ->first(['RG', 'category']);
+                $ranking = $rankingRow?->RG;
                 $player = $participant->player ?? Player::query()->with('category')->find($participant->player_id);
-                $entryPhase = $phases->first(fn ($phase): bool => collect(data_get($phase->settings, 'entry_category_ids', []))
-                    ->map(fn ($id): int => (int) $id)->contains((int) $player?->category_id)) ?: $fallbackPhase;
+                $entryPhase = $this->entryPhaseForRegistration(
+                    $phases,
+                    $player,
+                    $rankingRow?->category,
+                    $registration->slot?->name,
+                ) ?: $fallbackPhase;
                 $entry = $competition->entries()->firstOrNew(
                     ['player_id' => $participant->player_id],
                 );
@@ -95,6 +101,26 @@ class FiveQuillasCompetitionService
         $competition->entries()->whereNotIn('player_id', $activePlayerIds->unique()->all())->update(['status' => 'withdrawn']);
 
         return $activePlayerIds->unique()->count();
+    }
+
+    public function refreshEntryPhaseAssignments(FiveQuillasCompetition $competition): void
+    {
+        $phases = $competition->phases()->where('is_enabled', true)->orderBy('sort_order')->get();
+        $entries = $competition->entries()->with(['player.category', 'sourceSlot'])->get();
+        $rankings = GeneralRanking::query()->whereIn('player_id', $entries->pluck('player_id'))
+            ->get(['player_id', 'category'])->keyBy('player_id');
+
+        foreach ($entries as $entry) {
+            $phase = $this->entryPhaseForRegistration(
+                $phases,
+                $entry->player,
+                $rankings->get((int) $entry->player_id)?->category,
+                $entry->sourceSlot?->name,
+            );
+            if ($phase && (int) $entry->entry_phase_id !== (int) $phase->id) {
+                $entry->update(['entry_phase_id' => $phase->id]);
+            }
+        }
     }
 
     public function createManualZones(FiveQuillasCompetition $competition, int $slotId, array $zoneRows): int
@@ -429,6 +455,10 @@ class FiveQuillasCompetitionService
     {
         return DB::transaction(function () use ($phase): int {
             $phase->loadMissing('competition.tournament.type');
+            // Repara también competencias ya iniciadas con el criterio anterior,
+            // que no reconocía las categorías temporales N y M del Ranking General.
+            $this->refreshEntryPhaseAssignments($phase->competition);
+            $phase->refresh()->loadMissing('competition.tournament.type');
             if ($phase->phase_type === 'zones') {
                 throw ValidationException::withMessages(['phase' => 'Las zonas se confeccionan con la acción Cargar zonas.']);
             }
@@ -589,6 +619,8 @@ class FiveQuillasCompetitionService
     public function bracketParticipantRows(FiveQuillasPhase $phase): array
     {
         $phase->loadMissing('competition');
+        $this->refreshEntryPhaseAssignments($phase->competition);
+        $phase->refresh()->loadMissing('competition');
         $previous = $this->previousPhase($phase);
         $qualified = $previous
             ? $this->qualifiedEntriesFromPhase($previous)
@@ -1005,6 +1037,53 @@ class FiveQuillasCompetitionService
         }
 
         return $size;
+    }
+
+    private function entryPhaseForRegistration($phases, ?Player $player, ?string $rankingCategory, ?string $slotName): ?FiveQuillasPhase
+    {
+        $categoryIds = $phases->flatMap(fn ($phase) => data_get($phase->settings, 'entry_category_ids', []))
+            ->filter()->map(fn ($id): int => (int) $id)->unique();
+        $categoryCodes = Category::query()->whereIn('id', $categoryIds)
+            ->pluck('code', 'id')->map(fn ($code): string => Str::upper(trim((string) $code)));
+        $phaseCodes = $phases->mapWithKeys(function ($phase) use ($categoryCodes): array {
+            $codes = collect(data_get($phase->settings, 'entry_category_ids', []))
+                ->map(fn ($id): ?string => $categoryCodes->get((int) $id))->filter()->unique()->values();
+
+            return [(int) $phase->id => $codes];
+        });
+
+        $rankingCode = Str::upper(trim((string) $rankingCategory));
+        if ($rankingCode !== '') {
+            $rankingPhase = $phases->first(
+                fn ($phase): bool => $phaseCodes->get((int) $phase->id, collect())->contains($rankingCode)
+            );
+            if ($rankingPhase) {
+                return $rankingPhase;
+            }
+        }
+
+        $normalizedSlot = Str::lower(Str::ascii((string) $slotName));
+        $specialCode = Str::contains($normalizedSlot, ['master'])
+            ? 'M'
+            : (Str::contains($normalizedSlot, ['nacional', '1ra', 'primera']) ? 'N' : null);
+        if ($specialCode) {
+            $slotPhase = $phases->first(function ($phase) use ($phaseCodes, $specialCode): bool {
+                if ($phaseCodes->get((int) $phase->id, collect())->contains($specialCode)) {
+                    return true;
+                }
+                $label = Str::lower(Str::ascii($phase->code.' '.$phase->name));
+
+                return $specialCode === 'M'
+                    ? Str::contains($label, 'master')
+                    : Str::contains($label, ['nacional', '1ra', 'primera']);
+            });
+            if ($slotPhase) {
+                return $slotPhase;
+            }
+        }
+
+        return $phases->first(fn ($phase): bool => collect(data_get($phase->settings, 'entry_category_ids', []))
+            ->map(fn ($id): int => (int) $id)->contains((int) $player?->category_id));
     }
 
     private function createPlayIn(FiveQuillasPhase $phase, $source): int
