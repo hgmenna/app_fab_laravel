@@ -1411,15 +1411,21 @@ class FiveQuillasCompetitionService
             });
 
         $competition->phases()->where('phase_type', 'slot_elimination')
-            ->where('is_enabled', true)->where('status', 'completed')->get()
+            ->where('is_enabled', true)->get()
             ->each(function (FiveQuillasPhase $phase) use ($competition): void {
                 if ($this->slotEliminationHasEveryCrossing($phase)) {
+                    if ($phase->status !== 'completed') {
+                        $this->completePhaseWhenReady($phase->id);
+                    }
+
                     return;
                 }
 
-                $phase->update(['status' => 'in_progress']);
-                if ($competition->status === 'completed') {
-                    $competition->update(['status' => 'in_progress']);
+                if ($phase->status === 'completed') {
+                    $phase->update(['status' => 'in_progress']);
+                    if ($competition->status === 'completed') {
+                        $competition->update(['status' => 'in_progress']);
+                    }
                 }
             });
     }
@@ -1448,6 +1454,19 @@ class FiveQuillasCompetitionService
 
     private function slotEliminationHasEveryCrossing(FiveQuillasPhase $phase): bool
     {
+        if ($phase->matches()->doesntExist()
+            || $phase->matches()->where('status', '!=', 'completed')->exists()) {
+            return false;
+        }
+
+        $qualifiers = (int) data_get($phase->settings, 'qualifiers', 0);
+        if ($qualifiers > 0) {
+            $winnerCount = $phase->matches()->where('status', 'completed')
+                ->whereNotNull('winner_entry_id')->distinct()->count('winner_entry_id');
+
+            return $winnerCount >= $qualifiers;
+        }
+
         $previous = $this->previousPhase($phase);
         if (! $previous || $previous->phase_type !== 'zones' || $previous->status !== 'completed') {
             return false;
