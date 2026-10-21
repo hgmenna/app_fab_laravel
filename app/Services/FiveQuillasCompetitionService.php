@@ -77,7 +77,6 @@ class FiveQuillasCompetitionService
                 $entryPhase = $this->entryPhaseForRegistration(
                     $phases,
                     $player,
-                    $rankingRow?->category,
                     $registration->slot?->name,
                 ) ?: $fallbackPhase;
                 $entry = $competition->entries()->firstOrNew(
@@ -107,15 +106,12 @@ class FiveQuillasCompetitionService
     {
         $phases = $competition->phases()->where('is_enabled', true)->orderBy('sort_order')->get();
         $entries = $competition->entries()->with(['player.category', 'sourceSlot'])->get();
-        $rankings = GeneralRanking::query()->whereIn('player_id', $entries->pluck('player_id'))
-            ->get(['player_id', 'category'])->keyBy('player_id');
         $changed = false;
 
         foreach ($entries as $entry) {
             $phase = $this->entryPhaseForRegistration(
                 $phases,
                 $entry->player,
-                $rankings->get((int) $entry->player_id)?->category,
                 $entry->sourceSlot?->name,
             );
             if ($phase && (int) $entry->entry_phase_id !== (int) $phase->id) {
@@ -1049,7 +1045,7 @@ class FiveQuillasCompetitionService
         return $size;
     }
 
-    private function entryPhaseForRegistration($phases, ?Player $player, ?string $rankingCategory, ?string $slotName): ?FiveQuillasPhase
+    private function entryPhaseForRegistration($phases, ?Player $player, ?string $slotName): ?FiveQuillasPhase
     {
         $categoryIds = $phases->flatMap(fn ($phase) => data_get($phase->settings, 'entry_category_ids', []))
             ->filter()->map(fn ($id): int => (int) $id)->unique();
@@ -1066,14 +1062,11 @@ class FiveQuillasCompetitionService
         $specialCode = Str::contains($normalizedSlot, ['master'])
             ? 'M'
             : (Str::contains($normalizedSlot, ['nacional', '1ra', 'primera']) ? 'N' : null);
-        $rankingCode = Str::upper(trim((string) $rankingCategory));
-
-        // Nacional y Master son categorías temporales del Ranking General y,
-        // además, poseen un horario propio de inscripción. Las dos condiciones
-        // deben cumplirse. Usar una condición alternativa convertía clasificados
-        // de horarios comunes en ingresos directos y también admitía inscriptos
-        // del horario Nacional/Master que no pertenecían a esa categoría.
-        if ($specialCode && $rankingCode === $specialCode) {
+        // En torneos históricos la categoría del Ranking General actual puede ser
+        // distinta de la que tenía el jugador al inscribirse. El horario NACIONALES
+        // o MASTER es la fuente persistente que define el ingreso directo; el ranking
+        // se utiliza después únicamente para ordenar ese bloque.
+        if ($specialCode) {
             $slotPhase = $phases->first(function ($phase) use ($phaseCodes, $specialCode): bool {
                 if ($phaseCodes->get((int) $phase->id, collect())->contains($specialCode)) {
                     return true;
