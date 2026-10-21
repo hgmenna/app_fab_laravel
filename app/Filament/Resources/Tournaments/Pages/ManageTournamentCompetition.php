@@ -419,38 +419,17 @@ class ManageTournamentCompetition extends Page
             ])->all();
     }
 
-    private function selectedZoneEntryIds(Select $component, int $currentEntryId = 0): array
-    {
-        $repeater = $component->getParentRepeater();
-
-        return collect($repeater?->getRawState() ?? [])
-            ->flatMap(fn (array $zone): array => collect(range(1, 4))
-                ->map(fn (int $position): int => (int) ($zone['player_'.$position] ?? 0))
-                ->all())
-            ->filter()
-            ->reject(fn (int $entryId): bool => $currentEntryId > 0 && $entryId === $currentEntryId)
-            ->unique()->values()->all();
-    }
-
     public function zoneRowsForSlot(int $slotId): array
     {
-        $emptyZone = [
-            'name' => 'Zona 1',
-            'player_1' => null,
-            'player_2' => null,
-            'player_3' => null,
-            'player_4' => null,
-        ];
-
         if ($slotId < 1 || ! $this->competition()) {
-            return [];
+            return [['name' => 'Zona 1']];
         }
 
         $phase = $this->competition()->phases
             ->first(fn ($phase): bool => $phase->phase_type === 'zones' && $phase->is_enabled);
 
         if (! $phase) {
-            return [$emptyZone];
+            return [['name' => 'Zona 1']];
         }
 
         $rows = $phase->groups()
@@ -473,7 +452,7 @@ class ManageTournamentCompetition extends Page
             ->values()
             ->all();
 
-        return $rows ?: [$emptyZone];
+        return $rows ?: [['name' => 'Zona 1']];
     }
 
     public function createZonesAction(): Action
@@ -500,7 +479,6 @@ class ManageTournamentCompetition extends Page
                     ->required()->searchable()->live()
                     ->afterStateUpdated(fn ($state, Set $set) => $set('zones', $this->zoneRowsForSlot((int) $state))),
                 Repeater::make('zones')->label('Zonas del horario')
-                    ->visible(fn (Get $get): bool => filled($get('slot_id')))
                     ->table([
                         TableColumn::make('Zona')->width('12%'),
                         TableColumn::make('Posición 1')->width('21%'),
@@ -515,25 +493,36 @@ class ManageTournamentCompetition extends Page
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')),
                         ...collect(range(1, 4))->map(fn (int $position) => Select::make('player_'.$position)
                             ->hiddenLabel()
-                            ->options(function (Get $get, Select $component) use ($position): array {
+                            ->options(function (Get $get) use ($position): array {
                                 $currentEntryId = (int) ($get('player_'.$position) ?? 0);
-                                $selectedEntryIds = $this->selectedZoneEntryIds($component, $currentEntryId);
+                                $selectedEntryIds = collect($get('../../zones') ?? [])
+                                    ->flatMap(fn (array $zone): array => collect(range(1, 4))
+                                        ->map(fn (int $zonePosition): int => (int) ($zone['player_'.$zonePosition] ?? 0))
+                                        ->all())
+                                    ->filter()
+                                    ->reject(fn (int $entryId): bool => $entryId === $currentEntryId)
+                                    ->unique()
+                                    ->values()
+                                    ->all();
 
                                 return $this->entryOptionsForSlot(
                                     (int) $get('../../slot_id'),
                                     $selectedEntryIds,
                                 );
                             })
-                            ->default(null)
-                            ->placeholder('LIBRE')
-                            ->searchable()->preload()->native(false)->live()
-                            ->disableOptionWhen(function (string $value, $state, Select $component): bool {
+                            ->searchable()->preload()->native(false)->placeholder('LIBRE')->live()
+                            ->disableOptionWhen(function (string $value, $state, Get $get): bool {
                                 $currentEntryId = (int) ($state ?? 0);
                                 if ((int) $value === $currentEntryId) {
                                     return false;
                                 }
 
-                                return in_array((int) $value, $this->selectedZoneEntryIds($component, $currentEntryId), true);
+                                return collect($get('../../zones') ?? [])
+                                    ->flatMap(fn (array $zone): array => collect(range(1, 4))
+                                        ->map(fn (int $zonePosition): int => (int) ($zone['player_'.$zonePosition] ?? 0))
+                                        ->all())
+                                    ->filter()
+                                    ->contains((int) $value);
                             })
                             ->afterStateUpdated(function ($state, Get $get, Set $set) use ($position): void {
                                 if (! filled($state)) {
@@ -548,41 +537,17 @@ class ManageTournamentCompetition extends Page
                             })
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')))->all(),
                     ])
-                    ->defaultItems(0)->minItems(1)->addActionLabel('Agregar zona')
-                    ->addAction(fn (Action $action): Action => $action->after(function (Repeater $component): void {
-                        $zones = $component->getRawState() ?? [];
-
-                        foreach (array_keys($zones) as $index => $key) {
-                            if (blank($zones[$key]['name'] ?? null)) {
-                                $zones[$key]['name'] = 'Zona '.($index + 1);
-                            }
-
-                            foreach (range(1, 4) as $position) {
-                                $zones[$key]['player_'.$position] ??= null;
-                            }
-                        }
-
-                        $component->rawState($zones);
-                        $component->partiallyRender();
-                    }))
+                    ->defaultItems(1)->minItems(1)->addActionLabel('Agregar zona')
                     ->reorderable(false)->columnSpanFull(),
             ])
             ->modalHeading('Carga manual de zonas')
             ->modalDescription('Elegí un horario para ver sus zonas. Podés modificar las que todavía no comenzaron y agregar las que falten. Las zonas con partidos iniciados se muestran protegidas.')
-            ->modalWidth('7xl')
+            ->modalWidth('7xl')->requiresConfirmation()
             ->action(function (array $data, array $arguments): void {
                 $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
                     ->where('phase_type', 'zones')->where('is_enabled', true)->firstOrFail();
-                $zones = collect($data['zones'] ?? [])->values()
-                    ->map(function (array $zone, int $index): array {
-                        $zone['name'] = filled($zone['name'] ?? null)
-                            ? trim((string) $zone['name'])
-                            : 'Zona '.($index + 1);
-
-                        return $zone;
-                    })->all();
                 $count = app(FiveQuillasCompetitionService::class)->createManualZones(
-                    $this->competition(), (int) $data['slot_id'], $zones,
+                    $this->competition(), (int) $data['slot_id'], $data['zones'] ?? [],
                 );
                 Notification::make()->success()->title('Zonas guardadas')
                     ->body($count.' zonas quedaron preparadas.')->send();
