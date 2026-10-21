@@ -419,6 +419,19 @@ class ManageTournamentCompetition extends Page
             ])->all();
     }
 
+    private function selectedZoneEntryIds(Select $component, int $currentEntryId = 0): array
+    {
+        $repeater = $component->getParentRepeater();
+
+        return collect($repeater?->getRawState() ?? [])
+            ->flatMap(fn (array $zone): array => collect(range(1, 4))
+                ->map(fn (int $position): int => (int) ($zone['player_'.$position] ?? 0))
+                ->all())
+            ->filter()
+            ->reject(fn (int $entryId): bool => $entryId === $currentEntryId)
+            ->unique()->values()->all();
+    }
+
     public function zoneRowsForSlot(int $slotId): array
     {
         if ($slotId < 1 || ! $this->competition()) {
@@ -493,47 +506,25 @@ class ManageTournamentCompetition extends Page
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')),
                         ...collect(range(1, 4))->map(fn (int $position) => Select::make('player_'.$position)
                             ->hiddenLabel()
-                            ->options(function (Get $get) use ($position): array {
-                                $currentEntryId = (int) ($get('player_'.$position) ?? 0);
-                                $selectedEntryIds = collect($get('../../zones') ?? [])
-                                    ->flatMap(fn (array $zone): array => collect(range(1, 4))
-                                        ->map(fn (int $zonePosition): int => (int) ($zone['player_'.$zonePosition] ?? 0))
-                                        ->all())
-                                    ->filter()
-                                    ->reject(fn (int $entryId): bool => $entryId === $currentEntryId)
-                                    ->unique()
-                                    ->values()
-                                    ->all();
-
-                                return $this->entryOptionsForSlot(
-                                    (int) $get('../../slot_id'),
-                                    $selectedEntryIds,
-                                );
-                            })
+                            ->options(fn (Get $get): array => $this->entryOptionsForSlot((int) $get('../../slot_id')))
                             ->searchable()->preload()->native(false)->placeholder('LIBRE')->live()
-                            ->disableOptionWhen(function (string $value, $state, Get $get): bool {
+                            ->disableOptionWhen(function (string $value, $state, Select $component): bool {
                                 $currentEntryId = (int) ($state ?? 0);
                                 if ((int) $value === $currentEntryId) {
                                     return false;
                                 }
 
-                                return collect($get('../../zones') ?? [])
-                                    ->flatMap(fn (array $zone): array => collect(range(1, 4))
-                                        ->map(fn (int $zonePosition): int => (int) ($zone['player_'.$zonePosition] ?? 0))
-                                        ->all())
-                                    ->filter()
-                                    ->contains((int) $value);
+                                return in_array((int) $value, $this->selectedZoneEntryIds($component, $currentEntryId), true);
                             })
-                            ->afterStateUpdated(function ($state, Get $get, Set $set) use ($position): void {
-                                if (! filled($state)) {
-                                    return;
-                                }
-                                foreach (range(1, 4) as $otherPosition) {
-                                    if ($otherPosition !== $position
-                                        && (int) ($get('player_'.$otherPosition) ?? 0) === (int) $state) {
-                                        $set('player_'.$otherPosition, null);
-                                    }
-                                }
+                            ->transformOptionsForJsUsing(function (array $options, Select $component): array {
+                                return collect($options)
+                                    ->reject(fn ($label, $value): bool => $component->isOptionDisabled($value, $label))
+                                    ->map(fn ($label, $value): array => [
+                                        'label' => $label,
+                                        'value' => (string) $value,
+                                        'isDisabled' => false,
+                                    ])
+                                    ->values()->all();
                             })
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')))->all(),
                     ])
