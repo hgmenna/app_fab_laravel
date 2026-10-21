@@ -281,6 +281,7 @@ class FiveQuillasCompetitionService
                             ? $this->officialBracketPairs((int) $row['bracket_size'])
                             : [],
                         'stop_after_rounds' => data_get($phase?->settings, 'stop_after_rounds'),
+                        'slot_crossings' => data_get($phase?->settings, 'slot_crossings', []),
                         'direct_entry_seed_count' => ($row['phase_type'] ?? null) === 'bracket'
                             && filled($row['direct_entry_seed_count'] ?? null)
                                 ? max(0, (int) $row['direct_entry_seed_count'])

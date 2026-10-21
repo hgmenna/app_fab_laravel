@@ -705,6 +705,29 @@ class ManageTournamentCompetition extends Page
             ->fillForm(function (array $arguments): array {
                 $phase = $this->competition()->phases()->findOrFail((int) ($arguments['phaseId'] ?? 0));
                 $rows = collect(data_get($phase->settings, 'slot_crossings', []))->values()->all();
+                if ($rows === []) {
+                    $rows = $phase->matches()->orderBy('bracket_order')->get()
+                        ->map(fn ($match) => data_get($match->set_scores, 'slot_crossing'))
+                        ->filter(fn ($row): bool => is_array($row))
+                        ->values()->all();
+                }
+                if ($rows === []) {
+                    $previous = app(FiveQuillasCompetitionService::class)->previousPhaseFor($phase);
+                    $groups = $previous?->groups()->with('groupEntries')->get() ?? collect();
+                    $rows = $phase->matches()->orderBy('bracket_order')->get()
+                        ->map(function ($match) use ($groups): ?array {
+                            $firstGroup = $groups->first(fn ($group): bool => $group->groupEntries
+                                ->contains('entry_id', $match->player_one_entry_id));
+                            $secondGroup = $groups->first(fn ($group): bool => $group->groupEntries
+                                ->contains('entry_id', $match->player_two_entry_id));
+                            if (! $firstGroup || ! $secondGroup) { return null; }
+                            return [
+                                'slot_id' => (int) $firstGroup->tournament_slot_id,
+                                'first_group_id' => (int) $firstGroup->id,
+                                'second_group_id' => (int) $secondGroup->id,
+                            ];
+                        })->filter()->values()->all();
+                }
 
                 return ['crossings' => $rows ?: [['slot_id' => null]]];
             })

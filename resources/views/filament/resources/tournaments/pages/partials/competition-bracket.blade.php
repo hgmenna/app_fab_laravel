@@ -26,6 +26,13 @@
                                     <span><b>{{ $numberTwo }}</b> · {{ $match->playerTwo?->player?->full_name ?? 'LIBRE' }}</span>
                                     <span>{{ $match->status === 'completed' ? $match->player_two_computed_sets : '—' }}</span>
                                 </div>
+                                @if($match->phase?->phase_type === 'slot_elimination' && $match->status === 'completed' && $match->winner)
+                                    <div class="fq-crossing-winner">
+                                        <span aria-hidden="true">🏆</span>
+                                        <strong>{{ $match->winner?->player?->full_name }}</strong>
+                                        <small>Clasificado a la siguiente fase</small>
+                                    </div>
+                                @endif
                                 @if($match->scheduled_at)<small class="fq-match-time">{{ $match->scheduled_at->format('d/m/y · H:i') }}</small>@endif
                                 @if($match->table_number)<small class="fq-match-time">Mesa {{ $match->table_number }}</small>@endif
                                 @if($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
@@ -43,3 +50,4 @@
         </div>
     </div>
 @endif
+
