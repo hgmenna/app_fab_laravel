@@ -419,6 +419,43 @@ class ManageTournamentCompetition extends Page
             ])->all();
     }
 
+    public function zoneEntryOptions(): array
+    {
+        if (! $this->competition()) {
+            return [];
+        }
+
+        return $this->competition()->entries()
+            ->whereIn('status', ['eligible', 'assigned'])
+            ->with(['player.club', 'player.category'])
+            ->get()
+            ->sort(function ($left, $right): int {
+                $leftRanking = (int) ($left->national_ranking_snapshot ?? 0);
+                $rightRanking = (int) ($right->national_ranking_snapshot ?? 0);
+
+                if (($leftRanking > 0) !== ($rightRanking > 0)) {
+                    return $leftRanking > 0 ? -1 : 1;
+                }
+
+                if ($leftRanking > 0 && $leftRanking !== $rightRanking) {
+                    return $leftRanking <=> $rightRanking;
+                }
+
+                if ($leftRanking < 1) {
+                    $categoryOrder = ((int) ($left->player?->category?->order ?? PHP_INT_MAX))
+                        <=> ((int) ($right->player?->category?->order ?? PHP_INT_MAX));
+                    if ($categoryOrder !== 0) {
+                        return $categoryOrder;
+                    }
+                }
+
+                return strcasecmp((string) ($left->player?->full_name ?? ''), (string) ($right->player?->full_name ?? ''));
+            })
+            ->mapWithKeys(fn ($entry): array => [
+                $entry->id => ($entry->player?->full_name ?? 'Jugador').' — '.($entry->player?->club?->name ?? 'INDEPENDIENTE'),
+            ])->all();
+    }
+
     private function selectedZoneEntryIds(Select $component, int $currentEntryId = 0): array
     {
         $repeater = $component->getParentRepeater();
@@ -514,19 +551,19 @@ class ManageTournamentCompetition extends Page
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')),
                         ...collect(range(1, 4))->map(fn (int $position) => Select::make('player_'.$position)
                             ->hiddenLabel()
-                            ->options(fn (Get $get): array => $this->entryOptionsForSlot((int) $get('../../slot_id')))
+                            ->options($this->zoneEntryOptions())
                             ->searchable()->preload()->native(false)->placeholder('LIBRE')->live()
-                            ->disableOptionWhen(function (string $value, $state, Select $component): bool {
-                                $currentEntryId = (int) ($state ?? 0);
-                                if ((int) $value === $currentEntryId) {
-                                    return false;
-                                }
+                            ->transformOptionsForJsUsing(function (array $options, Get $get, Select $component): array {
+                                $currentEntryId = (int) ($component->getState() ?? 0);
+                                $availableEntryIds = array_map('intval', array_keys(
+                                    $this->entryOptionsForSlot((int) $get('../../slot_id')),
+                                ));
+                                $selectedEntryIds = $this->selectedZoneEntryIds($component, $currentEntryId);
 
-                                return in_array((int) $value, $this->selectedZoneEntryIds($component, $currentEntryId), true);
-                            })
-                            ->transformOptionsForJsUsing(function (array $options, Select $component): array {
                                 return collect($options)
-                                    ->reject(fn ($label, $value): bool => $component->isOptionDisabled($value, $label))
+                                    ->filter(fn ($label, $value): bool => (int) $value === $currentEntryId
+                                        || (in_array((int) $value, $availableEntryIds, true)
+                                            && ! in_array((int) $value, $selectedEntryIds, true)))
                                     ->map(fn ($label, $value): array => [
                                         'label' => $label,
                                         'value' => (string) $value,
