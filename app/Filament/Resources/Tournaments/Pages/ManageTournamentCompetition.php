@@ -751,12 +751,18 @@ class ManageTournamentCompetition extends Page
                         Select::make('first_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
                             ->options(fn (Get $get): array => $this->slotZonePositionOptions(
                                 $phaseId, (int) ($get('slot_id') ?? 0), 1,
-                            ))->live(),
+                            ))
+                            ->transformOptionsForJsUsing(fn (array $options, Select $component): array =>
+                                $this->availableSlotCrossingOptions($options, $component, 'first_group_id')
+                            )->live(),
                         Select::make('second_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
                             ->options(fn (Get $get): array => $this->slotZonePositionOptions(
                                 $phaseId, (int) ($get('slot_id') ?? 0), 2,
                                 [(int) ($get('first_group_id') ?? 0)],
-                            ))->live(),
+                            ))
+                            ->transformOptionsForJsUsing(fn (array $options, Select $component): array =>
+                                $this->availableSlotCrossingOptions($options, $component, 'second_group_id')
+                            )->live(),
                     ])
                     ->defaultItems(1)->minItems(1)->addActionLabel('Agregar cruce')
                     ->reorderable(false)->columnSpanFull(),
@@ -795,6 +801,25 @@ class ManageTournamentCompetition extends Page
                 $player = $group->groupEntries->firstWhere('final_place', $place)?->entry?->player?->full_name;
                 return [$group->id => $place.'.º · '.$group->name.($player ? ' — '.$player : '')];
             })->all();
+    }
+
+    private function availableSlotCrossingOptions(array $options, Select $component, string $field): array
+    {
+        $currentGroupId = (int) ($component->getState() ?? 0);
+        $selectedGroupIds = collect($component->getParentRepeater()?->getRawState() ?? [])
+            ->map(fn (array $crossing): int => (int) ($crossing[$field] ?? 0))
+            ->filter()
+            ->reject(fn (int $groupId): bool => $groupId === $currentGroupId)
+            ->unique()->values()->all();
+
+        return collect($options)
+            ->filter(fn ($label, $groupId): bool => (int) $groupId === $currentGroupId
+                || ! in_array((int) $groupId, $selectedGroupIds, true))
+            ->map(fn ($label, $groupId): array => [
+                'label' => $label,
+                'value' => (string) $groupId,
+                'isDisabled' => false,
+            ])->values()->all();
     }
 
     public function schedulePhaseAction(): Action
