@@ -443,7 +443,7 @@ class ManageTournamentCompetition extends Page
         ];
 
         if ($slotId < 1 || ! $this->competition()) {
-            return [$emptyZone];
+            return [];
         }
 
         $phase = $this->competition()->phases
@@ -500,6 +500,7 @@ class ManageTournamentCompetition extends Page
                     ->required()->searchable()->live()
                     ->afterStateUpdated(fn ($state, Set $set) => $set('zones', $this->zoneRowsForSlot((int) $state))),
                 Repeater::make('zones')->label('Zonas del horario')
+                    ->visible(fn (Get $get): bool => filled($get('slot_id')))
                     ->table([
                         TableColumn::make('Zona')->width('12%'),
                         TableColumn::make('Posición 1')->width('21%'),
@@ -547,7 +548,7 @@ class ManageTournamentCompetition extends Page
                             })
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')))->all(),
                     ])
-                    ->defaultItems(1)->minItems(1)->addActionLabel('Agregar zona')
+                    ->defaultItems(0)->minItems(1)->addActionLabel('Agregar zona')
                     ->addAction(fn (Action $action): Action => $action->after(function (Repeater $component): void {
                         $zones = $component->getRawState() ?? [];
 
