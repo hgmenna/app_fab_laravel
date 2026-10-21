@@ -959,7 +959,7 @@ class ManageTournamentCompetition extends Page
                     Hidden::make('player_one_name'),
                     Hidden::make('player_two_name'),
                     Toggle::make('declare_without_scores')->label('Proclamar ganador sin informar los resultados de los sets')
-                        ->live()->visible(fn (): bool => ! (bool) $match?->group_id)->columnSpanFull(),
+                        ->live()->columnSpanFull(),
                     Select::make('declared_winner_id')->label('Ganador de la partida')
                         ->options(array_filter([
                             $match?->player_one_entry_id => $playerNames[1],
@@ -973,7 +973,7 @@ class ManageTournamentCompetition extends Page
                 ];
             })
             ->modalHeading(fn (array $arguments): string => 'Resultado · '.$this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)))
-            ->modalDescription('Cargá los sets que ya finalizaron o, en la Etapa Final, elegí la opción para proclamar directamente al ganador sin informar los resultados de los sets.')
+            ->modalDescription('Cargá los sets que ya finalizaron o proclamá directamente al ganador sin informar los resultados de los sets.')
             ->modalWidth('3xl')
             ->action(function (array $data, array $arguments, Action $action): void {
                 $match = FiveQuillasMatch::query()
@@ -993,7 +993,7 @@ class ManageTournamentCompetition extends Page
                         return;
                     }
                     Notification::make()->success()->title('Ganador proclamado')
-                        ->body('El jugador avanzó al cruce siguiente sin registrar resultados por set.')->send();
+                        ->body('La partida quedó finalizada sin registrar resultados por set.')->send();
                     return;
                 }
                 $scores = collect(range(1, max(1, (int) $match->phase()->value('sets_to_play'))))
