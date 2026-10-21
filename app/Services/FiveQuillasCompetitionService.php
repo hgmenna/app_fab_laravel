@@ -1193,10 +1193,15 @@ class FiveQuillasCompetitionService
                 $this->removeAdvancedEntry($match->loser_next_match_id, $match->loser_next_match_position, $this->loserEntryId($match));
             }
             $loserId = $players->first(fn (int $id): bool => $id !== $winnerEntryId);
+            $bestOf = max(1, (int) $match->phase->sets_to_play);
+            $winsNeeded = intdiv($bestOf, 2) + 1;
+            $winnerIsOne = (int) $match->player_one_entry_id === $winnerEntryId;
             $match->update([
-                'set_scores' => ['manual_winner' => true, 'sets' => []],
-                'player_one_actual_sets' => 0, 'player_two_actual_sets' => 0,
-                'player_one_computed_sets' => 0, 'player_two_computed_sets' => 0,
+                'set_scores' => ['manual_winner' => true, 'sets' => [], 'computed_sets' => $winsNeeded],
+                'player_one_actual_sets' => $winnerIsOne ? $winsNeeded : 0,
+                'player_two_actual_sets' => $winnerIsOne ? 0 : $winsNeeded,
+                'player_one_computed_sets' => $winnerIsOne ? $winsNeeded : 0,
+                'player_two_computed_sets' => $winnerIsOne ? 0 : $winsNeeded,
                 'player_one_points' => 0, 'player_two_points' => 0,
                 'winner_entry_id' => $winnerEntryId, 'status' => 'completed',
             ]);
