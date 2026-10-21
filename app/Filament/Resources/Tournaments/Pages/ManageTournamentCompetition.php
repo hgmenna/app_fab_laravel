@@ -377,12 +377,17 @@ class ManageTournamentCompetition extends Page
 
     public function entryOptionsForSlot(int $slotId, array $excludedEntryIds = []): array
     {
-        if ($slotId < 1 || ! $this->competition()) {
+        $competition = $this->competition();
+        $zonePhaseId = $competition?->phases
+            ->first(fn ($phase): bool => $phase->phase_type === 'zones' && $phase->is_enabled)?->id;
+
+        if ($slotId < 1 || ! $competition || ! $zonePhaseId) {
             return [];
         }
 
-        return $this->competition()->entries()
+        return $competition->entries()
             ->where('source_slot_id', $slotId)
+            ->where('entry_phase_id', $zonePhaseId)
             ->whereIn('status', ['eligible', 'assigned'])
             ->when($excludedEntryIds !== [], fn ($query) => $query->whereNotIn('id', $excludedEntryIds))
             ->with(['player.club', 'player.category'])
@@ -421,11 +426,16 @@ class ManageTournamentCompetition extends Page
 
     public function zoneEntryOptions(): array
     {
-        if (! $this->competition()) {
+        $competition = $this->competition();
+        $zonePhaseId = $competition?->phases
+            ->first(fn ($phase): bool => $phase->phase_type === 'zones' && $phase->is_enabled)?->id;
+
+        if (! $competition || ! $zonePhaseId) {
             return [];
         }
 
-        return $this->competition()->entries()
+        return $competition->entries()
+            ->where('entry_phase_id', $zonePhaseId)
             ->whereIn('status', ['eligible', 'assigned'])
             ->with(['player.club', 'player.category'])
             ->get()
@@ -580,12 +590,21 @@ class ManageTournamentCompetition extends Page
             ->modalHeading('Carga manual de zonas')
             ->modalDescription('Elegí un horario para ver sus zonas. Podés modificar las que todavía no comenzaron y agregar las que falten. Las zonas con partidos iniciados se muestran protegidas.')
             ->modalWidth('7xl')->requiresConfirmation()
-            ->action(function (array $data, array $arguments): void {
-                $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
-                    ->where('phase_type', 'zones')->where('is_enabled', true)->firstOrFail();
-                $count = app(FiveQuillasCompetitionService::class)->createManualZones(
-                    $this->competition(), (int) $data['slot_id'], $data['zones'] ?? [],
-                );
+            ->action(function (Action $action, array $data, array $arguments): void {
+                try {
+                    $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
+                        ->where('phase_type', 'zones')->where('is_enabled', true)->firstOrFail();
+                    $count = app(FiveQuillasCompetitionService::class)->createManualZones(
+                        $this->competition(), (int) $data['slot_id'], $data['zones'] ?? [],
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('No se pudieron guardar las zonas')
+                        ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
+                        ->persistent()->send();
+                    $action->halt();
+
+                    return;
+                }
                 Notification::make()->success()->title('Zonas guardadas')
                     ->body($count.' zonas quedaron preparadas.')->send();
             });
