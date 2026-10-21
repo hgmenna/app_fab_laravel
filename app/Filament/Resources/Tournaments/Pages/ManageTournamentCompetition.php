@@ -494,6 +494,15 @@ class ManageTournamentCompetition extends Page
             return [$emptyZone];
         }
 
+        $lastZoneNumber = $phase->groups()->pluck('name')
+            ->map(function (?string $name): int {
+                preg_match('/(\d+)\s*$/', (string) $name, $matches);
+
+                return (int) ($matches[1] ?? 0);
+            })
+            ->max() ?? 0;
+        $emptyZone['name'] = 'Zona '.($lastZoneNumber + 1);
+
         $rows = $phase->groups()
             ->where('tournament_slot_id', $slotId)
             ->with(['groupEntries', 'matches:id,group_id,status'])
@@ -581,10 +590,17 @@ class ManageTournamentCompetition extends Page
                     ->defaultItems(1)->minItems(1)->addActionLabel('Agregar zona')
                     ->addAction(fn (Action $action): Action => $action->after(function (Repeater $component): void {
                         $zones = $component->getRawState() ?? [];
+                        $lastZoneNumber = collect($zones)
+                            ->map(function (array $zone): int {
+                                preg_match('/(\d+)\s*$/', (string) ($zone['name'] ?? ''), $matches);
 
-                        foreach (array_keys($zones) as $index => $key) {
+                                return (int) ($matches[1] ?? 0);
+                            })
+                            ->max() ?? 0;
+
+                        foreach (array_keys($zones) as $key) {
                             if (blank($zones[$key]['name'] ?? null)) {
-                                $zones[$key]['name'] = 'Zona '.($index + 1);
+                                $zones[$key]['name'] = 'Zona '.(++$lastZoneNumber);
                             }
                         }
 
