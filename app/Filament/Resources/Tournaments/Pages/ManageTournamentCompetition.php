@@ -569,7 +569,7 @@ class ManageTournamentCompetition extends Page
             ])
             ->modalHeading('Carga manual de zonas')
             ->modalDescription('Elegí un horario para ver sus zonas. Podés modificar las que todavía no comenzaron y agregar las que falten. Las zonas con partidos iniciados se muestran protegidas.')
-            ->modalWidth('7xl')->requiresConfirmation()
+            ->modalWidth('7xl')
             ->action(function (array $data, array $arguments): void {
                 $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
                     ->where('phase_type', 'zones')->where('is_enabled', true)->firstOrFail();
