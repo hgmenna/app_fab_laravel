@@ -537,6 +537,7 @@ class ManageTournamentCompetition extends Page
                     ->required()->searchable()->live()
                     ->afterStateUpdated(fn ($state, Set $set) => $set('zones', $this->zoneRowsForSlot((int) $state))),
                 Repeater::make('zones')->label('Zonas del horario')
+                    ->visible(fn (Get $get): bool => filled($get('slot_id')))
                     ->table([
                         TableColumn::make('Zona')->width('12%'),
                         TableColumn::make('Posición 1')->width('21%'),
