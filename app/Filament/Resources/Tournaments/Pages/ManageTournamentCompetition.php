@@ -638,29 +638,59 @@ class ManageTournamentCompetition extends Page
             ->label('Preparar / actualizar grilla')->icon('heroicon-o-arrow-path')->color('warning')->size('sm')
             ->fillForm(function (array $arguments): array {
                 $phase = $this->competition()->phases()->find((int) ($arguments['phaseId'] ?? 0));
-                if (! $phase || $phase->seeding_method !== 'number_draw') { return []; }
-                return ['draws' => app(FiveQuillasCompetitionService::class)->drawCandidates($phase)
-                    ->map(fn ($entry): array => [
-                        'entry_id' => $entry->id,
-                        'player_name' => $entry->player?->full_name,
-                        'draw_number' => $entry->seed,
-                    ])->all()];
+                if (! $phase) { return []; }
+                if ($phase->seeding_method === 'number_draw') {
+                    return ['draws' => app(FiveQuillasCompetitionService::class)->drawCandidates($phase)
+                        ->map(fn ($entry): array => [
+                            'entry_id' => $entry->id,
+                            'player_name' => $entry->player?->full_name,
+                            'draw_number' => $entry->seed,
+                        ])->all()];
+                }
+                if ($phase->phase_type === 'bracket') {
+                    return ['participants' => app(FiveQuillasCompetitionService::class)
+                        ->bracketParticipantRows($phase)];
+                }
+                return [];
             })
             ->schema(function (array $arguments): array {
                 $phase = $this->competition()->phases()->find((int) ($arguments['phaseId'] ?? 0));
-                if (! $phase || $phase->seeding_method !== 'number_draw') { return []; }
-                $size = (int) data_get($phase->settings, 'bracket_size', 16);
-                return [
-                    Repeater::make('draws')->label('Números obtenidos en el sorteo')
+                if (! $phase) { return []; }
+                if ($phase->seeding_method === 'number_draw') {
+                    $size = (int) data_get($phase->settings, 'bracket_size', 16);
+                    return [Repeater::make('draws')->label('Números obtenidos en el sorteo')
                         ->schema([
                             Hidden::make('entry_id'),
                             TextInput::make('player_name')->label('Jugador')->disabled(),
                             TextInput::make('draw_number')->label('Número')->integer()
                                 ->minValue(1)->maxValue($size)->required(),
-                        ])->columns(2)->addable(false)->deletable(false)->reorderable(false),
+                        ])->columns(2)->addable(false)->deletable(false)->reorderable(false)];
+                }
+                if ($phase->phase_type !== 'bracket') { return []; }
+                $rows = app(FiveQuillasCompetitionService::class)->bracketParticipantRows($phase);
+                $directCount = collect($rows)->where('origin_type', 'direct')->count();
+                $qualifiedCount = count($rows) - $directCount;
+                return [
+                    Placeholder::make('participant_help')->hiddenLabel()
+                        ->content('Total: '.count($rows).' jugadores · Ingreso directo: '.$directCount.' · Clasificados de la fase anterior: '.$qualifiedCount.'. Revisá ranking y posición antes de reconstruir la grilla. Podés corregir la posición dentro del bloque de cada origen.'),
+                    Repeater::make('participants')->label('Participantes de la fase')
+                        ->table([
+                            TableColumn::make('Posición')->width('10%'),
+                            TableColumn::make('Jugador')->width('32%'),
+                            TableColumn::make('Origen')->width('38%'),
+                            TableColumn::make('Ranking')->width('12%'),
+                        ])
+                        ->schema([
+                            Hidden::make('entry_id'),
+                            TextInput::make('seed_position')->hiddenLabel()->integer()->minValue(1)->required(),
+                            TextInput::make('player_name')->hiddenLabel()->disabled(),
+                            TextInput::make('origin')->hiddenLabel()->disabled(),
+                            TextInput::make('ranking')->hiddenLabel()->disabled()->placeholder('Sin ranking'),
+                        ])->addable(false)->deletable(false)->reorderable(false),
                 ];
             })
             ->requiresConfirmation()
+            ->modalWidth('7xl')
             ->modalDescription('Vuelve a tomar los clasificados y reconstruye toda la grilla. Si ya cargaste resultados en esta fase, serán eliminados para aplicar las correcciones realizadas en las etapas anteriores. Si la fase se arma por sorteo, cargá aquí el número obtenido por cada jugador.')
             ->action(function (Action $action, array $data, array $arguments): void {
                 try {
@@ -668,6 +698,10 @@ class ManageTournamentCompetition extends Page
                         ->where('phase_type', '!=', 'zones')->where('is_enabled', true)->firstOrFail();
                     if ($phase->seeding_method === 'number_draw') {
                         app(FiveQuillasCompetitionService::class)->saveDrawNumbers($phase, $data['draws'] ?? []);
+                    } elseif ($phase->phase_type === 'bracket') {
+                        app(FiveQuillasCompetitionService::class)
+                            ->saveBracketParticipantOrder($phase, $data['participants'] ?? []);
+                        $phase->refresh();
                     }
                     $count = app(FiveQuillasCompetitionService::class)->preparePhase($phase);
                     $assignedPlayers = $phase->matches()->where('round_number', 1)
@@ -858,13 +892,25 @@ class ManageTournamentCompetition extends Page
     {
         return Action::make('schedulePhase')
             ->label('Asignar horarios')->icon('heroicon-o-clock')->color('primary')->size('sm')
+            ->schema(function (array $arguments): array {
+                $phase = $this->competition()->phases()->find((int) ($arguments['phaseId'] ?? 0));
+                $options = collect(data_get($phase?->settings, 'schedules', []))
+                    ->mapWithKeys(fn (array $schedule, int $index): array => [
+                        $index => (string) ($schedule['name'] ?? 'Horario '.($index + 1)),
+                    ])->all();
+
+                return [
+                    Select::make('schedule_index')->label('Horario a asignar')
+                        ->options($options)->default(array_key_first($options))->required()->native(false),
+                ];
+            })
             ->requiresConfirmation()
             ->modalDescription('Asigna la hora configurada a los partidos de este bloque. La mesa se elige después, al llamar cada partido.')
-            ->action(function (array $arguments): void {
+            ->action(function (array $data, array $arguments): void {
                 $phase = $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
                     ->where('phase_type', '!=', 'zones')->where('is_enabled', true)->firstOrFail();
                 $count = app(FiveQuillasCompetitionService::class)->scheduleConfiguredMatches(
-                    $phase, (int) $arguments['scheduleIndex'],
+                    $phase, (int) $data['schedule_index'],
                 );
                 Notification::make()->success()->title('Horarios asignados')
                     ->body($count.' partidos recibieron su horario.')->send();
@@ -1232,9 +1278,14 @@ class ManageTournamentCompetition extends Page
         $logoPath = $this->record->publicationLogoPath();
         $start = $this->record->start_date;
         $end = $this->record->end_date;
-        $championEntry = $competition?->entries->firstWhere('final_position', 1)
-            ?: $competition?->phases->where('phase_type', '!=', 'zones')->sortByDesc('sort_order')
-                ->flatMap->matches->where('status', 'completed')->sortByDesc('round_number')->first()?->winner;
+        $tournamentCompleted = $competition
+            && $competition->status === 'completed'
+            && ! $competition->phases()->where('is_enabled', true)->where('status', '!=', 'completed')->exists();
+        $championEntry = $tournamentCompleted
+            ? ($competition->entries->firstWhere('final_position', 1)
+                ?: $competition->phases->where('phase_type', '!=', 'zones')->sortByDesc('sort_order')
+                    ->flatMap->matches->where('status', 'completed')->sortByDesc('round_number')->first()?->winner)
+            : null;
         $championPhoto = $championEntry?->player?->photo_path;
 
         return [
@@ -1268,4 +1319,3 @@ class ManageTournamentCompetition extends Page
         ];
     }
 }
-

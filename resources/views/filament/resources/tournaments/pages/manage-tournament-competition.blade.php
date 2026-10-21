@@ -204,9 +204,7 @@
                                 <small>Pendiente de finalizar {{ $previousPhase->name }}</small>
                             @endif
                             @if($phase->matches->isNotEmpty())
-                                @foreach($phaseSchedules as $scheduleIndex => $schedule)
-                                    {{ ($this->schedulePhaseAction)(['phaseId' => $phase->id, 'scheduleIndex' => $scheduleIndex]) }}
-                                @endforeach
+                                {{ ($this->schedulePhaseAction)(['phaseId' => $phase->id]) }}
                             @endif
                             @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => $phase->name, 'sectionKey' => 'phase-'.$phase->id])
                         </div>
@@ -214,7 +212,41 @@
                         @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => $phase->name, 'sectionKey' => 'phase-'.$phase->id])
                     @endif
                 </div>
-                @include('filament.resources.tournaments.pages.partials.competition-bracket', ['matches' => $phase->matches])
+                @if($phaseSchedules->count() > 1)
+                    @php
+                        $scheduledMatchIds = collect();
+                        $scheduleMatches = $phaseSchedules->map(function(array $schedule) use ($phase, $scheduledMatchIds) {
+                            $round = max(1, (int) ($schedule['round_number'] ?? 1));
+                            $roundMatches = $phase->matches->where('round_number', $round)->sortBy('bracket_order')->values();
+                            $from = filled($schedule['from_match'] ?? null) ? max(1, (int) $schedule['from_match']) : 1;
+                            $to = filled($schedule['to_match'] ?? null) ? (int) $schedule['to_match'] : $roundMatches->count();
+                            $matches = $roundMatches->slice($from - 1, max(0, $to - $from + 1))->values();
+                            $scheduledMatchIds->push(...$matches->pluck('id'));
+                            return $matches;
+                        });
+                        $laterMatches = $phase->matches->whereNotIn('id', $scheduledMatchIds->flatten()->all());
+                    @endphp
+                    <div x-data="{ activeSchedule: 0 }">
+                        <div class="fq-slot-tabs" role="tablist" aria-label="Horarios de {{ $phase->name }}">
+                            @foreach($phaseSchedules as $scheduleIndex => $schedule)
+                                <button type="button" class="fq-slot-tab" :class="activeSchedule === {{ $scheduleIndex }} && 'is-active'" @click="activeSchedule = {{ $scheduleIndex }}">
+                                    {{ $schedule['name'] ?? 'Horario '.($scheduleIndex + 1) }}
+                                </button>
+                            @endforeach
+                        </div>
+                        @foreach($phaseSchedules as $scheduleIndex => $schedule)
+                            <div x-show="activeSchedule === {{ $scheduleIndex }}" x-cloak>
+                                @include('filament.resources.tournaments.pages.partials.competition-bracket', ['matches' => $scheduleMatches->get($scheduleIndex, collect())])
+                            </div>
+                        @endforeach
+                    </div>
+                    @if($laterMatches->isNotEmpty())
+                        <h3 style="margin:.9rem 0 .5rem;font-weight:800">Rondas posteriores</h3>
+                        @include('filament.resources.tournaments.pages.partials.competition-bracket', ['matches' => $laterMatches])
+                    @endif
+                @else
+                    @include('filament.resources.tournaments.pages.partials.competition-bracket', ['matches' => $phase->matches])
+                @endif
             </section>
         @endforeach
         <section class="fq-phase-panel" id="fq-section-positions" x-show="activePhase === 'positions'" x-cloak>
@@ -261,4 +293,3 @@
         @endif
     @endif
 </x-filament-panels::page>
-

@@ -48,9 +48,13 @@ class FiveQuillasCompetitionPublicController extends Controller
         $showFinalStandings = (bool) data_get($competition->settings, 'public.show_final_standings', true);
         $tournament = $competition->tournament;
         $logoPath = $tournament->publicationLogoPath();
-        $championEntry = $competition->entries->firstWhere('final_position', 1)
-            ?: $competition->phases->where('phase_type', '!=', 'zones')->sortByDesc('sort_order')
-                ->flatMap->matches->where('status', 'completed')->sortByDesc('round_number')->first()?->winner;
+        $tournamentCompleted = $competition->status === 'completed'
+            && ! $competition->phases()->where('is_enabled', true)->where('status', '!=', 'completed')->exists();
+        $championEntry = $tournamentCompleted
+            ? ($competition->entries->firstWhere('final_position', 1)
+                ?: $competition->phases->where('phase_type', '!=', 'zones')->sortByDesc('sort_order')
+                    ->flatMap->matches->where('status', 'completed')->sortByDesc('round_number')->first()?->winner)
+            : null;
         $championPhoto = $championEntry?->player?->photo_path;
 
         return response()->json([
