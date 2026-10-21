@@ -688,7 +688,6 @@ class FiveQuillasCompetitionService
             $two = $bySeed->get($pair[1]);
 
             return [
-                'match_label' => 'Partido '.($index + 1).' · '.$pair[0].' - '.$pair[1],
                 'player_one_seed' => $pair[0],
                 'player_one_entry_id' => $one['entry_id'] ?? null,
                 'player_two_seed' => $pair[1],

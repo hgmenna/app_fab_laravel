@@ -686,21 +686,25 @@ class ManageTournamentCompetition extends Page
                 $directCount = collect($rows)->where('origin_type', 'direct')->count();
                 $qualifiedCount = count($rows) - $directCount;
                 $options = collect($rows)->mapWithKeys(fn (array $row): array => [
-                    $row['entry_id'] => $row['seed_position'].' · '.$row['player_name'].' · '.($row['ranking'] ?: 'sin ranking'),
+                    $row['entry_id'] => $row['player_name'],
                 ])->all();
                 return [
                     Placeholder::make('participant_help')->hiddenLabel()
                         ->content('Cuadro: '.$this->nextBracketSize(count($rows)).' posiciones · Jugadores: '.count($rows).' · Ingreso directo: '.$directCount.' · Emparejamiento / clasificados: '.$qualifiedCount.'. Los lugares sin jugador quedan LIBRES.'),
-                    Repeater::make('matchups')->label('Cruces de la primera ronda')
+                    Repeater::make('matchups')->label('Posiciones de la grilla')
+                        ->itemLabel(fn (?array $state): string => ($state['player_one_seed'] ?? '').' - '.($state['player_two_seed'] ?? ''))
                         ->schema([
-                            TextInput::make('match_label')->label('Cruce')->disabled(),
                             Hidden::make('player_one_seed'),
-                            Select::make('player_one_entry_id')->label('Jugador superior')->options($options)
+                            Select::make('player_one_entry_id')
+                                ->label(fn (Get $get): string => 'Posición '.((int) $get('player_one_seed')))
+                                ->options($options)
                                 ->searchable()->placeholder('LIBRE'),
                             Hidden::make('player_two_seed'),
-                            Select::make('player_two_entry_id')->label('Jugador inferior')->options($options)
+                            Select::make('player_two_entry_id')
+                                ->label(fn (Get $get): string => 'Posición '.((int) $get('player_two_seed')))
+                                ->options($options)
                                 ->searchable()->placeholder('LIBRE'),
-                        ])->columns(3)->addable(false)->deletable(false)->reorderable(false),
+                        ])->columns(2)->addable(false)->deletable(false)->reorderable(false),
                 ];
             })
             ->requiresConfirmation()
@@ -1343,3 +1347,4 @@ class ManageTournamentCompetition extends Page
         ];
     }
 }
+
