@@ -109,6 +109,7 @@ class FiveQuillasCompetitionService
         $entries = $competition->entries()->with(['player.category', 'sourceSlot'])->get();
         $rankings = GeneralRanking::query()->whereIn('player_id', $entries->pluck('player_id'))
             ->get(['player_id', 'category'])->keyBy('player_id');
+        $changed = false;
 
         foreach ($entries as $entry) {
             $phase = $this->entryPhaseForRegistration(
@@ -119,7 +120,16 @@ class FiveQuillasCompetitionService
             );
             if ($phase && (int) $entry->entry_phase_id !== (int) $phase->id) {
                 $entry->update(['entry_phase_id' => $phase->id]);
+                $changed = true;
             }
+        }
+
+        if ($changed) {
+            $phases->where('phase_type', 'bracket')->each(function ($phase): void {
+                $settings = $phase->settings ?? [];
+                unset($settings['participant_seed_overrides']);
+                $phase->update(['settings' => $settings]);
+            });
         }
     }
 
@@ -1052,21 +1062,18 @@ class FiveQuillasCompetitionService
             return [(int) $phase->id => $codes];
         });
 
-        $rankingCode = Str::upper(trim((string) $rankingCategory));
-        if ($rankingCode !== '') {
-            $rankingPhase = $phases->first(
-                fn ($phase): bool => $phaseCodes->get((int) $phase->id, collect())->contains($rankingCode)
-            );
-            if ($rankingPhase) {
-                return $rankingPhase;
-            }
-        }
-
         $normalizedSlot = Str::lower(Str::ascii((string) $slotName));
         $specialCode = Str::contains($normalizedSlot, ['master'])
             ? 'M'
             : (Str::contains($normalizedSlot, ['nacional', '1ra', 'primera']) ? 'N' : null);
-        if ($specialCode) {
+        $rankingCode = Str::upper(trim((string) $rankingCategory));
+
+        // Nacional y Master son categorías temporales del Ranking General y,
+        // además, poseen un horario propio de inscripción. Las dos condiciones
+        // deben cumplirse. Usar una condición alternativa convertía clasificados
+        // de horarios comunes en ingresos directos y también admitía inscriptos
+        // del horario Nacional/Master que no pertenecían a esa categoría.
+        if ($specialCode && $rankingCode === $specialCode) {
             $slotPhase = $phases->first(function ($phase) use ($phaseCodes, $specialCode): bool {
                 if ($phaseCodes->get((int) $phase->id, collect())->contains($specialCode)) {
                     return true;
