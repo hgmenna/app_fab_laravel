@@ -704,12 +704,7 @@ class ManageTournamentCompetition extends Page
             ->label('Configurar cruces')->icon('heroicon-o-arrows-right-left')->color('warning')->size('sm')
             ->fillForm(function (array $arguments): array {
                 $phase = $this->competition()->phases()->findOrFail((int) ($arguments['phaseId'] ?? 0));
-                $rows = $phase->matches()->with(['playerOne', 'playerTwo'])
-                    ->orderBy('bracket_order')->get()->map(fn ($match): array => [
-                        'slot_id' => $match->playerOne?->source_slot_id,
-                        'player_one_entry_id' => $match->player_one_entry_id,
-                        'player_two_entry_id' => $match->player_two_entry_id,
-                    ])->all();
+                $rows = collect(data_get($phase->settings, 'slot_crossings', []))->values()->all();
 
                 return ['crossings' => $rows ?: [['slot_id' => null]]];
             })
@@ -719,31 +714,25 @@ class ManageTournamentCompetition extends Page
                 Repeater::make('crossings')->label('Enfrentamientos por horario')
                     ->table([
                         TableColumn::make('Horario')->width('24%'),
-                        TableColumn::make('1.º o 2.º clasificado')->width('36%'),
-                        TableColumn::make('Rival de otra zona')->width('36%'),
+                        TableColumn::make('1.º de la zona')->width('36%'),
+                        TableColumn::make('2.º de la zona')->width('36%'),
                     ])
                     ->schema([
                         Select::make('slot_id')->hiddenLabel()->required()->native(false)->live()
-                            ->options(function () use ($phaseId): array {
-                                $phase = $this->competition()->phases()->find($phaseId);
-                                if (! $phase) { return []; }
-                                return app(FiveQuillasCompetitionService::class)->slotEliminationCandidates($phase)
-                                    ->groupBy(fn ($row) => (int) $row->group?->tournament_slot_id)
-                                    ->map(fn ($rows): string => $rows->first()?->group?->slot?->name ?? 'SIN HORARIO')
-                                    ->all();
-                            })
+                            ->options(fn (): array => $this->record->slots()->where('is_active', true)
+                                ->orderBy('starts_at')->pluck('name', 'id')->all())
                             ->afterStateUpdated(function (Set $set): void {
-                                $set('player_one_entry_id', null);
-                                $set('player_two_entry_id', null);
+                                $set('first_group_id', null);
+                                $set('second_group_id', null);
                             }),
-                        Select::make('player_one_entry_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
-                            ->options(fn (Get $get): array => $this->slotQualifiedOptions(
-                                $phaseId, (int) ($get('slot_id') ?? 0),
+                        Select::make('first_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
+                            ->options(fn (Get $get): array => $this->slotZonePositionOptions(
+                                $phaseId, (int) ($get('slot_id') ?? 0), 1,
                             ))->live(),
-                        Select::make('player_two_entry_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
-                            ->options(fn (Get $get): array => $this->slotQualifiedOptions(
-                                $phaseId, (int) ($get('slot_id') ?? 0),
-                                [(int) ($get('player_one_entry_id') ?? 0)],
+                        Select::make('second_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
+                            ->options(fn (Get $get): array => $this->slotZonePositionOptions(
+                                $phaseId, (int) ($get('slot_id') ?? 0), 2,
+                                [(int) ($get('first_group_id') ?? 0)],
                             ))->live(),
                     ])
                     ->defaultItems(1)->minItems(1)->addActionLabel('Agregar cruce')
@@ -751,7 +740,7 @@ class ManageTournamentCompetition extends Page
                 ];
             })
             ->modalHeading('Cruces manuales por horario')
-            ->modalDescription('Seleccioná un 1.º y un 2.º clasificado de zonas distintas del mismo horario. Solo se muestran jugadores clasificados en las zonas.')
+            ->modalDescription('Elegí el 1.º de una zona y el 2.º de otra zona del mismo horario. Podés definir los cruces antes de conocer los jugadores clasificados.')
             ->modalWidth('7xl')->requiresConfirmation()
             ->action(function (array $data, array $arguments): void {
                 $phase = $this->competition()->phases()->whereKey((int) ($arguments['phaseId'] ?? 0))
@@ -763,20 +752,26 @@ class ManageTournamentCompetition extends Page
             });
     }
 
-    public function slotQualifiedOptions(int $phaseId, int $slotId, array $excluded = []): array
+    public function slotZonePositionOptions(int $phaseId, int $slotId, int $place, array $excludedGroups = []): array
     {
         if ($phaseId < 1 || $slotId < 1) { return []; }
         $phase = $this->competition()->phases()->find($phaseId);
         if (! $phase) { return []; }
 
-        return app(FiveQuillasCompetitionService::class)->slotEliminationCandidates($phase)
-            ->filter(fn ($row): bool => (int) $row->group?->tournament_slot_id === $slotId)
-            ->reject(fn ($row): bool => in_array((int) $row->entry_id, $excluded, true))
-            ->sortBy(fn ($row): array => [(int) $row->final_place, (int) $row->entry?->national_ranking_snapshot])
-            ->mapWithKeys(fn ($row): array => [
-                $row->entry_id => $row->final_place.'.º · '.($row->entry?->player?->full_name ?? 'Jugador')
-                    .' — '.($row->group?->name ?? 'Zona'),
-            ])->all();
+        $previous = app(FiveQuillasCompetitionService::class)->previousPhaseFor($phase);
+        if (! $previous || $previous->phase_type !== 'zones') { return []; }
+
+        return $previous->groups()->where('tournament_slot_id', $slotId)
+            ->with(['groupEntries.entry.player'])->get()
+            ->sortBy(function ($group): array {
+                preg_match('/(\d+)\s*$/', (string) $group->name, $matches);
+                return [(int) ($matches[1] ?? PHP_INT_MAX), (int) $group->sort_order];
+            })
+            ->reject(fn ($group): bool => in_array((int) $group->id, $excludedGroups, true))
+            ->mapWithKeys(function ($group) use ($place): array {
+                $player = $group->groupEntries->firstWhere('final_place', $place)?->entry?->player?->full_name;
+                return [$group->id => $place.'.º · '.$group->name.($player ? ' — '.$player : '')];
+            })->all();
     }
 
     public function schedulePhaseAction(): Action
@@ -1191,3 +1186,4 @@ class ManageTournamentCompetition extends Page
         ];
     }
 }
+

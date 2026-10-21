@@ -701,6 +701,11 @@ class FiveQuillasCompetitionService
             throw ValidationException::withMessages(['phase' => 'La eliminación por horario requiere una fase de zonas anterior.']);
         }
 
+        $configuredCrossings = data_get($phase->settings, 'slot_crossings', []);
+        if (is_array($configuredCrossings) && $configuredCrossings !== []) {
+            return $this->createManualSlotElimination($phase, $configuredCrossings);
+        }
+
         $groups = $previous->groups()->with(['groupEntries.entry'])->orderBy('tournament_slot_id')->orderBy('sort_order')->get()
             ->groupBy('tournament_slot_id');
         $order = 0;
@@ -758,6 +763,11 @@ class FiveQuillasCompetitionService
             ->values();
     }
 
+    public function previousPhaseFor(FiveQuillasPhase $phase): ?FiveQuillasPhase
+    {
+        return $this->previousPhase($phase);
+    }
+
     public function createManualSlotElimination(FiveQuillasPhase $phase, array $crossings): int
     {
         return DB::transaction(function () use ($phase, $crossings): int {
@@ -768,54 +778,60 @@ class FiveQuillasCompetitionService
                 throw ValidationException::withMessages(['crossings' => 'No se pueden modificar los cruces porque ya existen partidos iniciados o finalizados.']);
             }
 
-            $candidates = $this->slotEliminationCandidates($phase)->keyBy('entry_id');
+            $previous = $this->previousPhase($phase);
+            if (! $previous || $previous->phase_type !== 'zones') {
+                throw ValidationException::withMessages(['crossings' => 'La fase anterior debe ser una fase de zonas.']);
+            }
+            $groups = $previous->groups()->with('groupEntries')->get()->keyBy('id');
             $rows = collect($crossings)->map(fn (array $row): array => [
                 'slot_id' => (int) ($row['slot_id'] ?? 0),
-                'player_one_entry_id' => (int) ($row['player_one_entry_id'] ?? 0),
-                'player_two_entry_id' => (int) ($row['player_two_entry_id'] ?? 0),
-            ])->filter(fn (array $row): bool => $row['player_one_entry_id'] > 0 || $row['player_two_entry_id'] > 0)->values();
+                'first_group_id' => (int) ($row['first_group_id'] ?? 0),
+                'second_group_id' => (int) ($row['second_group_id'] ?? 0),
+            ])->filter(fn (array $row): bool => $row['first_group_id'] > 0 || $row['second_group_id'] > 0)->values();
 
             if ($rows->isEmpty()) {
                 throw ValidationException::withMessages(['crossings' => 'Agregá al menos un enfrentamiento.']);
             }
-            $used = collect();
+            $usedFirstGroups = collect();
+            $usedSecondGroups = collect();
             foreach ($rows as $index => $row) {
-                $one = $candidates->get($row['player_one_entry_id']);
-                $two = $candidates->get($row['player_two_entry_id']);
-                if (! $one || ! $two) {
-                    throw ValidationException::withMessages(['crossings' => 'El cruce '.($index + 1).' debe contener dos jugadores clasificados.']);
+                $firstGroup = $groups->get($row['first_group_id']);
+                $secondGroup = $groups->get($row['second_group_id']);
+                if (! $firstGroup || ! $secondGroup) {
+                    throw ValidationException::withMessages(['crossings' => 'El cruce '.($index + 1).' debe indicar dos zonas válidas.']);
                 }
-                if ((int) $one->entry_id === (int) $two->entry_id) {
-                    throw ValidationException::withMessages(['crossings' => 'Un jugador no puede enfrentarse consigo mismo.']);
+                if ((int) $firstGroup->tournament_slot_id !== $row['slot_id']
+                    || (int) $secondGroup->tournament_slot_id !== $row['slot_id']) {
+                    throw ValidationException::withMessages(['crossings' => 'Las dos zonas del cruce '.($index + 1).' deben pertenecer al mismo horario.']);
                 }
-                if ((int) $one->group?->tournament_slot_id !== (int) $two->group?->tournament_slot_id
-                    || (int) $one->group?->tournament_slot_id !== $row['slot_id']) {
-                    throw ValidationException::withMessages(['crossings' => 'Los dos jugadores del cruce '.($index + 1).' deben pertenecer al mismo horario.']);
-                }
-                if ((int) $one->group_id === (int) $two->group_id) {
+                if ((int) $firstGroup->id === (int) $secondGroup->id) {
                     throw ValidationException::withMessages(['crossings' => 'El 1.º y el 2.º del cruce '.($index + 1).' deben provenir de zonas distintas.']);
                 }
-                if ((int) $one->final_place === (int) $two->final_place) {
-                    throw ValidationException::withMessages(['crossings' => 'Cada cruce debe enfrentar un 1.º con un 2.º clasificado.']);
-                }
-                $used->push((int) $one->entry_id, (int) $two->entry_id);
+                $usedFirstGroups->push((int) $firstGroup->id);
+                $usedSecondGroups->push((int) $secondGroup->id);
             }
-            if ($used->duplicates()->isNotEmpty()) {
-                throw ValidationException::withMessages(['crossings' => 'Un jugador clasificado no puede aparecer en más de un cruce.']);
+            if ($usedFirstGroups->duplicates()->isNotEmpty() || $usedSecondGroups->duplicates()->isNotEmpty()) {
+                throw ValidationException::withMessages(['crossings' => 'Cada puesto clasificado de una zona puede utilizarse una sola vez.']);
             }
 
             $phase->matches()->delete();
             foreach ($rows as $index => $row) {
+                $firstGroup = $groups->get($row['first_group_id']);
+                $secondGroup = $groups->get($row['second_group_id']);
                 $phase->matches()->create([
                     'round_number' => 1,
                     'bracket_order' => $index + 1,
                     'label' => 'Cruce por horario '.($index + 1),
-                    'player_one_entry_id' => $row['player_one_entry_id'],
-                    'player_two_entry_id' => $row['player_two_entry_id'],
+                    'player_one_entry_id' => $firstGroup->groupEntries->firstWhere('final_place', 1)?->entry_id,
+                    'player_two_entry_id' => $secondGroup->groupEntries->firstWhere('final_place', 2)?->entry_id,
+                    'set_scores' => ['slot_crossing' => $row],
                     'is_public' => (bool) $phase->is_public,
                 ]);
             }
-            $phase->update(['status' => 'ready']);
+            $phase->update([
+                'status' => 'ready',
+                'settings' => array_merge($phase->settings ?? [], ['slot_crossings' => $rows->all()]),
+            ]);
 
             return $rows->count();
         });
@@ -1737,10 +1753,27 @@ class FiveQuillasCompetitionService
             ]);
         }
 
+        $matchesByLabel = $group->matches->keyBy('label');
+        $firstMatch = $matchesByLabel->get('Definición del primer puesto');
+        $secondMatch = $matchesByLabel->get('Definición del segundo puesto');
+        $definedPlaces = collect();
+        if ($firstMatch?->status === 'completed' && $firstMatch->winner_entry_id) {
+            $definedPlaces->put((int) $firstMatch->winner_entry_id, 1);
+        }
+        if ($secondMatch?->status === 'completed' && $secondMatch->winner_entry_id) {
+            $definedPlaces->put((int) $secondMatch->winner_entry_id, 2);
+        }
+        foreach ($definedPlaces as $entryId => $place) {
+            $group->groupEntries()->where('entry_id', $entryId)->update(['final_place' => $place]);
+            $group->groupEntries()->where('entry_id', '!=', $entryId)
+                ->where('final_place', $place)->update(['final_place' => null]);
+            $group->groupEntries->firstWhere('entry_id', $entryId)?->entry()
+                ->update(['status' => 'qualified']);
+        }
+        $group->load('groupEntries');
+        $this->refreshConfiguredSlotCrossings($group);
+
         if ($group->matches->isNotEmpty() && $group->matches->every(fn ($match): bool => $match->status === 'completed')) {
-            $matchesByLabel = $group->matches->keyBy('label');
-            $firstMatch = $matchesByLabel->get('Definición del primer puesto');
-            $secondMatch = $matchesByLabel->get('Definición del segundo puesto');
             $recoveryMatch = $matchesByLabel->get('Perdedores')
                 ?? $matchesByLabel->get('Partido de recuperación');
             $places = collect();
@@ -1766,6 +1799,36 @@ class FiveQuillasCompetitionService
             if ($group->phase->groups()->where('status', '!=', 'completed')->doesntExist()) {
                 $group->phase()->update(['status' => 'completed']);
                 $this->assignPhaseEliminationPoints($group->phase()->first());
+            }
+        }
+    }
+
+    private function refreshConfiguredSlotCrossings(FiveQuillasGroup $group): void
+    {
+        $phases = $group->phase->competition->phases()->where('phase_type', 'slot_elimination')
+            ->where('is_enabled', true)->get();
+
+        foreach ($phases as $phase) {
+            if ((int) ($this->previousPhase($phase)?->id ?? 0) !== (int) $group->phase_id) {
+                continue;
+            }
+            $crossings = collect(data_get($phase->settings, 'slot_crossings', []));
+            foreach ($crossings as $index => $crossing) {
+                $attributes = [];
+                if ((int) ($crossing['first_group_id'] ?? 0) === (int) $group->id) {
+                    $attributes['player_one_entry_id'] = $group->groupEntries
+                        ->firstWhere('final_place', 1)?->entry_id;
+                }
+                if ((int) ($crossing['second_group_id'] ?? 0) === (int) $group->id) {
+                    $attributes['player_two_entry_id'] = $group->groupEntries
+                        ->firstWhere('final_place', 2)?->entry_id;
+                }
+                if ($attributes !== []) {
+                    $phase->matches()->where('round_number', 1)
+                        ->where('bracket_order', $index + 1)
+                        ->whereIn('status', ['pending', 'scheduled'])
+                        ->update($attributes);
+                }
             }
         }
     }
@@ -2001,3 +2064,4 @@ class FiveQuillasCompetitionService
         return $slug;
     }
 }
+
