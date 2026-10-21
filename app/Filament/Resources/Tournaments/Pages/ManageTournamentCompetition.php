@@ -749,20 +749,20 @@ class ManageTournamentCompetition extends Page
                                 $set('second_group_id', null);
                             }),
                         Select::make('first_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
-                            ->options(fn (Get $get): array => $this->slotZonePositionOptions(
-                                $phaseId, (int) ($get('slot_id') ?? 0), 1,
-                            ))
-                            ->transformOptionsForJsUsing(fn (array $options, Select $component): array =>
-                                $this->availableSlotCrossingOptions($options, $component, 'first_group_id')
-                            )->live(),
+                            ->options(fn (Get $get, Select $component): array => $this->availableSlotCrossingOptions(
+                                $this->slotZonePositionOptions($phaseId, (int) ($get('slot_id') ?? 0), 1),
+                                $component,
+                                'first_group_id',
+                            ))->live(),
                         Select::make('second_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
-                            ->options(fn (Get $get): array => $this->slotZonePositionOptions(
-                                $phaseId, (int) ($get('slot_id') ?? 0), 2,
-                                [(int) ($get('first_group_id') ?? 0)],
-                            ))
-                            ->transformOptionsForJsUsing(fn (array $options, Select $component): array =>
-                                $this->availableSlotCrossingOptions($options, $component, 'second_group_id')
-                            )->live(),
+                            ->options(fn (Get $get, Select $component): array => $this->availableSlotCrossingOptions(
+                                $this->slotZonePositionOptions(
+                                    $phaseId, (int) ($get('slot_id') ?? 0), 2,
+                                    [(int) ($get('first_group_id') ?? 0)],
+                                ),
+                                $component,
+                                'second_group_id',
+                            ))->live(),
                     ])
                     ->defaultItems(1)->minItems(1)->addActionLabel('Agregar cruce')
                     ->reorderable(false)->columnSpanFull(),
@@ -771,11 +771,20 @@ class ManageTournamentCompetition extends Page
             ->modalHeading('Cruces manuales por horario')
             ->modalDescription('Elegí el 1.º de una zona y el 2.º de otra zona del mismo horario. Podés definir los cruces antes de conocer los jugadores clasificados.')
             ->modalWidth('7xl')->requiresConfirmation()
-            ->action(function (array $data, array $arguments): void {
-                $phase = $this->competition()->phases()->whereKey((int) ($arguments['phaseId'] ?? 0))
-                    ->where('phase_type', 'slot_elimination')->where('is_enabled', true)->firstOrFail();
-                $count = app(FiveQuillasCompetitionService::class)
-                    ->createManualSlotElimination($phase, $data['crossings'] ?? []);
+            ->action(function (Action $action, array $data, array $arguments): void {
+                try {
+                    $phase = $this->competition()->phases()->whereKey((int) ($arguments['phaseId'] ?? 0))
+                        ->where('phase_type', 'slot_elimination')->where('is_enabled', true)->firstOrFail();
+                    $count = app(FiveQuillasCompetitionService::class)
+                        ->createManualSlotElimination($phase, $data['crossings'] ?? []);
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('No se pudieron guardar los cruces')
+                        ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
+                        ->persistent()->send();
+                    $action->halt();
+
+                    return;
+                }
                 Notification::make()->success()->title('Cruces preparados')
                     ->body($count.' enfrentamientos quedaron cargados.')->send();
             });
@@ -815,11 +824,7 @@ class ManageTournamentCompetition extends Page
         return collect($options)
             ->filter(fn ($label, $groupId): bool => (int) $groupId === $currentGroupId
                 || ! in_array((int) $groupId, $selectedGroupIds, true))
-            ->map(fn ($label, $groupId): array => [
-                'label' => $label,
-                'value' => (string) $groupId,
-                'isDisabled' => false,
-            ])->values()->all();
+            ->all();
     }
 
     public function schedulePhaseAction(): Action
