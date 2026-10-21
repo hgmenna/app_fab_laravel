@@ -645,7 +645,14 @@ class FiveQuillasCompetitionService
             ->mapWithKeys(fn ($seed, $entryId): array => [(int) $entryId => (int) $seed]);
         $rank = fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX;
         $direct = $direct->sortBy($rank)->values();
-        $qualified = $qualified->sortBy($rank)->values();
+        // El bloque reservado es estricto. Si el horario NACIONALES o MASTER
+        // contiene más inscriptos que lugares directos, los de peor ranking pasan
+        // al bloque de emparejamiento/reclasificación. Nunca pueden invadir la
+        // primera posición reservada para los clasificados, que antes provocaba
+        // que 61 registros terminaran mostrando solamente 60 jugadores.
+        $directOverflow = $directCapacity > 0 ? $direct->slice($directCapacity) : collect();
+        $direct = $directCapacity > 0 ? $direct->take($directCapacity)->values() : $direct;
+        $qualified = $qualified->concat($directOverflow)->unique('id')->sortBy($rank)->values();
 
         return $direct->map(fn ($entry, int $index): array => [
             'entry_id' => (int) $entry->id,
@@ -657,11 +664,37 @@ class FiveQuillasCompetitionService
         ])->concat($qualified->map(fn ($entry, int $index): array => [
             'entry_id' => (int) $entry->id,
             'player_name' => (string) ($entry->player?->full_name ?? 'Jugador sin nombre'),
-            'origin' => 'Clasificado de '.($previous?->name ?? 'la fase anterior'),
+            'origin' => $directOverflow->contains('id', $entry->id)
+                ? 'Emparejamiento / reclasificación por ranking'
+                : 'Clasificado de '.($previous?->name ?? 'la fase anterior'),
             'ranking' => $entry->national_ranking_snapshot,
             'seed_position' => $overrides->get((int) $entry->id, $directCapacity + $index + 1),
             'origin_type' => 'qualified',
         ]))->sortBy('seed_position')->values()->all();
+    }
+
+    public function bracketMatchupRows(FiveQuillasPhase $phase): array
+    {
+        $participants = collect($this->bracketParticipantRows($phase));
+        $bySeed = $participants->keyBy('seed_position');
+        $configuredCapacity = (int) data_get($phase->settings, 'direct_entry_seed_count', 0);
+        $directCapacity = $participants->where('origin_type', 'direct')->isNotEmpty()
+            ? max($configuredCapacity, $participants->where('origin_type', 'direct')->count())
+            : 0;
+        $size = $this->nextPowerOfTwo(max(2, $directCapacity + $participants->where('origin_type', 'qualified')->count()));
+
+        return collect($this->officialBracketPairs($size))->map(function (array $pair, int $index) use ($bySeed): array {
+            $one = $bySeed->get($pair[0]);
+            $two = $bySeed->get($pair[1]);
+
+            return [
+                'match_label' => 'Partido '.($index + 1).' · '.$pair[0].' - '.$pair[1],
+                'player_one_seed' => $pair[0],
+                'player_one_entry_id' => $one['entry_id'] ?? null,
+                'player_two_seed' => $pair[1],
+                'player_two_entry_id' => $two['entry_id'] ?? null,
+            ];
+        })->all();
     }
 
     public function saveBracketParticipantOrder(FiveQuillasPhase $phase, array $rows): void
@@ -1127,13 +1160,17 @@ class FiveQuillasCompetitionService
             : collect();
 
         if ($direct->isNotEmpty()) {
-            $directCount = max($direct->count(), $configuredDirectCount);
-            $qualified = $source->where('entry_phase_id', '!=', $phase->id)
-                ->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->values();
-            $overrides = collect(data_get($phase->settings, 'participant_seed_overrides', []));
-            $direct->each(fn ($entry, $index) => $seeds[(int) $overrides->get($entry->id, $index + 1)] = $entry);
-            $qualified->take(max(0, $size - $directCount))
-                ->each(fn ($entry, $index) => $seeds[(int) $overrides->get($entry->id, $directCount + 1 + $index)] = $entry);
+            // Usa el mismo plan que se presenta en el modal. De este modo el
+            // contador, las posiciones editadas y los partidos de la grilla nunca
+            // vuelven a calcular grupos distintos.
+            $sourceById = $source->keyBy('id');
+            collect($this->bracketParticipantRows($phase))->each(function (array $row) use (&$seeds, $sourceById, $size): void {
+                $seed = (int) $row['seed_position'];
+                $entry = $sourceById->get((int) $row['entry_id']);
+                if ($entry && $seed >= 1 && $seed <= $size) {
+                    $seeds[$seed] = $entry;
+                }
+            });
         } else {
             if ($phase->seeding_method === 'number_draw') {
                 $missing = $source->filter(fn ($entry): bool => ! $entry->seed || $entry->seed > $size);

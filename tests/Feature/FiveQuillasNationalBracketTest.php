@@ -79,3 +79,51 @@ it('builds a 64 player national bracket and stops at 16 qualifiers', function ()
         ->and($competition->entries()->where('entry_phase_id', $previous->id)->min('seed'))->toBe(33)
         ->and($competition->entries()->where('entry_phase_id', $previous->id)->max('seed'))->toBe(64);
 });
+
+it('moves direct overflow to reclassification without colliding seeds', function () {
+    $competition = FiveQuillasCompetition::create([
+        'tournament_id' => Tournament::factory()->create()->id,
+        'public_slug' => 'national-overflow-test',
+    ]);
+    $previous = FiveQuillasPhase::create([
+        'competition_id' => $competition->id, 'code' => 'play-in', 'name' => 'Emparejamientos',
+        'phase_type' => 'play_in', 'sort_order' => 1, 'sets_to_play' => 3,
+        'points_per_set' => 60, 'seeding_method' => 'national_ranking', 'status' => 'completed',
+        'settings' => ['qualifiers' => 32],
+    ]);
+    $phase = FiveQuillasPhase::create([
+        'competition_id' => $competition->id, 'code' => 'national', 'name' => 'Primera Nacional',
+        'phase_type' => 'bracket', 'sort_order' => 2, 'sets_to_play' => 5,
+        'points_per_set' => 60, 'seeding_method' => 'national_ranking',
+        'settings' => ['previous_phase_id' => $previous->id, 'qualifiers' => 16,
+            'direct_entry_seed_count' => 32, 'bracket_size' => 128],
+    ]);
+
+    $qualifiedIds = collect(range(34, 61))->map(fn (int $ranking): int => FiveQuillasEntry::create([
+        'competition_id' => $competition->id, 'player_id' => Player::factory()->create()->id,
+        'entry_phase_id' => $previous->id, 'national_ranking_snapshot' => $ranking,
+        'status' => 'qualified',
+    ])->id);
+    $previous->update(['settings' => ['qualifiers' => 32, 'qualified_entry_ids' => $qualifiedIds->all()]]);
+    collect(range(1, 33))->each(fn (int $ranking) => FiveQuillasEntry::create([
+        'competition_id' => $competition->id, 'player_id' => Player::factory()->create()->id,
+        'entry_phase_id' => $phase->id, 'national_ranking_snapshot' => $ranking,
+        'status' => 'eligible',
+    ]));
+
+    $service = app(FiveQuillasCompetitionService::class);
+    $rows = collect($service->bracketParticipantRows($phase));
+    expect($rows)->toHaveCount(61)
+        ->and($rows->where('origin_type', 'direct'))->toHaveCount(32)
+        ->and($rows->where('origin_type', 'qualified'))->toHaveCount(29)
+        ->and($rows->pluck('seed_position')->unique())->toHaveCount(61)
+        ->and($rows->max('seed_position'))->toBe(61);
+
+    $service->saveBracketParticipantOrder($phase, $rows->all());
+    $service->preparePhase($phase->fresh());
+    $phase->refresh();
+    $assigned = $phase->matches()->where('round_number', 1)->get()
+        ->flatMap(fn ($match) => [$match->player_one_entry_id, $match->player_two_entry_id])->filter()->unique();
+    expect(data_get($phase->settings, 'bracket_size'))->toBe(64)
+        ->and($assigned)->toHaveCount(61);
+});

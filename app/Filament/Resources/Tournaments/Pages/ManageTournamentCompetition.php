@@ -376,6 +376,16 @@ class ManageTournamentCompetition extends Page
             ->first();
     }
 
+    private function nextBracketSize(int $players): int
+    {
+        $size = 2;
+        while ($size < max(2, $players)) {
+            $size *= 2;
+        }
+
+        return $size;
+    }
+
     public function entryOptionsForSlot(int $slotId, array $excludedEntryIds = []): array
     {
         $competition = $this->competition();
@@ -639,6 +649,8 @@ class ManageTournamentCompetition extends Page
             ->fillForm(function (array $arguments): array {
                 $phase = $this->competition()->phases()->find((int) ($arguments['phaseId'] ?? 0));
                 if (! $phase) { return []; }
+                app(FiveQuillasCompetitionService::class)->syncApprovedEntries($phase->competition);
+                $phase->refresh();
                 if ($phase->seeding_method === 'number_draw') {
                     return ['draws' => app(FiveQuillasCompetitionService::class)->drawCandidates($phase)
                         ->map(fn ($entry): array => [
@@ -648,8 +660,11 @@ class ManageTournamentCompetition extends Page
                         ])->all()];
                 }
                 if ($phase->phase_type === 'bracket') {
-                    return ['participants' => app(FiveQuillasCompetitionService::class)
-                        ->bracketParticipantRows($phase)];
+                    $service = app(FiveQuillasCompetitionService::class);
+                    return [
+                        'participants' => $service->bracketParticipantRows($phase),
+                        'matchups' => $service->bracketMatchupRows($phase),
+                    ];
                 }
                 return [];
             })
@@ -670,23 +685,22 @@ class ManageTournamentCompetition extends Page
                 $rows = app(FiveQuillasCompetitionService::class)->bracketParticipantRows($phase);
                 $directCount = collect($rows)->where('origin_type', 'direct')->count();
                 $qualifiedCount = count($rows) - $directCount;
+                $options = collect($rows)->mapWithKeys(fn (array $row): array => [
+                    $row['entry_id'] => $row['seed_position'].' · '.$row['player_name'].' · '.($row['ranking'] ?: 'sin ranking'),
+                ])->all();
                 return [
                     Placeholder::make('participant_help')->hiddenLabel()
-                        ->content('Total: '.count($rows).' jugadores · Ingreso directo: '.$directCount.' · Clasificados de la fase anterior: '.$qualifiedCount.'. Revisá ranking y posición antes de reconstruir la grilla. Podés corregir la posición dentro del bloque de cada origen.'),
-                    Repeater::make('participants')->label('Participantes de la fase')
-                        ->table([
-                            TableColumn::make('Posición')->width('10%'),
-                            TableColumn::make('Jugador')->width('32%'),
-                            TableColumn::make('Origen')->width('38%'),
-                            TableColumn::make('Ranking')->width('12%'),
-                        ])
+                        ->content('Cuadro: '.$this->nextBracketSize(count($rows)).' posiciones · Jugadores: '.count($rows).' · Ingreso directo: '.$directCount.' · Emparejamiento / clasificados: '.$qualifiedCount.'. Los lugares sin jugador quedan LIBRES.'),
+                    Repeater::make('matchups')->label('Cruces de la primera ronda')
                         ->schema([
-                            Hidden::make('entry_id'),
-                            TextInput::make('seed_position')->hiddenLabel()->integer()->minValue(1)->required(),
-                            TextInput::make('player_name')->hiddenLabel()->disabled(),
-                            TextInput::make('origin')->hiddenLabel()->disabled(),
-                            TextInput::make('ranking')->hiddenLabel()->disabled()->placeholder('Sin ranking'),
-                        ])->addable(false)->deletable(false)->reorderable(false),
+                            TextInput::make('match_label')->label('Cruce')->disabled(),
+                            Hidden::make('player_one_seed'),
+                            Select::make('player_one_entry_id')->label('Jugador superior')->options($options)
+                                ->searchable()->placeholder('LIBRE'),
+                            Hidden::make('player_two_seed'),
+                            Select::make('player_two_entry_id')->label('Jugador inferior')->options($options)
+                                ->searchable()->placeholder('LIBRE'),
+                        ])->columns(3)->addable(false)->deletable(false)->reorderable(false),
                 ];
             })
             ->requiresConfirmation()
@@ -699,8 +713,18 @@ class ManageTournamentCompetition extends Page
                     if ($phase->seeding_method === 'number_draw') {
                         app(FiveQuillasCompetitionService::class)->saveDrawNumbers($phase, $data['draws'] ?? []);
                     } elseif ($phase->phase_type === 'bracket') {
+                        $participants = collect($data['matchups'] ?? [])->flatMap(fn (array $match): array => [
+                            filled($match['player_one_entry_id'] ?? null) ? [
+                                'entry_id' => (int) $match['player_one_entry_id'],
+                                'seed_position' => (int) $match['player_one_seed'],
+                            ] : null,
+                            filled($match['player_two_entry_id'] ?? null) ? [
+                                'entry_id' => (int) $match['player_two_entry_id'],
+                                'seed_position' => (int) $match['player_two_seed'],
+                            ] : null,
+                        ])->filter()->values()->all();
                         app(FiveQuillasCompetitionService::class)
-                            ->saveBracketParticipantOrder($phase, $data['participants'] ?? []);
+                            ->saveBracketParticipantOrder($phase, $participants);
                         $phase->refresh();
                     }
                     $count = app(FiveQuillasCompetitionService::class)->preparePhase($phase);
