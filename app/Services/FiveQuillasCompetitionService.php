@@ -1369,8 +1369,7 @@ class FiveQuillasCompetitionService
     {
         $phase = FiveQuillasPhase::query()->with('competition.tournament.type')->findOrFail($phaseId);
         if ($phase->phase_type === 'slot_elimination') {
-            $previous = $this->previousPhase($phase);
-            if ($previous && $previous->status !== 'completed') {
+            if (! $this->slotEliminationHasEveryCrossing($phase)) {
                 $phase->update(['status' => 'in_progress']);
                 $phase->competition()->update(['status' => 'in_progress']);
                 return;
@@ -1394,6 +1393,42 @@ class FiveQuillasCompetitionService
             $phase->update(['status' => 'in_progress']);
             $phase->competition()->update(['status' => 'in_progress']);
         }
+    }
+
+    public function reopenIncompleteSlotEliminationPhases(FiveQuillasCompetition $competition): void
+    {
+        $competition->phases()->where('phase_type', 'slot_elimination')
+            ->where('is_enabled', true)->where('status', 'completed')->get()
+            ->each(function (FiveQuillasPhase $phase) use ($competition): void {
+                if ($this->slotEliminationHasEveryCrossing($phase)) {
+                    return;
+                }
+
+                $phase->update(['status' => 'in_progress']);
+                if ($competition->status === 'completed') {
+                    $competition->update(['status' => 'in_progress']);
+                }
+            });
+    }
+
+    private function slotEliminationHasEveryCrossing(FiveQuillasPhase $phase): bool
+    {
+        $previous = $this->previousPhase($phase);
+        if (! $previous || $previous->phase_type !== 'zones' || $previous->status !== 'completed') {
+            return false;
+        }
+
+        $groupIds = $previous->groups()->pluck('id')->map(fn ($id): int => (int) $id)->unique();
+        if ($groupIds->isEmpty()) {
+            return false;
+        }
+
+        $crossings = collect(data_get($phase->settings, 'slot_crossings', []));
+        $firstGroupIds = $crossings->pluck('first_group_id')->map(fn ($id): int => (int) $id)->filter()->unique();
+        $secondGroupIds = $crossings->pluck('second_group_id')->map(fn ($id): int => (int) $id)->filter()->unique();
+
+        return $groupIds->diff($firstGroupIds)->isEmpty()
+            && $groupIds->diff($secondGroupIds)->isEmpty();
     }
 
     public function recalculateFinalStandings(FiveQuillasCompetition $competition): void

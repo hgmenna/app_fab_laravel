@@ -1223,7 +1223,9 @@ class ManageTournamentCompetition extends Page
     {
         $competition = $this->competition();
         if ($competition) {
-            app(FiveQuillasCompetitionService::class)->ensureFinalStandingsOrder($competition);
+            $service = app(FiveQuillasCompetitionService::class);
+            $service->reopenIncompleteSlotEliminationPhases($competition);
+            $service->ensureFinalStandingsOrder($competition);
             $competition = $this->competition();
         }
         $entries = $competition?->entries->where('status', '!=', 'withdrawn') ?? collect();
