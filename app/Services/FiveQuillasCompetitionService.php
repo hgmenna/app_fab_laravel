@@ -775,10 +775,6 @@ class FiveQuillasCompetitionService
             if ($phase->phase_type !== 'slot_elimination') {
                 throw ValidationException::withMessages(['crossings' => 'La fase seleccionada no corresponde a cruces por horario.']);
             }
-            if ($phase->matches()->whereIn('status', ['in_progress', 'completed'])->exists()) {
-                throw ValidationException::withMessages(['crossings' => 'No se pueden modificar los cruces porque ya existen partidos iniciados o finalizados.']);
-            }
-
             $previous = $this->previousPhase($phase);
             if (! $previous || $previous->phase_type !== 'zones') {
                 throw ValidationException::withMessages(['crossings' => 'La fase anterior debe ser una fase de zonas.']);
@@ -813,6 +809,32 @@ class FiveQuillasCompetitionService
             }
             if ($usedFirstGroups->duplicates()->isNotEmpty() || $usedSecondGroups->duplicates()->isNotEmpty()) {
                 throw ValidationException::withMessages(['crossings' => 'Cada puesto clasificado de una zona puede utilizarse una sola vez.']);
+            }
+
+            $savedRows = collect(data_get($phase->settings, 'slot_crossings', []))
+                ->map(fn (array $row): array => [
+                    'slot_id' => (int) ($row['slot_id'] ?? 0),
+                    'first_group_id' => (int) ($row['first_group_id'] ?? 0),
+                    'second_group_id' => (int) ($row['second_group_id'] ?? 0),
+                ])->filter(fn (array $row): bool => $row['first_group_id'] > 0 || $row['second_group_id'] > 0)
+                ->values();
+            if ($savedRows->isEmpty()) {
+                $savedRows = $phase->matches()->orderBy('bracket_order')->get()
+                    ->map(fn ($match) => data_get($match->set_scores, 'slot_crossing'))
+                    ->filter(fn ($row): bool => is_array($row))
+                    ->map(fn (array $row): array => [
+                        'slot_id' => (int) ($row['slot_id'] ?? 0),
+                        'first_group_id' => (int) ($row['first_group_id'] ?? 0),
+                        'second_group_id' => (int) ($row['second_group_id'] ?? 0),
+                    ])->values();
+            }
+
+            if ($phase->matches()->whereIn('status', ['in_progress', 'completed'])->exists()) {
+                if ($savedRows->all() === $rows->all()) {
+                    return $rows->count();
+                }
+
+                throw ValidationException::withMessages(['crossings' => 'No se pueden cambiar cruces que ya tienen partidos iniciados o finalizados.']);
             }
 
             $phase->matches()->delete();
