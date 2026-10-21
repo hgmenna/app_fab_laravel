@@ -550,19 +550,16 @@ class FiveQuillasCompetitionService
                         'phase' => "Hay {$directEntries->count()} ingresos directos y solamente {$directCapacity} posiciones reservadas.",
                     ]);
                 }
-                // El tamaño nace de la última posición realmente necesaria. En el
-                // Circuito Argentino, por ejemplo, 32 ingresos directos ocupan 1-32
-                // y 32 clasificados ocupan 33-64: el cuadro correcto es de 64.
-                $previousParticipantCount = $previousEntries->count();
-                if ($progressiveFill && $previous) {
-                    $previousParticipantCount = max(
-                        $previousParticipantCount,
-                        (int) data_get($previous->settings, 'qualifiers', 0),
-                    );
-                }
+                // La configuración deportiva determina el cuadro, no la cantidad
+                // encontrada durante una carga parcial. En el Circuito Argentino,
+                // 32 ingresos directos y los 32 clasificados configurados forman
+                // siempre un cuadro de 64, aunque todavía falte recuperar alguno.
+                $expectedPrevious = $previous
+                    ? (int) data_get($previous->settings, 'qualifiers', 0)
+                    : 0;
                 $lastRequiredSeed = $directCapacity > 0
-                    ? $directCapacity + $previousParticipantCount
-                    : $source->count();
+                    ? $directCapacity + max($previousEntries->count(), $expectedPrevious)
+                    : max($source->count(), $expectedPrevious);
                 $requiredSize = $this->nextPowerOfTwo(max(2, $lastRequiredSeed));
                 if ((int) data_get($phase->settings, 'bracket_size', 0) !== $requiredSize) {
                     $phase->update(['settings' => array_merge($phase->settings ?? [], [
@@ -700,7 +697,13 @@ class FiveQuillasCompetitionService
         $directSeeds = $assignSeeds($direct, 1, max(1, $directCapacity));
         $qualifiedStart = $directCapacity + 1;
         $qualifiedSeeds = $assignSeeds($qualified, $qualifiedStart, $directCapacity + $qualified->count());
-        $requiredSize = $this->nextPowerOfTwo(max(2, $directCapacity + $qualified->count()));
+        $expectedQualified = $previous
+            ? (int) data_get($previous->settings, 'qualifiers', 0)
+            : 0;
+        $requiredSize = $this->nextPowerOfTwo(max(
+            2,
+            $directCapacity + max($qualified->count(), $expectedQualified),
+        ));
         if ((int) data_get($phase->settings, 'bracket_size', 0) !== $requiredSize) {
             $phase->update(['settings' => array_merge($phase->settings ?? [], [
                 'bracket_size' => $requiredSize,
@@ -736,7 +739,14 @@ class FiveQuillasCompetitionService
         $directCapacity = $participants->where('origin_type', 'direct')->isNotEmpty()
             ? max($configuredCapacity, $participants->where('origin_type', 'direct')->count())
             : 0;
-        $size = $this->nextPowerOfTwo(max(2, $directCapacity + $participants->where('origin_type', 'qualified')->count()));
+        $previous = $this->previousPhase($phase);
+        $expectedQualified = $previous
+            ? (int) data_get($previous->settings, 'qualifiers', 0)
+            : 0;
+        $size = $this->nextPowerOfTwo(max(
+            2,
+            $directCapacity + max($participants->where('origin_type', 'qualified')->count(), $expectedQualified),
+        ));
 
         return collect($this->officialBracketPairs($size))->map(function (array $pair, int $index) use ($bySeed): array {
             $one = $bySeed->get($pair[0]);
@@ -1355,9 +1365,15 @@ class FiveQuillasCompetitionService
         }
         $stored = collect(data_get($phase->settings, 'qualified_entry_ids', []));
         $byes = collect(data_get($phase->settings, 'play_in_bye_entry_ids', []));
-        $lastRound = (int) $phase->matches()->max('round_number');
-        $winners = $phase->matches()->where('round_number', $lastRound)->where('status', 'completed')
-            ->pluck('winner_entry_id')->filter();
+        // Los cruces por horario son independientes y todos sus ganadores pasan a
+        // la fase siguiente. No se puede tomar solamente la ronda numéricamente
+        // mayor, porque los cruces pueden cargarse y finalizarse por tandas.
+        $winnerQuery = $phase->matches()->where('status', 'completed')->whereNotNull('winner_entry_id');
+        if ($phase->phase_type !== 'slot_elimination') {
+            $lastRound = (int) $phase->matches()->max('round_number');
+            $winnerQuery->where('round_number', $lastRound);
+        }
+        $winners = $winnerQuery->pluck('winner_entry_id')->filter();
         return $phase->competition->entries()->whereIn('id', $stored->merge($byes)->merge($winners)->unique())->get();
     }
 
@@ -1645,7 +1661,19 @@ class FiveQuillasCompetitionService
             }
         }
         if ($phase->matches()->exists() && $phase->matches()->where('status', '!=', 'completed')->doesntExist()) {
-            $phase->update(['status' => 'completed']);
+            $updates = ['status' => 'completed'];
+            if ($phase->phase_type === 'slot_elimination') {
+                $winnerIds = $phase->matches()->whereNotNull('winner_entry_id')
+                    ->pluck('winner_entry_id')->map(fn ($id): int => (int) $id)->unique()->values();
+                $limit = (int) data_get($phase->settings, 'qualifiers', 0);
+                if ($limit > 0) {
+                    $winnerIds = $winnerIds->take($limit);
+                }
+                $updates['settings'] = array_merge($phase->settings ?? [], [
+                    'qualified_entry_ids' => $winnerIds->all(),
+                ]);
+            }
+            $phase->update($updates);
             $nextId = (int) data_get($phase->settings, 'next_phase_id', 0);
             $next = $nextId > 0
                 ? $phase->competition->phases()->where('is_enabled', true)->find($nextId)
