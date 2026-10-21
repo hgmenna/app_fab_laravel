@@ -729,14 +729,30 @@ class ManageTournamentCompetition extends Page
                         })->filter()->values()->all();
                 }
 
+                $matches = $phase->matches()->orderBy('bracket_order')->get();
+                $rows = collect($rows)->map(function (array $row) use ($matches): array {
+                    $match = $matches->first(function ($match) use ($row): bool {
+                        $source = data_get($match->set_scores, 'slot_crossing');
+
+                        return is_array($source)
+                            && (int) ($source['slot_id'] ?? 0) === (int) ($row['slot_id'] ?? 0)
+                            && (int) ($source['first_group_id'] ?? 0) === (int) ($row['first_group_id'] ?? 0)
+                            && (int) ($source['second_group_id'] ?? 0) === (int) ($row['second_group_id'] ?? 0);
+                    });
+
+                    return [
+                        ...$row,
+                        'match_id' => $match?->id,
+                        'locked' => $match ? in_array($match->status, ['in_progress', 'completed'], true) : false,
+                    ];
+                })->values()->all();
+
                 $rows = $rows ?: [['slot_id' => null]];
 
                 return ['crossings' => $rows];
             })
             ->schema(function (array $arguments): array {
                 $phaseId = (int) ($arguments['phaseId'] ?? 0);
-                $locked = (bool) $this->competition()?->phases()->find($phaseId)?->matches()
-                    ->whereIn('status', ['in_progress', 'completed'])->exists();
                 return [
                 Repeater::make('crossings')->label('Enfrentamientos por horario')
                     ->table([
@@ -745,20 +761,25 @@ class ManageTournamentCompetition extends Page
                         TableColumn::make('2.º de la zona')->width('36%'),
                     ])
                     ->schema([
-                        Select::make('slot_id')->hiddenLabel()->required()->native(false)->live()->disabled($locked)
+                        Hidden::make('match_id'),
+                        Hidden::make('locked'),
+                        Select::make('slot_id')->hiddenLabel()->required()->native(false)->live()
+                            ->disabled(fn (Get $get): bool => (bool) $get('locked'))->dehydrated()
                             ->options(fn (): array => $this->record->slots()->where('is_active', true)
                                 ->orderBy('starts_at')->pluck('name', 'id')->all())
                             ->afterStateUpdated(function (Set $set): void {
                                 $set('first_group_id', null);
                                 $set('second_group_id', null);
                             }),
-                        Select::make('first_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)->disabled($locked)
+                        Select::make('first_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
+                            ->disabled(fn (Get $get): bool => (bool) $get('locked'))->dehydrated()
                             ->options(fn (Get $get, Select $component): array => $this->availableSlotCrossingOptions(
                                 $this->slotZonePositionOptions($phaseId, (int) ($get('slot_id') ?? 0), 1),
                                 $component,
                                 'first_group_id',
                             ))->live(),
-                        Select::make('second_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)->disabled($locked)
+                        Select::make('second_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
+                            ->disabled(fn (Get $get): bool => (bool) $get('locked'))->dehydrated()
                             ->options(fn (Get $get, Select $component): array => $this->availableSlotCrossingOptions(
                                 $this->slotZonePositionOptions(
                                     $phaseId, (int) ($get('slot_id') ?? 0), 2,
@@ -769,7 +790,6 @@ class ManageTournamentCompetition extends Page
                             ))->live(),
                     ])
                     ->defaultItems(1)->minItems(1)->addActionLabel('Agregar cruce')
-                    ->addable(! $locked)->deletable(! $locked)
                     ->reorderable(false)->columnSpanFull(),
                 ];
             })
@@ -780,12 +800,6 @@ class ManageTournamentCompetition extends Page
                 try {
                     $phase = $this->competition()->phases()->whereKey((int) ($arguments['phaseId'] ?? 0))
                         ->where('phase_type', 'slot_elimination')->where('is_enabled', true)->firstOrFail();
-                    if ($phase->matches()->whereIn('status', ['in_progress', 'completed'])->exists()) {
-                        Notification::make()->success()->title('Cruces conservados')
-                            ->body('Los partidos iniciados o finalizados permanecen sin cambios.')->send();
-
-                        return;
-                    }
                     $crossings = $data['crossings'] ?? [];
                     $count = app(FiveQuillasCompetitionService::class)
                         ->createManualSlotElimination($phase, $crossings);

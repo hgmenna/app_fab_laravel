@@ -781,6 +781,7 @@ class FiveQuillasCompetitionService
             }
             $groups = $previous->groups()->with('groupEntries')->get()->keyBy('id');
             $rows = collect($crossings)->map(fn (array $row): array => [
+                'match_id' => (int) ($row['match_id'] ?? 0),
                 'slot_id' => (int) ($row['slot_id'] ?? 0),
                 'first_group_id' => (int) ($row['first_group_id'] ?? 0),
                 'second_group_id' => (int) ($row['second_group_id'] ?? 0),
@@ -811,48 +812,64 @@ class FiveQuillasCompetitionService
                 throw ValidationException::withMessages(['crossings' => 'Cada puesto clasificado de una zona puede utilizarse una sola vez.']);
             }
 
-            $normalizeCrossings = fn ($crossings) => collect($crossings)
-                ->filter(fn ($row): bool => is_array($row))
-                ->map(fn (array $row): array => [
-                    'slot_id' => (int) ($row['slot_id'] ?? 0),
-                    'first_group_id' => (int) ($row['first_group_id'] ?? 0),
-                    'second_group_id' => (int) ($row['second_group_id'] ?? 0),
-                ])->filter(fn (array $row): bool => $row['first_group_id'] > 0 || $row['second_group_id'] > 0)
-                ->sortBy(fn (array $row): string => sprintf(
-                    '%010d:%010d:%010d',
-                    $row['slot_id'], $row['first_group_id'], $row['second_group_id'],
-                ))->values();
-            $configuredRows = $normalizeCrossings(data_get($phase->settings, 'slot_crossings', []));
-            $matchRows = $normalizeCrossings($phase->matches()->orderBy('bracket_order')->get()
-                ->map(fn ($match) => data_get($match->set_scores, 'slot_crossing')));
-            $submittedRows = $normalizeCrossings($rows);
-
-            if ($phase->matches()->whereIn('status', ['in_progress', 'completed'])->exists()) {
-                if ($configuredRows->all() === $submittedRows->all()
-                    || $matchRows->all() === $submittedRows->all()) {
-                    return $rows->count();
-                }
-
-                throw ValidationException::withMessages(['crossings' => 'No se pueden cambiar cruces que ya tienen partidos iniciados o finalizados.']);
+            $existingMatches = $phase->matches()->get()->keyBy('id');
+            $submittedMatchIds = $rows->pluck('match_id')->filter()->unique();
+            $removedLockedMatch = $existingMatches->first(fn ($match): bool =>
+                in_array($match->status, ['in_progress', 'completed'], true)
+                && ! $submittedMatchIds->contains((int) $match->id)
+            );
+            if ($removedLockedMatch) {
+                throw ValidationException::withMessages(['crossings' => 'No se puede eliminar un cruce que ya tiene el partido iniciado o finalizado.']);
             }
 
-            $phase->matches()->delete();
+            $keptMatchIds = collect();
+            $settingsRows = collect();
             foreach ($rows as $index => $row) {
                 $firstGroup = $groups->get($row['first_group_id']);
                 $secondGroup = $groups->get($row['second_group_id']);
-                $phase->matches()->create([
+                $crossing = [
+                    'slot_id' => $row['slot_id'],
+                    'first_group_id' => $row['first_group_id'],
+                    'second_group_id' => $row['second_group_id'],
+                ];
+                $attributes = [
                     'round_number' => 1,
                     'bracket_order' => $index + 1,
                     'label' => 'Cruce por horario '.($index + 1),
                     'player_one_entry_id' => $firstGroup->groupEntries->firstWhere('final_place', 1)?->entry_id,
                     'player_two_entry_id' => $secondGroup->groupEntries->firstWhere('final_place', 2)?->entry_id,
-                    'set_scores' => ['slot_crossing' => $row],
+                    'set_scores' => ['slot_crossing' => $crossing],
                     'is_public' => (bool) $phase->is_public,
-                ]);
+                ];
+                $match = $row['match_id'] > 0 ? $existingMatches->get($row['match_id']) : null;
+                if ($row['match_id'] > 0 && ! $match) {
+                    throw ValidationException::withMessages(['crossings' => 'Uno de los cruces indicados ya no pertenece a esta fase.']);
+                }
+                if ($match && in_array($match->status, ['in_progress', 'completed'], true)) {
+                    $stored = data_get($match->set_scores, 'slot_crossing');
+                    if (is_array($stored) && (
+                        (int) ($stored['slot_id'] ?? 0) !== $crossing['slot_id']
+                        || (int) ($stored['first_group_id'] ?? 0) !== $crossing['first_group_id']
+                        || (int) ($stored['second_group_id'] ?? 0) !== $crossing['second_group_id']
+                    )) {
+                        throw ValidationException::withMessages(['crossings' => 'No se puede cambiar un cruce cuyo partido ya comenzó.']);
+                    }
+                } elseif ($match) {
+                    $match->update($attributes);
+                } else {
+                    $match = $phase->matches()->create($attributes);
+                }
+                $keptMatchIds->push((int) $match->id);
+                $settingsRows->push($crossing);
             }
+
+            $phase->matches()->whereNotIn('id', $keptMatchIds->all())
+                ->where('status', 'pending')->delete();
             $phase->update([
-                'status' => 'ready',
-                'settings' => array_merge($phase->settings ?? [], ['slot_crossings' => $rows->all()]),
+                'status' => $phase->matches()->whereIn('status', ['in_progress', 'completed'])->exists()
+                    ? 'in_progress'
+                    : 'ready',
+                'settings' => array_merge($phase->settings ?? [], ['slot_crossings' => $settingsRows->all()]),
             ]);
 
             return $rows->count();
