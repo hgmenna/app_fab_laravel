@@ -436,10 +436,10 @@ class ManageTournamentCompetition extends Page
     {
         $emptyZone = [
             'name' => 'Zona 1',
-            'player_1' => '__free__',
-            'player_2' => '__free__',
-            'player_3' => '__free__',
-            'player_4' => '__free__',
+            'player_1' => null,
+            'player_2' => null,
+            'player_3' => null,
+            'player_4' => null,
         ];
 
         if ($slotId < 1 || ! $this->competition()) {
@@ -466,7 +466,7 @@ class ManageTournamentCompetition extends Page
                     'locked' => $group->matches->contains(fn ($match): bool => $match->status !== 'pending'),
                     'name' => $group->name,
                     ...collect(range(1, 4))->mapWithKeys(fn (int $position): array => [
-                        'player_'.$position => $entries->get($position)?->entry_id ?? '__free__',
+                        'player_'.$position => $entries->get($position)?->entry_id,
                     ])->all(),
                 ];
             })
@@ -518,19 +518,15 @@ class ManageTournamentCompetition extends Page
                                 $currentEntryId = (int) ($get('player_'.$position) ?? 0);
                                 $selectedEntryIds = $this->selectedZoneEntryIds($component, $currentEntryId);
 
-                                return ['__free__' => 'LIBRE'] + $this->entryOptionsForSlot(
+                                return $this->entryOptionsForSlot(
                                     (int) $get('../../slot_id'),
                                     $selectedEntryIds,
                                 );
                             })
-                            ->default('__free__')
-                            ->dehydrateStateUsing(fn ($state) => $state === '__free__' ? null : $state)
+                            ->default(null)
+                            ->placeholder('LIBRE')
                             ->searchable()->preload()->native(false)->live()
                             ->disableOptionWhen(function (string $value, $state, Select $component): bool {
-                                if ($value === '__free__') {
-                                    return false;
-                                }
-
                                 $currentEntryId = (int) ($state ?? 0);
                                 if ((int) $value === $currentEntryId) {
                                     return false;
@@ -539,13 +535,13 @@ class ManageTournamentCompetition extends Page
                                 return in_array((int) $value, $this->selectedZoneEntryIds($component, $currentEntryId), true);
                             })
                             ->afterStateUpdated(function ($state, Get $get, Set $set) use ($position): void {
-                                if (! filled($state) || $state === '__free__') {
+                                if (! filled($state)) {
                                     return;
                                 }
                                 foreach (range(1, 4) as $otherPosition) {
                                     if ($otherPosition !== $position
                                         && (int) ($get('player_'.$otherPosition) ?? 0) === (int) $state) {
-                                        $set('player_'.$otherPosition, '__free__');
+                                        $set('player_'.$otherPosition, null);
                                     }
                                 }
                             })
@@ -561,7 +557,7 @@ class ManageTournamentCompetition extends Page
                             }
 
                             foreach (range(1, 4) as $position) {
-                                $zones[$key]['player_'.$position] ??= '__free__';
+                                $zones[$key]['player_'.$position] ??= null;
                             }
                         }
 
@@ -581,12 +577,6 @@ class ManageTournamentCompetition extends Page
                         $zone['name'] = filled($zone['name'] ?? null)
                             ? trim((string) $zone['name'])
                             : 'Zona '.($index + 1);
-
-                        foreach (range(1, 4) as $position) {
-                            if (($zone['player_'.$position] ?? null) === '__free__') {
-                                $zone['player_'.$position] = null;
-                            }
-                        }
 
                         return $zone;
                     })->all();
