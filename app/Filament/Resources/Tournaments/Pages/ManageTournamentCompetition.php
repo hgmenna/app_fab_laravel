@@ -434,15 +434,23 @@ class ManageTournamentCompetition extends Page
 
     public function zoneRowsForSlot(int $slotId): array
     {
+        $emptyZone = [
+            'name' => 'Zona 1',
+            'player_1' => null,
+            'player_2' => null,
+            'player_3' => null,
+            'player_4' => null,
+        ];
+
         if ($slotId < 1 || ! $this->competition()) {
-            return [['name' => 'Zona 1']];
+            return [$emptyZone];
         }
 
         $phase = $this->competition()->phases
             ->first(fn ($phase): bool => $phase->phase_type === 'zones' && $phase->is_enabled);
 
         if (! $phase) {
-            return [['name' => 'Zona 1']];
+            return [$emptyZone];
         }
 
         $rows = $phase->groups()
@@ -465,7 +473,7 @@ class ManageTournamentCompetition extends Page
             ->values()
             ->all();
 
-        return $rows ?: [['name' => 'Zona 1']];
+        return $rows ?: [$emptyZone];
     }
 
     public function createZonesAction(): Action
