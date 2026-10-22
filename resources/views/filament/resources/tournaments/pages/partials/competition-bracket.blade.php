@@ -1,11 +1,15 @@
 @php
     $matchesByRound = collect($matches)->groupBy('round_number')->sortKeys();
+    $lastRoundMatches = $matchesByRound->last() ?? collect();
+    $showQualifiedColumn = $lastRoundMatches->isNotEmpty()
+        && $lastRoundMatches->first()?->phase?->phase_type === 'bracket'
+        && (int) data_get($lastRoundMatches->first()?->phase?->settings, 'qualifiers', 0) > 1;
 @endphp
 @if($matchesByRound->isEmpty())
     <div class="fq-empty">Todavía no hay partidos preparados para esta sección.</div>
 @else
     <div class="fq-bracket-scroll">
-        <div class="fq-bracket" style="grid-template-columns:repeat({{ max($matchesByRound->count(), 1) }},minmax(12rem,1fr))">
+        <div class="fq-bracket" style="grid-template-columns:repeat({{ max($matchesByRound->count() + ($showQualifiedColumn ? 1 : 0), 1) }},minmax(12rem,1fr))">
             @foreach($matchesByRound as $roundMatches)
                 <section class="fq-round">
                     @foreach($roundMatches->sortBy('bracket_order') as $match)
@@ -62,6 +66,25 @@
                     @endforeach
                 </section>
             @endforeach
+            @if($showQualifiedColumn)
+                <section class="fq-round fq-qualified-round">
+                    @foreach($lastRoundMatches->sortBy('bracket_order') as $match)
+                        <div class="fq-match-shell">
+                            <article class="fq-match fq-qualified-card">
+                                <small class="fq-qualified-label">Clasificado</small>
+                                <div class="fq-match-player {{ $match->winner ? 'is-winner' : '' }}">
+                                    <span>
+                                        <b>{{ $match->winner?->seed ?? '—' }}</b> ·
+                                        {{ $match->winner?->player?->full_name ?? 'A definir' }}
+                                    </span>
+                                    @if($match->winner)<span aria-hidden="true">🏆</span>@endif
+                                </div>
+                                <small class="fq-match-time">Vencedor de la {{ (int) $match->round_number }}.ª ronda</small>
+                            </article>
+                        </div>
+                    @endforeach
+                </section>
+            @endif
         </div>
     </div>
 @endif

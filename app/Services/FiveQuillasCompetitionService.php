@@ -734,6 +734,34 @@ class FiveQuillasCompetitionService
         ]))->sortBy('seed_position')->values()->all();
     }
 
+    public function bracketParticipantDisplayRows(FiveQuillasPhase $phase): array
+    {
+        if ($phase->matches()->exists()) {
+            $entryIds = $phase->matches()->where('round_number', 1)->get()
+                ->flatMap(fn ($match): array => [
+                    $match->player_one_entry_id,
+                    $match->player_two_entry_id,
+                ])->filter()->map(fn ($id): int => (int) $id)->unique();
+            $previous = $this->previousPhase($phase);
+
+            return $phase->competition->entries()->with('player')->whereIn('id', $entryIds)->get()
+                ->sortBy(fn ($entry): array => [
+                    $entry->seed ?: PHP_INT_MAX,
+                    $entry->national_ranking_snapshot ?: PHP_INT_MAX,
+                ])->values()->map(fn ($entry): array => [
+                    'entry_id' => (int) $entry->id,
+                    'player_name' => (string) ($entry->player?->full_name ?? 'Jugador sin nombre'),
+                    'origin' => (int) $entry->entry_phase_id === (int) $phase->id
+                        ? 'Ingreso directo en '.$phase->name
+                        : 'Clasificado de '.($previous?->name ?? 'la fase anterior'),
+                    'ranking' => $entry->national_ranking_snapshot,
+                    'seed_position' => $entry->seed,
+                ])->all();
+        }
+
+        return $this->bracketParticipantRows($phase);
+    }
+
     public function bracketMatchupRows(FiveQuillasPhase $phase): array
     {
         $participants = collect($this->bracketParticipantRows($phase));

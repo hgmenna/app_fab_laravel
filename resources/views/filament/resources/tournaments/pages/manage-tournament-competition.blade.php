@@ -5,7 +5,7 @@
         .fq-tournament-info{display:grid;grid-template-columns:auto repeat(5,minmax(0,1fr));gap:.7rem;align-items:center;margin-bottom:1rem;padding:.85rem 1rem;border:1px solid rgba(127,127,127,.25);border-radius:.85rem;background:rgba(127,127,127,.05)}.fq-tournament-logo{width:58px;height:58px;object-fit:contain}.fq-info-item small{display:block;color:#718096;font-size:.66rem;text-transform:uppercase;letter-spacing:.06em}.fq-info-item strong{display:block;margin-top:.15rem;font-size:.82rem}.fq-section-tools{display:flex;gap:.35rem}.fq-icon-button{display:inline-grid;place-items:center;width:2rem;height:2rem;border:1px solid rgba(127,127,127,.35);border-radius:.5rem;background:rgba(127,127,127,.08);cursor:pointer}.fq-icon-button:hover{color:#fff;background:#173d7c;border-color:#173d7c}.fq-icon-button svg{width:1rem;height:1rem}@media(max-width:950px){.fq-tournament-info{grid-template-columns:auto repeat(2,minmax(0,1fr))}}@media(max-width:560px){.fq-tournament-info{grid-template-columns:1fr 1fr}.fq-tournament-logo{grid-column:1/-1}}
         .fq-champion{display:flex;align-items:center;justify-content:center;gap:1rem;margin-bottom:1rem;padding:.75rem 1rem;border:1px solid #d5a400;border-radius:.85rem;background:linear-gradient(100deg,rgba(228,169,0,.18),rgba(127,127,127,.04),rgba(228,169,0,.18));box-shadow:0 4px 16px rgba(164,116,0,.12)}.fq-champion-photo{width:62px;height:62px;border:3px solid #e4a900;border-radius:50%;object-fit:cover}.fq-champion-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.13em;color:#a06f00;font-weight:900}.fq-champion-name{font-size:1.25rem;font-weight:900;color:#173d7c}.dark .fq-champion-name{color:#fff}
         .fq-crossing-winner{display:flex;align-items:center;gap:.3rem;margin-top:.35rem;padding:.3rem .4rem;border-radius:.4rem;background:rgba(7,132,77,.14);color:#07844d}.fq-crossing-winner strong{font-weight:900}.fq-crossing-winner small{margin-left:auto;font-weight:800}
-        .fq-bracket{gap:2rem}.fq-match-shell{position:relative}.fq-round:not(:last-child) .fq-match-shell:after{content:"";position:absolute;top:50%;right:-2rem;width:2rem;border-top:1px solid #49647f}
+        .fq-bracket{gap:2rem}.fq-match-shell{position:relative}.fq-round:not(:last-child) .fq-match-shell:after{content:"";position:absolute;top:50%;right:-2rem;width:2rem;border-top:1px solid #49647f}.fq-qualified-card{border-left-color:#07844d;background:rgba(7,132,77,.08)}.fq-qualified-label{display:block;margin-bottom:.22rem;color:#07844d;font-size:.62rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
     </style>
 
     @if(!$competition)
@@ -253,6 +253,40 @@
                     </div>
                 @else
                     @include('filament.resources.tournaments.pages.partials.competition-bracket', ['matches' => $phase->matches])
+                @endif
+                @if($phase->phase_type === 'slot_elimination' && $phase->status === 'completed')
+                    @php
+                        $nextPhaseId = (int) data_get($phase->settings, 'next_phase_id', 0);
+                        $nextPhase = $nextPhaseId > 0
+                            ? $competition->phases->firstWhere('id', $nextPhaseId)
+                            : $competition->phases->where('is_enabled', true)->where('sort_order', '>', $phase->sort_order)->sortBy('sort_order')->first();
+                        $nextParticipants = $nextPhase
+                            ? collect(app(\App\Services\FiveQuillasCompetitionService::class)->bracketParticipantDisplayRows($nextPhase))
+                                ->sortBy('seed_position')->values()
+                            : collect();
+                    @endphp
+                    <div style="margin-top:1rem">
+                        <h3 style="margin-bottom:.55rem;font-size:.95rem;font-weight:900">
+                            Jugadores que disputan {{ $nextPhase?->name ?? 'la próxima fase' }}
+                        </h3>
+                        @if($nextParticipants->isEmpty())
+                            <div class="fq-empty">Todavía no hay jugadores disponibles para la próxima fase.</div>
+                        @else
+                            <div class="fq-standings-wrap"><table class="fq-standings">
+                                <thead><tr><th>Posición</th><th>Jugador</th><th>Origen</th><th>Ranking</th></tr></thead>
+                                <tbody>
+                                @foreach($nextParticipants as $participant)
+                                    <tr>
+                                        <td>{{ $participant['seed_position'] }}</td>
+                                        <td>{{ $participant['player_name'] }}</td>
+                                        <td>{{ $participant['origin'] }}</td>
+                                        <td>{{ $participant['ranking'] ?: 'Sin ranking' }}</td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table></div>
+                        @endif
+                    </div>
                 @endif
             </section>
         @endforeach
