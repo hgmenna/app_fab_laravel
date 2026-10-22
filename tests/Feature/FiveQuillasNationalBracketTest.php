@@ -193,3 +193,51 @@ it('uses every completed slot crossing winner in the configured 64 player bracke
         ->and($phase->matches()->where('round_number', 1)->whereNull('player_one_entry_id')->count())->toBe(0)
         ->and($phase->matches()->where('round_number', 1)->whereNull('player_two_entry_id')->count())->toBe(0);
 });
+
+it('orders the public qualifier list with the next phase classification criterion', function () {
+    $competition = FiveQuillasCompetition::create([
+        'tournament_id' => Tournament::factory()->create()->id,
+        'public_slug' => 'qualified-ranking-order-test',
+    ]);
+    $crossings = FiveQuillasPhase::create([
+        'competition_id' => $competition->id, 'code' => 'slot-crossings',
+        'name' => 'Eliminación por horario', 'phase_type' => 'slot_elimination',
+        'sort_order' => 1, 'sets_to_play' => 3, 'points_per_set' => 60,
+        'seeding_method' => 'manual', 'status' => 'completed',
+        'settings' => ['qualifiers' => 2],
+    ]);
+    $national = FiveQuillasPhase::create([
+        'competition_id' => $competition->id, 'code' => 'national',
+        'name' => 'Primera Nacional', 'phase_type' => 'bracket',
+        'sort_order' => 2, 'sets_to_play' => 5, 'points_per_set' => 60,
+        'seeding_method' => 'national_ranking',
+        'settings' => ['previous_phase_id' => $crossings->id, 'qualifiers' => 1],
+    ]);
+    $crossings->update(['settings' => ['qualifiers' => 2, 'next_phase_id' => $national->id]]);
+
+    $lowerPriority = FiveQuillasEntry::create([
+        'competition_id' => $competition->id, 'player_id' => Player::factory()->create()->id,
+        'entry_phase_id' => $crossings->id, 'national_ranking_snapshot' => 40,
+        'status' => 'qualified',
+    ]);
+    $higherPriority = FiveQuillasEntry::create([
+        'competition_id' => $competition->id, 'player_id' => Player::factory()->create()->id,
+        'entry_phase_id' => $crossings->id, 'national_ranking_snapshot' => 12,
+        'status' => 'qualified',
+    ]);
+    FiveQuillasMatch::create([
+        'phase_id' => $crossings->id, 'round_number' => 1, 'bracket_order' => 1,
+        'player_one_entry_id' => $lowerPriority->id, 'winner_entry_id' => $lowerPriority->id,
+        'status' => 'completed',
+    ]);
+    FiveQuillasMatch::create([
+        'phase_id' => $crossings->id, 'round_number' => 1, 'bracket_order' => 2,
+        'player_one_entry_id' => $higherPriority->id, 'winner_entry_id' => $higherPriority->id,
+        'status' => 'completed',
+    ]);
+
+    $rows = collect(app(FiveQuillasCompetitionService::class)->qualifiedParticipantRows($crossings->fresh()));
+
+    expect($rows->pluck('ranking')->all())->toBe([12, 40])
+        ->and($rows->pluck('position')->all())->toBe([1, 2]);
+});
