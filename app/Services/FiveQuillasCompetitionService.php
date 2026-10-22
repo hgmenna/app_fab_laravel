@@ -625,7 +625,10 @@ class FiveQuillasCompetitionService
                     ! $progressiveFill || $previous?->status === 'completed',
                 );
             }
-            $phase->update(['status' => 'ready']);
+            $phase->update([
+                'status' => 'ready',
+                'settings' => array_merge($phase->settings ?? [], ['bracket_build_version' => 3]),
+            ]);
 
             return $count;
         });
@@ -1578,6 +1581,58 @@ class FiveQuillasCompetitionService
             $match->phase()->update(['status' => 'in_progress']);
             $match->phase->competition()->update(['status' => 'in_progress']);
             $this->completePhaseWhenReady($match->phase_id);
+            return $match->fresh();
+        });
+    }
+
+    public function correctMatchParticipants(FiveQuillasMatch $match, ?int $playerOneId, ?int $playerTwoId): FiveQuillasMatch
+    {
+        return DB::transaction(function () use ($match, $playerOneId, $playerTwoId): FiveQuillasMatch {
+            $match->loadMissing('phase.competition');
+            if (! in_array($match->status, ['pending', 'scheduled'], true)
+                && ! ($match->status === 'completed' && $match->is_bye)) {
+                throw ValidationException::withMessages(['match' => 'Solo se pueden corregir partidos que todavía no comenzaron.']);
+            }
+            if ($playerOneId && $playerTwoId && $playerOneId === $playerTwoId) {
+                throw ValidationException::withMessages(['match' => 'Un jugador no puede ocupar las dos posiciones del partido.']);
+            }
+            $allowed = collect($this->bracketParticipantRows($match->phase))->pluck('entry_id')->map(fn ($id): int => (int) $id);
+            foreach (collect([$playerOneId, $playerTwoId])->filter() as $entryId) {
+                if (! $allowed->contains((int) $entryId)) {
+                    throw ValidationException::withMessages(['match' => 'El jugador seleccionado no pertenece a esta fase.']);
+                }
+            }
+
+            // Si el jugador estaba en otro cruce editable de la misma ronda, se lo
+            // retira allí para que nunca aparezca duplicado en la grilla.
+            foreach (collect([$playerOneId, $playerTwoId])->filter()->unique() as $entryId) {
+                $match->phase->matches()->where('round_number', $match->round_number)
+                    ->where('id', '!=', $match->id)->whereIn('status', ['pending', 'scheduled'])
+                    ->where(function ($query) use ($entryId): void {
+                        $query->where('player_one_entry_id', $entryId)->orWhere('player_two_entry_id', $entryId);
+                    })->get()->each(function ($other) use ($entryId): void {
+                        $attributes = [];
+                        if ((int) $other->player_one_entry_id === (int) $entryId) { $attributes['player_one_entry_id'] = null; }
+                        if ((int) $other->player_two_entry_id === (int) $entryId) { $attributes['player_two_entry_id'] = null; }
+                        $other->update($attributes + ['is_bye' => false, 'winner_entry_id' => null, 'status' => 'pending']);
+                    });
+            }
+
+            $match->update([
+                'player_one_entry_id' => $playerOneId,
+                'player_two_entry_id' => $playerTwoId,
+                'winner_entry_id' => null,
+                'set_scores' => null,
+                'player_one_actual_sets' => 0,
+                'player_two_actual_sets' => 0,
+                'player_one_computed_sets' => 0,
+                'player_two_computed_sets' => 0,
+                'player_one_points' => 0,
+                'player_two_points' => 0,
+                'is_bye' => false,
+                'status' => 'pending',
+            ]);
+
             return $match->fresh();
         });
     }

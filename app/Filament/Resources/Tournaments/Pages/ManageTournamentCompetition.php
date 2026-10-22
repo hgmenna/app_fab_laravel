@@ -1246,6 +1246,59 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    public function correctMatchParticipantsAction(): Action
+    {
+        return Action::make('correctMatchParticipants')
+            ->label('Corregir jugadores')
+            ->icon('heroicon-o-pencil-square')
+            ->color('warning')
+            ->size('xs')
+            ->iconButton()
+            ->tooltip('Corregir jugadores del partido')
+            ->fillForm(function (array $arguments): array {
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+
+                return [
+                    'player_one_entry_id' => $match?->player_one_entry_id,
+                    'player_two_entry_id' => $match?->player_two_entry_id,
+                ];
+            })
+            ->schema(function (array $arguments): array {
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+                $options = $match
+                    ? collect(app(FiveQuillasCompetitionService::class)->bracketParticipantRows($match->phase))
+                        ->mapWithKeys(fn (array $row): array => [$row['entry_id'] => $row['seed_position'].' · '.$row['player_name']])->all()
+                    : [];
+
+                return [
+                    Select::make('player_one_entry_id')->label('Primera posición')
+                        ->options($options)->searchable()->placeholder('LIBRE'),
+                    Select::make('player_two_entry_id')->label('Segunda posición')
+                        ->options($options)->searchable()->placeholder('LIBRE'),
+                ];
+            })
+            ->modalHeading('Corregir partido')
+            ->modalDescription('Modificá únicamente las posiciones que todavía no comenzaron. Un jugador elegido se retira automáticamente de cualquier otro cruce pendiente de esta ronda.')
+            ->action(function (Action $action, array $data, array $arguments): void {
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+                if (! $match) { $action->halt(); return; }
+                try {
+                    app(FiveQuillasCompetitionService::class)->correctMatchParticipants(
+                        $match,
+                        filled($data['player_one_entry_id'] ?? null) ? (int) $data['player_one_entry_id'] : null,
+                        filled($data['player_two_entry_id'] ?? null) ? (int) $data['player_two_entry_id'] : null,
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('No se pudo corregir el partido')
+                        ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
+                        ->persistent()->send();
+                    $action->halt();
+                    return;
+                }
+                Notification::make()->success()->title('Partido corregido')->send();
+            });
+    }
+
     private function matchPlayersLabel(int $matchId): string
     {
         $match = $this->competitionMatch($matchId);
@@ -1299,6 +1352,23 @@ class ManageTournamentCompetition extends Page
         if ($competition) {
             $service = app(FiveQuillasCompetitionService::class);
             $service->reopenIncompleteConcurrentPhases($competition);
+            // Repara una sola vez los cuadros históricos construidos con el
+            // cálculo anterior. Al abrir la fase ya debe verse el cuadro correcto,
+            // sin exigir que el usuario vuelva a presionar Preparar.
+            $competition->phases->where('phase_type', 'bracket')->each(function ($phase) use ($service): void {
+                $previous = $service->previousPhaseFor($phase);
+                $hasPlayedMatch = $phase->matches()->where('is_bye', false)
+                    ->whereIn('status', ['in_progress', 'completed'])->exists();
+                if ((int) data_get($phase->settings, 'bracket_build_version', 0) >= 3
+                    || ! $previous || $previous->status !== 'completed' || $hasPlayedMatch) {
+                    return;
+                }
+                try {
+                    $service->preparePhase($phase);
+                } catch (\Throwable $exception) {
+                    report($exception);
+                }
+            });
             $service->ensureFinalStandingsOrder($competition);
             $competition = $this->competition();
         }
