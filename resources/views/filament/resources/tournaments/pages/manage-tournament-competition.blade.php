@@ -303,4 +303,30 @@
             </div>
         @endif
     @endif
+    <script data-navigate-once>
+        window.fqShareQualified = async function (dialogId, title) {
+            const dialog = document.getElementById(dialogId);
+            const text = `${title}\n\n${dialog?.querySelector('table')?.innerText || ''}`;
+            if (navigator.share) {
+                await navigator.share({ title, text, url: window.location.href });
+                return;
+            }
+            await navigator.clipboard.writeText(`${text}\n${window.location.href}`);
+            alert('La lista de clasificados fue copiada para compartir.');
+        };
+        window.fqPrintQualified = function (dialogId, title) {
+            const sourceTable = document.getElementById(dialogId)?.querySelector('table');
+            if (! sourceTable) return;
+            const popup = window.open('', '_blank', 'width=1100,height=800');
+            const style = popup.document.createElement('style');
+            style.textContent = 'body{font-family:Arial,sans-serif;margin:28px;color:#17253a}h1{font-size:22px;margin:0 0 18px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:8px;border:1px solid #b8c3d1;text-align:left}th{background:#173d7c;color:#fff}@page{size:landscape;margin:14mm}';
+            const heading = popup.document.createElement('h1');
+            heading.textContent = title;
+            popup.document.title = title;
+            popup.document.head.appendChild(style);
+            popup.document.body.append(heading, sourceTable.cloneNode(true));
+            popup.focus();
+            setTimeout(() => { popup.print(); popup.close(); }, 250);
+        };
+    </script>
 </x-filament-panels::page>
