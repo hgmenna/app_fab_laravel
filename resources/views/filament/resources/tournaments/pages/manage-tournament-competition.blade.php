@@ -319,7 +319,7 @@
             if (! sourceTable) return;
             const popup = window.open('', '_blank', 'width=1100,height=800');
             const style = popup.document.createElement('style');
-            style.textContent = '@page{size:landscape;margin:38mm 14mm 20mm}body{font-family:Arial,sans-serif;margin:0;color:#17253a}.print-header{position:fixed;top:-30mm;left:0;right:0;height:25mm;border-bottom:2px solid #173d7c;background:#fff}.print-header h1{margin:7px 0 0;font-size:18px}.fq-tournament-info{display:grid;grid-template-columns:auto repeat(5,minmax(0,1fr));gap:10px;align-items:center}.fq-tournament-logo{width:44px;height:44px;object-fit:contain}.fq-info-item small{display:block;color:#65758b;font-size:8px;text-transform:uppercase}.fq-info-item strong{display:block;margin-top:2px;font-size:10px}.print-footer{position:fixed;left:0;right:0;bottom:-13mm;display:flex;justify-content:space-between;padding-top:7px;border-top:2px solid #173d7c;background:#fff;color:#65758b;font-size:9px}.print-content{width:100%}table{width:100%;border-collapse:collapse;font-size:11px}thead{display:table-header-group}th,td{padding:7px;border:1px solid #b8c3d1;text-align:left}th{background:#173d7c!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}tr{break-inside:avoid}';
+            style.textContent = '@page{size:landscape;margin:12mm 14mm}.print-layout{width:100%;border-collapse:collapse}.print-layout>thead{display:table-header-group}.print-layout>tfoot{display:table-footer-group}.print-layout>thead>tr>td{padding:0 0 7mm;border:0}.print-layout>tfoot>tr>td{padding:7mm 0 0;border:0}.print-layout>tbody>tr>td{padding:0;border:0;vertical-align:top}body{font-family:Arial,sans-serif;margin:0;color:#17253a}.print-header{border-bottom:2px solid #173d7c;padding-bottom:7px}.print-header h1{margin:7px 0 0;font-size:18px}.fq-tournament-info{display:grid;grid-template-columns:auto repeat(5,minmax(0,1fr));gap:10px;align-items:center}.fq-tournament-logo{width:44px;height:44px;object-fit:contain}.fq-info-item small{display:block;color:#65758b;font-size:8px;text-transform:uppercase}.fq-info-item strong{display:block;margin-top:2px;font-size:10px}.print-footer{display:flex;justify-content:space-between;padding-top:7px;border-top:2px solid #173d7c;color:#65758b;font-size:9px}.print-content{width:100%}.print-content table{width:100%;border-collapse:collapse;font-size:11px}.print-content thead{display:table-header-group}.print-content th,.print-content td{padding:7px;border:1px solid #b8c3d1;text-align:left}.print-content th{background:#173d7c!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.print-content tr{break-inside:avoid}';
             const header = popup.document.createElement('header');
             header.className = 'print-header';
             const sourceInfo = document.getElementById('fq-tournament-info');
@@ -337,9 +337,17 @@
             const official = popup.document.createElement('span');
             official.textContent = 'Información oficial del torneo';
             footer.append(federation, official);
+            const layout = popup.document.createElement('table');
+            layout.className = 'print-layout';
+            const headerCell = layout.createTHead().insertRow().insertCell();
+            headerCell.appendChild(header);
+            const footerCell = layout.createTFoot().insertRow().insertCell();
+            footerCell.appendChild(footer);
+            const contentCell = layout.createTBody().insertRow().insertCell();
+            contentCell.appendChild(content);
             popup.document.title = title;
             popup.document.head.appendChild(style);
-            popup.document.body.append(header, content, footer);
+            popup.document.body.appendChild(layout);
             popup.focus();
             setTimeout(() => { popup.print(); popup.close(); }, 250);
         };
