@@ -793,17 +793,17 @@ class FiveQuillasCompetitionService
             $historicalOrder = $winnerMatches->orderBy('round_number')->orderBy('bracket_order')
                 ->pluck('winner_entry_id')->map(fn ($id): int => (int) $id)->unique()->values();
             $matches = $phase->matches()->where('status', 'completed')->get();
-            $entries = $entries->sort(function ($left, $right) use ($nextPhase, $historicalOrder, $matches): int {
+            $entries = $entries->sort(function ($left, $right) use ($phase, $historicalOrder, $matches): int {
                 $leftHistorical = $historicalOrder->search((int) $left->id);
                 $rightHistorical = $historicalOrder->search((int) $right->id);
                 $leftHistorical = $leftHistorical === false ? PHP_INT_MAX : (int) $leftHistorical;
                 $rightHistorical = $rightHistorical === false ? PHP_INT_MAX : (int) $rightHistorical;
 
-                // El orden de la lista debe respetar el criterio con el que los
-                // clasificados ingresan a la fase siguiente. Ranking y sorteo son
-                // valores históricos persistidos; consultar la lista nunca los
-                // recalcula con información vigente al momento de visualizarla.
-                $comparison = match ($nextPhase->seeding_method) {
+                // La lista pertenece a esta fase y debe respetar su propio método
+                // de clasificación. Ranking y sorteo son valores históricos
+                // persistidos; consultar la lista nunca los recalcula con datos
+                // vigentes al momento de visualizarla.
+                $comparison = match ($phase->seeding_method) {
                     'national_ranking' => ($left->national_ranking_snapshot ?: PHP_INT_MAX)
                         <=> ($right->national_ranking_snapshot ?: PHP_INT_MAX),
                     'number_draw', 'automatic_draw' => ($left->seed ?: PHP_INT_MAX)
