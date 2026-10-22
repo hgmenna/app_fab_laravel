@@ -108,6 +108,8 @@ class FiveQuillasCompetitionPublicController extends Controller
                     'tamano_cuadro' => data_get($phase->settings, 'bracket_size'),
                     'orden_cruces' => data_get($phase->settings, 'bracket_pairs', []),
                     'horarios_fase' => collect(data_get($phase->settings, 'schedules', []))->values(),
+                    'clasificados' => app(FiveQuillasCompetitionService::class)
+                        ->qualifiedParticipantRows($phase),
                     'zonas' => $phase->groups->map(fn ($group): array => [
                         'id' => $group->id, 'nombre' => $group->name, 'estado' => $group->status,
                         'horario' => $group->slot?->name,

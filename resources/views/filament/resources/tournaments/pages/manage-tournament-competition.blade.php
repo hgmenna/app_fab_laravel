@@ -5,7 +5,7 @@
         .fq-tournament-info{display:grid;grid-template-columns:auto repeat(5,minmax(0,1fr));gap:.7rem;align-items:center;margin-bottom:1rem;padding:.85rem 1rem;border:1px solid rgba(127,127,127,.25);border-radius:.85rem;background:rgba(127,127,127,.05)}.fq-tournament-logo{width:58px;height:58px;object-fit:contain}.fq-info-item small{display:block;color:#718096;font-size:.66rem;text-transform:uppercase;letter-spacing:.06em}.fq-info-item strong{display:block;margin-top:.15rem;font-size:.82rem}.fq-section-tools{display:flex;gap:.35rem}.fq-icon-button{display:inline-grid;place-items:center;width:2rem;height:2rem;border:1px solid rgba(127,127,127,.35);border-radius:.5rem;background:rgba(127,127,127,.08);cursor:pointer}.fq-icon-button:hover{color:#fff;background:#173d7c;border-color:#173d7c}.fq-icon-button svg{width:1rem;height:1rem}@media(max-width:950px){.fq-tournament-info{grid-template-columns:auto repeat(2,minmax(0,1fr))}}@media(max-width:560px){.fq-tournament-info{grid-template-columns:1fr 1fr}.fq-tournament-logo{grid-column:1/-1}}
         .fq-champion{display:flex;align-items:center;justify-content:center;gap:1rem;margin-bottom:1rem;padding:.75rem 1rem;border:1px solid #d5a400;border-radius:.85rem;background:linear-gradient(100deg,rgba(228,169,0,.18),rgba(127,127,127,.04),rgba(228,169,0,.18));box-shadow:0 4px 16px rgba(164,116,0,.12)}.fq-champion-photo{width:62px;height:62px;border:3px solid #e4a900;border-radius:50%;object-fit:cover}.fq-champion-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.13em;color:#a06f00;font-weight:900}.fq-champion-name{font-size:1.25rem;font-weight:900;color:#173d7c}.dark .fq-champion-name{color:#fff}
         .fq-crossing-winner{display:flex;align-items:center;gap:.3rem;margin-top:.35rem;padding:.3rem .4rem;border-radius:.4rem;background:rgba(7,132,77,.14);color:#07844d}.fq-crossing-winner strong{font-weight:900}.fq-crossing-winner small{margin-left:auto;font-weight:800}
-        .fq-bracket{gap:2rem}.fq-match-shell{position:relative}.fq-round:not(:last-child) .fq-match-shell:after{content:"";position:absolute;top:50%;right:-2rem;width:2rem;border-top:1px solid #49647f}.fq-qualified-card{border-left-color:#07844d;background:rgba(7,132,77,.08)}.fq-qualified-label{display:block;margin-bottom:.22rem;color:#07844d;font-size:.62rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
+        .fq-bracket{gap:2rem}.fq-match-shell{position:relative}.fq-round:not(:last-child) .fq-match-shell:after{content:"";position:absolute;top:50%;right:-2rem;width:2rem;border-top:1px solid #49647f}.fq-qualified-card{border-left-color:#07844d;background:rgba(7,132,77,.08)}.fq-qualified-label{display:block;margin-bottom:.22rem;color:#07844d;font-size:.62rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.fq-qualified-button{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .7rem;border:1px solid #07844d;border-radius:.5rem;background:rgba(7,132,77,.1);color:#07844d;font-size:.75rem;font-weight:900;cursor:pointer}.fq-qualified-button span{display:grid;place-items:center;min-width:1.25rem;height:1.25rem;border-radius:999px;background:#07844d;color:#fff}.fq-qualified-dialog{width:min(58rem,calc(100vw - 2rem));max-height:82vh;padding:0;border:1px solid rgba(127,127,127,.35);border-radius:.85rem;background:#fff;color:#17253a;box-shadow:0 24px 80px rgba(0,0,0,.4)}.dark .fq-qualified-dialog{background:#111a28;color:#eef4ff}.fq-qualified-dialog::backdrop{background:rgba(0,0,0,.7)}.fq-qualified-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem;border-bottom:1px solid rgba(127,127,127,.25)}.fq-qualified-dialog-head small{color:#718096}.fq-qualified-dialog-head h3{font-size:1.05rem;font-weight:900}.fq-qualified-dialog-head button{font-size:1.7rem;line-height:1}.fq-qualified-dialog .fq-standings-wrap{max-height:60vh;padding:1rem}.fq-qualified-dialog-foot{display:flex;justify-content:flex-end;padding:.75rem 1rem;border-top:1px solid rgba(127,127,127,.25)}.fq-qualified-dialog-foot button{padding:.45rem .9rem;border-radius:.45rem;background:#173d7c;color:#fff;font-weight:800}
     </style>
 
     @if(!$competition)
@@ -85,6 +85,7 @@
                 <h2>{{ $zonePhase->name }}</h2>
                 <div class="fq-phase-actions">
                     @if($zonePhase->status !== 'completed'){{ ($this->createZonesAction)(['phaseId' => $zonePhase->id]) }}@endif
+                    @include('filament.resources.tournaments.pages.partials.competition-qualified-action', ['phase' => $zonePhase])
                     @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => $zonePhase->name, 'sectionKey' => 'phase-'.$zonePhase->id])
                 </div>
             </div>
@@ -207,10 +208,14 @@
                             @if($phase->matches->isNotEmpty())
                                 {{ ($this->schedulePhaseAction)(['phaseId' => $phase->id]) }}
                             @endif
+                            @include('filament.resources.tournaments.pages.partials.competition-qualified-action', ['phase' => $phase])
                             @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => $phase->name, 'sectionKey' => 'phase-'.$phase->id])
                         </div>
                     @else
-                        @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => $phase->name, 'sectionKey' => 'phase-'.$phase->id])
+                        <div class="fq-phase-actions">
+                            @include('filament.resources.tournaments.pages.partials.competition-qualified-action', ['phase' => $phase])
+                            @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => $phase->name, 'sectionKey' => 'phase-'.$phase->id])
+                        </div>
                     @endif
                 </div>
                 @if($phaseSchedules->count() > 1)
@@ -254,40 +259,6 @@
                 @else
                     @include('filament.resources.tournaments.pages.partials.competition-bracket', ['matches' => $phase->matches])
                 @endif
-                @if($phase->phase_type === 'slot_elimination' && $phase->status === 'completed')
-                    @php
-                        $nextPhaseId = (int) data_get($phase->settings, 'next_phase_id', 0);
-                        $nextPhase = $nextPhaseId > 0
-                            ? $competition->phases->firstWhere('id', $nextPhaseId)
-                            : $competition->phases->where('is_enabled', true)->where('sort_order', '>', $phase->sort_order)->sortBy('sort_order')->first();
-                        $nextParticipants = $nextPhase
-                            ? collect(app(\App\Services\FiveQuillasCompetitionService::class)->bracketParticipantDisplayRows($nextPhase))
-                                ->sortBy('seed_position')->values()
-                            : collect();
-                    @endphp
-                    <div style="margin-top:1rem">
-                        <h3 style="margin-bottom:.55rem;font-size:.95rem;font-weight:900">
-                            Jugadores que disputan {{ $nextPhase?->name ?? 'la próxima fase' }}
-                        </h3>
-                        @if($nextParticipants->isEmpty())
-                            <div class="fq-empty">Todavía no hay jugadores disponibles para la próxima fase.</div>
-                        @else
-                            <div class="fq-standings-wrap"><table class="fq-standings">
-                                <thead><tr><th>Posición</th><th>Jugador</th><th>Origen</th><th>Ranking</th></tr></thead>
-                                <tbody>
-                                @foreach($nextParticipants as $participant)
-                                    <tr>
-                                        <td>{{ $participant['seed_position'] }}</td>
-                                        <td>{{ $participant['player_name'] }}</td>
-                                        <td>{{ $participant['origin'] }}</td>
-                                        <td>{{ $participant['ranking'] ?: 'Sin ranking' }}</td>
-                                    </tr>
-                                @endforeach
-                                </tbody>
-                            </table></div>
-                        @endif
-                    </div>
-                @endif
             </section>
         @endforeach
         <section class="fq-phase-panel" id="fq-section-positions" x-show="activePhase === 'positions'" x-cloak>
@@ -325,11 +296,10 @@
         </section>
         </div>
 
-        @if($publicJsonUrl)
+        @if($publicPageUrl)
             <div class="fq-card" style="margin-top:1rem">
                 <div class="fq-label">Resultados para el público</div>
                 <a href="{{ $publicPageUrl }}" target="_blank" style="color:#3b82f6;font-weight:800">Ver resultados públicos</a>
-                <br><small><a href="{{ $publicJsonUrl }}" target="_blank" style="color:#718096;word-break:break-all">Servicio JSON para WordPress</a></small>
             </div>
         @endif
     @endif

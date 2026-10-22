@@ -756,6 +756,65 @@ class FiveQuillasCompetitionService
         return $this->bracketParticipantRows($phase);
     }
 
+    public function qualifiedParticipantRows(FiveQuillasPhase $phase): array
+    {
+        $nextPhaseId = (int) data_get($phase->settings, 'next_phase_id', 0);
+        $nextPhase = $nextPhaseId > 0
+            ? $phase->competition->phases()->where('is_enabled', true)->find($nextPhaseId)
+            : $phase->competition->phases()->where('is_enabled', true)
+                ->where('sort_order', '>', $phase->sort_order)->orderBy('sort_order')->first();
+        if (! $nextPhase) {
+            return [];
+        }
+
+        if ($phase->phase_type === 'zones') {
+            // La vista histórica usa exclusivamente las posiciones y estadísticas
+            // persistidas al disputar la competencia. Consultarla no recalcula ni
+            // modifica la clasificación con datos actuales.
+            $entries = $phase->groups()->with('groupEntries.entry.player')->orderBy('id')->get()
+                ->flatMap->groupEntries->whereIn('final_place', [1, 2])
+                ->sort(function ($left, $right): int {
+                    foreach ([
+                        [(int) $left->final_place, (int) $right->final_place, 'asc'],
+                        [(int) $left->sets_difference, (int) $right->sets_difference, 'desc'],
+                        [(float) $left->points_average, (float) $right->points_average, 'desc'],
+                    ] as [$a, $b, $direction]) {
+                        if ($a !== $b) { return $direction === 'asc' ? $a <=> $b : $b <=> $a; }
+                    }
+
+                    return (int) $left->entry_id <=> (int) $right->entry_id;
+                })->pluck('entry')->filter()->unique('id')->values();
+        } else {
+            $entries = collect($this->qualifiedEntriesFromPhase($phase))->unique('id');
+            $winnerMatches = $phase->matches()->where('status', 'completed')->whereNotNull('winner_entry_id');
+            if ($phase->phase_type !== 'slot_elimination') {
+                $winnerMatches->where('round_number', (int) $phase->matches()->max('round_number'));
+            }
+            $historicalOrder = $winnerMatches->orderBy('round_number')->orderBy('bracket_order')
+                ->pluck('winner_entry_id')->map(fn ($id): int => (int) $id)->unique()->values();
+            $entries = $entries->sortBy(fn ($entry): array => [
+                ($historicalOrder->search((int) $entry->id) !== false)
+                    ? (int) $historicalOrder->search((int) $entry->id)
+                    : PHP_INT_MAX,
+                $entry->national_ranking_snapshot ?: PHP_INT_MAX,
+                $entry->player?->last_name ?? '',
+            ])->values();
+        }
+
+        return $entries->values()->map(function ($entry, int $index) use ($phase, $nextPhase): array {
+            $entry->loadMissing('player.club');
+
+            return [
+                'position' => $index + 1,
+                'player' => (string) ($entry->player?->full_name ?? 'Jugador sin nombre'),
+                'club' => (string) ($entry->player?->club?->short_name ?: $entry->player?->club?->name),
+                'ranking' => $entry->national_ranking_snapshot,
+                'origin' => 'Clasificado de '.$phase->name,
+                'next_phase' => $nextPhase->name,
+            ];
+        })->all();
+    }
+
     public function bracketMatchupRows(FiveQuillasPhase $phase): array
     {
         $participants = collect($this->bracketParticipantRows($phase));
