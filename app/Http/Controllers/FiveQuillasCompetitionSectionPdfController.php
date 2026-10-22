@@ -102,16 +102,7 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
 
     private function finalInstance(FiveQuillasCompetition $competition, $entry): string
     {
-        $lastMatch = $competition->phases->where('phase_type', '!=', 'zones')->flatMap->matches
-            ->filter(fn ($match): bool => in_array((int) $entry->id, [(int) $match->player_one_entry_id, (int) $match->player_two_entry_id], true))
-            ->sortByDesc(fn ($match): string => sprintf('%05d-%05d', $match->phase?->sort_order ?? 0, $match->round_number))->first();
-        if ($lastMatch) {
-            return preg_replace('/\s+\d+$/', '', (string) $lastMatch->label) ?: $lastMatch->phase?->name;
-        }
-
-        $zoneRow = $competition->phases->flatMap->groups->flatMap->groupEntries->firstWhere('entry_id', $entry->id);
-
-        return $zoneRow ? 'Zonas · '.$zoneRow->final_place.'.º puesto' : 'Sin instancia';
+        return app(FiveQuillasCompetitionService::class)->finalInstanceForEntry($competition, $entry);
     }
 
     private function entryPerformance(FiveQuillasCompetition $competition, int $entryId): array

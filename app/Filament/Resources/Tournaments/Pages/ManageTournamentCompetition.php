@@ -996,8 +996,11 @@ class ManageTournamentCompetition extends Page
 
     public function proposedFinalPoints(FiveQuillasEntry $entry): ?float
     {
-        return app(FiveQuillasCompetitionService::class)
-            ->proposedPointsForPlacement($this->record, (int) $entry->final_position);
+        $competition = $this->competition();
+
+        return $competition
+            ? app(FiveQuillasCompetitionService::class)->proposedPointsForEntry($this->record, $competition, $entry)
+            : null;
     }
 
     private function scoringRuleOptions(): array
@@ -1016,16 +1019,10 @@ class ManageTournamentCompetition extends Page
     public function finalInstanceLabel(FiveQuillasEntry $entry): string
     {
         $competition = $this->competition();
-        $lastMatch = $competition?->phases->where('phase_type', '!=', 'zones')->flatMap->matches
-            ->filter(fn ($match): bool => in_array((int) $entry->id, [
-                (int) $match->player_one_entry_id, (int) $match->player_two_entry_id,
-            ], true))->sortByDesc(fn ($match): string => sprintf('%05d-%05d', $match->phase?->sort_order ?? 0, $match->round_number))->first();
-        if ($lastMatch) {
-            return preg_replace('/\s+\d+$/', '', (string) $lastMatch->label) ?: ($lastMatch->phase?->name ?? 'Eliminación');
-        }
-        $zoneRow = $competition?->phases->where('phase_type', 'zones')->flatMap->groups->flatMap->groupEntries
-            ->firstWhere('entry_id', $entry->id);
-        return $zoneRow ? 'Zonas · '.$zoneRow->final_place.'.º puesto' : 'Sin instancia';
+
+        return $competition
+            ? app(FiveQuillasCompetitionService::class)->finalInstanceForEntry($competition, $entry)
+            : 'Sin instancia';
     }
 
     public function finalPerformance(FiveQuillasEntry $entry): array
