@@ -767,23 +767,48 @@ class FiveQuillasCompetitionService
             return [];
         }
 
+        $classificationMethod = (string) $nextPhase->seeding_method;
+        $zoneRows = collect();
+        $phaseMatches = collect();
+
         if ($phase->phase_type === 'zones') {
             // La vista histórica usa exclusivamente las posiciones y estadísticas
             // persistidas al disputar la competencia. Consultarla no recalcula ni
             // modifica la clasificación con datos actuales.
-            $entries = $phase->groups()->with('groupEntries.entry.player')->orderBy('id')->get()
+            $zoneRows = $phase->groups()->with('groupEntries.entry.player')->orderBy('id')->get()
                 ->flatMap->groupEntries->whereIn('final_place', [1, 2])
-                ->sort(function ($left, $right): int {
+                ->sort(function ($left, $right) use ($classificationMethod): int {
+                    if ($classificationMethod === 'national_ranking') {
+                        return [
+                            $left->entry?->national_ranking_snapshot ?: PHP_INT_MAX,
+                            (int) $left->entry_id,
+                        ] <=> [
+                            $right->entry?->national_ranking_snapshot ?: PHP_INT_MAX,
+                            (int) $right->entry_id,
+                        ];
+                    }
+                    if (in_array($classificationMethod, ['number_draw', 'automatic_draw'], true)) {
+                        return [
+                            $left->entry?->seed ?: PHP_INT_MAX,
+                            (int) $left->entry_id,
+                        ] <=> [
+                            $right->entry?->seed ?: PHP_INT_MAX,
+                            (int) $right->entry_id,
+                        ];
+                    }
                     foreach ([
                         [(int) $left->final_place, (int) $right->final_place, 'asc'],
                         [(int) $left->sets_difference, (int) $right->sets_difference, 'desc'],
                         [(float) $left->points_average, (float) $right->points_average, 'desc'],
+                        [(int) $left->points_for, (int) $right->points_for, 'desc'],
                     ] as [$a, $b, $direction]) {
                         if ($a !== $b) { return $direction === 'asc' ? $a <=> $b : $b <=> $a; }
                     }
 
                     return (int) $left->entry_id <=> (int) $right->entry_id;
-                })->pluck('entry')->filter()->unique('id')->values();
+                })->values();
+            $entries = $zoneRows->pluck('entry')->filter()->unique('id')->values();
+            $zoneRows = $zoneRows->keyBy('entry_id');
         } else {
             $entries = collect($this->qualifiedEntriesFromPhase($phase))->unique('id');
             $winnerMatches = $phase->matches()->where('status', 'completed')->whereNotNull('winner_entry_id');
@@ -792,24 +817,23 @@ class FiveQuillasCompetitionService
             }
             $historicalOrder = $winnerMatches->orderBy('round_number')->orderBy('bracket_order')
                 ->pluck('winner_entry_id')->map(fn ($id): int => (int) $id)->unique()->values();
-            $matches = $phase->matches()->where('status', 'completed')->get();
-            $entries = $entries->sort(function ($left, $right) use ($phase, $historicalOrder, $matches): int {
+            $phaseMatches = $phase->matches()->where('status', 'completed')->get();
+            $entries = $entries->sort(function ($left, $right) use ($classificationMethod, $historicalOrder, $phaseMatches): int {
                 $leftHistorical = $historicalOrder->search((int) $left->id);
                 $rightHistorical = $historicalOrder->search((int) $right->id);
                 $leftHistorical = $leftHistorical === false ? PHP_INT_MAX : (int) $leftHistorical;
                 $rightHistorical = $rightHistorical === false ? PHP_INT_MAX : (int) $rightHistorical;
 
-                // La lista pertenece a esta fase y debe respetar su propio método
-                // de clasificación. Ranking y sorteo son valores históricos
-                // persistidos; consultar la lista nunca los recalcula con datos
-                // vigentes al momento de visualizarla.
-                $comparison = match ($phase->seeding_method) {
+                // El orden corresponde al método configurado en la fase siguiente.
+                // Ranking y sorteo son valores históricos persistidos; consultar
+                // la lista nunca los recalcula con datos actuales.
+                $comparison = match ($classificationMethod) {
                     'national_ranking' => ($left->national_ranking_snapshot ?: PHP_INT_MAX)
                         <=> ($right->national_ranking_snapshot ?: PHP_INT_MAX),
                     'number_draw', 'automatic_draw' => ($left->seed ?: PHP_INT_MAX)
                         <=> ($right->seed ?: PHP_INT_MAX),
                     'previous_results' => $this->compareQualifiedPhasePerformance(
-                        $matches,
+                        $phaseMatches,
                         (int) $left->id,
                         (int) $right->id,
                         $leftHistorical,
@@ -834,14 +858,34 @@ class FiveQuillasCompetitionService
             })->values();
         }
 
-        return $entries->values()->map(function ($entry, int $index) use ($phase, $nextPhase): array {
+        return $entries->values()->map(function ($entry, int $index) use (
+            $phase,
+            $nextPhase,
+            $classificationMethod,
+            $zoneRows,
+            $phaseMatches,
+        ): array {
             $entry->loadMissing('player.club');
+            $zoneRow = $zoneRows->get((int) $entry->id);
+            $performance = $zoneRow
+                ? [
+                    'sets_difference' => (int) $zoneRow->sets_difference,
+                    'average' => (float) $zoneRow->points_average,
+                ]
+                : ($classificationMethod === 'previous_results'
+                    ? $this->entryPerformance($phaseMatches, (int) $entry->id)
+                    : ['sets_difference' => null, 'average' => null]);
 
             return [
                 'position' => $index + 1,
                 'player' => (string) ($entry->player?->full_name ?? 'Jugador sin nombre'),
                 'club' => (string) ($entry->player?->club?->short_name ?: $entry->player?->club?->name),
                 'ranking' => $entry->national_ranking_snapshot,
+                'draw_number' => $entry->seed,
+                'zone_position' => $zoneRow?->final_place,
+                'sets_difference' => $performance['sets_difference'],
+                'average' => $performance['average'],
+                'classification_method' => $classificationMethod,
                 'origin' => 'Clasificado de '.$phase->name,
                 'next_phase' => $nextPhase->name,
             ];

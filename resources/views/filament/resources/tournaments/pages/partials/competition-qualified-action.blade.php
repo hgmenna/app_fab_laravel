@@ -1,6 +1,7 @@
 @php
     $qualifiedRows = collect(app(\App\Services\FiveQuillasCompetitionService::class)->qualifiedParticipantRows($phase));
     $dialogId = 'fq-qualified-'.$phase->id;
+    $classificationMethod = $qualifiedRows->first()['classification_method'] ?? 'manual';
 @endphp
 @if($qualifiedRows->isNotEmpty())
     <button type="button" class="fq-qualified-button" onclick="document.getElementById('{{ $dialogId }}').showModal()">
@@ -12,10 +13,30 @@
             <button type="button" onclick="this.closest('dialog').close()" aria-label="Cerrar">×</button>
         </div>
         <div class="fq-standings-wrap"><table class="fq-standings">
-            <thead><tr><th>Posición</th><th>Jugador</th><th>Club</th><th>Ranking</th></tr></thead>
+            <thead><tr>
+                <th>Posición</th><th>Jugador</th><th>Club</th>
+                @if($classificationMethod === 'previous_results')
+                    <th>Pos. zona</th><th>DS</th><th>Promedio</th>
+                @elseif($classificationMethod === 'national_ranking')
+                    <th>Ranking</th>
+                @elseif(in_array($classificationMethod, ['number_draw', 'automatic_draw'], true))
+                    <th>N.º sorteo</th>
+                @endif
+            </tr></thead>
             <tbody>
             @foreach($qualifiedRows as $row)
-                <tr><td>{{ $row['position'] }}</td><td>{{ $row['player'] }}</td><td>{{ $row['club'] ?: '—' }}</td><td>{{ $row['ranking'] ?: 'Sin ranking' }}</td></tr>
+                <tr>
+                    <td>{{ $row['position'] }}</td><td>{{ $row['player'] }}</td><td>{{ $row['club'] ?: '—' }}</td>
+                    @if($classificationMethod === 'previous_results')
+                        <td>{{ $row['zone_position'] ?: '—' }}</td>
+                        <td>{{ $row['sets_difference'] ?? '—' }}</td>
+                        <td>{{ $row['average'] !== null ? number_format((float) $row['average'], 3, ',', '.') : '—' }}</td>
+                    @elseif($classificationMethod === 'national_ranking')
+                        <td>{{ $row['ranking'] ?: 'Sin ranking' }}</td>
+                    @elseif(in_array($classificationMethod, ['number_draw', 'automatic_draw'], true))
+                        <td>{{ $row['draw_number'] ?: '—' }}</td>
+                    @endif
+                </tr>
             @endforeach
             </tbody>
         </table></div>

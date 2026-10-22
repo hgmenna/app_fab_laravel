@@ -194,7 +194,7 @@ it('uses every completed slot crossing winner in the configured 64 player bracke
         ->and($phase->matches()->where('round_number', 1)->whereNull('player_two_entry_id')->count())->toBe(0);
 });
 
-it('orders the public qualifier list with the displayed phase classification criterion', function () {
+it('orders the public qualifier list with the next phase classification criterion', function () {
     $competition = FiveQuillasCompetition::create([
         'tournament_id' => Tournament::factory()->create()->id,
         'public_slug' => 'qualified-ranking-order-test',
@@ -203,14 +203,14 @@ it('orders the public qualifier list with the displayed phase classification cri
         'competition_id' => $competition->id, 'code' => 'slot-crossings',
         'name' => 'Eliminación por horario', 'phase_type' => 'slot_elimination',
         'sort_order' => 1, 'sets_to_play' => 3, 'points_per_set' => 60,
-        'seeding_method' => 'previous_results', 'status' => 'completed',
+        'seeding_method' => 'manual', 'status' => 'completed',
         'settings' => ['qualifiers' => 2],
     ]);
     $national = FiveQuillasPhase::create([
         'competition_id' => $competition->id, 'code' => 'national',
         'name' => 'Primera Nacional', 'phase_type' => 'bracket',
         'sort_order' => 2, 'sets_to_play' => 5, 'points_per_set' => 60,
-        'seeding_method' => 'national_ranking',
+        'seeding_method' => 'previous_results',
         'settings' => ['previous_phase_id' => $crossings->id, 'qualifiers' => 1],
     ]);
     $crossings->update(['settings' => ['qualifiers' => 2, 'next_phase_id' => $national->id]]);
@@ -243,5 +243,8 @@ it('orders the public qualifier list with the displayed phase classification cri
     $rows = collect(app(FiveQuillasCompetitionService::class)->qualifiedParticipantRows($crossings->fresh()));
 
     expect($rows->pluck('ranking')->all())->toBe([40, 12])
-        ->and($rows->pluck('position')->all())->toBe([1, 2]);
+        ->and($rows->pluck('position')->all())->toBe([1, 2])
+        ->and($rows->pluck('classification_method')->unique()->all())->toBe(['previous_results'])
+        ->and($rows->first()['sets_difference'])->toBe(3)
+        ->and($rows->first()['average'])->toBe(2.0);
 });
