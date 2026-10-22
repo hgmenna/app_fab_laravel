@@ -415,16 +415,10 @@ class FiveQuillasCompetitionService
             $round = max(1, (int) ($schedule['round_number'] ?? 1));
             $matches = $phase->matches()->where('round_number', $round)
                 ->with(['playerOne', 'playerTwo'])->orderBy('bracket_order')->get();
-            if ($round === 1 && count(data_get($phase->settings, 'bracket_pairs', []))) {
-                $order = collect(data_get($phase->settings, 'bracket_pairs'))->mapWithKeys(
-                    fn (array $pair, int $index): array => [min($pair).'-'.max($pair) => $index]
-                );
-                $matches = $matches->sortBy(function ($match) use ($order): int {
-                    $one = (int) ($match->playerOne?->seed ?? 0);
-                    $two = (int) ($match->playerTwo?->seed ?? 0);
-                    return $order->get(min($one, $two).'-'.max($one, $two), 10000 + $match->bracket_order);
-                })->values();
-            }
+            // Los rangos Desde/Hasta se definen sobre bracket_order, que es el
+            // mismo orden usado para separar las pestañas de cada turno. No se
+            // debe volver a ordenar por los jugadores actuales: una corrección
+            // de participantes cambiaría el conjunto y mezclaría mañana/tarde.
             $from = filled($schedule['from_match'] ?? null) ? (int) $schedule['from_match'] : 1;
             $to = filled($schedule['to_match'] ?? null) ? (int) $schedule['to_match'] : $matches->count();
             $matches = $matches->slice($from - 1, max(0, $to - $from + 1))->values();
