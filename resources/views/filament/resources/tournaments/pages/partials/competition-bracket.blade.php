@@ -35,7 +35,7 @@
                                 @endif
                                 @if($match->scheduled_at)<small class="fq-match-time">{{ $match->scheduled_at->format('d/m/y · H:i') }}</small>@endif
                                 @if($match->table_number)<small class="fq-match-time">Mesa {{ $match->table_number }}</small>@endif
-                                @if($match->phase?->phase_type === 'bracket' && (in_array($match->status, ['pending', 'scheduled'], true) || $match->is_bye))
+                                @if($match->phase?->phase_type === 'bracket' && (int)$match->round_number === 1 && (in_array($match->status, ['pending', 'scheduled'], true) || $match->is_bye))
                                     <div class="fq-match-actions">
                                         {{ ($this->correctMatchParticipantsAction)(['matchId' => $match->id]) }}
                                         @if($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)

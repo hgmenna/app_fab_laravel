@@ -1589,6 +1589,11 @@ class FiveQuillasCompetitionService
     {
         return DB::transaction(function () use ($match, $playerOneId, $playerTwoId): FiveQuillasMatch {
             $match->loadMissing('phase.competition');
+            if ((int) $match->round_number !== 1) {
+                throw ValidationException::withMessages([
+                    'match' => 'Las rondas posteriores se completan exclusivamente con los ganadores de la ronda anterior.',
+                ]);
+            }
             if (! in_array($match->status, ['pending', 'scheduled'], true)
                 && ! ($match->status === 'completed' && $match->is_bye)) {
                 throw ValidationException::withMessages(['match' => 'Solo se pueden corregir partidos que todavía no comenzaron.']);
@@ -1603,14 +1608,44 @@ class FiveQuillasCompetitionService
                 }
             }
 
+            // Una corrección de la primera ronda invalida cualquier pase automático
+            // que haya producido. Primero se desarma esa cadena y después se cambia
+            // el cruce, para que el jugador anterior desaparezca de la ronda 2.
+            $dependentIds = collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique();
+            $playedDependent = FiveQuillasMatch::query()->whereIn('id', $dependentIds)
+                ->where('status', 'completed')->where('is_bye', false)->exists();
+            if ($playedDependent) {
+                throw ValidationException::withMessages([
+                    'match' => 'Primero reiniciá el partido posterior que ya fue disputado.',
+                ]);
+            }
+            foreach ($dependentIds as $dependentId) {
+                $this->resetAutomaticByeChain((int) $dependentId);
+            }
+            $previousWinnerId = (int) ($match->winner_entry_id ?? 0);
+            $previousLoserId = $this->loserEntryId($match);
+            $this->removeAdvancedEntry($match->next_match_id, $match->next_match_position, $previousWinnerId);
+            $this->removeAdvancedEntry($match->loser_next_match_id, $match->loser_next_match_position, $previousLoserId);
+
             // Si el jugador estaba en otro cruce editable de la misma ronda, se lo
             // retira allí para que nunca aparezca duplicado en la grilla.
             foreach (collect([$playerOneId, $playerTwoId])->filter()->unique() as $entryId) {
                 $match->phase->matches()->where('round_number', $match->round_number)
-                    ->where('id', '!=', $match->id)->whereIn('status', ['pending', 'scheduled'])
+                    ->where('id', '!=', $match->id)
+                    ->where(function ($query): void {
+                        $query->whereIn('status', ['pending', 'scheduled'])
+                            ->orWhere(function ($bye): void {
+                                $bye->where('status', 'completed')->where('is_bye', true);
+                            });
+                    })
                     ->where(function ($query) use ($entryId): void {
                         $query->where('player_one_entry_id', $entryId)->orWhere('player_two_entry_id', $entryId);
                     })->get()->each(function ($other) use ($entryId): void {
+                        if ($other->status === 'completed' && $other->is_bye) {
+                            collect([$other->next_match_id, $other->loser_next_match_id])->filter()->unique()
+                                ->each(fn ($dependentId) => $this->resetAutomaticByeChain((int) $dependentId));
+                            $this->removeAdvancedEntry($other->next_match_id, $other->next_match_position, (int) $other->winner_entry_id);
+                        }
                         $attributes = [];
                         if ((int) $other->player_one_entry_id === (int) $entryId) { $attributes['player_one_entry_id'] = null; }
                         if ((int) $other->player_two_entry_id === (int) $entryId) { $attributes['player_two_entry_id'] = null; }
