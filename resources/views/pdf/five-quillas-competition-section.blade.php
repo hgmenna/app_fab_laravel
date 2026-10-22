@@ -69,8 +69,8 @@
                     $sets = collect(data_get($match->set_scores, 'sets', []));
                 @endphp
                 <tr><td class="round-slot" style="height:{{ $slotHeight }}px"><div class="match">
-                    <div class="player {{ $match->winner_entry_id === $match->player_one_entry_id ? 'winner' : '' }}"><b>{{ $match->playerOne?->seed ?? ($pair[0] ?? '—') }}</b> · {{ $match->playerOne?->player?->full_name ?? 'LIBRE' }}<span class="sets">{{ $sets->pluck('player_one_points')->implode(' · ') ?: '—' }}</span></div>
-                    <div class="player {{ $match->winner_entry_id === $match->player_two_entry_id ? 'winner' : '' }}"><b>{{ $match->playerTwo?->seed ?? ($pair[1] ?? '—') }}</b> · {{ $match->playerTwo?->player?->full_name ?? 'LIBRE' }}<span class="sets">{{ $sets->pluck('player_two_points')->implode(' · ') ?: '—' }}</span></div>
+                    <div class="player {{ $match->winner_entry_id === $match->player_one_entry_id ? 'winner' : '' }}"><b>{{ $match->round_number === 1 ? ($pair[0] ?? '—') : ($match->playerOne?->seed ?? '—') }}</b> · {{ $match->playerOne?->player?->full_name ?? 'LIBRE' }}<span class="sets">{{ $sets->pluck('player_one_points')->implode(' · ') ?: '—' }}</span></div>
+                    <div class="player {{ $match->winner_entry_id === $match->player_two_entry_id ? 'winner' : '' }}"><b>{{ $match->round_number === 1 ? ($pair[1] ?? '—') : ($match->playerTwo?->seed ?? '—') }}</b> · {{ $match->playerTwo?->player?->full_name ?? 'LIBRE' }}<span class="sets">{{ $sets->pluck('player_two_points')->implode(' · ') ?: '—' }}</span></div>
                     @if($match->scheduled_at)<small>{{ $match->scheduled_at->format('d/m/y H:i') }}</small>@endif
                 </div></td></tr>
             @endforeach

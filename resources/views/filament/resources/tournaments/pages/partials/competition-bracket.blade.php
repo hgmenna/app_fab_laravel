@@ -13,8 +13,15 @@
                             $pair = $match->round_number === 1
                                 ? data_get($match->phase?->settings, 'bracket_pairs.'.($match->bracket_order - 1), [])
                                 : [];
-                            $numberOne = $match->playerOne?->seed ?? ($pair[0] ?? '—');
-                            $numberTwo = $match->playerTwo?->seed ?? ($pair[1] ?? '—');
+                            // En la primera ronda el número pertenece al casillero
+                            // fijo de la grilla. Corregir el jugador cambia solamente
+                            // el nombre y nunca renumera las posiciones del partido.
+                            $numberOne = $match->round_number === 1
+                                ? ($pair[0] ?? '—')
+                                : ($match->playerOne?->seed ?? '—');
+                            $numberTwo = $match->round_number === 1
+                                ? ($pair[1] ?? '—')
+                                : ($match->playerTwo?->seed ?? '—');
                         @endphp
                         <div class="fq-match-shell">
                             <article class="fq-match">

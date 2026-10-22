@@ -129,9 +129,13 @@ class FiveQuillasCompetitionPublicController extends Controller
                         'ronda' => $match->round_number, 'orden' => $match->bracket_order,
                         'etiqueta' => $match->label === 'Partido de recuperación' ? 'Perdedores' : $match->label,
                         'jugador_1' => $match->playerOne?->player?->full_name,
-                        'numero_1' => $match->playerOne?->seed ?? ($match->round_number === 1 ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1).'.0') : null),
+                        'numero_1' => $match->round_number === 1
+                            ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1).'.0')
+                            : $match->playerOne?->seed,
                         'jugador_2' => $match->playerTwo?->player?->full_name,
-                        'numero_2' => $match->playerTwo?->seed ?? ($match->round_number === 1 ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1).'.1') : null), 'sets' => $match->set_scores,
+                        'numero_2' => $match->round_number === 1
+                            ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1).'.1')
+                            : $match->playerTwo?->seed, 'sets' => $match->set_scores,
                         'sets_reales' => [$match->player_one_actual_sets, $match->player_two_actual_sets],
                         'sets_computables' => [$match->player_one_computed_sets, $match->player_two_computed_sets],
                         'puntos' => [$match->player_one_points, $match->player_two_points],
