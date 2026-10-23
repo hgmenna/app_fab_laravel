@@ -137,7 +137,8 @@ class FiveQuillasCompetitionService
             $existing = $phase->groups()->where('tournament_slot_id', $slotId)
                 ->with(['matches', 'groupEntries'])->get();
             $lockedGroups = $existing->filter(
-                fn ($group): bool => $group->matches->contains(fn ($match): bool => $match->status !== 'pending')
+                fn ($group): bool => $group->matches->contains(fn ($match): bool => ! $match->is_bye
+                    && in_array($match->status, ['in_progress', 'completed'], true))
             );
             $editableGroups = $existing->diff($lockedGroups);
             $lockedEntryIds = $lockedGroups->flatMap->groupEntries->pluck('entry_id')->unique();

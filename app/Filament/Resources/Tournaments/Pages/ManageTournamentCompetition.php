@@ -524,7 +524,8 @@ class ManageTournamentCompetition extends Page
 
                 return [
                     'group_id' => $group->id,
-                    'locked' => $group->matches->contains(fn ($match): bool => $match->status !== 'pending'),
+                    'locked' => $group->matches->contains(fn ($match): bool => ! $match->is_bye
+                        && in_array($match->status, ['in_progress', 'completed'], true)),
                     'name' => $group->name,
                     ...collect(range(1, 4))->mapWithKeys(fn (int $position): array => [
                         'player_'.$position => $entries->get($position)?->entry_id,
