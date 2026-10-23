@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Zona perteneciente a una fase y, opcionalmente, a un horario de inscripción.
+ */
 class FiveQuillasGroup extends Model
 {
     protected $fillable = ['phase_id', 'tournament_slot_id', 'name', 'sort_order', 'status', 'is_public'];

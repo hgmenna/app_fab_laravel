@@ -10,8 +10,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * Publica torneos próximos y sus datos visibles.
+ */
 class UpcomingTournamentsController extends Controller
 {
+    /**
+     * Atiende la solicitud después de resolver autorización y datos publicados.
+     */
     public function __invoke(Request $request): JsonResponse
     {
         $filters = $request->validate([

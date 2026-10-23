@@ -7,8 +7,14 @@ use App\Services\FiveQuillasCompetitionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * Entrega la representación JSON pública y normalizada de la competencia.
+ */
 class FiveQuillasCompetitionPublicController extends Controller
 {
+    /**
+     * Atiende la solicitud después de resolver autorización y datos publicados.
+     */
     public function __invoke(string $slug): JsonResponse
     {
         $competition = FiveQuillasCompetition::query()

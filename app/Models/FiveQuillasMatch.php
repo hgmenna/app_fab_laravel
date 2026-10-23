@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Partido conectado a una llave; conserva resultados reales, valores computados, ganador y propagación.
+ */
 class FiveQuillasMatch extends Model
 {
     protected $fillable = ['phase_id', 'group_id', 'round_number', 'bracket_order', 'label', 'player_one_entry_id', 'player_two_entry_id', 'set_scores', 'player_one_actual_sets', 'player_two_actual_sets', 'player_one_computed_sets', 'player_two_computed_sets', 'player_one_points', 'player_two_points', 'winner_entry_id', 'next_match_id', 'next_match_position', 'loser_next_match_id', 'loser_next_match_position', 'table_number', 'scheduled_at', 'estimated_minutes', 'is_bye', 'status', 'is_public'];

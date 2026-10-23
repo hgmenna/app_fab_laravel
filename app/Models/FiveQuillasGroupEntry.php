@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Posición de una entrada dentro de una zona junto con sus estadísticas recalculables.
+ */
 class FiveQuillasGroupEntry extends Model
 {
     protected $fillable = ['group_id', 'entry_id', 'position', 'match_wins', 'sets_difference', 'points_for', 'points_against', 'points_average', 'final_place'];

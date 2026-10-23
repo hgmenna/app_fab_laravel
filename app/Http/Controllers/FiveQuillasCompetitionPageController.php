@@ -6,8 +6,14 @@ use App\Models\FiveQuillasCompetition;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
+/**
+ * Renderiza la página pública de una competencia de cinco quillas.
+ */
 class FiveQuillasCompetitionPageController extends Controller
 {
+    /**
+     * Atiende la solicitud después de resolver autorización y datos publicados.
+     */
     public function __invoke(string $slug): View
     {
         $competition = FiveQuillasCompetition::query()

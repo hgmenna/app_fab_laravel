@@ -11,10 +11,19 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
+/**
+ * Coordina validación, overrides autorizados y auditoría de reglamentos de torneos.
+ */
 class TournamentRegulationWorkflow
 {
+    /**
+     * Inyecta las dependencias necesarias sin ejecutar operaciones de dominio.
+     */
     public function __construct(private readonly TournamentRegulationService $regulations) {}
 
+    /**
+     * Detecta si una edición modifica campos que obligan a reevaluar el reglamento.
+     */
     public function shouldRevalidateUpdate(array $data, Tournament $record): bool
     {
         if (! $record->relationLoaded('latestSuccessfulRegulationAudit')) {
@@ -39,6 +48,9 @@ class TournamentRegulationWorkflow
                 !== $this->nullableInteger($record->external_venue_state_id);
     }
 
+    /**
+     * Valida una creación o edición y procesa el override autorizado cuando existe.
+     */
     public function validate(array $data, User $user, string $operation, ?Tournament $record = null): array
     {
         $data['manual_route_checks'] = collect($data['manual_route_checks'] ?? [])
@@ -98,6 +110,9 @@ class TournamentRegulationWorkflow
         return [$data, $evaluation, true];
     }
 
+    /**
+     * Persiste la decisión reglamentaria con instantánea y evidencia.
+     */
     public function audit(
         ?Tournament $tournament,
         User $user,
@@ -127,6 +142,9 @@ class TournamentRegulationWorkflow
         ]);
     }
 
+    /**
+     * Copia evidencias a una ubicación persistente antes de guardar la auditoría.
+     */
     private function preserveEvidence(array $snapshot, array $conflicts, array $technicalDetails): array
     {
         $paths = collect();
@@ -157,6 +175,9 @@ class TournamentRegulationWorkflow
         ];
     }
 
+    /**
+     * Recorre datos anidados y reúne rutas de archivos de evidencia.
+     */
     private function collectEvidencePaths(array $data, $paths): void
     {
         foreach ($data as $key => $value) {
@@ -170,6 +191,9 @@ class TournamentRegulationWorkflow
         }
     }
 
+    /**
+     * Sustituye rutas temporales por las copias persistidas.
+     */
     private function replaceEvidencePaths(array $data, array $pathMap): array
     {
         foreach ($data as $key => $value) {
@@ -183,6 +207,9 @@ class TournamentRegulationWorkflow
         return $data;
     }
 
+    /**
+     * Normaliza los datos relevantes que se conservarán en la auditoría.
+     */
     private function snapshot(array $data): array
     {
         return collect($data)->except([
@@ -192,6 +219,9 @@ class TournamentRegulationWorkflow
         ])->all();
     }
 
+    /**
+     * Convierte una fecha opcional a una representación estable.
+     */
     private function dateValue(mixed $value): ?string
     {
         if ($value === null || $value === '') {
@@ -205,6 +235,9 @@ class TournamentRegulationWorkflow
         return Carbon::parse($value)->toDateString();
     }
 
+    /**
+     * Normaliza un valor opcional como entero o nulo.
+     */
     private function nullableInteger(mixed $value): ?int
     {
         return blank($value) ? null : (int) $value;

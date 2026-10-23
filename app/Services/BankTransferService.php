@@ -17,8 +17,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Gestiona el ciclo de órdenes de transferencia para afiliaciones e inscripciones.
+ */
 class BankTransferService
 {
+    /**
+     * Crea una orden de transferencia para una o varias renovaciones.
+     */
     public function createMembershipOrder(
         Membership $membership,
         Collection $players,
@@ -103,6 +109,9 @@ class BankTransferService
         });
     }
 
+    /**
+     * Crea, si corresponde, la orden de pago de una inscripción.
+     */
     public function createTournamentRegistrationOrder(TournamentRegistration $registration): ?BankTransferOrder
     {
         $registration->loadMissing(['tournament.organizerClub', 'tournament.contacts', 'participants.player.category']);
@@ -198,6 +207,9 @@ class BankTransferService
         });
     }
 
+    /**
+     * Presenta la orden y su comprobante para revisión.
+     */
     public function submit(BankTransferOrder $order): void
     {
         if (! in_array($order->status, ['pending', 'observed'], true) || blank($order->receipt_path)) {
@@ -208,6 +220,9 @@ class BankTransferService
         $this->notifyParticipants($order, 'Comprobante recibido', "La orden {$order->code} fue enviada a Tesorería para su revisión.");
     }
 
+    /**
+     * Aprueba la transferencia y aplica el pago a su concepto de origen.
+     */
     public function approve(BankTransferOrder $order): void
     {
         if (! in_array($order->status, ['submitted', 'observed'], true)) {
@@ -271,6 +286,9 @@ class BankTransferService
         $this->notifyParticipants($order, 'Transferencia aprobada', "Tesorería aprobó la orden {$order->code}. Los conceptos asociados quedaron acreditados.");
     }
 
+    /**
+     * Rechaza la transferencia conservando el motivo para auditoría.
+     */
     public function reject(BankTransferOrder $order, string $notes): void
     {
         $order->update([
@@ -280,6 +298,9 @@ class BankTransferService
         $this->notifyParticipants($order, 'Transferencia rechazada', "Tesorería rechazó la orden {$order->code}. Motivo: {$notes}");
     }
 
+    /**
+     * Elimina una orden únicamente cuando su estado permite descartarla.
+     */
     public function deleteOrder(BankTransferOrder $order): void
     {
         if ($order->status === 'approved') {
@@ -306,6 +327,9 @@ class BankTransferService
         });
     }
 
+    /**
+     * Obtiene la configuración bancaria activa o informa que no está disponible.
+     */
     private function requireActiveSetting(): BankTransferSetting
     {
         return BankTransferSetting::active() ?? throw ValidationException::withMessages([
@@ -313,6 +337,9 @@ class BankTransferService
         ]);
     }
 
+    /**
+     * Captura los datos bancarios de destino para conservar el valor histórico.
+     */
     private function destinationSnapshot(BankTransferSetting|Club $source, string $type, string $name): array
     {
         $club = $source instanceof Club;
@@ -332,6 +359,9 @@ class BankTransferService
         ];
     }
 
+    /**
+     * Impide crear órdenes duplicadas para obligaciones con pagos abiertos.
+     */
     private function guardAgainstOpenOrders(Collection $renewals): void
     {
         $ids = $renewals->pluck('id');
@@ -345,6 +375,9 @@ class BankTransferService
         }
     }
 
+    /**
+     * Calcula el importe exigible para una inscripción.
+     */
     private function registrationAmount(TournamentRegistration $registration): float
     {
         if ((float) $registration->price > 0) {
@@ -359,11 +392,17 @@ class BankTransferService
         return (float) ($price ?: $registration->tournament->entry_fee ?: 0);
     }
 
+    /**
+     * Genera el próximo código público de orden.
+     */
     private function nextCode(): string
     {
         return 'TR-'.now()->format('Ymd').'-'.strtoupper(\Illuminate\Support\Str::random(8));
     }
 
+    /**
+     * Envía una notificación a los participantes vinculados con la orden.
+     */
     private function notifyParticipants(BankTransferOrder $order, string $title, string $message): void
     {
         $recipients = User::query()

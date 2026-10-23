@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Participación única de un jugador; conserva origen, ranking histórico, fase de ingreso y posición final.
+ */
 class FiveQuillasEntry extends Model
 {
     protected $fillable = ['competition_id', 'tournament_registration_id', 'registration_participant_id', 'player_id', 'source_slot_id', 'entry_phase_id', 'national_ranking_snapshot', 'seed', 'final_position', 'status'];

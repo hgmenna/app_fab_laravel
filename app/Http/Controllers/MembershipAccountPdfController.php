@@ -7,8 +7,14 @@ use App\Models\PlayerMembership;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Genera el estado individual de una cuenta de afiliación.
+ */
 class MembershipAccountPdfController extends Controller
 {
+    /**
+     * Atiende la solicitud después de resolver autorización y datos publicados.
+     */
     public function __invoke(PlayerMembership $account): Response
     {
         $account->load(['player.club', 'membership.discipline', 'club', 'payments.payer', 'payments.recorder']);

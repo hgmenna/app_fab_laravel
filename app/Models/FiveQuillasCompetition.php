@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Raíz deportiva de un torneo de cinco quillas; agrupa fases, entradas y configuración pública.
+ */
 class FiveQuillasCompetition extends Model
 {
     protected $fillable = ['tournament_id', 'public_slug', 'status', 'is_public', 'settings'];

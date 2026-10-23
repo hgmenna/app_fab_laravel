@@ -8,8 +8,14 @@ use App\Services\RankingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+/**
+ * Publica el ranking de cinco quillas en formato JSON.
+ */
 class FiveQuillasRankingController extends Controller
 {
+    /**
+     * Atiende la solicitud después de resolver autorización y datos publicados.
+     */
     public function __invoke(Request $request): JsonResponse
     {
         $category = $request->filled('category')

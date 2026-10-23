@@ -10,8 +10,14 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Genera el documento PDF del ranking de cinco quillas.
+ */
 class FiveQuillasRankingPdfController extends Controller
 {
+    /**
+     * Atiende la solicitud después de resolver autorización y datos publicados.
+     */
     public function __invoke(Request $request): Response
     {
         $validated = $request->validate([

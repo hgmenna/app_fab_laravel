@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Resuelve reglas de puntuación, propuestas y asignaciones persistidas de torneos.
+ */
 class TournamentScoringService
 {
     /**

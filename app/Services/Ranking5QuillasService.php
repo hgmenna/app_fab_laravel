@@ -9,8 +9,14 @@ use App\Models\Ranking5Quillas;
 use App\Models\Tournament;
 use App\Models\TournamentRegistration;
 
+/**
+ * Calcula y persiste la clasificación específica de cinco quillas.
+ */
 class Ranking5QuillasService
 {
+    /**
+     * Reconstruye el ranking usando los últimos torneos puntuables de la disciplina.
+     */
     public function recalculate(): void
     {
         $disciplineId = Discipline::query()->where('code', 'five_quillas')->value('id');
@@ -35,6 +41,9 @@ class Ranking5QuillasService
         $this->assignPositions();
     }
 
+    /**
+     * Calcula y guarda el total de un jugador para la ventana de torneos recibida.
+     */
     private function updatePlayerRanking(Player $player, $tournaments): void
     {
         $regs = TournamentRegistration::whereHas('participants', fn ($query) => $query->where('player_id', $player->id))
@@ -64,6 +73,9 @@ class Ranking5QuillasService
         );
     }
 
+    /**
+     * Numera el ranking resultante respetando puntos y criterios de desempate.
+     */
     private function assignPositions(): void
     {
         $rankings = Ranking5Quillas::orderBy('total_points', 'desc')->get();

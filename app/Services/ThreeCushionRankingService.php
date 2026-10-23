@@ -13,8 +13,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
+/**
+ * Sincroniza resultados y movimientos del ranking de tres bandas.
+ */
 class ThreeCushionRankingService
 {
+    /**
+     * Reconoce la disciplina aun cuando instalaciones antiguas usen nombres distintos.
+     */
     public static function isThreeCushion(?Discipline $discipline): bool
     {
         if (! $discipline) {
@@ -27,11 +33,17 @@ class ThreeCushionRankingService
         return str_contains($value, '3 banda') || str_contains($value, 'three cushion');
     }
 
+    /**
+     * Obtiene la disciplina configurada para tres bandas.
+     */
     public function discipline(): ?Discipline
     {
         return Discipline::query()->get()->first(fn (Discipline $discipline): bool => self::isThreeCushion($discipline));
     }
 
+    /**
+     * Sincroniza el ranking afectado por un resultado de etapa.
+     */
     public function syncForResult(ThreeCushionStageResult $result): void
     {
         if (! Schema::hasTable('three_cushion_rankings')) {
@@ -46,6 +58,9 @@ class ThreeCushionRankingService
         }
     }
 
+    /**
+     * Sincroniza las temporadas alcanzadas por un tipo de torneo.
+     */
     public function syncForTournamentType(TournamentType $type): void
     {
         if (! Schema::hasTable('three_cushion_stage_results') || ! self::isThreeCushion($type->discipline)) {
@@ -60,6 +75,9 @@ class ThreeCushionRankingService
         }
     }
 
+    /**
+     * Reconstruye una temporada y devuelve las filas de ranking persistidas.
+     */
     public function syncSeason(int $season, ?int $disciplineId = null): Collection
     {
         $discipline = $disciplineId
@@ -157,6 +175,9 @@ class ThreeCushionRankingService
         return $rows;
     }
 
+    /**
+     * Cuenta las etapas puntuables disponibles para una categoría en la temporada.
+     */
     private function totalStagesForCategory(Collection $tournaments, int $categoryId): int
     {
         return $tournaments->filter(function (Tournament $tournament) use ($categoryId): bool {

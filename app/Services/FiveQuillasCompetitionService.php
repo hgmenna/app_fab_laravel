@@ -18,8 +18,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Orquesta la competencia de cinco quillas: participantes, fases, llaves, resultados, clasificación y puntos.
+ */
 class FiveQuillasCompetitionService
 {
+    /**
+     * Crea o recupera la competencia, inicializa sus fases y sincroniza inscripciones aprobadas.
+     */
     public function initialize(Tournament $tournament): FiveQuillasCompetition
     {
         $tournament->loadMissing(['discipline', 'type']);
@@ -45,6 +51,9 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /**
+     * Sincroniza participantes aprobados y captura horario, fase de ingreso y ranking de la competencia.
+     */
     public function syncApprovedEntries(FiveQuillasCompetition $competition): int
     {
         $competition->loadMissing('tournament');
@@ -54,6 +63,8 @@ class FiveQuillasCompetitionService
             ->get();
         $phases = $competition->phases()->where('is_enabled', true)->orderBy('sort_order')->get();
         $fallbackPhase = $phases->first();
+        // Esta colección representa la foto actual de inscripciones aprobadas.
+        // Al final se usa para retirar entradas que dejaron de estar habilitadas.
         $activePlayerIds = collect();
 
         foreach ($registrations as $registration) {
@@ -70,6 +81,8 @@ class FiveQuillasCompetitionService
                 if (! Player::query()->whereKey($participant->player_id)->exists()) {
                     continue;
                 }
+                // El ranking se captura al ingresar. No debe variar cuando en el
+                // futuro se consulte o reconstruya esta misma competencia.
                 $rankingRow = GeneralRanking::query()->where('player_id', $participant->player_id)
                     ->first(['RG', 'category']);
                 $ranking = $rankingRow?->RG;
@@ -102,6 +115,9 @@ class FiveQuillasCompetitionService
         return $activePlayerIds->unique()->count();
     }
 
+    /**
+     * Recalcula la fase de ingreso y elimina overrides de siembra que hayan quedado obsoletos.
+     */
     public function refreshEntryPhaseAssignments(FiveQuillasCompetition $competition): void
     {
         $phases = $competition->phases()->where('is_enabled', true)->orderBy('sort_order')->get();
@@ -129,6 +145,9 @@ class FiveQuillasCompetitionService
         }
     }
 
+    /**
+     * Guarda las zonas editables de un horario y conserva intactas las que ya tienen actividad deportiva.
+     */
     public function createManualZones(FiveQuillasCompetition $competition, int $slotId, array $zoneRows): int
     {
         return DB::transaction(function () use ($competition, $slotId, $zoneRows): int {
@@ -136,6 +155,8 @@ class FiveQuillasCompetitionService
             $previousPhaseStatus = $phase->status;
             $existing = $phase->groups()->where('tournament_slot_id', $slotId)
                 ->with(['matches', 'groupEntries'])->get();
+            // Un registro de partido no bloquea por sí solo una zona. Se protege
+            // recién cuando existe un set real o una proclamación manual.
             $lockedGroups = $existing->filter(
                 fn ($group): bool => $group->matches->contains(function ($match): bool {
                     if ($match->is_bye) {
@@ -217,6 +238,9 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /**
+     * Reemplaza la definición de fases validando dependencias, reglas y orden del formato.
+     */
     public function configureFormat(FiveQuillasCompetition $competition, array $phaseRows): int
     {
         return DB::transaction(function () use ($competition, $phaseRows): int {
@@ -385,6 +409,9 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /**
+     * Aplica una plantilla inicial de competencia al torneo.
+     */
     public function applyCompetitionTemplate(FiveQuillasCompetition $competition, string $format): int
     {
         return DB::transaction(function () use ($competition, $format): int {
@@ -404,6 +431,9 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /**
+     * Asigna fecha, hora y mesa a los partidos comprendidos por un bloque de programación.
+     */
     public function scheduleConfiguredMatches(FiveQuillasPhase $phase, int $scheduleIndex): int
     {
         return DB::transaction(function () use ($phase, $scheduleIndex): int {
@@ -461,6 +491,9 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /**
+     * Construye los grupos o la llave de una fase usando su método de ingreso configurado.
+     */
     public function preparePhase(FiveQuillasPhase $phase): int
     {
         return DB::transaction(function () use ($phase): int {
@@ -638,6 +671,9 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /**
+     * Devuelve candidatos habilitados para el sorteo o armado manual de la fase.
+     */
     public function drawCandidates(FiveQuillasPhase $phase)
     {
         $previous = $this->previousPhase($phase);
@@ -650,6 +686,9 @@ class FiveQuillasCompetitionService
         return collect($source)->merge($direct)->unique('id')->each->loadMissing('player')->values();
     }
 
+    /**
+     * Obtiene el orden editable de participantes que alimentará la primera ronda.
+     */
     public function bracketParticipantRows(FiveQuillasPhase $phase): array
     {
         $phase->loadMissing('competition');
@@ -738,6 +777,9 @@ class FiveQuillasCompetitionService
         ]))->sortBy('seed_position')->values()->all();
     }
 
+    /**
+     * Construye las filas de presentación con posición, origen y criterio histórico.
+     */
     public function bracketParticipantDisplayRows(FiveQuillasPhase $phase): array
     {
         if ($phase->matches()->exists()) {
@@ -766,6 +808,9 @@ class FiveQuillasCompetitionService
         return $this->bracketParticipantRows($phase);
     }
 
+    /**
+     * Devuelve los clasificados ordenados según el método de ingreso de la fase siguiente.
+     */
     public function qualifiedParticipantRows(FiveQuillasPhase $phase): array
     {
         $nextPhaseId = (int) data_get($phase->settings, 'next_phase_id', 0);
@@ -902,6 +947,9 @@ class FiveQuillasCompetitionService
         })->all();
     }
 
+    /**
+     * Compara dos clasificados por posición, diferencia de sets y promedio de la fase anterior.
+     */
     private function compareQualifiedPhasePerformance(
         $matches,
         int $leftEntryId,
@@ -924,6 +972,9 @@ class FiveQuillasCompetitionService
         return $leftEntryId <=> $rightEntryId;
     }
 
+    /**
+     * Proyecta los enfrentamientos de primera ronda a partir de las posiciones de la llave.
+     */
     public function bracketMatchupRows(FiveQuillasPhase $phase): array
     {
         $participants = collect($this->bracketParticipantRows($phase));
@@ -954,6 +1005,9 @@ class FiveQuillasCompetitionService
         })->all();
     }
 
+    /**
+     * Valida y persiste correcciones de participantes sin alterar los números de posición.
+     */
     public function saveBracketParticipantOrder(FiveQuillasPhase $phase, array $rows): void
     {
         $expected = collect($this->bracketParticipantRows($phase))->keyBy('entry_id');
@@ -1001,6 +1055,9 @@ class FiveQuillasCompetitionService
         ])]);
     }
 
+    /**
+     * Persiste los números de sorteo y evita duplicados dentro de la fase.
+     */
     public function saveDrawNumbers(FiveQuillasPhase $phase, array $rows): void
     {
         $size = (int) data_get($phase->settings, 'bracket_size', 16);
@@ -1021,6 +1078,9 @@ class FiveQuillasCompetitionService
         }
     }
 
+    /**
+     * Asocia a una entrada la regla de puntuación elegida por la organización.
+     */
     public function assignSelectedScoringRule(FiveQuillasEntry $entry, string $ruleKey): void
     {
         $entry->loadMissing(['competition.tournament.type', 'registration']);
@@ -1039,6 +1099,9 @@ class FiveQuillasCompetitionService
         throw ValidationException::withMessages(['scoring_rule' => 'Seleccioná una puntuación válida.']);
     }
 
+    /**
+     * Calcula los puntos propuestos para una posición final sin escribir datos.
+     */
     public function proposedPointsForPlacement(Tournament $tournament, int $place): ?float
     {
         $rule = $this->ruleForPlacement(
@@ -1049,6 +1112,9 @@ class FiveQuillasCompetitionService
         return $rule && array_key_exists('points', $rule) ? (float) $rule['points'] : null;
     }
 
+    /**
+     * Calcula los puntos propuestos para una entrada considerando instancia y regla asignada.
+     */
     public function proposedPointsForEntry(Tournament $tournament, FiveQuillasCompetition $competition, FiveQuillasEntry $entry): ?float
     {
         $rule = $this->ruleForEntryPlacement(
@@ -1060,6 +1126,9 @@ class FiveQuillasCompetitionService
         return $rule && array_key_exists('points', $rule) ? (float) $rule['points'] : null;
     }
 
+    /**
+     * Confirma las puntuaciones finales de forma idempotente y devuelve un resumen de la operación.
+     */
     public function commitFinalScoring(FiveQuillasCompetition $competition): array
     {
         $competition->loadMissing('tournament.type');
@@ -1139,6 +1208,9 @@ class FiveQuillasCompetitionService
         return $summary;
     }
 
+    /**
+     * Construye automáticamente los cruces por horario desde los clasificados disponibles.
+     */
     private function createSlotElimination(FiveQuillasPhase $phase, ?FiveQuillasPhase $previous): int
     {
         if (! $previous || $previous->phase_type !== 'zones') {
@@ -1194,6 +1266,9 @@ class FiveQuillasCompetitionService
         return $availableMatches;
     }
 
+    /**
+     * Devuelve primeros y segundos clasificados disponibles para cruces del mismo horario.
+     */
     public function slotEliminationCandidates(FiveQuillasPhase $phase)
     {
         $previous = $this->previousPhase($phase);
@@ -1207,11 +1282,17 @@ class FiveQuillasCompetitionService
             ->values();
     }
 
+    /**
+     * Resuelve la fase anterior explícita o, como respaldo, la fase habilitada precedente.
+     */
     public function previousPhaseFor(FiveQuillasPhase $phase): ?FiveQuillasPhase
     {
         return $this->previousPhase($phase);
     }
 
+    /**
+     * Agrega o actualiza cruces manuales sin borrar partidos ya iniciados o finalizados.
+     */
     public function createManualSlotElimination(FiveQuillasPhase $phase, array $crossings): int
     {
         return DB::transaction(function () use ($phase, $crossings): int {
@@ -1327,6 +1408,9 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /**
+     * Conserva en el resultado los metadatos que identifican el cruce configurado.
+     */
     private function scoresWithCrossingMetadata(FiveQuillasMatch $match, array $scores): array
     {
         $crossing = data_get($match->set_scores, 'slot_crossing');
@@ -1336,6 +1420,9 @@ class FiveQuillasCompetitionService
             : $scores;
     }
 
+    /**
+     * Obtiene la menor potencia de dos capaz de contener la cantidad indicada.
+     */
     private function nextPowerOfTwo(int $value): int
     {
         $size = 2;
@@ -1346,6 +1433,9 @@ class FiveQuillasCompetitionService
         return $size;
     }
 
+    /**
+     * Determina la fase de ingreso por categoría y horario guardados en la inscripción.
+     */
     private function entryPhaseForRegistration($phases, ?Player $player, ?string $slotName): ?FiveQuillasPhase
     {
         $categoryIds = $phases->flatMap(fn ($phase) => data_get($phase->settings, 'entry_category_ids', []))
@@ -1387,6 +1477,9 @@ class FiveQuillasCompetitionService
             ->map(fn ($id): int => (int) $id)->contains((int) $player?->category_id));
     }
 
+    /**
+     * Construye una fase de reclasificación previa a la llave principal.
+     */
     private function createPlayIn(FiveQuillasPhase $phase, $source): int
     {
         $ordered = $source->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->values();
@@ -1414,6 +1507,9 @@ class FiveQuillasCompetitionService
         return $excess;
     }
 
+    /**
+     * Ordena las entradas por el método configurado y aplica overrides persistidos.
+     */
     private function seedBracketEntries(FiveQuillasPhase $phase, $source): array
     {
         $size = (int) data_get($phase->settings, 'bracket_size', 16);
@@ -1469,6 +1565,9 @@ class FiveQuillasCompetitionService
         return $seeds;
     }
 
+    /**
+     * Crea todas las rondas y conexiones de una llave de eliminación directa.
+     */
     private function createEliminationBracket(FiveQuillasPhase $phase, array $seeds, bool $finalizeByes = true): int
     {
         $size = (int) data_get($phase->settings, 'bracket_size', 16);
@@ -1527,6 +1626,9 @@ class FiveQuillasCompetitionService
         return $phase->matches()->count();
     }
 
+    /**
+     * Completa una llave ya creada a medida que llegan clasificados de fases simultáneas.
+     */
     private function syncProgressiveBracket(FiveQuillasPhase $phase, array $seeds, bool $finalizeByes): int
     {
         $pairs = collect(data_get($phase->settings, 'bracket_pairs', []))->values();
@@ -1551,6 +1653,9 @@ class FiveQuillasCompetitionService
         return $phase->matches()->count();
     }
 
+    /**
+     * Obtiene las entradas clasificadas de una fase de eliminación.
+     */
     private function qualifiedEntriesFromPhase(FiveQuillasPhase $phase)
     {
         if ($phase->phase_type === 'zones') {
@@ -1581,6 +1686,9 @@ class FiveQuillasCompetitionService
         return $phase->competition->entries()->whereIn('id', $stored->merge($byes)->merge($winners)->unique())->get();
     }
 
+    /**
+     * Calcula clasificados de zonas con sus métricas y desempates.
+     */
     private function qualifiedZoneRows(FiveQuillasPhase $phase)
     {
         return $phase->groups()->with('groupEntries.entry')->get()->flatMap(function ($group) {
@@ -1612,6 +1720,9 @@ class FiveQuillasCompetitionService
         })->filter(fn ($row): bool => (bool) $row->entry)->values();
     }
 
+    /**
+     * Valida los sets, calcula ganador y estadísticas, y propaga el resultado.
+     */
     public function recordMatchResult(FiveQuillasMatch $match, array $scores): FiveQuillasMatch
     {
         return DB::transaction(function () use ($match, $scores): FiveQuillasMatch {
@@ -1738,6 +1849,9 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /**
+     * Proclama un ganador y genera los sets computados completos definidos para la fase.
+     */
     public function declareMatchWinner(FiveQuillasMatch $match, int $winnerEntryId): FiveQuillasMatch
     {
         return DB::transaction(function () use ($match, $winnerEntryId): FiveQuillasMatch {
@@ -1786,6 +1900,9 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /**
+     * Corrige participantes de un partido no iniciado y revierte propagaciones dependientes.
+     */
     public function correctMatchParticipants(FiveQuillasMatch $match, ?int $playerOneId, ?int $playerTwoId): FiveQuillasMatch
     {
         return DB::transaction(function () use ($match, $playerOneId, $playerTwoId): FiveQuillasMatch {
@@ -1881,6 +1998,9 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /**
+     * Devuelve la etiqueta de la última instancia alcanzada por una entrada.
+     */
     public function finalInstanceForEntry(FiveQuillasCompetition $competition, FiveQuillasEntry $entry): string
     {
         $lastMatch = $competition->phases->where('phase_type', '!=', 'zones')->flatMap->matches
@@ -1906,6 +2026,9 @@ class FiveQuillasCompetitionService
         return $zoneRow ? 'Zonas · '.$zoneRow->final_place.'.º puesto' : 'Sin instancia';
     }
 
+    /**
+     * Elimina resultado, ganador, estadísticas y avances originados por el partido.
+     */
     public function resetMatchResult(FiveQuillasMatch $match): FiveQuillasMatch
     {
         return DB::transaction(function () use ($match): FiveQuillasMatch {
@@ -1974,6 +2097,9 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /**
+     * Completa una fase sólo cuando todos sus horarios y partidos requeridos están resueltos.
+     */
     private function completePhaseWhenReady(int $phaseId): void
     {
         $phase = FiveQuillasPhase::query()->with('competition.tournament.type')->findOrFail($phaseId);
@@ -2016,6 +2142,9 @@ class FiveQuillasCompetitionService
         }
     }
 
+    /**
+     * Reabre fases marcadas completas si aún faltan horarios o cruces simultáneos.
+     */
     public function reopenIncompleteConcurrentPhases(FiveQuillasCompetition $competition): void
     {
         $competition->phases()->where('phase_type', 'zones')
@@ -2051,6 +2180,9 @@ class FiveQuillasCompetitionService
             });
     }
 
+    /**
+     * Comprueba que todos los participantes esperados estén asignados a zonas.
+     */
     private function zonesHaveEveryScheduledPlayer(FiveQuillasPhase $phase): bool
     {
         $expectedEntryIds = $phase->competition->entries()
@@ -2073,6 +2205,9 @@ class FiveQuillasCompetitionService
         return $expectedEntryIds->diff($assignedEntryIds)->isEmpty();
     }
 
+    /**
+     * Comprueba que cada horario tenga todos sus cruces configurados.
+     */
     private function slotEliminationHasEveryCrossing(FiveQuillasPhase $phase): bool
     {
         if ($phase->matches()->doesntExist()
@@ -2106,6 +2241,9 @@ class FiveQuillasCompetitionService
             && $groupIds->diff($secondGroupIds)->isEmpty();
     }
 
+    /**
+     * Reconstruye posiciones finales desde el recorrido y rendimiento de cada participante.
+     */
     public function recalculateFinalStandings(FiveQuillasCompetition $competition): void
     {
         DB::transaction(function () use ($competition): void {
@@ -2126,6 +2264,9 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /**
+     * Garantiza que las posiciones persistidas formen un orden completo y coherente.
+     */
     public function ensureFinalStandingsOrder(FiveQuillasCompetition $competition): void
     {
         if ((int) data_get($competition->settings, 'standings_order_version', 0) >= 4) {
@@ -2139,6 +2280,9 @@ class FiveQuillasCompetitionService
         ]);
     }
 
+    /**
+     * Normaliza partidos contra LIBRE con los sets y puntos computados de la fase.
+     */
     private function normalizeByeScores(FiveQuillasCompetition $competition): void
     {
         $groupIds = collect();
@@ -2173,6 +2317,9 @@ class FiveQuillasCompetitionService
         $groupIds->unique()->each(fn (int $groupId) => $this->recalculateGroupStatistics($groupId));
     }
 
+    /**
+     * Resume partidos, sets, puntos y promedio usados para ordenar una entrada.
+     */
     public function finalStandingPerformance(FiveQuillasCompetition $competition, int $entryId): array
     {
         $phase = $competition->phases()
@@ -2203,6 +2350,9 @@ class FiveQuillasCompetitionService
         ];
     }
 
+    /**
+     * Asigna puntuación asociada a puestos finales de la fase.
+     */
     private function assignFinalPoints(FiveQuillasPhase $phase): void
     {
         if ($phase->phase_type !== 'bracket') {
@@ -2249,6 +2399,9 @@ class FiveQuillasCompetitionService
         }
     }
 
+    /**
+     * Asigna puntuación según la ronda en que cada entrada fue eliminada.
+     */
     private function assignPhaseEliminationPoints(FiveQuillasPhase $phase): void
     {
         $qualified = $this->qualifiedEntriesFromPhase($phase)->pluck('id')->map(fn ($id): int => (int) $id);
@@ -2313,6 +2466,9 @@ class FiveQuillasCompetitionService
         }
     }
 
+    /**
+     * Obtiene la última ronda disputada por una entrada.
+     */
     private function lastRoundPlayed($matches, int $entryId): int
     {
         return (int) $matches
@@ -2323,6 +2479,9 @@ class FiveQuillasCompetitionService
             ->max('round_number');
     }
 
+    /**
+     * Acumula indicadores deportivos de una entrada sobre una colección de partidos.
+     */
     private function entryPerformance($matches, int $entryId): array
     {
         $wins = 0; $setsFor = 0; $setsAgainst = 0; $pointsFor = 0; $pointsAgainst = 0;
@@ -2344,6 +2503,9 @@ class FiveQuillasCompetitionService
         ];
     }
 
+    /**
+     * Ordena participantes con la posición y rendimiento guardados en la fase anterior.
+     */
     private function orderByPreviousPhaseResult(FiveQuillasPhase $phase, $source)
     {
         $previous = $this->previousPhase($phase);
@@ -2369,6 +2531,9 @@ class FiveQuillasCompetitionService
         })->values();
     }
 
+    /**
+     * Convierte tamaño de llave y ronda en una etiqueta de instancia legible.
+     */
     private function eliminationRoundLabel(int $bracketSize, int $round): string
     {
         $players = max(2, intdiv($bracketSize, 2 ** ($round - 1)));
@@ -2383,6 +2548,9 @@ class FiveQuillasCompetitionService
         };
     }
 
+    /**
+     * Obtiene el identificador del perdedor de un partido completado.
+     */
     private function loserEntryId(FiveQuillasMatch $match): ?int
     {
         if (! $match->winner_entry_id) { return null; }
@@ -2390,6 +2558,9 @@ class FiveQuillasCompetitionService
         return $ids->first(fn (int $id): bool => $id !== (int) $match->winner_entry_id);
     }
 
+    /**
+     * Selecciona la regla aplicable a una posición final.
+     */
     private function ruleForPlacement(array $rules, int $place): ?array
     {
         foreach ($rules as $rule) {
@@ -2406,6 +2577,9 @@ class FiveQuillasCompetitionService
         return null;
     }
 
+    /**
+     * Selecciona la regla aplicable según posición e instancia de la entrada.
+     */
     private function ruleForEntryPlacement(array $rules, FiveQuillasCompetition $competition, FiveQuillasEntry $entry): ?array
     {
         $instance = Str::lower(Str::ascii($this->finalInstanceForEntry($competition, $entry)));
@@ -2429,6 +2603,9 @@ class FiveQuillasCompetitionService
         return $this->ruleForPlacement($rules, (int) $entry->final_position);
     }
 
+    /**
+     * Coloca al ganador en el casillero conectado de la ronda siguiente.
+     */
     private function advanceEntry(?int $matchId, ?int $position, int $entryId): void
     {
         if (! $matchId || ! in_array($position, [1, 2], true)) {
@@ -2439,6 +2616,9 @@ class FiveQuillasCompetitionService
         ]);
     }
 
+    /**
+     * Retira una propagación anterior cuando cambia el partido de origen.
+     */
     private function removeAdvancedEntry(?int $matchId, ?int $position, ?int $entryId): void
     {
         if (! $matchId || ! $entryId || ! in_array($position, [1, 2], true)) {
@@ -2453,6 +2633,9 @@ class FiveQuillasCompetitionService
         ]);
     }
 
+    /**
+     * Revierte avances automáticos encadenados originados por lugares LIBRE.
+     */
     private function resetAutomaticByeChain(int $matchId): void
     {
         $match = FiveQuillasMatch::query()->find($matchId);
@@ -2496,6 +2679,9 @@ class FiveQuillasCompetitionService
         ]);
     }
 
+    /**
+     * Proclama avances automáticos de partidos que tienen un único participante real.
+     */
     private function resolveReadyByes($matchIds): void
     {
         $ids = collect($matchIds)->map(fn ($id): int => (int) $id)->unique()->values();
@@ -2525,6 +2711,9 @@ class FiveQuillasCompetitionService
         } while ($resolved > 0);
     }
 
+    /**
+     * Recalcula desde cero la tabla de una zona a partir de sus partidos.
+     */
     private function recalculateGroupStatistics(int $groupId): void
     {
         $group = FiveQuillasGroup::query()->with(['groupEntries', 'matches'])->findOrFail($groupId);
@@ -2605,6 +2794,9 @@ class FiveQuillasCompetitionService
         }
     }
 
+    /**
+     * Actualiza nombres pendientes de cruces al conocerse los clasificados de zona.
+     */
     private function refreshConfiguredSlotCrossings(FiveQuillasGroup $group): void
     {
         $phases = $group->phase->competition->phases()->where('phase_type', 'slot_elimination')
@@ -2635,6 +2827,9 @@ class FiveQuillasCompetitionService
         }
     }
 
+    /**
+     * Genera un código de fase estable y no repetido dentro de la competencia.
+     */
     private function uniquePhaseCode(FiveQuillasCompetition $competition, string $name, $usedCodes): string
     {
         $base = Str::slug($name) ?: 'fase';
@@ -2646,6 +2841,9 @@ class FiveQuillasCompetitionService
         return $code;
     }
 
+    /**
+     * Crea partidos de zona y definiciones de puestos para sus integrantes.
+     */
     private function createZoneBracket(FiveQuillasPhase $phase, FiveQuillasGroup $group, $entries): void
     {
         $public = $group->is_public;
@@ -2686,6 +2884,9 @@ class FiveQuillasCompetitionService
         $this->resolveBye($matchTwo);
     }
 
+    /**
+     * Completa un partido contra LIBRE y propaga al único participante.
+     */
     private function resolveBye($match): void
     {
         $players = collect([$match->player_one_entry_id, $match->player_two_entry_id])->filter();
@@ -2723,6 +2924,9 @@ class FiveQuillasCompetitionService
         $match->nextMatch()->update([$field => $winnerId]);
     }
 
+    /**
+     * Construye la definición de fases correspondiente al formato inicial elegido.
+     */
     private function phaseTemplate(Tournament $tournament, string $format = 'zones_final'): array
     {
         if ($format === 'circuit_argentino') {
@@ -2783,6 +2987,9 @@ class FiveQuillasCompetitionService
         ];
     }
 
+    /**
+     * Genera el orden oficial de emparejamientos por semillas para una potencia de dos.
+     */
     private function officialBracketPairs(int $size): array
     {
         return match ($size) {
@@ -2803,6 +3010,9 @@ class FiveQuillasCompetitionService
         };
     }
 
+    /**
+     * Obtiene la fase inmediatamente anterior por orden.
+     */
     private function previousPhase(FiveQuillasPhase $phase): ?FiveQuillasPhase
     {
         $configuredId = (int) data_get($phase->settings, 'previous_phase_id', 0);
@@ -2817,6 +3027,9 @@ class FiveQuillasCompetitionService
             ->where('sort_order', '<', $phase->sort_order)->orderByDesc('sort_order')->first();
     }
 
+    /**
+     * Genera pares de posiciones cuyo total es el tamaño de llave más uno.
+     */
     private function generatedBracketPairs(int $size): array
     {
         $order = [1, 2];
@@ -2833,6 +3046,9 @@ class FiveQuillasCompetitionService
         return collect($order)->chunk(2)->map(fn ($pair): array => $pair->values()->all())->all();
     }
 
+    /**
+     * Normaliza los atributos necesarios para crear una fase de plantilla.
+     */
     private function phase(string $code, string $name, string $type, int $order, int $sets, string $seeding, bool $split, array $settings = []): array
     {
         if ($type !== 'zones' && ! array_key_exists('schedules', $settings)) {
@@ -2855,6 +3071,9 @@ class FiveQuillasCompetitionService
         ];
     }
 
+    /**
+     * Genera un slug público único para la competencia.
+     */
     private function uniqueSlug(Tournament $tournament): string
     {
         $base = Str::slug($tournament->name).'-'.$tournament->id;

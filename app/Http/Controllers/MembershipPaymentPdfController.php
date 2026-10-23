@@ -7,8 +7,14 @@ use App\Models\Payment;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Descarga el comprobante correspondiente a un pago de afiliación.
+ */
 class MembershipPaymentPdfController extends Controller
 {
+    /**
+     * Atiende la solicitud después de resolver autorización y datos publicados.
+     */
     public function __invoke(Payment $payment): Response
     {
         $payment->load(['membership.player.club', 'membership.membership.discipline', 'payer', 'recorder']);

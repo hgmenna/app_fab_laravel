@@ -7,8 +7,14 @@ use App\Services\ThreeCushionRankingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+/**
+ * Publica el ranking de tres bandas en formato JSON.
+ */
 class ThreeCushionRankingController extends Controller
 {
+    /**
+     * Atiende la solicitud después de resolver autorización y datos publicados.
+     */
     public function __invoke(Request $request, ThreeCushionRankingService $service): JsonResponse
     {
         $season = max(2000, (int) $request->integer('year', now()->year));

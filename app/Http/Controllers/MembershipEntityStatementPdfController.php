@@ -12,8 +12,14 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Genera el estado de afiliaciones a cargo de una institución.
+ */
 class MembershipEntityStatementPdfController extends Controller
 {
+    /**
+     * Atiende la solicitud después de resolver autorización y datos publicados.
+     */
     public function __invoke(Request $request): Response
     {
         $data = $request->validate([

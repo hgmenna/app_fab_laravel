@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Etapa configurable de la competencia con su método de ingreso, reglas de juego y horarios.
+ */
 class FiveQuillasPhase extends Model
 {
     protected $fillable = ['competition_id', 'code', 'name', 'phase_type', 'sort_order', 'sets_to_play', 'points_per_set', 'seeding_method', 'split_by_slot', 'is_enabled', 'status', 'is_public', 'settings'];

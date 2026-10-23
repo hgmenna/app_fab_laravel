@@ -16,8 +16,14 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
+/**
+ * Administra el ciclo anual de afiliaciones, sus deudas, renovaciones y vencimientos.
+ */
 class AnnualMembershipService
 {
+    /**
+     * Crea o actualiza la definición anual de una membresía.
+     */
     public function configure(int $year, int $disciplineId, float $amount, string $dueDate): Membership
     {
         return DB::transaction(function () use ($year, $disciplineId, $amount, $dueDate): Membership {
@@ -35,6 +41,9 @@ class AnnualMembershipService
         });
     }
 
+    /**
+     * Renueva membresías de jugadores y registra las obligaciones resultantes.
+     */
     public function renew(
         Membership $membership,
         Collection $players,
@@ -59,6 +68,9 @@ class AnnualMembershipService
         return $order->items->map(fn ($item) => $item->payable()->first())->filter()->values();
     }
 
+    /**
+     * Crea la deuda de una institución responsable para el período.
+     */
     public function createInstitutionalDebt(
         Membership $membership,
         Collection $players,
@@ -95,6 +107,9 @@ class AnnualMembershipService
         });
     }
 
+    /**
+     * Registra una renovación manual con su fuente y responsable.
+     */
     public function renewManually(
         Membership $membership,
         Collection $players,
@@ -186,6 +201,9 @@ class AnnualMembershipService
         return $renewals;
     }
 
+    /**
+     * Notifica la confirmación de las renovaciones procesadas.
+     */
     public function sendConfirmation(Membership $membership, Collection $renewals, ?User $recipient = null): void
     {
         $user = $recipient ?? Auth::user();
@@ -211,6 +229,9 @@ class AnnualMembershipService
         }
     }
 
+    /**
+     * Marca como vencidas las obligaciones que superaron su fecha límite.
+     */
     public function expireOverdue(): int
     {
         $expiredPlayers = 0;

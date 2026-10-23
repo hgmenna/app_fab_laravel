@@ -4,8 +4,14 @@ namespace App\Services;
 
 use App\Models\TournamentRegistration;
 
+/**
+ * Aplica puntuaciones de torneo a inscripciones y rankings sin duplicar asignaciones.
+ */
 class PointsAssignmentService
 {
+    /**
+     * Inyecta las dependencias necesarias sin ejecutar operaciones de dominio.
+     */
     public function __construct(
         private readonly TournamentScoringService $scoringService
     ) {}

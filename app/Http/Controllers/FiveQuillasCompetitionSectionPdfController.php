@@ -8,8 +8,14 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Genera el PDF de una sección de resultados con encabezado y pie institucional.
+ */
 class FiveQuillasCompetitionSectionPdfController extends Controller
 {
+    /**
+     * Atiende la solicitud después de resolver autorización y datos publicados.
+     */
     public function __invoke(string $slug, string $section): Response
     {
         $competition = FiveQuillasCompetition::query()

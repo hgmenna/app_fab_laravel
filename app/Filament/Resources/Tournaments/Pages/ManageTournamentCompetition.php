@@ -28,6 +28,9 @@ use Filament\Resources\Pages\Page;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * Página operativa para organizar una competencia de cinco quillas y ejecutar sus acciones autorizadas.
+ */
 class ManageTournamentCompetition extends Page
 {
     use InteractsWithRecord;
@@ -36,6 +39,9 @@ class ManageTournamentCompetition extends Page
     protected string $view = 'filament.resources.tournaments.pages.manage-tournament-competition';
     protected static ?string $navigationLabel = 'Competencia';
 
+    /**
+     * Carga el torneo solicitado, inicializa su competencia y verifica autorización.
+     */
     public function mount(int|string $record): void
     {
         $this->record = $this->resolveRecord($record);
@@ -47,11 +53,17 @@ class ManageTournamentCompetition extends Page
         abort_unless($this->record->discipline?->code === 'five_quillas', 404);
     }
 
+    /**
+     * Compone el título visible de la página de organización.
+     */
     public function getTitle(): string
     {
         return 'Organización · '.$this->record->name;
     }
 
+    /**
+     * Define las acciones generales disponibles sobre el torneo.
+     */
     protected function getHeaderActions(): array
     {
         return [
@@ -368,6 +380,9 @@ class ManageTournamentCompetition extends Page
         ];
     }
 
+    /**
+     * Obtiene la competencia asociada al registro actual.
+     */
     public function competition(): ?FiveQuillasCompetition
     {
         return FiveQuillasCompetition::query()
@@ -376,6 +391,9 @@ class ManageTournamentCompetition extends Page
             ->first();
     }
 
+    /**
+     * Calcula la potencia de dos inmediata para una cantidad de participantes.
+     */
     private function nextBracketSize(int $players): int
     {
         $size = 2;
@@ -386,6 +404,9 @@ class ManageTournamentCompetition extends Page
         return $size;
     }
 
+    /**
+     * Devuelve las entradas seleccionables de un horario excluyendo las ya usadas.
+     */
     public function entryOptionsForSlot(int $slotId, array $excludedEntryIds = []): array
     {
         $competition = $this->competition();
@@ -432,6 +453,9 @@ class ManageTournamentCompetition extends Page
             ])->all();
     }
 
+    /**
+     * Construye las opciones de jugadores para todos los campos de zonas.
+     */
     public function zoneEntryOptions(): array
     {
         $competition = $this->competition();
@@ -471,6 +495,9 @@ class ManageTournamentCompetition extends Page
             ])->all();
     }
 
+    /**
+     * Reúne las entradas elegidas en campos hermanos del mismo formulario.
+     */
     private function selectedZoneEntryIds(Select $component, int $currentEntryId = 0): array
     {
         $repeater = $component->getParentRepeater();
@@ -484,6 +511,9 @@ class ManageTournamentCompetition extends Page
             ->unique()->values()->all();
     }
 
+    /**
+     * Reconstruye las filas editables y bloqueadas de zonas para un horario.
+     */
     public function zoneRowsForSlot(int $slotId): array
     {
         $emptyZone = [
@@ -547,6 +577,9 @@ class ManageTournamentCompetition extends Page
         return $rows ?: [$emptyZone];
     }
 
+    /**
+     * Configura el modal que crea o corrige zonas antes de que comiencen.
+     */
     public function createZonesAction(): Action
     {
         return Action::make('createZones')
@@ -652,6 +685,9 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    /**
+     * Configura la revisión de participantes y preparación de una fase.
+     */
     public function preparePhaseAction(): Action
     {
         return Action::make('preparePhase')
@@ -770,6 +806,9 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    /**
+     * Configura manualmente cruces entre clasificados de zonas por horario.
+     */
     public function configureSlotCrossingsAction(): Action
     {
         return Action::make('configureSlotCrossings')
@@ -889,6 +928,9 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    /**
+     * Lista clasificados de un puesto y horario ordenados por número de zona.
+     */
     public function slotZonePositionOptions(int $phaseId, int $slotId, int $place, array $excludedGroups = []): array
     {
         if ($phaseId < 1 || $slotId < 1) { return []; }
@@ -911,6 +953,9 @@ class ManageTournamentCompetition extends Page
             })->all();
     }
 
+    /**
+     * Filtra opciones usadas por otros cruces sin ocultar la selección actual.
+     */
     private function availableSlotCrossingOptions(array $options, Select $component, string $field): array
     {
         $currentGroupId = (int) ($component->getState() ?? 0);
@@ -926,6 +971,9 @@ class ManageTournamentCompetition extends Page
             ->all();
     }
 
+    /**
+     * Configura la asignación de horarios y mesas de una fase.
+     */
     public function schedulePhaseAction(): Action
     {
         return Action::make('schedulePhase')
@@ -955,6 +1003,9 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    /**
+     * Permite corregir la regla o puntuación propuesta de una entrada final.
+     */
     public function editFinalScoreAction(): Action
     {
         return Action::make('editFinalScore')
@@ -978,6 +1029,9 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    /**
+     * Confirma la acreditación final de puntos sin duplicar registros.
+     */
     public function saveFinalScoringAction(): Action
     {
         return Action::make('saveFinalScoring')
@@ -1004,6 +1058,9 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    /**
+     * Obtiene la puntuación calculada para mostrarla antes de confirmar.
+     */
     public function proposedFinalPoints(FiveQuillasEntry $entry): ?float
     {
         $competition = $this->competition();
@@ -1013,6 +1070,9 @@ class ManageTournamentCompetition extends Page
             : null;
     }
 
+    /**
+     * Lista reglas de puntuación elegibles para el tipo de torneo.
+     */
     private function scoringRuleOptions(): array
     {
         $tournament = $this->record->loadMissing('type');
@@ -1026,6 +1086,9 @@ class ManageTournamentCompetition extends Page
             })->all();
     }
 
+    /**
+     * Devuelve la instancia final persistida de una entrada.
+     */
     public function finalInstanceLabel(FiveQuillasEntry $entry): string
     {
         $competition = $this->competition();
@@ -1035,6 +1098,9 @@ class ManageTournamentCompetition extends Page
             : 'Sin instancia';
     }
 
+    /**
+     * Obtiene los indicadores que justifican la posición final.
+     */
     public function finalPerformance(FiveQuillasEntry $entry): array
     {
         $performance = app(FiveQuillasCompetitionService::class)
@@ -1046,6 +1112,9 @@ class ManageTournamentCompetition extends Page
         ];
     }
 
+    /**
+     * Configura el formulario de sets y proclamación de ganador.
+     */
     public function recordResultAction(): Action
     {
         return Action::make('recordResult')
@@ -1204,6 +1273,9 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    /**
+     * Permite revertir un resultado y sus propagaciones derivadas.
+     */
     public function resetResultAction(): Action
     {
         return Action::make('resetResult')
@@ -1244,6 +1316,9 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    /**
+     * Corrige nombres de la primera ronda conservando números de posición.
+     */
     public function correctMatchParticipantsAction(): Action
     {
         return Action::make('correctMatchParticipants')
@@ -1297,6 +1372,9 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    /**
+     * Construye una etiqueta breve con los jugadores de un partido.
+     */
     private function matchPlayersLabel(int $matchId): string
     {
         $match = $this->competitionMatch($matchId);
@@ -1306,6 +1384,9 @@ class ManageTournamentCompetition extends Page
             .($match?->playerTwo?->player?->full_name ?? 'A definir');
     }
 
+    /**
+     * Busca un partido y verifica que pertenezca a la competencia abierta.
+     */
     private function competitionMatch(int $matchId): ?FiveQuillasMatch
     {
         if ($matchId < 1 || ! $this->competition()) {
@@ -1318,6 +1399,9 @@ class ManageTournamentCompetition extends Page
             ->find($matchId);
     }
 
+    /**
+     * Marca un partido como llamado para su disputa.
+     */
     public function callMatchAction(): Action
     {
         return Action::make('callMatch')
@@ -1344,6 +1428,9 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    /**
+     * Prepara fases, horarios, tablas, clasificados y estados para la vista.
+     */
     protected function getViewData(): array
     {
         $competition = $this->competition();

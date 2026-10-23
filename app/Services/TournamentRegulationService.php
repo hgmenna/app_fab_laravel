@@ -9,8 +9,14 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
+/**
+ * Evalúa restricciones reglamentarias de fechas, distancia, categorías y sedes.
+ */
 class TournamentRegulationService
 {
+    /**
+     * Lista torneos cercanos que deben intervenir en la validación reglamentaria.
+     */
     public function distanceVerificationTournaments(Tournament $candidate): Collection
     {
         $candidate->loadMissing(['type', 'venue.city.state.country', 'externalVenueState.country']);
@@ -65,6 +71,9 @@ class TournamentRegulationService
             ->values();
     }
 
+    /**
+     * Evalúa el torneo candidato y devuelve conflictos y evidencias.
+     */
     public function evaluate(Tournament $candidate): TournamentRegulationEvaluation
     {
         $candidate->loadMissing(['type', 'venue.city.state.country', 'externalVenueState.country', 'discipline']);
@@ -196,6 +205,9 @@ class TournamentRegulationService
         ]);
     }
 
+    /**
+     * Detecta conflictos de cupo por club y categoría.
+     */
     private function clubCategoryQuotaConflicts(
         Tournament $candidate,
         ?TournamentRegulationSetting $setting,
@@ -332,6 +344,9 @@ class TournamentRegulationService
         ];
     }
 
+    /**
+     * Construye el enlace de verificación de ruta entre sedes de dos torneos.
+     */
     public function googleMapsUrl(Tournament $candidate, Tournament $existing): string
     {
         return 'https://www.google.com/maps/dir/?'.http_build_query([
@@ -342,6 +357,9 @@ class TournamentRegulationService
         ], '', '&', PHP_QUERY_RFC3986);
     }
 
+    /**
+     * Construye el enlace de ruta entre dos clubes.
+     */
     public function googleMapsUrlForClubs($origin, $destination): string
     {
         return 'https://www.google.com/maps/dir/?'.http_build_query([
@@ -352,6 +370,9 @@ class TournamentRegulationService
         ], '', '&', PHP_QUERY_RFC3986);
     }
 
+    /**
+     * Recupera distancia y evidencia cargadas manualmente para un par de torneos.
+     */
     private function manualRouteData(Tournament $candidate, Tournament $existing): array
     {
         $check = collect($candidate->manual_route_checks ?? [])->first(
@@ -377,6 +398,9 @@ class TournamentRegulationService
         ];
     }
 
+    /**
+     * Compone una dirección utilizable a partir de los datos disponibles del club.
+     */
     public function fullAddress($club): string
     {
         $club?->loadMissing('city.state.country');
@@ -389,6 +413,9 @@ class TournamentRegulationService
         ]));
     }
 
+    /**
+     * Indica si el club dispone de datos suficientes para una ruta automática.
+     */
     private function hasCompleteAddress($club): bool
     {
         $club?->loadMissing('city.state');
@@ -398,6 +425,9 @@ class TournamentRegulationService
             && trim((string) $club?->city?->state?->name) !== '';
     }
 
+    /**
+     * Determina si una configuración reglamentaria estaba vigente en una fecha.
+     */
     private function settingApplies(TournamentRegulationSetting $setting, ?CarbonInterface $date): bool
     {
         if (! $date) {
@@ -408,6 +438,9 @@ class TournamentRegulationService
             && (! $setting->effective_until || $date->lte($setting->effective_until));
     }
 
+    /**
+     * Obtiene las categorías comunes entre dos torneos.
+     */
     private function sharedCategoryIds(Tournament $first, Tournament $second): array
     {
         return collect($first->categories ?? [])->map(fn ($id): int => (int) $id)
@@ -415,6 +448,9 @@ class TournamentRegulationService
             ->unique()->values()->all();
     }
 
+    /**
+     * Normaliza la estructura de un conflicto reglamentario.
+     */
     private function conflict(
         string $rule,
         Tournament $existing,

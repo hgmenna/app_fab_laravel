@@ -12,8 +12,14 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
+/**
+ * Genera el documento PDF que conserva la evidencia de una evaluación reglamentaria.
+ */
 class TournamentRegulationAuditPdfService
 {
+    /**
+     * Genera y transmite el PDF de una auditoría con su evidencia conservada.
+     */
     public function download(TournamentRegulationAudit $audit): StreamedResponse
     {
         $audit->loadMissing(['tournament.discipline', 'tournament.type', 'tournament.venue', 'user']);
@@ -77,6 +83,9 @@ class TournamentRegulationAuditPdfService
         );
     }
 
+    /**
+     * Normaliza valores JSON o colecciones como arreglo para la plantilla.
+     */
     private function arrayValue(mixed $value): array
     {
         if (is_array($value)) {
