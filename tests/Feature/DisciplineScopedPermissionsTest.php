@@ -66,6 +66,7 @@ beforeEach(function () {
         $table->string('name');
         $table->string('venue_type')->default('unassigned');
         $table->foreignId('venue_id')->nullable();
+        $table->foreignId('organizer_club_id')->nullable();
         $table->timestamps();
     });
 
@@ -85,12 +86,14 @@ beforeEach(function () {
         ['id' => 2, 'name' => 'Update:Tournament', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()],
         ['id' => 3, 'name' => 'AssignTournamentScore', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()],
         ['id' => 4, 'name' => 'View:Tournament', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()],
+        ['id' => 5, 'name' => 'ManageTournamentCompetition', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()],
     ]);
     DB::table('role_has_permissions')->insert([
         ['permission_id' => 1, 'role_id' => 1],
         ['permission_id' => 2, 'role_id' => 1],
         ['permission_id' => 3, 'role_id' => 1],
         ['permission_id' => 4, 'role_id' => 1],
+        ['permission_id' => 5, 'role_id' => 1],
         ['permission_id' => 1, 'role_id' => 2],
     ]);
     DB::table('discipline_user_roles')->insert([
@@ -104,8 +107,8 @@ beforeEach(function () {
         ['id' => 2, 'discipline_id' => 2, 'name' => 'Carambola', 'created_at' => now(), 'updated_at' => now()],
         ['id' => 3, 'discipline_id' => 3, 'name' => '5 Quillas', 'created_at' => now(), 'updated_at' => now()],
         ['id' => 4, 'discipline_id' => 4, 'name' => 'Snooker', 'created_at' => now(), 'updated_at' => now()],
-        ['id' => 5, 'discipline_id' => 1, 'name' => 'Club propio', 'venue_type' => 'club', 'venue_id' => 10, 'created_at' => now(), 'updated_at' => now()],
-        ['id' => 6, 'discipline_id' => 1, 'name' => 'Otro club', 'venue_type' => 'club', 'venue_id' => 20, 'created_at' => now(), 'updated_at' => now()],
+        ['id' => 5, 'discipline_id' => 1, 'name' => 'Club propio', 'venue_type' => 'club', 'venue_id' => 10, 'organizer_club_id' => 10, 'created_at' => now(), 'updated_at' => now()],
+        ['id' => 6, 'discipline_id' => 1, 'name' => 'Otro club', 'venue_type' => 'club', 'venue_id' => 20, 'organizer_club_id' => 20, 'created_at' => now(), 'updated_at' => now()],
     ]);
 });
 
@@ -142,4 +145,14 @@ it('limits a club manager to tournaments from the assigned club', function () {
         ->and($user->canAccessTournament('AssignTournamentScore', Tournament::findOrFail(5)))->toBeTrue()
         ->and($user->canAccessTournament('AssignTournamentScore', Tournament::findOrFail(6)))->toBeFalse()
         ->and($policy->update($user, Tournament::findOrFail(1)))->toBeFalse();
+});
+
+it('requires the explicit competition permission in the tournament scope', function () {
+    $administrator = User::findOrFail(1);
+    $clubManager = User::findOrFail(2);
+
+    expect($administrator->canAccessTournament('ManageTournamentCompetition', Tournament::findOrFail(1)))->toBeTrue()
+        ->and($administrator->canAccessTournament('ManageTournamentCompetition', Tournament::findOrFail(3)))->toBeFalse()
+        ->and($clubManager->canAccessTournament('ManageTournamentCompetition', Tournament::findOrFail(5)))->toBeTrue()
+        ->and($clubManager->canAccessTournament('ManageTournamentCompetition', Tournament::findOrFail(6)))->toBeFalse();
 });

@@ -159,8 +159,21 @@ class TournamentRegistrationsTable
                         ->orderBy('name')
                         ->pluck('name', 'id')
                         ->all())
-                    ->query(function (Builder $query, $value): void {
+                    ->query(function (Builder $query, array $data) use ($tournament): void {
+                        $value = $data['value'] ?? null;
+
                         if (! $value) {
+                            return;
+                        }
+
+                        $discipline = $tournament?->discipline;
+
+                        if ($discipline?->affiliation_mode === 'direct') {
+                            $query->when(
+                                (int) $discipline->direct_federation_id !== (int) $value,
+                                fn (Builder $registrations): Builder => $registrations->whereRaw('1 = 0'),
+                            );
+
                             return;
                         }
 
@@ -184,7 +197,9 @@ class TournamentRegistrationsTable
                         ->orderBy('name')
                         ->pluck('name', 'id')
                         ->all())
-                    ->query(function (Builder $query, $value): void {
+                    ->query(function (Builder $query, array $data): void {
+                        $value = $data['value'] ?? null;
+
                         if (! $value) {
                             return;
                         }

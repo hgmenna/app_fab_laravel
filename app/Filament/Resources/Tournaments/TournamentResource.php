@@ -10,9 +10,11 @@ use App\Filament\Resources\Tournaments\Pages\ListTournaments;
 use App\Filament\Resources\Tournaments\Schemas\TournamentForm;
 use App\Filament\Resources\Tournaments\Tables\TournamentsTable;
 use App\Models\Tournament;
+use App\Models\User;
 use BackedEnum;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
+use Filament\Facades\Filament;
 use Filament\Pages\Enums\SubNavigationPosition;
 use Filament\Pages\Page;
 use Filament\Resources\Resource;
@@ -99,7 +101,15 @@ class TournamentResource extends Resource
             Pages\ManageTournamentRegistrations::class, // Aquí aparece el enlace a las inscripciones
         ];
 
-        if ($page->getRecord()->discipline?->code === 'five_quillas') {
+        $record = $page->getRecord();
+        $user = auth()->user();
+
+        if (
+            Filament::getCurrentPanel()?->getId() === 'admin'
+            && $record->discipline?->code === 'five_quillas'
+            && $user instanceof User
+            && $user->canAccessTournament('ManageTournamentCompetition', $record)
+        ) {
             $pages[] = Pages\ManageTournamentCompetition::class;
         }
 

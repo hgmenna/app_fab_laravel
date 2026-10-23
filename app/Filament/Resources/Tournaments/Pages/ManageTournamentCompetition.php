@@ -7,8 +7,10 @@ use App\Models\FiveQuillasCompetition;
 use App\Models\FiveQuillasMatch;
 use App\Models\FiveQuillasEntry;
 use App\Models\Category;
+use App\Models\User;
 use App\Services\FiveQuillasCompetitionService;
 use Filament\Actions\Action;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\CheckboxList;
@@ -27,6 +29,7 @@ use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Página operativa para organizar una competencia de cinco quillas y ejecutar sus acciones autorizadas.
@@ -44,6 +47,8 @@ class ManageTournamentCompetition extends Page
      */
     public function mount(int|string $record): void
     {
+        abort_unless(Filament::getCurrentPanel()?->getId() === 'admin', 403);
+
         $this->record = $this->resolveRecord($record);
         $this->record->loadMissing([
             'discipline', 'type.publicationFederation', 'slots',
@@ -51,6 +56,13 @@ class ManageTournamentCompetition extends Page
             'tournamentModalities.modality',
         ]);
         abort_unless($this->record->discipline?->code === 'five_quillas', 404);
+
+        $user = Auth::user();
+        abort_unless(
+            $user instanceof User
+            && $user->canAccessTournament('ManageTournamentCompetition', $this->record),
+            403,
+        );
     }
 
     /**
