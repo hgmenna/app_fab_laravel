@@ -137,8 +137,17 @@ class FiveQuillasCompetitionService
             $existing = $phase->groups()->where('tournament_slot_id', $slotId)
                 ->with(['matches', 'groupEntries'])->get();
             $lockedGroups = $existing->filter(
-                fn ($group): bool => $group->matches->contains(fn ($match): bool => ! $match->is_bye
-                    && in_array($match->status, ['in_progress', 'completed'], true))
+                fn ($group): bool => $group->matches->contains(function ($match): bool {
+                    if ($match->is_bye) {
+                        return false;
+                    }
+
+                    $scores = is_array($match->set_scores) ? $match->set_scores : [];
+                    $sets = $scores['sets'] ?? (array_is_list($scores) ? $scores : []);
+
+                    return (bool) ($scores['manual_winner'] ?? false)
+                        || collect($sets)->contains(fn ($set): bool => is_array($set));
+                })
             );
             $editableGroups = $existing->diff($lockedGroups);
             $lockedEntryIds = $lockedGroups->flatMap->groupEntries->pluck('entry_id')->unique();
