@@ -9,7 +9,9 @@ use App\Filament\Actions\GlobalViewAction;
 use App\Filament\Resources\TournamentRegistrations\TournamentRegistrationResource;
 use App\Mail\TournamentRegistrationNotification;
 use App\Models\Category;
+use App\Models\Federation;
 use App\Models\GeneralRanking;
+use App\Models\State;
 use App\Models\ThreeCushionStageResult;
 use App\Models\TournamentRegistration;
 use App\Models\TournamentSlot;
@@ -151,6 +153,54 @@ class TournamentRegistrationsTable
                     })
 
                     ->searchable(),
+                SelectFilter::make('participant_federation_id')
+                    ->label('Federación')
+                    ->options(fn (): array => Federation::query()
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->all())
+                    ->query(function (Builder $query, $value): void {
+                        if (! $value) {
+                            return;
+                        }
+
+                        // Las relaciones player/partner cubren inscripciones
+                        // antiguas que todavía no tienen filas en participants.
+                        $query->where(function (Builder $registrations) use ($value): void {
+                            $registrations
+                                ->whereHas('participants.player.club.city.state', fn (Builder $state): Builder => $state
+                                    ->where('federation_id', $value))
+                                ->orWhereHas('player.club.city.state', fn (Builder $state): Builder => $state
+                                    ->where('federation_id', $value))
+                                ->orWhereHas('partner.club.city.state', fn (Builder $state): Builder => $state
+                                    ->where('federation_id', $value));
+                        });
+                    })
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('participant_state_id')
+                    ->label('Provincia')
+                    ->options(fn (): array => State::query()
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->all())
+                    ->query(function (Builder $query, $value): void {
+                        if (! $value) {
+                            return;
+                        }
+
+                        $query->where(function (Builder $registrations) use ($value): void {
+                            $registrations
+                                ->whereHas('participants.player.club.city', fn (Builder $city): Builder => $city
+                                    ->where('state_id', $value))
+                                ->orWhereHas('player.club.city', fn (Builder $city): Builder => $city
+                                    ->where('state_id', $value))
+                                ->orWhereHas('partner.club.city', fn (Builder $city): Builder => $city
+                                    ->where('state_id', $value));
+                        });
+                    })
+                    ->searchable()
+                    ->preload(),
                 SelectFilter::make('tournament_slot_id')
                     ->label('Horario')
                     ->multiple()
