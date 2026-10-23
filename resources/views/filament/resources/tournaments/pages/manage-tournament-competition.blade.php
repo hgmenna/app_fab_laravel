@@ -91,7 +91,12 @@
             </div>
         @if($zonePhase->groups->isNotEmpty())
             @php
-                $groupsBySlot = $zonePhase->groups->groupBy(fn($group) => (string)($group->tournament_slot_id ?? 0));
+                $groupsBySlot = $zonePhase->groups
+                    ->sortBy(fn($group) => [
+                        $group->slot?->starts_at?->timestamp ?? PHP_INT_MAX,
+                        (int) $group->sort_order,
+                    ])
+                    ->groupBy(fn($group) => (string)($group->tournament_slot_id ?? 0));
                 $firstSlotKey = (string) $groupsBySlot->keys()->first();
             @endphp
             <div x-data="{ activeSlot: @js($firstSlotKey) }">
@@ -191,7 +196,13 @@
         @foreach($competition->phases->where('phase_type', '!=', 'zones')->where('is_enabled', true) as $phase)
             @php
                 $previousPhase = $competition->phases->where('is_enabled', true)->where('sort_order', '<', $phase->sort_order)->sortByDesc('sort_order')->first();
-                $phaseSchedules = collect(data_get($phase->settings, 'schedules', []))->values();
+                $phaseSchedules = collect(data_get($phase->settings, 'schedules', []))
+                    ->sortBy(fn(array $schedule, int $index) => [
+                        filled($schedule['starts_at'] ?? null)
+                            ? \Illuminate\Support\Carbon::parse($schedule['starts_at'])->timestamp
+                            : PHP_INT_MAX,
+                        $index,
+                    ])->values();
             @endphp
             <section class="fq-phase-panel" id="fq-section-{{ $phase->id }}" x-show="activePhase === @js((string)$phase->id)" x-cloak>
                 <div class="fq-phase-heading">

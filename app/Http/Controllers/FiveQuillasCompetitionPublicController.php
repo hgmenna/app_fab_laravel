@@ -115,10 +115,19 @@ class FiveQuillasCompetitionPublicController extends Controller
                     'mesas' => data_get($phase->settings, 'tables'),
                     'tamano_cuadro' => data_get($phase->settings, 'bracket_size'),
                     'orden_cruces' => data_get($phase->settings, 'bracket_pairs', []),
-                    'horarios_fase' => collect(data_get($phase->settings, 'schedules', []))->values(),
+                    'horarios_fase' => collect(data_get($phase->settings, 'schedules', []))
+                        ->sortBy(fn (array $schedule, int $index): array => [
+                            filled($schedule['starts_at'] ?? null)
+                                ? \Illuminate\Support\Carbon::parse($schedule['starts_at'])->timestamp
+                                : PHP_INT_MAX,
+                            $index,
+                        ])->values(),
                     'clasificados' => app(FiveQuillasCompetitionService::class)
                         ->qualifiedParticipantRows($phase),
-                    'zonas' => $phase->groups->map(fn ($group): array => [
+                    'zonas' => $phase->groups->sortBy(fn ($group): array => [
+                        $group->slot?->starts_at?->timestamp ?? PHP_INT_MAX,
+                        (int) $group->sort_order,
+                    ])->map(fn ($group): array => [
                         'id' => $group->id, 'nombre' => $group->name, 'estado' => $group->status,
                         'horario' => $group->slot?->name,
                         'inicio' => $this->dateTimeLabel($group->slot?->starts_at),
