@@ -1069,35 +1069,26 @@ class ManageTournamentCompetition extends Page
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
                 $bestOf = max(1, (int) ($match?->phase?->sets_to_play ?? 3));
                 $pointsPerSet = max(1, (int) ($match?->phase?->points_per_set ?? 60));
-                $inputStyle = 'width:4.25rem;max-width:4.25rem;text-align:center;padding-left:.35rem;padding-right:.35rem';
                 $playerNames = [
                     1 => $match?->playerOne?->player?->full_name ?? 'Jugador 1',
                     2 => $match?->playerTwo?->player?->full_name ?? 'Jugador 2',
                 ];
 
-                $headers = [
-                    Placeholder::make('player_header')->hiddenLabel()->content('Jugador')
-                        ->columnSpan(3)->extraAttributes(['style' => 'font-weight:800']),
-                    ...collect(range(1, $bestOf))->map(fn (int $setNumber) =>
-                        Placeholder::make('set_header_'.$setNumber)->hiddenLabel()->content('Set '.$setNumber)
-                            ->extraAttributes(['style' => 'text-align:center;font-size:.75rem;font-weight:800'])
-                    )->all(),
-                ];
-
-                $playerRow = function (int $playerNumber) use ($bestOf, $pointsPerSet, $inputStyle, $playerNames): array {
+                $playerRow = function (int $playerNumber) use ($bestOf, $pointsPerSet, $playerNames): Grid {
                     $playerKey = $playerNumber === 1 ? 'one' : 'two';
 
-                    return [
+                    return Grid::make(['default' => 2, 'sm' => $bestOf])
+                        ->schema([
                         Placeholder::make('player_'.$playerNumber.'_label')->hiddenLabel()
                             ->content($playerNames[$playerNumber])
-                            ->columnSpan(3)->extraAttributes(['style' => 'font-weight:800;align-self:center']),
+                            ->columnSpanFull()->extraAttributes(['style' => 'font-weight:800']),
                         ...collect(range(1, $bestOf))->map(fn (int $setNumber) =>
                             TextInput::make('player_'.$playerKey.'_set_'.$setNumber)
-                                ->hiddenLabel()->numeric()->minValue(0)->maxValue($pointsPerSet)
+                                ->label('Set '.$setNumber)->numeric()->minValue(0)->maxValue($pointsPerSet)
                                 ->nullable()
-                                ->extraInputAttributes(['style' => $inputStyle, 'inputmode' => 'numeric'])
+                                ->extraInputAttributes(['style' => 'text-align:center', 'inputmode' => 'numeric'])
                         )->all(),
-                    ];
+                    ])->columnSpanFull();
                 };
 
                 return [
@@ -1117,11 +1108,11 @@ class ManageTournamentCompetition extends Page
                             $match?->player_one_entry_id => 'warning',
                             $match?->player_two_entry_id => 'warning',
                         ]))
-                        ->inline()->grouped()->live()
+                        ->inline()->grouped()->columns(['default' => 1, 'sm' => 2])->live()
                         ->helperText('Seleccioná el nombre del ganador y presioná Confirmar. No se cargarán resultados por set.')
                         ->columnSpanFull(),
-                    Grid::make($bestOf + 3)
-                        ->schema([...$headers, ...$playerRow(1), ...$playerRow(2)])
+                    Grid::make(1)
+                        ->schema([$playerRow(1), $playerRow(2)])
                         ->visible(fn (Get $get): bool => blank($get('declared_winner_id')))
                         ->columnSpanFull(),
                 ];
@@ -1374,12 +1365,17 @@ class ManageTournamentCompetition extends Page
         $start = $this->record->start_date;
         $end = $this->record->end_date;
         $tournamentCompleted = $competition
-            && $competition->status === 'completed'
-            && ! $competition->phases()->where('is_enabled', true)->where('status', '!=', 'completed')->exists();
+            && ($competition->status === 'completed'
+                || ! $competition->phases()->where('is_enabled', true)->where('status', '!=', 'completed')->exists());
+        $finalPhase = $competition?->phases
+            ->where('phase_type', '!=', 'zones')
+            ->sortByDesc('sort_order')
+            ->first();
         $championEntry = $tournamentCompleted
             ? ($competition->entries->firstWhere('final_position', 1)
-                ?: $competition->phases->where('phase_type', '!=', 'zones')->sortByDesc('sort_order')
-                    ->flatMap->matches->where('status', 'completed')->sortByDesc('round_number')->first()?->winner)
+                ?: $finalPhase?->matches->where('status', 'completed')
+                    ->sortByDesc(fn ($match): int => ((int) $match->round_number * 100000) + (int) $match->bracket_order)
+                    ->first()?->winner)
             : null;
         $championPhoto = $championEntry?->player?->photo_path;
 

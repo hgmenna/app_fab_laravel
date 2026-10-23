@@ -48,12 +48,20 @@ class FiveQuillasCompetitionPublicController extends Controller
         $showFinalStandings = (bool) data_get($competition->settings, 'public.show_final_standings', true);
         $tournament = $competition->tournament;
         $logoPath = $tournament->publicationLogoPath();
+        // En competencias históricas puede haber una fase concurrente que haya
+        // quedado con un estado desactualizado. El cierre explícito de la
+        // competencia también es una fuente válida para publicar al campeón.
         $tournamentCompleted = $competition->status === 'completed'
-            && ! $competition->phases()->where('is_enabled', true)->where('status', '!=', 'completed')->exists();
+            || ! $competition->phases()->where('is_enabled', true)->where('status', '!=', 'completed')->exists();
+        $finalPhase = $competition->phases
+            ->where('phase_type', '!=', 'zones')
+            ->sortByDesc('sort_order')
+            ->first();
         $championEntry = $tournamentCompleted
             ? ($competition->entries->firstWhere('final_position', 1)
-                ?: $competition->phases->where('phase_type', '!=', 'zones')->sortByDesc('sort_order')
-                    ->flatMap->matches->where('status', 'completed')->sortByDesc('round_number')->first()?->winner)
+                ?: $finalPhase?->matches->where('status', 'completed')
+                    ->sortByDesc(fn ($match): int => ((int) $match->round_number * 100000) + (int) $match->bracket_order)
+                    ->first()?->winner)
             : null;
         $championPhoto = $championEntry?->player?->photo_path;
 
