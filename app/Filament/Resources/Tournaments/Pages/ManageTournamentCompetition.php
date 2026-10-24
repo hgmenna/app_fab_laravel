@@ -14,6 +14,7 @@ use Filament\Facades\Filament;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
@@ -30,6 +31,7 @@ use Filament\Resources\Pages\Page;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\HtmlString;
 
 /**
  * Página operativa para organizar una competencia de cinco quillas y ejecutar sus acciones autorizadas.
@@ -93,7 +95,7 @@ class ManageTournamentCompetition extends Page
                 ->label('Configurar vista pública')
                 ->icon('heroicon-o-eye')
                 ->color('success')
-                ->visible(fn (): bool => $this->competition() !== null)
+                ->visible(false)
                 ->fillForm(function (): array {
                     $competition = $this->competition();
                     $competition->loadMissing(['phases.groups']);
@@ -172,14 +174,21 @@ class ManageTournamentCompetition extends Page
                         ->send();
                 }),
             Action::make('broadcast')
-                ->label('Transmisión en vivo')
-                ->icon('heroicon-o-video-camera')
-                ->color('warning')
+                ->label('Configurar vista pública')
+                ->icon('heroicon-o-eye')
+                ->color('success')
                 ->visible(fn (): bool => $this->competition() !== null)
                 ->fillForm(function (): array {
-                    $settings = (array) data_get($this->competition()->settings, 'broadcast', []);
+                    $competition = $this->competition();
+                    $competition->loadMissing(['phases.groups']);
+                    $settings = (array) data_get($competition->settings, 'broadcast', []);
 
                     return [
+                        'web_enabled' => (bool) $competition->is_public,
+                        'web_phase_ids' => $competition->phases->where('is_public', true)->pluck('id')->map(fn ($id): string => (string) $id)->all(),
+                        'web_zone_slot_keys' => $competition->phases->where('phase_type', 'zones')->flatMap->groups
+                            ->where('is_public', true)->map(fn ($group): string => $group->tournament_slot_id ? 'slot_'.$group->tournament_slot_id : 'without_slot')->unique()->values()->all(),
+                        'show_final_standings' => (bool) data_get($competition->settings, 'public.show_final_standings', true),
                         'enabled' => (bool) ($settings['enabled'] ?? false),
                         'all_phases' => (bool) ($settings['all_phases'] ?? true),
                         'phase_ids' => collect($settings['phase_ids'] ?? [])->map(fn ($id): string => (string) $id)->all(),
@@ -189,9 +198,30 @@ class ManageTournamentCompetition extends Page
                     ];
                 })
                 ->schema([
-                    Toggle::make('enabled')
-                        ->label('Habilitar fuente para OBS')
-                        ->helperText('La vista pública del torneo también debe estar habilitada.')
+                    Checkbox::make('web_enabled')
+                        ->label('Publicar resultados en la web')
+                        ->helperText('Habilita la página pública del torneo.')
+                        ->live(),
+                    CheckboxList::make('web_phase_ids')
+                        ->label('Fases visibles en la web')
+                        ->options(fn (): array => $this->competition()->phases()
+                            ->where('is_enabled', true)->orderBy('sort_order')->pluck('name', 'id')->all())
+                        ->columns(2)
+                        ->visible(fn (Get $get): bool => (bool) $get('web_enabled')),
+                    CheckboxList::make('web_zone_slot_keys')
+                        ->label('Horarios de zonas visibles en la web')
+                        ->options(fn (): array => $this->competition()->phases()->where('phase_type', 'zones')
+                            ->with('groups.slot')->get()->flatMap->groups
+                            ->groupBy(fn ($group): string => $group->tournament_slot_id ? 'slot_'.$group->tournament_slot_id : 'without_slot')
+                            ->map(fn ($groups, $key): string => $key === 'without_slot' ? 'Sin horario asignado' : ($groups->first()?->slot?->name ?? 'Horario'))->all())
+                        ->columns(2)
+                        ->visible(fn (Get $get): bool => (bool) $get('web_enabled')),
+                    Checkbox::make('show_final_standings')
+                        ->label('Mostrar posiciones finales en la web')
+                        ->visible(fn (Get $get): bool => (bool) $get('web_enabled')),
+                    Checkbox::make('enabled')
+                        ->label('Habilitar presentación para transmisión en vivo')
+                        ->helperText('Activa la fuente de navegador de OBS en 1920 × 1080.')
                         ->live(),
                     Toggle::make('all_phases')
                         ->label('Rotar todas las fases publicadas')
@@ -201,7 +231,7 @@ class ManageTournamentCompetition extends Page
                     CheckboxList::make('phase_ids')
                         ->label('Fases incluidas en la transmisión')
                         ->options(fn (): array => $this->competition()->phases()
-                            ->where('is_enabled', true)->where('is_public', true)
+                            ->where('is_enabled', true)
                             ->orderBy('sort_order')->pluck('name', 'id')->all())
                         ->columns(2)
                         ->visible(fn (Get $get): bool => (bool) $get('enabled') && ! (bool) $get('all_phases')),
@@ -215,8 +245,7 @@ class ManageTournamentCompetition extends Page
                         ->label('Horarios publicados incluidos')
                         ->options(function (): array {
                             $groups = $this->competition()->phases()->where('phase_type', 'zones')
-                                ->with(['groups' => fn ($query) => $query->where('is_public', true), 'groups.slot'])
-                                ->get()->flatMap->groups;
+                                ->with('groups.slot')->get()->flatMap->groups;
 
                             return $groups->groupBy(fn ($group): string => $group->tournament_slot_id ? 'slot_'.$group->tournament_slot_id : 'without_slot')
                                 ->map(fn ($slotGroups, $key): string => $key === 'without_slot'
@@ -233,20 +262,24 @@ class ManageTournamentCompetition extends Page
                         ->visible(fn (Get $get): bool => (bool) $get('enabled')),
                     Placeholder::make('broadcast_url')
                         ->label('URL para la fuente de navegador de OBS')
-                        ->content(fn (): string => route('five-quillas-competition.broadcast', [
-                            'slug' => $this->competition()->public_slug,
-                        ]))
+                        ->content(function (): HtmlString {
+                            $url = route('five-quillas-competition.broadcast', ['slug' => $this->competition()->public_slug]);
+                            $escaped = e($url);
+
+                            return new HtmlString('<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"><code id="fq-broadcast-modal-url" style="flex:1;min-width:18rem;padding:.55rem .7rem;border-radius:.45rem;background:rgba(127,127,127,.12);overflow:auto">'.$escaped.'</code><button type="button" title="Copiar URL" onclick="navigator.clipboard.writeText(document.querySelector(\'#fq-broadcast-modal-url\').textContent.trim())" style="padding:.5rem .75rem;border:1px solid rgba(127,127,127,.35);border-radius:.45rem">Copiar</button><a href="'.$escaped.'" target="_blank" style="padding:.5rem .75rem;border:1px solid rgba(127,127,127,.35);border-radius:.45rem">Abrir</a></div>');
+                        })
                         ->visible(fn (Get $get): bool => (bool) $get('enabled')),
                 ])
-                ->modalHeading('Presentación para transmisión en vivo')
-                ->modalDescription('Configurá la rotación automática. En OBS usá una fuente de navegador de 1920 × 1080 píxeles.')
+                ->modalHeading('Configuración de la vista pública')
+                ->modalDescription('Elegí de forma independiente qué información se publica en la web y qué contenido rota en OBS.')
                 ->modalWidth('3xl')
                 ->action(function (array $data): void {
                     $competition = $this->competition();
                     $enabled = (bool) ($data['enabled'] ?? false);
-                    if ($enabled && ! $competition->is_public) {
+                    $webEnabled = (bool) ($data['web_enabled'] ?? false);
+                    if ($enabled && ! $webEnabled) {
                         throw ValidationException::withMessages([
-                            'enabled' => 'Primero habilitá la vista pública del torneo.',
+                            'enabled' => 'Para utilizar OBS también debe estar habilitada la publicación web.',
                         ]);
                     }
                     if ($enabled && ! (bool) ($data['all_phases'] ?? true) && empty($data['phase_ids'] ?? [])) {
@@ -255,24 +288,56 @@ class ManageTournamentCompetition extends Page
                         ]);
                     }
 
+                    $competition->loadMissing(['phases.groups']);
+                    $webPhaseIds = collect($data['web_phase_ids'] ?? [])->map(fn ($id): int => (int) $id);
+                    $webSlotKeys = collect($data['web_zone_slot_keys'] ?? [])->map(fn ($key): string => (string) $key);
+                    $broadcastPhaseIds = collect($data['phase_ids'] ?? [])->map(fn ($id): int => (int) $id);
+                    $broadcastSlotKeys = collect($data['zone_slot_keys'] ?? [])->map(fn ($key): string => (string) $key);
+                    if ($enabled && ! (bool) ($data['all_phases'] ?? true) && $broadcastPhaseIds->diff($webPhaseIds)->isNotEmpty()) {
+                        throw ValidationException::withMessages([
+                            'phase_ids' => 'Las fases elegidas para OBS también deben estar marcadas como visibles en la web.',
+                        ]);
+                    }
+                    if ($enabled && ! (bool) ($data['all_zone_slots'] ?? true) && $broadcastSlotKeys->diff($webSlotKeys)->isNotEmpty()) {
+                        throw ValidationException::withMessages([
+                            'zone_slot_keys' => 'Los horarios elegidos para OBS también deben estar marcados como visibles en la web.',
+                        ]);
+                    }
                     $settings = $competition->settings ?? [];
+                    data_set($settings, 'public.show_final_standings', (bool) ($data['show_final_standings'] ?? false));
                     data_set($settings, 'broadcast', [
                         'enabled' => $enabled,
                         'all_phases' => (bool) ($data['all_phases'] ?? true),
-                        'phase_ids' => collect($data['phase_ids'] ?? [])->map(fn ($id): int => (int) $id)->values()->all(),
+                        'phase_ids' => $broadcastPhaseIds->values()->all(),
                         'all_zone_slots' => (bool) ($data['all_zone_slots'] ?? true),
                         'zone_slot_keys' => (bool) ($data['all_zone_slots'] ?? true)
                             ? []
-                            : collect($data['zone_slot_keys'] ?? [])->map(fn ($key): string => (string) $key)->values()->all(),
+                            : $broadcastSlotKeys->values()->all(),
                         'rotation_seconds' => max(4, min(60, (int) ($data['rotation_seconds'] ?? 8))),
                     ]);
-                    $competition->update(['settings' => $settings]);
+                    $competition->update([
+                        'is_public' => $webEnabled,
+                        'status' => $webEnabled && $competition->status === 'draft' ? 'published' : $competition->status,
+                        'settings' => $settings,
+                    ]);
+
+                    $competition->phases->each(function ($phase) use ($webEnabled, $webPhaseIds, $webSlotKeys): void {
+                        $phasePublic = $webEnabled && $phase->is_enabled && $webPhaseIds->contains((int) $phase->id);
+                        $phase->update(['is_public' => $phasePublic]);
+                        $phase->matches()->whereNull('group_id')->update(['is_public' => $phasePublic]);
+                        $phase->groups->each(function ($group) use ($phase, $phasePublic, $webSlotKeys): void {
+                            $slotKey = $group->tournament_slot_id ? 'slot_'.$group->tournament_slot_id : 'without_slot';
+                            $groupPublic = $phasePublic && ($phase->phase_type !== 'zones' || $webSlotKeys->contains($slotKey));
+                            $group->update(['is_public' => $groupPublic]);
+                            $group->matches()->update(['is_public' => $groupPublic]);
+                        });
+                    });
 
                     Notification::make()->success()
-                        ->title($enabled ? 'Transmisión habilitada' : 'Transmisión deshabilitada')
+                        ->title('Configuración pública actualizada')
                         ->body($enabled
-                            ? route('five-quillas-competition.broadcast', ['slug' => $competition->public_slug])
-                            : 'La URL de transmisión dejó de estar disponible.')
+                            ? 'La página web y la fuente para OBS quedaron configuradas.'
+                            : ($webEnabled ? 'La página web quedó publicada sin transmisión OBS.' : 'La publicación web y la transmisión están deshabilitadas.'))
                         ->send();
                 }),
             Action::make('configureFormat')
