@@ -499,24 +499,85 @@ class FiveQuillasCompetitionService
             if ($phase->phase_type !== 'bracket') {
                 return $phase->matches()->count();
             }
-            if ($phase->matches()->exists()) {
-                return $phase->matches()->count();
+            $previous = $this->previousPhase($phase);
+            $direct = $phase->competition->entries()->where('entry_phase_id', $phase->id)
+                ->whereIn('status', ['eligible', 'assigned', 'qualified'])->get()
+                ->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->values();
+            $directCapacity = max($direct->count(), (int) data_get($phase->settings, 'direct_entry_seed_count', 0));
+            $expectedPrevious = $previous ? (int) data_get($previous->settings, 'qualifiers', 0) : 0;
+            $requiredSize = $this->nextPowerOfTwo(max(2, $directCapacity + $expectedPrevious));
+            if ((int) data_get($phase->settings, 'bracket_size', 0) !== $requiredSize) {
+                $phase->update(['settings' => array_merge($phase->settings ?? [], [
+                    'bracket_size' => $requiredSize,
+                    'bracket_pairs' => $this->officialBracketPairs($requiredSize),
+                ])]);
+                $phase->refresh();
+            }
+            $hasStartedMatches = $phase->matches()->whereIn('status', ['in_progress', 'completed'])
+                ->where('is_bye', false)->exists();
+            if ($phase->matches()->exists()
+                && ! $hasStartedMatches
+                && $phase->matches()->where('round_number', 1)->count() !== intdiv($requiredSize, 2)) {
+                $phase->matches()->delete();
             }
 
-            $rows = $this->bracketParticipantRows($phase);
-            $entries = $phase->competition->entries()
-                ->whereIn('id', collect($rows)->pluck('entry_id'))->get()->keyBy('id');
             $seeds = [];
-            foreach ($rows as $row) {
-                $seed = (int) ($row['seed_position'] ?? 0);
-                $entry = $entries->get((int) ($row['entry_id'] ?? 0));
-                if ($seed > 0 && $entry) {
-                    $entry->update(['seed' => $seed, 'status' => 'assigned']);
-                    $seeds[$seed] = $entry;
+            $direct->take($directCapacity)->each(function ($entry, int $index) use (&$seeds): void {
+                $seed = $index + 1;
+                $entry->update(['seed' => $seed, 'status' => 'assigned']);
+                $seeds[$seed] = $entry;
+            });
+
+            if ($phase->seeding_method === 'number_draw') {
+                // El seed heredado de otra fase no es un número de este sorteo.
+                // Sólo se incorporan asignaciones guardadas expresamente aquí.
+                $assignments = collect(data_get($phase->settings, 'draw_seed_assignments', []));
+                $candidates = $this->drawCandidates($phase)->keyBy('id');
+                foreach ($assignments as $entryId => $seed) {
+                    $entry = $candidates->get((int) $entryId);
+                    $seed = (int) $seed;
+                    if ($entry && $seed > 0 && $seed <= (int) data_get($phase->settings, 'bracket_size', 16)) {
+                        $entry->update(['seed' => $seed, 'status' => 'assigned']);
+                        $seeds[$seed] = $entry;
+                    }
                 }
+            } elseif (! $previous || $previous->status === 'completed') {
+                // Por resultado de la fase anterior no se toma ninguna
+                // clasificación parcial. Se incorporan todos juntos al finalizar.
+                collect($this->bracketParticipantRows($phase))->each(function (array $row) use (&$seeds): void {
+                    $entry = FiveQuillasEntry::query()->find((int) ($row['entry_id'] ?? 0));
+                    $seed = (int) ($row['seed_position'] ?? 0);
+                    if ($entry && $seed > 0) {
+                        $entry->update(['seed' => $seed, 'status' => 'assigned']);
+                        $seeds[$seed] = $entry;
+                    }
+                });
             }
 
-            $count = $this->createEliminationBracket($phase->fresh(), $seeds, false);
+            if ($phase->matches()->exists()) {
+                if ($hasStartedMatches) {
+                    return $phase->matches()->count();
+                }
+                $pairs = collect(data_get($phase->settings, 'bracket_pairs', []))->values();
+                $phase->matches()->where('round_number', '>', 1)->update([
+                    'player_one_entry_id' => null, 'player_two_entry_id' => null,
+                    'winner_entry_id' => null, 'is_bye' => false, 'status' => 'pending',
+                ]);
+                $phase->matches()->where('round_number', 1)->orderBy('bracket_order')->get()
+                    ->each(function ($match, int $index) use ($pairs, $seeds): void {
+                        $pair = $pairs->get($index, []);
+                        $match->update([
+                            'player_one_entry_id' => ($seeds[(int) ($pair[0] ?? 0)] ?? null)?->id,
+                            'player_two_entry_id' => ($seeds[(int) ($pair[1] ?? 0)] ?? null)?->id,
+                            'winner_entry_id' => null,
+                            'is_bye' => false,
+                            'status' => $match->scheduled_at ? 'scheduled' : 'pending',
+                        ]);
+                    });
+                $count = $phase->matches()->count();
+            } else {
+                $count = $this->createEliminationBracket($phase->fresh(), $seeds, false);
+            }
             $phase->update(['status' => 'ready']);
 
             return $count;
@@ -846,7 +907,18 @@ class FiveQuillasCompetitionService
         $direct = $phase->competition->entries()->where('entry_phase_id', $phase->id)
             ->whereIn('status', ['eligible', 'assigned', 'qualified'])->get();
 
-        return collect($source)->merge($direct)->unique('id')->each->loadMissing('player')->values();
+        $candidates = collect($source)->merge($direct)->unique('id');
+        // Cuando existe un bloque reservado de preclasificados, esos jugadores
+        // ya tienen posición fija y no participan del sorteo de las plazas que
+        // llegan desde la fase anterior.
+        if ($phase->seeding_method === 'number_draw'
+            && (int) data_get($phase->settings, 'direct_entry_seed_count', 0) > 0) {
+            $candidates = $candidates->reject(
+                fn ($entry): bool => (int) $entry->entry_phase_id === (int) $phase->id
+            );
+        }
+
+        return $candidates->each->loadMissing('player')->values();
     }
 
     /**
@@ -1224,21 +1296,33 @@ class FiveQuillasCompetitionService
     public function saveDrawNumbers(FiveQuillasPhase $phase, array $rows): void
     {
         $size = (int) data_get($phase->settings, 'bracket_size', 16);
+        $directCapacity = (int) data_get($phase->settings, 'direct_entry_seed_count', 0);
         $candidates = $this->drawCandidates($phase)->keyBy('id');
         $numbers = collect($rows)->pluck('draw_number')->filter()->map(fn ($number): int => (int) $number);
-        if ($numbers->count() !== $candidates->count() || $numbers->duplicates()->isNotEmpty()) {
-            throw ValidationException::withMessages(['draws' => 'Cada clasificado debe tener un número de sorteo diferente.']);
+        if ($numbers->duplicates()->isNotEmpty()) {
+            throw ValidationException::withMessages(['draws' => 'Los números de sorteo no pueden repetirse.']);
         }
         if ($numbers->contains(fn (int $number): bool => $number < 1 || $number > $size)) {
             throw ValidationException::withMessages(['draws' => "Los números deben estar comprendidos entre 1 y {$size}."]);
         }
+        if ($directCapacity > 0 && $numbers->contains(fn (int $number): bool => $number <= $directCapacity)) {
+            throw ValidationException::withMessages([
+                'draws' => 'Las posiciones 1 a '.$directCapacity.' están reservadas para los preclasificados.',
+            ]);
+        }
         foreach ($rows as $row) {
             $entry = $candidates->get((int) ($row['entry_id'] ?? 0));
-            if ($entry) { $entry->update(['seed' => (int) $row['draw_number']]); }
+            if ($entry && filled($row['draw_number'] ?? null)) {
+                $entry->update(['seed' => (int) $row['draw_number']]);
+            }
         }
-        if ((bool) data_get($phase->settings, 'progressive_fill', false)) {
-            $this->preparePhase($phase->fresh());
-        }
+        $phase->update(['settings' => array_merge($phase->settings ?? [], [
+            'draw_seed_assignments' => collect($rows)
+                ->filter(fn (array $row): bool => filled($row['draw_number'] ?? null))
+                ->mapWithKeys(fn (array $row): array => [(int) $row['entry_id'] => (int) $row['draw_number']])
+                ->all(),
+        ])]);
+        $this->ensureBracketSkeleton($phase->fresh());
     }
 
     /**

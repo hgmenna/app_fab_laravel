@@ -879,11 +879,12 @@ class ManageTournamentCompetition extends Page
                 app(FiveQuillasCompetitionService::class)->syncApprovedEntries($phase->competition);
                 $phase->refresh();
                 if ($phase->seeding_method === 'number_draw') {
+                    $drawAssignments = collect(data_get($phase->settings, 'draw_seed_assignments', []));
                     return ['draws' => app(FiveQuillasCompetitionService::class)->drawCandidates($phase)
                         ->map(fn ($entry): array => [
                             'entry_id' => $entry->id,
                             'player_name' => $entry->player?->full_name,
-                            'draw_number' => $entry->seed,
+                            'draw_number' => $drawAssignments->get((int) $entry->id),
                         ])->all()];
                 }
                 if ($phase->phase_type === 'bracket') {
@@ -900,12 +901,14 @@ class ManageTournamentCompetition extends Page
                 if (! $phase) { return []; }
                 if ($phase->seeding_method === 'number_draw') {
                     $size = (int) data_get($phase->settings, 'bracket_size', 16);
+                    $minimum = max(1, (int) data_get($phase->settings, 'direct_entry_seed_count', 0) + 1);
                     return [Repeater::make('draws')->label('Números obtenidos en el sorteo')
                         ->schema([
                             Hidden::make('entry_id'),
                             TextInput::make('player_name')->label('Jugador')->disabled(),
                             TextInput::make('draw_number')->label('Número')->integer()
-                                ->minValue(1)->maxValue($size)->required(),
+                                ->minValue($minimum)->maxValue($size)
+                                ->helperText('Puede completarse progresivamente a medida que se realiza el sorteo.'),
                         ])->columns(2)->addable(false)->deletable(false)->reorderable(false)];
                 }
                 if ($phase->phase_type !== 'bracket') { return []; }
@@ -1673,6 +1676,16 @@ class ManageTournamentCompetition extends Page
                 $previous = $service->previousPhaseFor($phase);
                 $hasPlayedMatch = $phase->matches()->where('is_bye', false)
                     ->whereIn('status', ['in_progress', 'completed'])->exists();
+                if (! $hasPlayedMatch) {
+                    try {
+                        // Muestra desde el inicio la estructura y los ingresos
+                        // directos, sin anticipar clasificados por resultados.
+                        $service->ensureBracketSkeleton($phase);
+                        $phase->refresh()->load('matches');
+                    } catch (\Throwable $exception) {
+                        report($exception);
+                    }
+                }
                 if ((int) data_get($phase->settings, 'bracket_build_version', 0) >= 3
                     || ! $previous || $previous->status !== 'completed' || $hasPlayedMatch) {
                     return;
