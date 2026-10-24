@@ -136,6 +136,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                     ])->map(fn ($group): array => [
                         'id' => $group->id, 'nombre' => $group->name, 'estado' => $group->status,
                         'horario' => $group->slot?->name,
+                        'horario_clave' => $group->tournament_slot_id ? 'slot_'.$group->tournament_slot_id : 'without_slot',
                         'inicio' => $this->dateTimeLabel($group->slot?->starts_at),
                         'jugadores' => $group->groupEntries->map(fn ($row): array => [
                             'posicion' => $row->position,

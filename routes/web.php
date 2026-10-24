@@ -11,6 +11,7 @@ use App\Http\Controllers\MembershipPaymentPdfController;
 use App\Http\Controllers\MembershipEntityStatementPdfController;
 use App\Http\Controllers\FiveQuillasCompetitionPublicController;
 use App\Http\Controllers\FiveQuillasCompetitionPageController;
+use App\Http\Controllers\FiveQuillasCompetitionBroadcastController;
 use App\Http\Controllers\FiveQuillasCompetitionSectionPdfController;
 use Illuminate\Support\Facades\Route;
 
@@ -22,6 +23,8 @@ Route::get('/ranking-5-quillas.json', FiveQuillasRankingController::class);
 Route::get('/ranking-5-quillas.pdf', FiveQuillasRankingPdfController::class);
 Route::get('/torneos/5-quillas/{slug}/competencia.json', FiveQuillasCompetitionPublicController::class)
     ->name('five-quillas-competition.public');
+Route::get('/torneos/5-quillas/{slug}/transmision', FiveQuillasCompetitionBroadcastController::class)
+    ->name('five-quillas-competition.broadcast');
 Route::get('/torneos/5-quillas/{slug}', FiveQuillasCompetitionPageController::class)
     ->name('five-quillas-competition.page');
 Route::get('/torneos/5-quillas/{slug}/secciones/{section}/pdf', FiveQuillasCompetitionSectionPdfController::class)

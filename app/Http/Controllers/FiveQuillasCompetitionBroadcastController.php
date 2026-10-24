@@ -1,0 +1,34 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\FiveQuillasCompetition;
+use Illuminate\View\View;
+
+/**
+ * Renderiza la fuente animada de resultados que OBS incorpora como navegador.
+ */
+class FiveQuillasCompetitionBroadcastController extends Controller
+{
+    public function __invoke(string $slug): View
+    {
+        $competition = FiveQuillasCompetition::query()
+            ->where('public_slug', $slug)
+            ->where('is_public', true)
+            ->firstOrFail();
+
+        $settings = (array) data_get($competition->settings, 'broadcast', []);
+        abort_unless((bool) ($settings['enabled'] ?? false), 404);
+
+        return view('public.five-quillas-competition-broadcast', [
+            'competition' => $competition,
+            'jsonUrl' => route('five-quillas-competition.public', ['slug' => $slug]),
+            'broadcastConfig' => [
+                'allPhases' => (bool) ($settings['all_phases'] ?? true),
+                'phaseIds' => collect($settings['phase_ids'] ?? [])->map(fn ($id): int => (int) $id)->values()->all(),
+                'zoneSlotKeys' => collect($settings['zone_slot_keys'] ?? [])->map(fn ($key): string => (string) $key)->values()->all(),
+                'rotationSeconds' => max(4, min(60, (int) ($settings['rotation_seconds'] ?? 8))),
+            ],
+        ]);
+    }
+}
