@@ -465,7 +465,22 @@ class FiveQuillasCompetitionService
             // La programación pertenece a la posición de la grilla y debe poder
             // publicarse aunque uno o ambos rivales todavía estén por definirse.
             // Solamente se excluyen los pases libres ya confirmados.
-            $matches = $matches->reject(fn ($match): bool => (bool) $match->is_bye)->values();
+            $expectedParticipants = (int) data_get($phase->settings, 'expected_participant_count', 0);
+            $pairs = collect(data_get($phase->settings, 'bracket_pairs', []))->values();
+            $matches = $matches->reject(function ($match) use ($expectedParticipants, $pairs): bool {
+                if ($match->is_bye) {
+                    return true;
+                }
+                if ((int) $match->round_number !== 1 || $expectedParticipants < 1) {
+                    return false;
+                }
+                $pair = $pairs->get(max(0, (int) $match->bracket_order - 1), []);
+
+                // Una plaza futura (A designar) es programable. Una plaza fuera
+                // de la cantidad total prevista es un LIBRE real y no consume horario.
+                return (int) ($pair[0] ?? PHP_INT_MAX) > $expectedParticipants
+                    || (int) ($pair[1] ?? PHP_INT_MAX) > $expectedParticipants;
+            })->values();
             if ($matches->isEmpty()) {
                 throw ValidationException::withMessages([
                     'schedule' => "La fase todavía no tiene partidos creados para la ronda {$round}.",
@@ -508,9 +523,17 @@ class FiveQuillasCompetitionService
             // Algunas configuraciones antiguas no guardaron el total global de
             // clasificados en la fase de zonas. En ese caso se obtiene de su
             // estructura: cantidad de zonas por plazas que entrega cada zona.
-            if ($previous?->phase_type === 'zones' && $expectedPrevious < 1) {
-                $qualifiersPerGroup = max(1, (int) data_get($previous->settings, 'qualifiers_per_group', 2));
-                $expectedPrevious = $previous->groups()->count() * $qualifiersPerGroup;
+            if ($previous?->phase_type === 'zones') {
+                $configuredPerGroup = data_get($previous->settings, 'qualifiers_per_group');
+                $configuredQualifiers = (int) data_get($previous->settings, 'qualifiers', 0);
+                // En zonas, valores pequeños (habitualmente 1 o 2) representan
+                // los clasificados de cada zona, no el total de la fase.
+                $qualifiersPerGroup = filled($configuredPerGroup)
+                    ? max(1, (int) $configuredPerGroup)
+                    : ($configuredQualifiers >= 1 && $configuredQualifiers <= 4 ? $configuredQualifiers : 2);
+                $expectedPrevious = $configuredQualifiers > 4
+                    ? $configuredQualifiers
+                    : $previous->groups()->count() * $qualifiersPerGroup;
             }
             $expectedTotal = $directCapacity + $expectedPrevious;
             $configuredSize = (int) data_get($phase->settings, 'bracket_size', 0);
@@ -522,6 +545,7 @@ class FiveQuillasCompetitionService
             $settings = array_merge($phase->settings ?? [], [
                 'bracket_size' => $requiredSize,
                 'bracket_pairs' => $this->officialBracketPairs($requiredSize),
+                'expected_participant_count' => min($requiredSize, max(0, $expectedTotal)),
             ]);
             $schedules = collect(data_get($settings, 'schedules', []))
                 ->map(fn (array $schedule, int $index): array => ['index' => $index, 'schedule' => $schedule]);

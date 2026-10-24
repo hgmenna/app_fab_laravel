@@ -167,10 +167,12 @@ class FiveQuillasCompetitionPublicController extends Controller
                         'ronda' => $match->round_number, 'orden' => $match->bracket_order,
                         'etiqueta' => $match->label === 'Partido de recuperación' ? 'Perdedores' : $match->label,
                         'jugador_1' => $match->playerOne?->player?->full_name,
+                        'placeholder_1' => $this->bracketSlotPlaceholder($phase, $match, 0),
                         'numero_1' => $match->round_number === 1
                             ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1).'.0')
                             : $match->playerOne?->seed,
                         'jugador_2' => $match->playerTwo?->player?->full_name,
+                        'placeholder_2' => $this->bracketSlotPlaceholder($phase, $match, 1),
                         'numero_2' => $match->round_number === 1
                             ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1).'.1')
                             : $match->playerTwo?->seed, 'sets' => $match->set_scores,
@@ -197,6 +199,21 @@ class FiveQuillasCompetitionPublicController extends Controller
         return $end && ! $end->isSameDay($start)
             ? $start->format('d/m/Y').' al '.$end->format('d/m/Y')
             : $start->format('d/m/Y');
+    }
+
+    private function bracketSlotPlaceholder($phase, $match, int $side): string
+    {
+        if ($phase->phase_type !== 'bracket' || (int) $match->round_number > 1) {
+            return 'A designar';
+        }
+        $seed = (int) data_get(
+            $phase->settings,
+            'bracket_pairs.'.max(0, (int) $match->bracket_order - 1).'.'.$side,
+            PHP_INT_MAX,
+        );
+        $expected = (int) data_get($phase->settings, 'expected_participant_count', 0);
+
+        return $expected > 0 && $seed <= $expected ? 'A designar' : 'LIBRE';
     }
 
     private function dateTimeLabel($dateTime): ?string

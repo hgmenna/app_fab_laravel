@@ -26,15 +26,28 @@
                             $numberTwo = $match->round_number === 1
                                 ? ($pair[1] ?? '—')
                                 : ($match->playerTwo?->seed ?? '—');
+                            $expectedParticipants = (int) data_get($match->phase?->settings, 'expected_participant_count', 0);
+                            $emptyLabel = function ($entry, $number) use ($match, $expectedParticipants): string {
+                                if ($entry?->player) {
+                                    return $entry->player->full_name;
+                                }
+                                if ((int) $match->round_number > 1) {
+                                    return 'A designar';
+                                }
+
+                                return $expectedParticipants > 0 && (int) $number <= $expectedParticipants
+                                    ? 'A designar'
+                                    : 'LIBRE';
+                            };
                         @endphp
                         <div class="fq-match-shell">
                             <article class="fq-match {{ $match->status === 'called' ? 'is-called' : ($match->status === 'in_progress' ? 'is-in-progress' : '') }}">
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_one_entry_id ? 'is-winner' : '' }}">
-                                    <span><b>{{ $numberOne }}</b> · {{ $match->playerOne?->player?->full_name ?? 'LIBRE' }}</span>
+                                    <span><b>{{ $numberOne }}</b> · {{ $emptyLabel($match->playerOne, $numberOne) }}</span>
                                     <span>{{ $match->status === 'completed' ? $match->player_one_computed_sets : '—' }}</span>
                                 </div>
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_two_entry_id ? 'is-winner' : '' }}">
-                                    <span><b>{{ $numberTwo }}</b> · {{ $match->playerTwo?->player?->full_name ?? 'LIBRE' }}</span>
+                                    <span><b>{{ $numberTwo }}</b> · {{ $emptyLabel($match->playerTwo, $numberTwo) }}</span>
                                     <span>{{ $match->status === 'completed' ? $match->player_two_computed_sets : '—' }}</span>
                                 </div>
                                 @if($match->phase?->phase_type === 'slot_elimination' && $match->status === 'completed' && $match->winner)
