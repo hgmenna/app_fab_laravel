@@ -2,10 +2,26 @@
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=1920,initial-scale=1">
+    <meta name="viewport" content="width=1920,height=1080,initial-scale=1">
     <title>{{ $competition->tournament->name }} · Transmisión</title>
     <style>
         :root{--navy:#07172b;--blue:#174789;--green:#00a86b;--gold:#f2b705;--line:#37506d;--white:#f7fbff;--muted:#9fb3ca}*{box-sizing:border-box}html,body{width:1920px;height:180px;margin:0;overflow:hidden;background:transparent;font-family:Inter,Arial,sans-serif;color:var(--white)}body{background:linear-gradient(100deg,#06101e 0%,#0b2039 55%,#07172b 100%)}#stage{position:relative;width:1920px;height:180px;border-top:4px solid var(--gold);border-bottom:4px solid var(--blue);overflow:hidden}.slide{display:grid;grid-template-columns:315px 1fr;height:172px;animation:enter .45s ease both}.identity{display:flex;flex-direction:column;justify-content:center;padding:14px 20px;background:linear-gradient(120deg,#173d7c,#0b294e);border-right:2px solid var(--gold)}.live{display:flex;align-items:center;gap:8px;color:#ffdc64;font-size:13px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.live:before{content:"";width:10px;height:10px;border-radius:50%;background:#ff3c4f;box-shadow:0 0 0 5px rgba(255,60,79,.18);animation:pulse 1.4s infinite}.tournament{margin-top:9px;font-size:24px;font-weight:1000;line-height:1.05;text-transform:uppercase}.counter{margin-top:9px;color:#b9cee5;font-size:12px}.content{display:grid;grid-template-rows:43px 1fr;padding:7px 14px 8px}.heading{display:flex;align-items:center;gap:14px;min-width:0}.phase{font-size:21px;font-weight:1000;text-transform:uppercase}.context{padding:5px 10px;border-radius:999px;background:#173d7c;color:#fff;font-size:13px;font-weight:900}.updated{margin-left:auto;color:var(--muted);font-size:12px}.zone-layout{display:grid;grid-template-columns:1.55fr .95fr;gap:12px;min-height:0}.matches{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.match{min-width:0;padding:6px 9px;border:1px solid var(--line);border-left:5px solid #71849a;border-radius:7px;background:rgba(14,36,62,.94)}.match.called{border-color:var(--gold);border-left-color:var(--gold);background:rgba(83,64,5,.92)}.match.in_progress{border-color:var(--green);border-left-color:var(--green);background:rgba(4,67,48,.94)}.match.completed{border-left-color:#3f8cff;background:rgba(18,51,90,.94)}.match-title{display:flex;justify-content:space-between;gap:8px;color:#8fb5e6;font-size:10px;font-weight:900;text-transform:uppercase}.table{color:#ffd957}.player{display:flex;justify-content:space-between;gap:7px;padding-top:3px;font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden}.player span:first-child{overflow:hidden;text-overflow:ellipsis}.player.winner{color:#5aeda7}.score{flex:none;font-size:13px}.standings{width:100%;border-collapse:collapse;background:rgba(7,22,40,.8);font-size:10px}.standings th{padding:4px;background:#07844d;color:#fff;text-transform:uppercase}.standings td{padding:4px 6px;border:1px solid #2d4561;text-align:center}.standings td:nth-child(2){max-width:180px;text-align:left;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bracket-layout{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;align-items:center}.empty{display:grid;place-items:center;height:100%;color:var(--muted);font-size:18px}.progress{position:absolute;left:0;bottom:0;height:4px;background:var(--gold);animation:progress linear both}@keyframes enter{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}@keyframes pulse{50%{opacity:.45}}@keyframes progress{from{width:0}to{width:100%}}
+        html,body{width:1920px;height:1080px}
+        #stage{width:1920px;height:1080px;border-top-width:8px;border-bottom-width:8px}
+        .slide{grid-template-columns:420px 1fr;height:1064px}
+        .identity{padding:42px 34px;border-right-width:4px}
+        .live{gap:14px;font-size:20px}.live:before{width:16px;height:16px;box-shadow:0 0 0 8px rgba(255,60,79,.18)}
+        .tournament{margin-top:28px;font-size:46px;line-height:1.08}
+        .counter{margin-top:26px;font-size:20px}
+        .content{grid-template-rows:100px 1fr;padding:28px 34px 34px}
+        .heading{gap:24px}.phase{font-size:38px}.context{padding:10px 18px;font-size:22px}.updated{font-size:18px}
+        .zone-layout{grid-template-columns:1.35fr .65fr;gap:24px}
+        .matches{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:18px}
+        .match{display:flex;flex-direction:column;justify-content:center;padding:20px 24px;border-width:2px;border-left-width:9px;border-radius:14px}
+        .match-title{font-size:18px}.player{padding-top:15px;font-size:26px}.score{font-size:29px}
+        .standings{font-size:20px}.standings th{padding:16px}.standings td{padding:18px 14px;border-width:2px}.standings td:nth-child(2){max-width:360px}
+        .bracket-layout{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:24px}
+        .empty{font-size:32px}.progress{height:8px}
     </style>
 </head>
 <body>

@@ -232,7 +232,7 @@ class ManageTournamentCompetition extends Page
                         ->visible(fn (Get $get): bool => (bool) $get('enabled')),
                 ])
                 ->modalHeading('Presentación para transmisión en vivo')
-                ->modalDescription('Configurá la rotación automática. En OBS usá una fuente de navegador de 1920 × 180 píxeles.')
+                ->modalDescription('Configurá la rotación automática. En OBS usá una fuente de navegador de 1920 × 1080 píxeles.')
                 ->modalWidth('3xl')
                 ->action(function (array $data): void {
                     $competition = $this->competition();

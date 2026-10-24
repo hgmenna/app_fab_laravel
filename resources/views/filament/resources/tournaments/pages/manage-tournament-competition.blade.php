@@ -26,7 +26,7 @@
         </section>
         @if($broadcastUrl)
             <section style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin:0 0 1rem;padding:.75rem 1rem;border:1px solid #d5a400;border-radius:.75rem;background:rgba(228,169,0,.1)">
-                <strong style="color:#a06f00">Fuente OBS · 1920 × 180</strong>
+                <strong style="color:#a06f00">Fuente OBS · 1920 × 1080</strong>
                 <code id="fq-broadcast-url" style="flex:1;min-width:18rem;padding:.45rem .6rem;border-radius:.4rem;background:rgba(127,127,127,.12);overflow:auto">{{ $broadcastUrl }}</code>
                 <button type="button" class="fq-icon-button" title="Copiar URL" aria-label="Copiar URL de transmisión" onclick="navigator.clipboard.writeText(document.querySelector('#fq-broadcast-url').textContent.trim())">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
