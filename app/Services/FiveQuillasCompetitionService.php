@@ -505,12 +505,40 @@ class FiveQuillasCompetitionService
                 ->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->values();
             $directCapacity = max($direct->count(), (int) data_get($phase->settings, 'direct_entry_seed_count', 0));
             $expectedPrevious = $previous ? (int) data_get($previous->settings, 'qualifiers', 0) : 0;
-            $requiredSize = $this->nextPowerOfTwo(max(2, $directCapacity + $expectedPrevious));
-            if ((int) data_get($phase->settings, 'bracket_size', 0) !== $requiredSize) {
-                $phase->update(['settings' => array_merge($phase->settings ?? [], [
-                    'bracket_size' => $requiredSize,
-                    'bracket_pairs' => $this->officialBracketPairs($requiredSize),
-                ])]);
+            // Algunas configuraciones antiguas no guardaron el total global de
+            // clasificados en la fase de zonas. En ese caso se obtiene de su
+            // estructura: cantidad de zonas por plazas que entrega cada zona.
+            if ($previous?->phase_type === 'zones' && $expectedPrevious < 1) {
+                $qualifiersPerGroup = max(1, (int) data_get($previous->settings, 'qualifiers_per_group', 2));
+                $expectedPrevious = $previous->groups()->count() * $qualifiersPerGroup;
+            }
+            $expectedTotal = $directCapacity + $expectedPrevious;
+            $configuredSize = (int) data_get($phase->settings, 'bracket_size', 0);
+            // Si todavía no existe ninguna fuente cuantificable se conserva el
+            // tamaño configurado; nunca se reduce una llave válida a dos plazas.
+            $requiredSize = $expectedTotal > 0
+                ? $this->nextPowerOfTwo(max(2, $expectedTotal))
+                : ($configuredSize >= 2 ? $configuredSize : 16);
+            $settings = array_merge($phase->settings ?? [], [
+                'bracket_size' => $requiredSize,
+                'bracket_pairs' => $this->officialBracketPairs($requiredSize),
+            ]);
+            $schedules = collect(data_get($settings, 'schedules', []))
+                ->map(fn (array $schedule, int $index): array => ['index' => $index, 'schedule' => $schedule]);
+            // Un único horario de una ronda representa la ronda completa. Una
+            // configuración antigua creada cuando el cuadro tenía dos plazas no
+            // puede limitar luego la vista reconstruida al primer partido.
+            $schedules->groupBy(fn (array $row): int => max(1, (int) ($row['schedule']['round_number'] ?? 1)))
+                ->each(function ($roundSchedules, int $round) use (&$settings, $requiredSize): void {
+                    if ($roundSchedules->count() !== 1) {
+                        return;
+                    }
+                    $index = (int) $roundSchedules->first()['index'];
+                    $settings['schedules'][$index]['from_match'] = 1;
+                    $settings['schedules'][$index]['to_match'] = max(1, intdiv($requiredSize, 2 ** $round));
+                });
+            if ($settings !== ($phase->settings ?? [])) {
+                $phase->update(['settings' => $settings]);
                 $phase->refresh();
             }
             $hasStartedMatches = $phase->matches()->whereIn('status', ['in_progress', 'completed'])
