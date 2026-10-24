@@ -462,14 +462,10 @@ class FiveQuillasCompetitionService
             $from = filled($schedule['from_match'] ?? null) ? (int) $schedule['from_match'] : 1;
             $to = filled($schedule['to_match'] ?? null) ? (int) $schedule['to_match'] : $matches->count();
             $matches = $matches->slice($from - 1, max(0, $to - $from + 1))->values();
-            // Los pases libres ocupan un lugar en la grilla, pero no consumen mesa ni horario.
-            if (! (bool) data_get($phase->settings, 'progressive_fill', false)) {
-                $matches = $matches->filter(fn ($match): bool =>
-                    ! $match->is_bye
-                    && filled($match->player_one_entry_id)
-                    && filled($match->player_two_entry_id)
-                )->values();
-            }
+            // La programación pertenece a la posición de la grilla y debe poder
+            // publicarse aunque uno o ambos rivales todavía estén por definirse.
+            // Solamente se excluyen los pases libres ya confirmados.
+            $matches = $matches->reject(fn ($match): bool => (bool) $match->is_bye)->values();
             if ($matches->isEmpty()) {
                 throw ValidationException::withMessages([
                     'schedule' => "La fase todavía no tiene partidos creados para la ronda {$round}.",
@@ -488,6 +484,42 @@ class FiveQuillasCompetitionService
             }
 
             return $matches->count();
+        });
+    }
+
+    /**
+     * Crea la estructura anticipada de una llave para poder publicarla y
+     * programarla antes de conocer todos los clasificados. Los ingresos directos
+     * ya conocidos conservan su posición; los rivales faltantes quedan A definir.
+     */
+    public function ensureBracketSkeleton(FiveQuillasPhase $phase): int
+    {
+        return DB::transaction(function () use ($phase): int {
+            $phase->refresh()->loadMissing('competition');
+            if ($phase->phase_type !== 'bracket') {
+                return $phase->matches()->count();
+            }
+            if ($phase->matches()->exists()) {
+                return $phase->matches()->count();
+            }
+
+            $rows = $this->bracketParticipantRows($phase);
+            $entries = $phase->competition->entries()
+                ->whereIn('id', collect($rows)->pluck('entry_id'))->get()->keyBy('id');
+            $seeds = [];
+            foreach ($rows as $row) {
+                $seed = (int) ($row['seed_position'] ?? 0);
+                $entry = $entries->get((int) ($row['entry_id'] ?? 0));
+                if ($seed > 0 && $entry) {
+                    $entry->update(['seed' => $seed, 'status' => 'assigned']);
+                    $seeds[$seed] = $entry;
+                }
+            }
+
+            $count = $this->createEliminationBracket($phase->fresh(), $seeds, false);
+            $phase->update(['status' => 'ready']);
+
+            return $count;
         });
     }
 

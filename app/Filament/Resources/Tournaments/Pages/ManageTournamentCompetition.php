@@ -1176,7 +1176,11 @@ class ManageTournamentCompetition extends Page
             ->action(function (array $data, array $arguments): void {
                 $phase = $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
                     ->where('phase_type', '!=', 'zones')->where('is_enabled', true)->firstOrFail();
-                $count = app(FiveQuillasCompetitionService::class)->scheduleConfiguredMatches(
+                $service = app(FiveQuillasCompetitionService::class);
+                // La grilla puede programarse aun cuando todavía falten rivales:
+                // se crean sus posiciones y luego se completan con los clasificados.
+                $service->ensureBracketSkeleton($phase);
+                $count = $service->scheduleConfiguredMatches(
                     $phase, (int) $data['schedule_index'],
                 );
                 Notification::make()->success()->title('Horarios asignados')

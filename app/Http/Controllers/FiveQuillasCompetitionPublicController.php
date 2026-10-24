@@ -92,6 +92,18 @@ class FiveQuillasCompetitionPublicController extends Controller
                     fn ($phase): bool => $phase->groups->isNotEmpty() || $phase->matches->isNotEmpty()
                 ),
                 'mostrar_posiciones_finales' => $showFinalStandings,
+                // La fuente de OBS consulta este mismo JSON cada pocos segundos.
+                // Incluir su configuración permite aplicar cambios sin recargarla.
+                'transmision' => [
+                    'habilitada' => (bool) data_get($competition->settings, 'broadcast.enabled', false),
+                    'todas_fases' => (bool) data_get($competition->settings, 'broadcast.all_phases', true),
+                    'fases' => collect(data_get($competition->settings, 'broadcast.phase_ids', []))
+                        ->map(fn ($id): int => (int) $id)->values(),
+                    'todos_horarios_zonas' => (bool) data_get($competition->settings, 'broadcast.all_zone_slots', true),
+                    'horarios_zonas' => collect(data_get($competition->settings, 'broadcast.zone_slot_keys', []))
+                        ->map(fn ($key): string => (string) $key)->values(),
+                    'segundos' => max(4, min(60, (int) data_get($competition->settings, 'broadcast.rotation_seconds', 8))),
+                ],
                 'posiciones_finales' => $showFinalStandings
                     ? $competition->entries->map(function ($entry) use ($competition): array {
                         $performance = app(FiveQuillasCompetitionService::class)
