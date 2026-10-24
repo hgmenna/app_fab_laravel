@@ -34,7 +34,8 @@ class FiveQuillasCompetitionPublicController extends Controller
                 'phases.matches' => fn ($query) => $query->where('is_public', true),
                 'phases.matches.playerOne.player:id,first_name,last_name,photo_path',
                 'phases.matches.playerTwo.player:id,first_name,last_name,photo_path',
-                'phases.matches.winner.player:id,first_name,last_name,photo_path',
+                'phases.matches.winner.player:id,first_name,last_name,club_id,photo_path',
+                'phases.matches.winner.player.club:id,name,short_name',
                 'entries' => fn ($query) => $query->whereNotNull('final_position')->orderBy('final_position'),
                 'entries.player:id,first_name,last_name,club_id,category_id,photo_path',
                 'entries.player.club:id,name,short_name',
@@ -84,6 +85,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                 'logo' => $logoPath ? Storage::disk('public_path')->url($logoPath) : null,
                 'campeon' => $championEntry?->player ? [
                     'nombre' => $championEntry->player->full_name,
+                    'club' => $championEntry->player->club?->name,
                     'foto' => $championPhoto ? Storage::disk('public_path')->url($championPhoto) : null,
                 ] : null,
                 'fecha_inicio' => $competition->tournament->start_date?->toDateString(),
