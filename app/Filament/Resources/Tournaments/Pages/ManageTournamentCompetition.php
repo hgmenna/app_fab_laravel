@@ -1460,6 +1460,31 @@ class ManageTournamentCompetition extends Page
     }
 
     /**
+     * Cancela el llamado de un partido que todavía no comenzó y libera su mesa.
+     */
+    public function cancelMatchCallAction(): Action
+    {
+        return Action::make('cancelMatchCall')
+            ->label('Cancelar llamado')
+            ->icon('heroicon-o-x-mark')
+            ->color('danger')
+            ->size('xs')
+            ->iconButton()
+            ->tooltip('Cancelar llamado y liberar mesa')
+            ->requiresConfirmation()
+            ->modalHeading('Cancelar llamado')
+            ->modalDescription('El partido dejará de estar llamado y la mesa quedará disponible para otro encuentro.')
+            ->action(function (array $arguments): void {
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+                abort_unless($match, 404);
+
+                app(FiveQuillasCompetitionService::class)->cancelMatchCall($match);
+                Notification::make()->success()->title('Llamado cancelado')
+                    ->body('La mesa quedó disponible.')->send();
+            });
+    }
+
+    /**
      * Prepara fases, horarios, tablas, clasificados y estados para la vista.
      */
     protected function getViewData(): array

@@ -46,7 +46,7 @@
                                 @endif
                                 @if($match->scheduled_at)<small class="fq-match-time">{{ $match->scheduled_at->format('d/m/y · H:i') }}</small>@endif
                                 @if($match->table_number && in_array($match->status, ['called', 'in_progress'], true))
-                                    <small class="fq-table-active">{{ $match->status === 'called' ? 'Llamada' : 'En juego' }} · Mesa {{ $match->table_number }}</small>
+                                    <small class="fq-table-active">Mesa {{ $match->table_number }}</small>
                                 @elseif($match->table_number)
                                     <small class="fq-match-time">Mesa {{ $match->table_number }}</small>
                                 @endif
@@ -55,12 +55,14 @@
                                         {{ ($this->correctMatchParticipantsAction)(['matchId' => $match->id]) }}
                                         @if($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
                                             @if($match->status !== 'completed'){{ ($this->callMatchAction)(['matchId' => $match->id]) }}@endif
+                                            @if($match->status === 'called'){{ ($this->cancelMatchCallAction)(['matchId' => $match->id]) }}@endif
                                             {{ ($this->recordResultAction)(['matchId' => $match->id]) }}
                                         @endif
                                     </div>
                                 @elseif($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
                                     <div class="fq-match-actions">
                                         @if($match->status !== 'completed'){{ ($this->callMatchAction)(['matchId' => $match->id]) }}@endif
+                                        @if($match->status === 'called'){{ ($this->cancelMatchCallAction)(['matchId' => $match->id]) }}@endif
                                         {{ ($this->recordResultAction)(['matchId' => $match->id]) }}
                                         @if(in_array($match->status, ['in_progress', 'completed'], true)){{ ($this->resetResultAction)(['matchId' => $match->id]) }}@endif
                                     </div>

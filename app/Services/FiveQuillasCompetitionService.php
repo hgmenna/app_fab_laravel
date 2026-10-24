@@ -600,6 +600,29 @@ class FiveQuillasCompetitionService
     }
 
     /**
+     * Cancela un llamado que todavía no comenzó y vuelve a liberar la mesa.
+     */
+    public function cancelMatchCall(FiveQuillasMatch $match): FiveQuillasMatch
+    {
+        return DB::transaction(function () use ($match): FiveQuillasMatch {
+            $lockedMatch = FiveQuillasMatch::query()->lockForUpdate()->findOrFail($match->getKey());
+
+            if ($lockedMatch->status !== 'called') {
+                throw ValidationException::withMessages([
+                    'match' => 'Solo se puede cancelar un partido que está llamado y todavía no comenzó.',
+                ]);
+            }
+
+            $lockedMatch->update([
+                'table_number' => null,
+                'status' => $lockedMatch->scheduled_at ? 'scheduled' : 'pending',
+            ]);
+
+            return $lockedMatch->fresh();
+        });
+    }
+
+    /**
      * Construye los grupos o la llave de una fase usando su método de ingreso configurado.
      */
     public function preparePhase(FiveQuillasPhase $phase): int
