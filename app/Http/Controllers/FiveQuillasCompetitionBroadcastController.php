@@ -26,6 +26,7 @@ class FiveQuillasCompetitionBroadcastController extends Controller
             'broadcastConfig' => [
                 'allPhases' => (bool) ($settings['all_phases'] ?? true),
                 'phaseIds' => collect($settings['phase_ids'] ?? [])->map(fn ($id): int => (int) $id)->values()->all(),
+                'allZoneSlots' => (bool) ($settings['all_zone_slots'] ?? empty($settings['zone_slot_keys'] ?? [])),
                 'zoneSlotKeys' => collect($settings['zone_slot_keys'] ?? [])->map(fn ($key): string => (string) $key)->values()->all(),
                 'rotationSeconds' => max(4, min(60, (int) ($settings['rotation_seconds'] ?? 8))),
             ],

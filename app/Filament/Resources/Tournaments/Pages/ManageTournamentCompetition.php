@@ -183,6 +183,7 @@ class ManageTournamentCompetition extends Page
                         'enabled' => (bool) ($settings['enabled'] ?? false),
                         'all_phases' => (bool) ($settings['all_phases'] ?? true),
                         'phase_ids' => collect($settings['phase_ids'] ?? [])->map(fn ($id): string => (string) $id)->all(),
+                        'all_zone_slots' => (bool) ($settings['all_zone_slots'] ?? empty($settings['zone_slot_keys'] ?? [])),
                         'zone_slot_keys' => collect($settings['zone_slot_keys'] ?? [])->map(fn ($key): string => (string) $key)->all(),
                         'rotation_seconds' => (int) ($settings['rotation_seconds'] ?? 8),
                     ];
@@ -204,11 +205,18 @@ class ManageTournamentCompetition extends Page
                             ->orderBy('sort_order')->pluck('name', 'id')->all())
                         ->columns(2)
                         ->visible(fn (Get $get): bool => (bool) $get('enabled') && ! (bool) $get('all_phases')),
+                    Toggle::make('all_zone_slots')
+                        ->label('Rotar todos los horarios de zonas')
+                        ->helperText('Genera una pantalla independiente para cada horario publicado y las recorre automáticamente.')
+                        ->default(true)
+                        ->live()
+                        ->visible(fn (Get $get): bool => (bool) $get('enabled')),
                     CheckboxList::make('zone_slot_keys')
-                        ->label('Horarios de zonas incluidos')
+                        ->label('Horarios publicados incluidos')
                         ->options(function (): array {
                             $groups = $this->competition()->phases()->where('phase_type', 'zones')
-                                ->with('groups.slot')->get()->flatMap->groups;
+                                ->with(['groups' => fn ($query) => $query->where('is_public', true), 'groups.slot'])
+                                ->get()->flatMap->groups;
 
                             return $groups->groupBy(fn ($group): string => $group->tournament_slot_id ? 'slot_'.$group->tournament_slot_id : 'without_slot')
                                 ->map(fn ($slotGroups, $key): string => $key === 'without_slot'
@@ -217,8 +225,7 @@ class ManageTournamentCompetition extends Page
                                 ->all();
                         })
                         ->columns(2)
-                        ->helperText('Si no seleccionás horarios, se mostrarán todos los horarios publicados.')
-                        ->visible(fn (Get $get): bool => (bool) $get('enabled')),
+                        ->visible(fn (Get $get): bool => (bool) $get('enabled') && ! (bool) $get('all_zone_slots')),
                     TextInput::make('rotation_seconds')
                         ->label('Duración de cada pantalla')
                         ->suffix('segundos')
@@ -253,7 +260,10 @@ class ManageTournamentCompetition extends Page
                         'enabled' => $enabled,
                         'all_phases' => (bool) ($data['all_phases'] ?? true),
                         'phase_ids' => collect($data['phase_ids'] ?? [])->map(fn ($id): int => (int) $id)->values()->all(),
-                        'zone_slot_keys' => collect($data['zone_slot_keys'] ?? [])->map(fn ($key): string => (string) $key)->values()->all(),
+                        'all_zone_slots' => (bool) ($data['all_zone_slots'] ?? true),
+                        'zone_slot_keys' => (bool) ($data['all_zone_slots'] ?? true)
+                            ? []
+                            : collect($data['zone_slot_keys'] ?? [])->map(fn ($key): string => (string) $key)->values()->all(),
                         'rotation_seconds' => max(4, min(60, (int) ($data['rotation_seconds'] ?? 8))),
                     ]);
                     $competition->update(['settings' => $settings]);
