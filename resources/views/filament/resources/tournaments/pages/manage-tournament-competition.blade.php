@@ -225,7 +225,7 @@
                             @else
                                 <small>Pendiente de finalizar {{ $previousPhase->name }}</small>
                             @endif
-                            @if($phase->matches->isNotEmpty())
+                            @if($phaseSchedules->isNotEmpty())
                                 {{ ($this->schedulePhaseAction)(['phaseId' => $phase->id]) }}
                             @endif
                             @include('filament.resources.tournaments.pages.partials.competition-qualified-action', ['phase' => $phase])
@@ -238,7 +238,7 @@
                         </div>
                     @endif
                 </div>
-                @if($phaseSchedules->count() > 1)
+                @if($phaseSchedules->isNotEmpty())
                     @php
                         $scheduledMatchIds = collect();
                         $scheduleMatches = $phaseSchedules->map(function(array $schedule) use ($phase, $scheduledMatchIds) {
@@ -267,6 +267,7 @@
                             @foreach($phaseSchedules as $scheduleIndex => $schedule)
                                 <button type="button" class="fq-slot-tab" :class="activeSchedule === {{ $scheduleIndex }} && 'is-active'" @click="activeSchedule = {{ $scheduleIndex }}">
                                     {{ $schedule['name'] ?? 'Horario '.($scheduleIndex + 1) }}
+                                    @if(filled($schedule['starts_at'] ?? null)) · {{ \Illuminate\Support\Carbon::parse($schedule['starts_at'])->format('d/m/Y H:i') }}@endif
                                 </button>
                             @endforeach
                         </div>
