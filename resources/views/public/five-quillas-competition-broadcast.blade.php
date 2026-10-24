@@ -31,13 +31,13 @@
         .bracket-stage{position:relative;grid-row:1/-1;min-height:0;height:100%;overflow:hidden}.bracket-stage .knockout-bracket{position:relative;z-index:1}.bracket-brand{position:absolute;z-index:3;left:50%;top:12%;display:flex;flex-direction:column;align-items:center;transform:translateX(-50%);pointer-events:none;text-align:center}.bracket-trophy{width:62px;height:62px;color:#b8c9d8;filter:drop-shadow(0 7px 15px rgba(0,0,0,.5))}.bracket-trophy svg{display:block;width:100%;height:100%}.bracket-name{margin-top:7px;color:#dce8f1;font-size:22px;font-weight:1000;letter-spacing:.06em;text-transform:uppercase;text-shadow:0 3px 12px #071421}.knockout-column .match-title:empty{display:none}.knockout-column .match-title{justify-content:flex-end}
         .broadcast-credit{position:absolute;z-index:5;right:0;bottom:10px;left:0;color:rgba(184,201,216,.72);font-size:10px;font-weight:700;letter-spacing:.035em;text-align:center;pointer-events:none}.broadcast-credit strong{color:rgba(220,232,241,.88);font-weight:900}
         html,body{width:100vw;height:100vh;overflow:hidden}#stage{position:absolute;left:50%;top:50%;transform-origin:center center}
-        .bracket-brand{top:10%}.bracket-trophy{display:block;width:76px;height:76px;object-fit:contain;filter:drop-shadow(0 8px 16px rgba(0,0,0,.55))}.bracket-trophy svg{display:none}.broadcast-credit{bottom:12px;font-size:14px;color:rgba(184,201,216,.82)}.broadcast-credit strong{color:rgba(220,232,241,.96)}
+        .bracket-brand{top:8%}.bracket-trophy{display:block;width:170px;height:170px;object-fit:contain;filter:drop-shadow(0 12px 24px rgba(0,0,0,.58))}.bracket-trophy svg{display:none}.bracket-name{margin-top:2px;font-size:24px}.broadcast-credit{bottom:12px;font-size:14px;color:rgba(184,201,216,.82)}.broadcast-credit strong{color:rgba(220,232,241,.96)}
     </style>
 </head>
 <body>
 <main id="stage"><div class="empty">Cargando resultados en vivo…</div></main>
 <script>
-const endpoint=@json($jsonUrl),config=@json($broadcastConfig),trophyImage=@json(asset('images/broadcast/championship-cup.png')),stage=document.querySelector('#stage');
+const endpoint=@json($jsonUrl),config=@json($broadcastConfig),trophyImage='/images/broadcast/championship-cup.png?v=fb95bd00',stage=document.querySelector('#stage');
 let data=null,slides=[],activeSlide=0,lastPayload='',loading=false,rotationTimer=null;
 function fitStage(){const scale=Math.min(window.innerWidth/1920,window.innerHeight/1080);stage.style.transform='translate(-50%,-50%) scale('+scale+')'}
 const esc=value=>String(value??'—').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
