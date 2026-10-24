@@ -1423,20 +1423,39 @@ class ManageTournamentCompetition extends Page
             ->size('xs')
             ->iconButton()
             ->tooltip('Llamar partido')
-            ->schema([
-                TextInput::make('table_number')->label('Mesa disponible')->integer()->minValue(1)->required(),
-            ])
+            ->fillForm(function (array $arguments): array {
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+
+                return ['table_number' => $match?->table_number];
+            })
+            ->schema(function (array $arguments): array {
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+                $options = $match
+                    ? app(FiveQuillasCompetitionService::class)->availableTableOptions($match)
+                    : [];
+
+                return [
+                    Select::make('table_number')
+                        ->label('Mesa disponible')
+                        ->options($options)
+                        ->placeholder($options === [] ? 'No hay mesas disponibles' : 'Seleccioná una mesa')
+                        ->helperText($options === []
+                            ? 'Todas las mesas configuradas están ocupadas por partidas llamadas o en juego.'
+                            : 'Solo se muestran mesas libres.')
+                        ->native(false)
+                        ->searchable()
+                        ->required(),
+                ];
+            })
             ->modalHeading('Llamar partido')
             ->modalDescription('Asigná la mesa disponible al momento de llamar a los jugadores.')
             ->action(function (array $data, array $arguments): void {
-                $match = FiveQuillasMatch::query()
-                    ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
-                    ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')
-                    ->where('is_bye', false)->where('status', '!=', 'completed')
-                    ->findOrFail((int) $arguments['matchId']);
-                $match->update(['table_number' => (int) $data['table_number'], 'status' => 'called']);
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+                abort_unless($match, 404);
+
+                app(FiveQuillasCompetitionService::class)->callMatch($match, (int) $data['table_number']);
                 Notification::make()->success()->title('Partido llamado')
-                    ->body('La mesa '.$data['table_number'].' quedó asignada.')->send();
+                    ->body('Mesa '.$data['table_number'].' quedó asignada.')->send();
             });
     }
 

@@ -492,6 +492,114 @@ class FiveQuillasCompetitionService
     }
 
     /**
+     * Devuelve la cantidad de mesas configurada para el bloque al que pertenece el partido.
+     */
+    public function configuredTableCountForMatch(FiveQuillasMatch $match): int
+    {
+        $match->loadMissing('phase');
+        $settings = $match->phase?->settings ?? [];
+
+        foreach ((array) data_get($settings, 'schedules', []) as $schedule) {
+            if (! is_array($schedule)) {
+                continue;
+            }
+
+            $round = max(1, (int) ($schedule['round_number'] ?? 1));
+            $from = filled($schedule['from_match'] ?? null) ? (int) $schedule['from_match'] : 1;
+            $to = filled($schedule['to_match'] ?? null) ? (int) $schedule['to_match'] : PHP_INT_MAX;
+
+            if ($round === (int) $match->round_number
+                && (int) $match->bracket_order >= $from
+                && (int) $match->bracket_order <= $to) {
+                $tables = (int) ($schedule['tables'] ?? data_get($settings, 'tables', 0));
+                if ($tables > 0) {
+                    return $tables;
+                }
+            }
+        }
+
+        return max(0, (int) data_get($settings, 'tables', 0));
+    }
+
+    /**
+     * Lista las mesas que no están ocupadas por otro partido llamado o en juego.
+     * El partido actual se excluye para permitir conservar o cambiar su mesa.
+     * Las partidas terminadas mantienen la mesa como dato histórico, pero ya no la ocupan.
+     *
+     * @return array<int, string>
+     */
+    public function availableTableOptions(FiveQuillasMatch $match): array
+    {
+        $match->loadMissing('phase');
+        $tableCount = $this->configuredTableCountForMatch($match);
+        if ($tableCount < 1 || ! $match->phase) {
+            return [];
+        }
+
+        $occupied = FiveQuillasMatch::query()
+            ->whereHas('phase', fn ($query) => $query->where('competition_id', $match->phase->competition_id))
+            ->whereKeyNot($match->getKey())
+            ->whereIn('status', ['called', 'in_progress'])
+            ->whereNotNull('table_number')
+            ->pluck('table_number')
+            ->map(fn ($number): int => (int) $number)
+            ->all();
+
+        return collect(range(1, $tableCount))
+            ->reject(fn (int $number): bool => in_array($number, $occupied, true))
+            ->mapWithKeys(fn (int $number): array => [$number => "Mesa {$number}"])
+            ->all();
+    }
+
+    /**
+     * Llama un partido y reserva de forma exclusiva una mesa disponible.
+     */
+    public function callMatch(FiveQuillasMatch $match, int $tableNumber): FiveQuillasMatch
+    {
+        return DB::transaction(function () use ($match, $tableNumber): FiveQuillasMatch {
+            $lockedMatch = FiveQuillasMatch::query()
+                ->with('phase')
+                ->lockForUpdate()
+                ->findOrFail($match->getKey());
+
+            if (! $lockedMatch->player_one_entry_id || ! $lockedMatch->player_two_entry_id
+                || $lockedMatch->is_bye || $lockedMatch->status === 'completed') {
+                throw ValidationException::withMessages([
+                    'table_number' => 'Este partido no puede ser llamado.',
+                ]);
+            }
+
+            $tableCount = $this->configuredTableCountForMatch($lockedMatch);
+            if ($tableNumber < 1 || $tableNumber > $tableCount) {
+                throw ValidationException::withMessages([
+                    'table_number' => 'Seleccioná una mesa configurada para este horario.',
+                ]);
+            }
+
+            $occupied = FiveQuillasMatch::query()
+                ->whereHas('phase', fn ($query) => $query->where('competition_id', $lockedMatch->phase->competition_id))
+                ->whereKeyNot($lockedMatch->getKey())
+                ->whereIn('status', ['called', 'in_progress'])
+                ->where('table_number', $tableNumber)
+                ->lockForUpdate()
+                ->exists();
+
+            if ($occupied) {
+                throw ValidationException::withMessages([
+                    'table_number' => "Mesa {$tableNumber} ya está ocupada por otro partido.",
+                ]);
+            }
+
+            $lockedMatch->update([
+                'table_number' => $tableNumber,
+                'status' => $lockedMatch->status === 'in_progress' ? 'in_progress' : 'called',
+            ]);
+
+            return $lockedMatch->fresh();
+        });
+    }
+
+    /**
      * Construye los grupos o la llave de una fase usando su método de ingreso configurado.
      */
     public function preparePhase(FiveQuillasPhase $phase): int

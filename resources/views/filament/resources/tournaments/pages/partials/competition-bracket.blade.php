@@ -28,7 +28,7 @@
                                 : ($match->playerTwo?->seed ?? '—');
                         @endphp
                         <div class="fq-match-shell">
-                            <article class="fq-match">
+                            <article class="fq-match {{ $match->status === 'called' ? 'is-called' : ($match->status === 'in_progress' ? 'is-in-progress' : '') }}">
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_one_entry_id ? 'is-winner' : '' }}">
                                     <span><b>{{ $numberOne }}</b> · {{ $match->playerOne?->player?->full_name ?? 'LIBRE' }}</span>
                                     <span>{{ $match->status === 'completed' ? $match->player_one_computed_sets : '—' }}</span>
@@ -45,7 +45,11 @@
                                     </div>
                                 @endif
                                 @if($match->scheduled_at)<small class="fq-match-time">{{ $match->scheduled_at->format('d/m/y · H:i') }}</small>@endif
-                                @if($match->table_number)<small class="fq-match-time">Mesa {{ $match->table_number }}</small>@endif
+                                @if($match->table_number && in_array($match->status, ['called', 'in_progress'], true))
+                                    <small class="fq-table-active">{{ $match->status === 'called' ? 'Llamada' : 'En juego' }} · Mesa {{ $match->table_number }}</small>
+                                @elseif($match->table_number)
+                                    <small class="fq-match-time">Mesa {{ $match->table_number }}</small>
+                                @endif
                                 @if($match->phase?->phase_type === 'bracket' && (int)$match->round_number === 1 && (in_array($match->status, ['pending', 'scheduled'], true) || $match->is_bye))
                                     <div class="fq-match-actions">
                                         {{ ($this->correctMatchParticipantsAction)(['matchId' => $match->id]) }}
