@@ -118,8 +118,16 @@
                                     <div class="fq-zone-bracket-wrap">
                                     <div class="fq-zone-bracket">
                                         @php
-                                            $firstPlace = $group->groupEntries->firstWhere('final_place', 1)?->entry?->player?->full_name;
-                                            $secondPlace = $group->groupEntries->firstWhere('final_place', 2)?->entry?->player?->full_name;
+                                            // Las posiciones estadísticas son provisorias mientras se juega la zona.
+                                            // Un puesto se proclama únicamente al finalizar su partido definitorio.
+                                            $firstPlace = $group->matches
+                                                ->first(fn($match) => $match->label === 'Definición del primer puesto'
+                                                    && $match->status === 'completed')
+                                                ?->winner?->player?->full_name;
+                                            $secondPlace = $group->matches
+                                                ->first(fn($match) => $match->label === 'Definición del segundo puesto'
+                                                    && $match->status === 'completed')
+                                                ?->winner?->player?->full_name;
                                         @endphp
                                         @foreach($group->matches->sortBy(fn($match) => [$match->round_number, $match->bracket_order]) as $match)
                                             @php

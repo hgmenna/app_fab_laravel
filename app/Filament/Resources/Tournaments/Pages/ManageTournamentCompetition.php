@@ -568,7 +568,7 @@ class ManageTournamentCompetition extends Page
     {
         return FiveQuillasCompetition::query()
             ->where('tournament_id', $this->record->id)
-            ->with(['phases.groups.slot', 'phases.groups.groupEntries.entry.player.club', 'phases.groups.matches.playerOne.player', 'phases.groups.matches.playerTwo.player', 'phases.matches.playerOne.player', 'phases.matches.playerTwo.player', 'phases.matches.winner.player', 'entries.player.club', 'entries.player.category', 'entries.sourceSlot', 'entries.entryPhase', 'entries.registration'])
+            ->with(['phases.groups.slot', 'phases.groups.groupEntries.entry.player.club', 'phases.groups.matches.playerOne.player', 'phases.groups.matches.playerTwo.player', 'phases.groups.matches.winner.player', 'phases.matches.playerOne.player', 'phases.matches.playerTwo.player', 'phases.matches.winner.player', 'entries.player.club', 'entries.player.category', 'entries.sourceSlot', 'entries.entryPhase', 'entries.registration'])
             ->first();
     }
 
