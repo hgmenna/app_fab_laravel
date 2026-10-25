@@ -13,9 +13,10 @@
         .fq-bracket .fq-match-player{min-height:1.25rem;align-items:center}
         .fq-zone-bracket .fq-match{display:flex;flex-direction:column;height:5rem;min-height:5rem;max-height:5rem;overflow:visible}
         .fq-zone-bracket .fq-match-player{min-height:1.1rem;align-items:center}
-        .fq-match-meta{display:flex;align-items:center;gap:.38rem;min-height:.9rem;margin-top:auto;overflow:hidden;white-space:nowrap;color:#65758b;font-size:.58rem;line-height:1}
+        .fq-match-meta{display:flex;align-items:center;gap:.38rem;min-height:.9rem;margin-top:auto;padding-right:2rem;overflow:hidden;white-space:nowrap;color:#65758b;font-size:.58rem;line-height:1}
         .fq-match-meta .fq-match-time,.fq-match-meta .fq-table-active{display:inline-flex;width:auto;margin:0;padding:0;border-radius:0;background:transparent;color:inherit;font-size:inherit;line-height:1;text-transform:none;letter-spacing:0}
         .fq-match-meta>*+*{padding-left:.38rem!important;border-left:1px solid rgba(127,127,127,.45)}
+        .fq-match-actions.fq-schedule-action{opacity:1;visibility:visible;transform:none}
     </style>
 
     @if(!$competition)

@@ -89,9 +89,8 @@
                                     </div>
                                 @elseif((int)$match->round_number > 1
                                     && (bool)$match->player_one_entry_id !== (bool)$match->player_two_entry_id
-                                    && !$match->is_bye
                                     && in_array($match->status, ['pending', 'scheduled'], true))
-                                    <div class="fq-match-actions">
+                                    <div class="fq-match-actions fq-schedule-action">
                                         {{ ($this->scheduleWaitingMatchAction)(['matchId' => $match->id]) }}
                                     </div>
                                 @endif

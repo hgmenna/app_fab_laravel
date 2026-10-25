@@ -1227,7 +1227,7 @@ class ManageTournamentCompetition extends Page
                     $match->player_two_entry_id,
                 ])->filter()->count();
 
-                if ((int) $match->round_number <= 1 || $participants !== 1 || $match->is_bye
+                if ((int) $match->round_number <= 1 || $participants !== 1
                     || ! in_array($match->status, ['pending', 'scheduled'], true)) {
                     throw ValidationException::withMessages([
                         'scheduled_at' => 'Solo se puede informar el horario de una ronda posterior cuando un jugador clasificado todavía espera rival.',
