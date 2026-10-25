@@ -1192,6 +1192,59 @@ class ManageTournamentCompetition extends Page
     }
 
     /**
+     * Informa el horario de un partido de una ronda posterior que ya tiene un
+     * clasificado y todavía espera que se defina su rival.
+     */
+    public function scheduleWaitingMatchAction(): Action
+    {
+        return Action::make('scheduleWaitingMatch')
+            ->label('Informar horario')
+            ->icon('heroicon-o-calendar-days')
+            ->color('primary')
+            ->size('xs')
+            ->iconButton()
+            ->tooltip('Informar o modificar el horario de esta partida')
+            ->fillForm(function (array $arguments): array {
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+
+                return ['scheduled_at' => $match?->scheduled_at];
+            })
+            ->schema([
+                DateTimePicker::make('scheduled_at')
+                    ->label('Fecha y hora de la partida')
+                    ->seconds(false)
+                    ->native(false)
+                    ->required(),
+            ])
+            ->modalHeading('Informar horario de la partida')
+            ->modalDescription('El jugador clasificado conservará esta fecha y hora mientras se define su rival. La mesa se asignará recién al llamar la partida.')
+            ->action(function (array $data, array $arguments): void {
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+                abort_unless($match, 404);
+
+                $participants = collect([
+                    $match->player_one_entry_id,
+                    $match->player_two_entry_id,
+                ])->filter()->count();
+
+                if ((int) $match->round_number <= 1 || $participants !== 1 || $match->is_bye
+                    || ! in_array($match->status, ['pending', 'scheduled'], true)) {
+                    throw ValidationException::withMessages([
+                        'scheduled_at' => 'Solo se puede informar el horario de una ronda posterior cuando un jugador clasificado todavía espera rival.',
+                    ]);
+                }
+
+                $match->update([
+                    'scheduled_at' => $data['scheduled_at'],
+                    'status' => 'scheduled',
+                ]);
+
+                Notification::make()->success()->title('Horario actualizado')
+                    ->body('La partida quedó programada mientras se define el rival.')->send();
+            });
+    }
+
+    /**
      * Permite corregir la regla o puntuación propuesta de una entrada final.
      */
     public function editFinalScoreAction(): Action
