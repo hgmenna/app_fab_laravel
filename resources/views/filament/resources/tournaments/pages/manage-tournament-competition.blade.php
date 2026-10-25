@@ -9,12 +9,13 @@
         .fq-bracket{gap:2rem}.fq-match-shell{position:relative}.fq-round:not(:last-child) .fq-match-shell:after{content:"";position:absolute;top:50%;right:-2rem;width:2rem;border-top:1px solid #49647f}.fq-qualified-card{border-left-color:#07844d;background:rgba(7,132,77,.08)}.fq-qualified-label{display:block;margin-bottom:.22rem;color:#07844d;font-size:.62rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.fq-qualified-button{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .7rem;border:1px solid #07844d;border-radius:.5rem;background:rgba(7,132,77,.1);color:#07844d;font-size:.75rem;font-weight:900;cursor:pointer}.fq-qualified-button span{display:grid;place-items:center;min-width:1.25rem;height:1.25rem;border-radius:999px;background:#07844d;color:#fff}.fq-qualified-dialog{width:min(58rem,calc(100vw - 2rem));max-height:82vh;padding:0;border:1px solid rgba(127,127,127,.35);border-radius:.85rem;background:#fff;color:#17253a;box-shadow:0 24px 80px rgba(0,0,0,.4)}.dark .fq-qualified-dialog{background:#111a28;color:#eef4ff}.fq-qualified-dialog::backdrop{background:rgba(0,0,0,.7)}.fq-qualified-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem;border-bottom:1px solid rgba(127,127,127,.25)}.fq-qualified-dialog-head small{color:#718096}.fq-qualified-dialog-head h3{font-size:1.05rem;font-weight:900}.fq-qualified-dialog-actions{display:flex;align-items:center;gap:.4rem}.fq-qualified-dialog-actions button{display:grid;place-items:center;width:2.15rem;height:2.15rem;border:1px solid rgba(127,127,127,.35);border-radius:.5rem;background:transparent;color:inherit;cursor:pointer}.fq-qualified-dialog-actions button:hover{background:#173d7c;color:#fff}.fq-qualified-dialog-actions svg{width:1.05rem;height:1.05rem}.fq-qualified-dialog-actions .fq-dialog-close{border:0;font-size:1.7rem;line-height:1}.fq-qualified-dialog .fq-standings-wrap{max-height:60vh;padding:1rem}.fq-qualified-dialog-foot{display:flex;justify-content:flex-end;padding:.75rem 1rem;border-top:1px solid rgba(127,127,127,.25)}.fq-qualified-dialog-foot button{padding:.45rem .9rem;border-radius:.45rem;background:#173d7c;color:#fff;font-weight:800}
         .fq-match > .fq-table-active{display:flex;width:max-content;margin-top:.3rem}
         /* Conserva la geometría de las grillas al agregar o quitar horario y mesa. */
-        .fq-bracket .fq-match{display:flex;flex-direction:column;height:7.25rem;min-height:7.25rem;max-height:7.25rem;overflow:visible}
-        .fq-bracket .fq-match-player{min-height:1.55rem;align-items:center}
-        .fq-bracket .fq-match-time,.fq-bracket .fq-table-active{flex:none}
-        .fq-zone-bracket .fq-match{display:flex;flex-direction:column;height:5.8rem;min-height:5.8rem;max-height:5.8rem;overflow:visible}
-        .fq-zone-bracket .fq-match-player{min-height:1.25rem;align-items:center}
-        .fq-zone-bracket .fq-match-time,.fq-zone-bracket .fq-table-active{flex:none}
+        .fq-bracket .fq-match{display:flex;flex-direction:column;height:5.3rem;min-height:5.3rem;max-height:5.3rem;overflow:visible}
+        .fq-bracket .fq-match-player{min-height:1.25rem;align-items:center}
+        .fq-zone-bracket .fq-match{display:flex;flex-direction:column;height:5rem;min-height:5rem;max-height:5rem;overflow:visible}
+        .fq-zone-bracket .fq-match-player{min-height:1.1rem;align-items:center}
+        .fq-match-meta{display:flex;align-items:center;gap:.38rem;min-height:.9rem;margin-top:auto;overflow:hidden;white-space:nowrap;color:#65758b;font-size:.58rem;line-height:1}
+        .fq-match-meta .fq-match-time,.fq-match-meta .fq-table-active{display:inline-flex;width:auto;margin:0;padding:0;border-radius:0;background:transparent;color:inherit;font-size:inherit;line-height:1;text-transform:none;letter-spacing:0}
+        .fq-match-meta>*+*{padding-left:.38rem!important;border-left:1px solid rgba(127,127,127,.45)}
     </style>
 
     @if(!$competition)
@@ -163,12 +164,14 @@
                                                             @forelse($matchSets as $set)<span class="fq-set-point {{ isset($set['player_two_points']) && (int) $set['player_two_points'] === (int) $phase->points_per_set ? 'is-set-winner' : '' }}">{{ $set['player_two_points'] ?? '—' }}</span>@empty<span class="fq-set-point">—</span>@endforelse
                                                         </span>
                                                     </div>
-                                                    @if($match->scheduled_at)<small class="fq-match-time">{{ $match->scheduled_at->format('d/m/y · H:i') }}</small>@endif
-                                                    @if($match->table_number && in_array($match->status, ['called', 'in_progress'], true))
-                                                        <small class="fq-table-active">Mesa {{ $match->table_number }}</small>
-                                                    @elseif($match->table_number)
-                                                        <small class="fq-match-time">Mesa {{ $match->table_number }}</small>
-                                                    @endif
+                                                    <div class="fq-match-meta">
+                                                        @if($match->scheduled_at)<small class="fq-match-time">{{ $match->scheduled_at->format('d/m/y · H:i') }}</small>@endif
+                                                        @if($match->table_number && in_array($match->status, ['called', 'in_progress'], true))
+                                                            <small class="fq-table-active">Mesa {{ $match->table_number }}</small>
+                                                        @elseif($match->table_number)
+                                                            <small class="fq-match-time">Mesa {{ $match->table_number }}</small>
+                                                        @endif
+                                                    </div>
                                                     @if($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
                                                         <div class="fq-match-actions">
                                                             @if($match->status !== 'completed')

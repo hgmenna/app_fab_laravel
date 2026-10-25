@@ -63,12 +63,14 @@
                                         <small>Clasificado a la siguiente fase</small>
                                     </div>
                                 @endif
-                                @if($match->scheduled_at)<small class="fq-match-time">{{ $match->scheduled_at->format('d/m/y · H:i') }}</small>@endif
-                                @if($match->table_number && in_array($match->status, ['called', 'in_progress'], true))
-                                    <small class="fq-table-active">Mesa {{ $match->table_number }}</small>
-                                @elseif($match->table_number)
-                                    <small class="fq-match-time">Mesa {{ $match->table_number }}</small>
-                                @endif
+                                <div class="fq-match-meta">
+                                    @if($match->scheduled_at)<small class="fq-match-time">{{ $match->scheduled_at->format('d/m/y · H:i') }}</small>@endif
+                                    @if($match->table_number && in_array($match->status, ['called', 'in_progress'], true))
+                                        <small class="fq-table-active">Mesa {{ $match->table_number }}</small>
+                                    @elseif($match->table_number)
+                                        <small class="fq-match-time">Mesa {{ $match->table_number }}</small>
+                                    @endif
+                                </div>
                                 @if($match->phase?->phase_type === 'bracket' && (int)$match->round_number === 1 && (in_array($match->status, ['pending', 'scheduled'], true) || $match->is_bye))
                                     <div class="fq-match-actions">
                                         {{ ($this->correctMatchParticipantsAction)(['matchId' => $match->id]) }}
