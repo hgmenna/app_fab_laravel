@@ -1700,6 +1700,29 @@ class ManageTournamentCompetition extends Page
             $competition = $this->competition();
         }
         $entries = $competition?->entries->where('status', '!=', 'withdrawn') ?? collect();
+        // El estado de una entrada puede quedar desactualizado después de editar
+        // zonas o reconstruir una llave. Para el panel de pendientes prevalece
+        // la asignación deportiva real: pertenecer a una zona o estar ubicado
+        // en cualquier partido significa que el jugador ya fue asignado.
+        $placedEntryIds = $competition?->phases
+            ->flatMap(function ($phase) {
+                $groupEntryIds = $phase->groups
+                    ->flatMap->groupEntries
+                    ->pluck('entry_id');
+                $matchEntryIds = $phase->matches
+                    ->flatMap(fn ($match): array => [
+                        $match->player_one_entry_id,
+                        $match->player_two_entry_id,
+                    ]);
+
+                return $groupEntryIds->merge($matchEntryIds);
+            })
+            ->filter()
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values() ?? collect();
+        $pendingEntries = $entries->where('status', 'eligible')
+            ->reject(fn ($entry): bool => $placedEntryIds->contains((int) $entry->id));
         $logoPath = $this->record->publicationLogoPath();
         $start = $this->record->start_date;
         $end = $this->record->end_date;
@@ -1721,7 +1744,7 @@ class ManageTournamentCompetition extends Page
         return [
             'competition' => $competition,
             'entriesBySlot' => $entries->groupBy(fn ($entry): string => $entry->sourceSlot?->name ?? 'SIN HORARIO ASIGNADO'),
-            'entriesByPhase' => $entries->where('status', 'eligible')
+            'entriesByPhase' => $pendingEntries
                 ->groupBy(fn ($entry): string => $entry->entryPhase?->name ?? 'PRIMERA FASE'),
             'publicJsonUrl' => $competition?->is_public
                 ? route('five-quillas-competition.public', ['slug' => $competition->public_slug])
