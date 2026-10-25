@@ -171,7 +171,7 @@
                                                 </article>
                                             </div>
                                         @endforeach
-                                        <div class="fq-place z-first"><b>1.er puesto</b><span>{{ $firstPlace ?? 'A definir' }}</span></div>
+                                        <div class="fq-place z-first"><b>1° puesto</b><span>{{ $firstPlace ?? 'A definir' }}</span></div>
                                         <div class="fq-place z-runner"><b>2.º puesto</b><span>{{ $secondPlace ?? 'A definir' }}</span></div>
                                     </div>
                                     </div>
