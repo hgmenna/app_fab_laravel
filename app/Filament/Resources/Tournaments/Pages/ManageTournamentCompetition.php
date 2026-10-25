@@ -1199,7 +1199,7 @@ class ManageTournamentCompetition extends Page
     {
         return Action::make('scheduleWaitingMatch')
             ->label('Informar horario')
-            ->icon('heroicon-o-calendar-days')
+            ->icon('heroicon-o-clock')
             ->color('primary')
             ->size('xs')
             ->iconButton()
@@ -1222,9 +1222,10 @@ class ManageTournamentCompetition extends Page
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
                 abort_unless($match, 404);
 
-                if ($match->is_bye || ! in_array($match->status, ['pending', 'scheduled'], true)) {
+                if ((int) $match->round_number <= 1 || $match->is_bye
+                    || ! in_array($match->status, ['pending', 'scheduled'], true)) {
                     throw ValidationException::withMessages([
-                        'scheduled_at' => 'No se puede programar una partida libre, iniciada o finalizada.',
+                        'scheduled_at' => 'Esta programación individual corresponde únicamente a partidas de rondas posteriores que todavía no comenzaron.',
                     ]);
                 }
 
