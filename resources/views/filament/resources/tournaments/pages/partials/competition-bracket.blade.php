@@ -72,8 +72,11 @@
                                     @endif
                                 </div>
                                 @if($match->phase?->phase_type === 'bracket' && (int)$match->round_number === 1 && (in_array($match->status, ['pending', 'scheduled'], true) || $match->is_bye))
-                                    <div class="fq-match-actions">
+                                    <div class="fq-match-actions {{ in_array($match->status, ['pending', 'scheduled'], true) && !$match->is_bye ? 'fq-schedule-action' : '' }}">
                                         {{ ($this->correctMatchParticipantsAction)(['matchId' => $match->id]) }}
+                                        @if(in_array($match->status, ['pending', 'scheduled'], true) && !$match->is_bye)
+                                            {{ ($this->scheduleWaitingMatchAction)(['matchId' => $match->id]) }}
+                                        @endif
                                         @if($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
                                             @if($match->status !== 'completed'){{ ($this->callMatchAction)(['matchId' => $match->id]) }}@endif
                                             @if($match->status === 'called'){{ ($this->cancelMatchCallAction)(['matchId' => $match->id]) }}@endif
@@ -81,15 +84,14 @@
                                         @endif
                                     </div>
                                 @elseif($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
-                                    <div class="fq-match-actions">
+                                    <div class="fq-match-actions {{ in_array($match->status, ['pending', 'scheduled'], true) ? 'fq-schedule-action' : '' }}">
+                                        @if(in_array($match->status, ['pending', 'scheduled'], true)){{ ($this->scheduleWaitingMatchAction)(['matchId' => $match->id]) }}@endif
                                         @if($match->status !== 'completed'){{ ($this->callMatchAction)(['matchId' => $match->id]) }}@endif
                                         @if($match->status === 'called'){{ ($this->cancelMatchCallAction)(['matchId' => $match->id]) }}@endif
                                         {{ ($this->recordResultAction)(['matchId' => $match->id]) }}
                                         @if(in_array($match->status, ['in_progress', 'completed'], true)){{ ($this->resetResultAction)(['matchId' => $match->id]) }}@endif
                                     </div>
-                                @elseif((int)$match->round_number > 1
-                                    && (bool)$match->player_one_entry_id !== (bool)$match->player_two_entry_id
-                                    && in_array($match->status, ['pending', 'scheduled'], true))
+                                @elseif(in_array($match->status, ['pending', 'scheduled'], true) && !$match->is_bye)
                                     <div class="fq-match-actions fq-schedule-action">
                                         {{ ($this->scheduleWaitingMatchAction)(['matchId' => $match->id]) }}
                                     </div>

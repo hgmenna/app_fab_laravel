@@ -1192,8 +1192,8 @@ class ManageTournamentCompetition extends Page
     }
 
     /**
-     * Informa el horario de un partido de una ronda posterior que ya tiene un
-     * clasificado y todavía espera que se defina su rival.
+     * Informa el horario propio de una posición de la grilla, aun cuando sus
+     * jugadores todavía no estén definidos.
      */
     public function scheduleWaitingMatchAction(): Action
     {
@@ -1217,20 +1217,14 @@ class ManageTournamentCompetition extends Page
                     ->required(),
             ])
             ->modalHeading('Informar horario de la partida')
-            ->modalDescription('El jugador clasificado conservará esta fecha y hora mientras se define su rival. La mesa se asignará recién al llamar la partida.')
+            ->modalDescription('El horario quedará asociado a esta partida y se conservará cuando se definan sus jugadores. La mesa se asignará recién al llamar la partida.')
             ->action(function (array $data, array $arguments): void {
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
                 abort_unless($match, 404);
 
-                $participants = collect([
-                    $match->player_one_entry_id,
-                    $match->player_two_entry_id,
-                ])->filter()->count();
-
-                if ((int) $match->round_number <= 1 || $participants !== 1
-                    || ! in_array($match->status, ['pending', 'scheduled'], true)) {
+                if ($match->is_bye || ! in_array($match->status, ['pending', 'scheduled'], true)) {
                     throw ValidationException::withMessages([
-                        'scheduled_at' => 'Solo se puede informar el horario de una ronda posterior cuando un jugador clasificado todavía espera rival.',
+                        'scheduled_at' => 'No se puede programar una partida libre, iniciada o finalizada.',
                     ]);
                 }
 
@@ -1240,7 +1234,7 @@ class ManageTournamentCompetition extends Page
                 ]);
 
                 Notification::make()->success()->title('Horario actualizado')
-                    ->body('La partida quedó programada mientras se define el rival.')->send();
+                    ->body('La partida quedó programada y conservará el horario cuando se definan los jugadores.')->send();
             });
     }
 
