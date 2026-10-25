@@ -14,6 +14,13 @@
         .qualified-round .match{border-color:rgba(7,132,77,.45);border-left-color:var(--green)}.qualified-label{display:block;margin-bottom:5px;color:var(--green);font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.qualified-note{display:block;margin-top:5px;color:var(--muted);font-size:9px}
         .match > .table-active{display:block;width:max-content;margin-top:5px}
         .schedule-nav{display:flex;gap:7px;overflow:auto;margin-bottom:12px}.schedule-nav span{padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--navy);font-size:12px;font-weight:900;white-space:nowrap}
+        /* Conserva la geometría de las grillas al agregar o quitar horario y mesa. */
+        .bracket .match{display:flex;flex-direction:column;height:108px;min-height:108px;max-height:108px;overflow:visible}
+        .bracket .line{min-height:25px;align-items:center}
+        .bracket .match>small,.bracket .match>.table-active{flex:none}
+        .zone-bracket .match{display:flex;flex-direction:column;height:92px;min-height:92px;max-height:92px;overflow:visible}
+        .zone-bracket .line{min-height:20px;align-items:center}
+        .zone-bracket .match>small,.zone-bracket .match>.table-active{flex:none}
     </style>
 </head>
 <body>
