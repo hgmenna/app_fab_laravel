@@ -27,6 +27,8 @@
                                 ? ($pair[1] ?? '—')
                                 : ($match->playerTwo?->seed ?? '—');
                             $expectedParticipants = (int) data_get($match->phase?->settings, 'expected_participant_count', 0);
+                            $matchSets = collect(data_get($match->set_scores, 'sets', []));
+                            $pointsPerSet = (int) $match->phase?->points_per_set;
                             $emptyLabel = function ($entry, $number) use ($match, $expectedParticipants): string {
                                 if ($entry?->player) {
                                     return $entry->player->full_name;
@@ -44,11 +46,15 @@
                             <article class="fq-match {{ $match->status === 'called' ? 'is-called' : ($match->status === 'in_progress' ? 'is-in-progress' : '') }}">
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_one_entry_id ? 'is-winner' : '' }}">
                                     <span><b>{{ $numberOne }}</b> · {{ $emptyLabel($match->playerOne, $numberOne) }}</span>
-                                    <span>{{ $match->status === 'completed' ? $match->player_one_computed_sets : '—' }}</span>
+                                    <span class="fq-set-points">
+                                        @forelse($matchSets as $set)<span class="fq-set-point {{ isset($set['player_one_points']) && (int) $set['player_one_points'] === $pointsPerSet ? 'is-set-winner' : '' }}">{{ $set['player_one_points'] ?? '—' }}</span>@empty<span class="fq-set-point">—</span>@endforelse
+                                    </span>
                                 </div>
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_two_entry_id ? 'is-winner' : '' }}">
                                     <span><b>{{ $numberTwo }}</b> · {{ $emptyLabel($match->playerTwo, $numberTwo) }}</span>
-                                    <span>{{ $match->status === 'completed' ? $match->player_two_computed_sets : '—' }}</span>
+                                    <span class="fq-set-points">
+                                        @forelse($matchSets as $set)<span class="fq-set-point {{ isset($set['player_two_points']) && (int) $set['player_two_points'] === $pointsPerSet ? 'is-set-winner' : '' }}">{{ $set['player_two_points'] ?? '—' }}</span>@empty<span class="fq-set-point">—</span>@endforelse
+                                    </span>
                                 </div>
                                 @if($match->phase?->phase_type === 'slot_elimination' && $match->status === 'completed' && $match->winner)
                                     <div class="fq-crossing-winner">

@@ -166,6 +166,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                     ])->values(),
                     'partidos' => $phase->matches->map(fn ($match): array => [
                         'id' => $match->id, 'zona_id' => $match->group_id,
+                        'puntos_por_set' => (int) $phase->points_per_set,
                         'ronda' => $match->round_number, 'orden' => $match->bracket_order,
                         'etiqueta' => $match->label === 'Partido de recuperación' ? 'Perdedores' : $match->label,
                         'jugador_1' => $match->playerOne?->player?->full_name,
