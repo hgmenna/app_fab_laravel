@@ -36,11 +36,35 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
                 'entries.player.club', 'entries.player.category', 'entries.registration',
             ])->firstOrFail();
 
-        if (! $competition->is_public && ! auth()->check()) {
+        $canManageCompetition = auth()->user()?->canAccessTournament(
+            'ManageTournamentCompetition',
+            $competition->tournament,
+        ) ?? false;
+
+        if (! $competition->is_public && ! $canManageCompetition) {
             return response()->view('public.five-quillas-competition-unavailable', [
                 'competition' => $competition,
             ], 403);
         }
+
+        // El PDF administrativo debe incluir la sección completa aunque todavía
+        // no esté publicada. La restricción pública continúa vigente para quien
+        // abre el mismo enlace sin permisos de gestión de la competencia.
+        if ($canManageCompetition) {
+            $competition->unsetRelation('phases')->load([
+                'phases',
+                'phases.groups',
+                'phases.groups.slot',
+                'phases.groups.groupEntries.entry.player.club',
+                'phases.groups.matches.playerOne.player',
+                'phases.groups.matches.playerTwo.player',
+                'phases.matches',
+                'phases.matches.playerOne.player',
+                'phases.matches.playerTwo.player',
+                'phases.matches.winner.player',
+            ]);
+        }
+
         app(FiveQuillasCompetitionService::class)->ensureFinalStandingsOrder($competition);
         $competition->unsetRelation('entries')->load([
             'entries.player.club', 'entries.player.category', 'entries.registration',
@@ -52,7 +76,7 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
             $phaseId = (int) substr($section, 6);
             $phase = $competition->phases->firstWhere('id', $phaseId);
 
-            if (! $phase && ! auth()->check() && $competition->phases()->whereKey($phaseId)->exists()) {
+            if (! $phase && ! $canManageCompetition && $competition->phases()->whereKey($phaseId)->exists()) {
                 return response()->view('public.five-quillas-competition-unavailable', [
                     'competition' => $competition,
                 ], 403);
