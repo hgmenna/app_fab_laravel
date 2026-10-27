@@ -3,35 +3,35 @@
 namespace App\Filament\Resources\Tournaments\Pages;
 
 use App\Filament\Resources\Tournaments\TournamentResource;
-use App\Models\FiveQuillasCompetition;
-use App\Models\FiveQuillasMatch;
-use App\Models\FiveQuillasEntry;
 use App\Models\Category;
+use App\Models\FiveQuillasCompetition;
+use App\Models\FiveQuillasEntry;
+use App\Models\FiveQuillasMatch;
 use App\Models\User;
 use App\Services\FiveQuillasCompetitionService;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
-use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Repeater\TableColumn;
-use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\ToggleButtons;
-use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
-use Filament\Schemas\Components\Grid;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Storage;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Página operativa para organizar una competencia de cinco quillas y ejecutar sus acciones autorizadas.
@@ -41,7 +41,9 @@ class ManageTournamentCompetition extends Page
     use InteractsWithRecord;
 
     protected static string $resource = TournamentResource::class;
+
     protected string $view = 'filament.resources.tournaments.pages.manage-tournament-competition';
+
     protected static ?string $navigationLabel = 'Competencia';
 
     /**
@@ -693,6 +695,27 @@ class ManageTournamentCompetition extends Page
     }
 
     /**
+     * Devuelve las inscripciones disponibles para una posición de zona.
+     *
+     * Se evalúa cada vez que se abre el selector para reflejar inmediatamente
+     * las altas, bajas y cambios realizados en cualquier fila del formulario.
+     */
+    private function availableZoneEntryOptions(Get $get, Select $component): array
+    {
+        $currentEntryId = (int) ($component->getState() ?? 0);
+        $availableEntryIds = array_map('intval', array_keys(
+            $this->entryOptionsForSlot((int) $get('../../slot_id')),
+        ));
+        $selectedEntryIds = $this->selectedZoneEntryIds($component, $currentEntryId);
+
+        return collect($this->zoneEntryOptions())
+            ->filter(fn ($label, $value): bool => (int) $value === $currentEntryId
+                || (in_array((int) $value, $availableEntryIds, true)
+                    && ! in_array((int) $value, $selectedEntryIds, true)))
+            ->all();
+    }
+
+    /**
      * Reconstruye las filas editables y bloqueadas de zonas para un horario.
      */
     public function zoneRowsForSlot(int $slotId): array
@@ -800,26 +823,8 @@ class ManageTournamentCompetition extends Page
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')),
                         ...collect(range(1, 4))->map(fn (int $position) => Select::make('player_'.$position)
                             ->hiddenLabel()
-                            ->options($this->zoneEntryOptions())
+                            ->options(fn (Get $get, Select $component): array => $this->availableZoneEntryOptions($get, $component))
                             ->searchable()->preload()->native(false)->placeholder('LIBRE')->live()
-                            ->transformOptionsForJsUsing(function (array $options, Get $get, Select $component): array {
-                                $currentEntryId = (int) ($component->getState() ?? 0);
-                                $availableEntryIds = array_map('intval', array_keys(
-                                    $this->entryOptionsForSlot((int) $get('../../slot_id')),
-                                ));
-                                $selectedEntryIds = $this->selectedZoneEntryIds($component, $currentEntryId);
-
-                                return collect($options)
-                                    ->filter(fn ($label, $value): bool => (int) $value === $currentEntryId
-                                        || (in_array((int) $value, $availableEntryIds, true)
-                                            && ! in_array((int) $value, $selectedEntryIds, true)))
-                                    ->map(fn ($label, $value): array => [
-                                        'label' => $label,
-                                        'value' => (string) $value,
-                                        'isDisabled' => false,
-                                    ])
-                                    ->values()->all();
-                            })
                             ->disabled(fn (Get $get): bool => (bool) $get('locked')))->all(),
                     ])
                     ->defaultItems(1)->minItems(1)->addActionLabel('Agregar zona')
@@ -875,11 +880,14 @@ class ManageTournamentCompetition extends Page
             ->label('Preparar / actualizar grilla')->icon('heroicon-o-arrow-path')->color('warning')->size('sm')
             ->fillForm(function (array $arguments): array {
                 $phase = $this->competition()->phases()->find((int) ($arguments['phaseId'] ?? 0));
-                if (! $phase) { return []; }
+                if (! $phase) {
+                    return [];
+                }
                 app(FiveQuillasCompetitionService::class)->syncApprovedEntries($phase->competition);
                 $phase->refresh();
                 if ($phase->seeding_method === 'number_draw') {
                     $drawAssignments = collect(data_get($phase->settings, 'draw_seed_assignments', []));
+
                     return ['draws' => app(FiveQuillasCompetitionService::class)->drawCandidates($phase)
                         ->map(fn ($entry): array => [
                             'entry_id' => $entry->id,
@@ -889,19 +897,24 @@ class ManageTournamentCompetition extends Page
                 }
                 if ($phase->phase_type === 'bracket') {
                     $service = app(FiveQuillasCompetitionService::class);
+
                     return [
                         'participants' => $service->bracketParticipantRows($phase),
                         'matchups' => $service->bracketMatchupRows($phase),
                     ];
                 }
+
                 return [];
             })
             ->schema(function (array $arguments): array {
                 $phase = $this->competition()->phases()->find((int) ($arguments['phaseId'] ?? 0));
-                if (! $phase) { return []; }
+                if (! $phase) {
+                    return [];
+                }
                 if ($phase->seeding_method === 'number_draw') {
                     $size = (int) data_get($phase->settings, 'bracket_size', 16);
                     $minimum = max(1, (int) data_get($phase->settings, 'direct_entry_seed_count', 0) + 1);
+
                     return [Repeater::make('draws')->label('Números obtenidos en el sorteo')
                         ->schema([
                             Hidden::make('entry_id'),
@@ -911,13 +924,16 @@ class ManageTournamentCompetition extends Page
                                 ->helperText('Puede completarse progresivamente a medida que se realiza el sorteo.'),
                         ])->columns(2)->addable(false)->deletable(false)->reorderable(false)];
                 }
-                if ($phase->phase_type !== 'bracket') { return []; }
+                if ($phase->phase_type !== 'bracket') {
+                    return [];
+                }
                 $rows = app(FiveQuillasCompetitionService::class)->bracketParticipantRows($phase);
                 $directCount = collect($rows)->where('origin_type', 'direct')->count();
                 $qualifiedCount = count($rows) - $directCount;
                 $options = collect($rows)->mapWithKeys(fn (array $row): array => [
                     $row['entry_id'] => $row['player_name'],
                 ])->all();
+
                 return [
                     Placeholder::make('participant_help')->hiddenLabel()
                         ->content('Cuadro: '.$this->nextBracketSize(count($rows)).' posiciones · Jugadores: '.count($rows).' · Ingreso directo: '.$directCount.' · Emparejamiento / clasificados: '.$qualifiedCount.'. Los lugares sin jugador quedan LIBRES.'),
@@ -976,6 +992,7 @@ class ManageTournamentCompetition extends Page
                         ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
                         ->persistent()->send();
                     $action->halt();
+
                     return;
                 } catch (\Throwable $exception) {
                     report($exception);
@@ -983,6 +1000,7 @@ class ManageTournamentCompetition extends Page
                         ->body('Ocurrió un error al reconstruir los cruces. El detalle quedó registrado para su revisión.')
                         ->persistent()->send();
                     $action->halt();
+
                     return;
                 }
                 Notification::make()->success()->title('Fase preparada')
@@ -1015,7 +1033,10 @@ class ManageTournamentCompetition extends Page
                                 ->contains('entry_id', $match->player_one_entry_id));
                             $secondGroup = $groups->first(fn ($group): bool => $group->groupEntries
                                 ->contains('entry_id', $match->player_two_entry_id));
-                            if (! $firstGroup || ! $secondGroup) { return null; }
+                            if (! $firstGroup || ! $secondGroup) {
+                                return null;
+                            }
+
                             return [
                                 'slot_id' => (int) $firstGroup->tournament_slot_id,
                                 'first_group_id' => (int) $firstGroup->id,
@@ -1049,44 +1070,45 @@ class ManageTournamentCompetition extends Page
             })
             ->schema(function (array $arguments): array {
                 $phaseId = (int) ($arguments['phaseId'] ?? 0);
+
                 return [
-                Repeater::make('crossings')->label('Enfrentamientos por horario')
-                    ->table([
-                        TableColumn::make('Horario')->width('24%'),
-                        TableColumn::make('1.º de la zona')->width('36%'),
-                        TableColumn::make('2.º de la zona')->width('36%'),
-                    ])
-                    ->schema([
-                        Hidden::make('match_id'),
-                        Hidden::make('locked'),
-                        Select::make('slot_id')->hiddenLabel()->required()->native(false)->live()
-                            ->disabled(fn (Get $get): bool => (bool) $get('locked'))->dehydrated()
-                            ->options(fn (): array => $this->record->slots()->where('is_active', true)
-                                ->orderBy('starts_at')->pluck('name', 'id')->all())
-                            ->afterStateUpdated(function (Set $set): void {
-                                $set('first_group_id', null);
-                                $set('second_group_id', null);
-                            }),
-                        Select::make('first_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
-                            ->disabled(fn (Get $get): bool => (bool) $get('locked'))->dehydrated()
-                            ->options(fn (Get $get, Select $component): array => $this->availableSlotCrossingOptions(
-                                $this->slotZonePositionOptions($phaseId, (int) ($get('slot_id') ?? 0), 1),
-                                $component,
-                                'first_group_id',
-                            ))->live(),
-                        Select::make('second_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
-                            ->disabled(fn (Get $get): bool => (bool) $get('locked'))->dehydrated()
-                            ->options(fn (Get $get, Select $component): array => $this->availableSlotCrossingOptions(
-                                $this->slotZonePositionOptions(
-                                    $phaseId, (int) ($get('slot_id') ?? 0), 2,
-                                    [(int) ($get('first_group_id') ?? 0)],
-                                ),
-                                $component,
-                                'second_group_id',
-                            ))->live(),
-                    ])
-                    ->defaultItems(1)->minItems(1)->addActionLabel('Agregar cruce')
-                    ->reorderable(false)->columnSpanFull(),
+                    Repeater::make('crossings')->label('Enfrentamientos por horario')
+                        ->table([
+                            TableColumn::make('Horario')->width('24%'),
+                            TableColumn::make('1.º de la zona')->width('36%'),
+                            TableColumn::make('2.º de la zona')->width('36%'),
+                        ])
+                        ->schema([
+                            Hidden::make('match_id'),
+                            Hidden::make('locked'),
+                            Select::make('slot_id')->hiddenLabel()->required()->native(false)->live()
+                                ->disabled(fn (Get $get): bool => (bool) $get('locked'))->dehydrated()
+                                ->options(fn (): array => $this->record->slots()->where('is_active', true)
+                                    ->orderBy('starts_at')->pluck('name', 'id')->all())
+                                ->afterStateUpdated(function (Set $set): void {
+                                    $set('first_group_id', null);
+                                    $set('second_group_id', null);
+                                }),
+                            Select::make('first_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
+                                ->disabled(fn (Get $get): bool => (bool) $get('locked'))->dehydrated()
+                                ->options(fn (Get $get, Select $component): array => $this->availableSlotCrossingOptions(
+                                    $this->slotZonePositionOptions($phaseId, (int) ($get('slot_id') ?? 0), 1),
+                                    $component,
+                                    'first_group_id',
+                                ))->live(),
+                            Select::make('second_group_id')->hiddenLabel()->required()->searchable()->preload()->native(false)
+                                ->disabled(fn (Get $get): bool => (bool) $get('locked'))->dehydrated()
+                                ->options(fn (Get $get, Select $component): array => $this->availableSlotCrossingOptions(
+                                    $this->slotZonePositionOptions(
+                                        $phaseId, (int) ($get('slot_id') ?? 0), 2,
+                                        [(int) ($get('first_group_id') ?? 0)],
+                                    ),
+                                    $component,
+                                    'second_group_id',
+                                ))->live(),
+                        ])
+                        ->defaultItems(1)->minItems(1)->addActionLabel('Agregar cruce')
+                        ->reorderable(false)->columnSpanFull(),
                 ];
             })
             ->modalHeading('Cruces manuales por horario')
@@ -1117,22 +1139,30 @@ class ManageTournamentCompetition extends Page
      */
     public function slotZonePositionOptions(int $phaseId, int $slotId, int $place, array $excludedGroups = []): array
     {
-        if ($phaseId < 1 || $slotId < 1) { return []; }
+        if ($phaseId < 1 || $slotId < 1) {
+            return [];
+        }
         $phase = $this->competition()->phases()->find($phaseId);
-        if (! $phase) { return []; }
+        if (! $phase) {
+            return [];
+        }
 
         $previous = app(FiveQuillasCompetitionService::class)->previousPhaseFor($phase);
-        if (! $previous || $previous->phase_type !== 'zones') { return []; }
+        if (! $previous || $previous->phase_type !== 'zones') {
+            return [];
+        }
 
         return $previous->groups()->where('tournament_slot_id', $slotId)
             ->with(['groupEntries.entry.player'])->get()
             ->sortBy(function ($group): array {
                 preg_match('/(\d+)\s*$/', (string) $group->name, $matches);
+
                 return [(int) ($matches[1] ?? PHP_INT_MAX), (int) $group->sort_order];
             })
             ->reject(fn ($group): bool => in_array((int) $group->id, $excludedGroups, true))
             ->mapWithKeys(function ($group) use ($place): array {
                 $player = $group->groupEntries->firstWhere('final_place', $place)?->entry?->player?->full_name;
+
                 return [$group->id => $place.'.º · '.$group->name.($player ? ' — '.$player : '')];
             })->all();
     }
@@ -1251,6 +1281,7 @@ class ManageTournamentCompetition extends Page
                 $key = $entry?->registration?->tournament_instance_id
                     ? 'instance:'.$entry->registration->tournament_instance_id
                     : ($entry?->registration?->result_code ? 'code:'.$entry->registration->result_code : null);
+
                 return ['scoring_rule' => $key];
             })
             ->schema([
@@ -1312,12 +1343,16 @@ class ManageTournamentCompetition extends Page
     private function scoringRuleOptions(): array
     {
         $tournament = $this->record->loadMissing('type');
+
         return collect(app(\App\Services\TournamentScoringService::class)->getRules($tournament))
             ->mapWithKeys(function (array $rule): array {
                 $key = ! empty($rule['tournament_instance_id'])
                     ? 'instance:'.$rule['tournament_instance_id']
                     : (! empty($rule['code']) ? 'code:'.$rule['code'] : null);
-                if (! $key) { return []; }
+                if (! $key) {
+                    return [];
+                }
+
                 return [$key => trim(($rule['description'] ?? $rule['code'] ?? 'Resultado').' · '.($rule['points'] ?? 0).' puntos')];
             })->all();
     }
@@ -1394,16 +1429,15 @@ class ManageTournamentCompetition extends Page
 
                     return Grid::make(['default' => 2, 'sm' => $bestOf])
                         ->schema([
-                        Placeholder::make('player_'.$playerNumber.'_label')->hiddenLabel()
-                            ->content($playerNames[$playerNumber])
-                            ->columnSpanFull()->extraAttributes(['style' => 'font-weight:800']),
-                        ...collect(range(1, $bestOf))->map(fn (int $setNumber) =>
-                            TextInput::make('player_'.$playerKey.'_set_'.$setNumber)
+                            Placeholder::make('player_'.$playerNumber.'_label')->hiddenLabel()
+                                ->content($playerNames[$playerNumber])
+                                ->columnSpanFull()->extraAttributes(['style' => 'font-weight:800']),
+                            ...collect(range(1, $bestOf))->map(fn (int $setNumber) => TextInput::make('player_'.$playerKey.'_set_'.$setNumber)
                                 ->label('Set '.$setNumber)->numeric()->minValue(0)->maxValue($pointsPerSet)
                                 ->nullable()
                                 ->extraInputAttributes(['style' => 'text-align:center', 'inputmode' => 'numeric'])
-                        )->all(),
-                    ])->columnSpanFull();
+                            )->all(),
+                        ])->columnSpanFull();
                 };
 
                 return [
@@ -1450,10 +1484,12 @@ class ManageTournamentCompetition extends Page
                             ->body(collect($exception->errors())->flatten()->first() ?? 'Revisá el jugador seleccionado.')
                             ->persistent()->send();
                         $action->halt();
+
                         return;
                     }
                     Notification::make()->success()->title('Ganador proclamado')
                         ->body('La partida quedó finalizada sin registrar resultados por set.')->send();
+
                     return;
                 }
                 $scores = collect(range(1, max(1, (int) $match->phase()->value('sets_to_play'))))
@@ -1590,7 +1626,11 @@ class ManageTournamentCompetition extends Page
             ->modalDescription('Modificá únicamente las posiciones que todavía no comenzaron. Un jugador elegido se retira automáticamente de cualquier otro cruce pendiente de esta ronda.')
             ->action(function (Action $action, array $data, array $arguments): void {
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
-                if (! $match) { $action->halt(); return; }
+                if (! $match) {
+                    $action->halt();
+
+                    return;
+                }
                 try {
                     app(FiveQuillasCompetitionService::class)->correctMatchParticipants(
                         $match,
@@ -1602,6 +1642,7 @@ class ManageTournamentCompetition extends Page
                         ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
                         ->persistent()->send();
                     $action->halt();
+
                     return;
                 }
                 Notification::make()->success()->title('Partido corregido')->send();
@@ -1823,4 +1864,3 @@ class ManageTournamentCompetition extends Page
         ];
     }
 }
-
