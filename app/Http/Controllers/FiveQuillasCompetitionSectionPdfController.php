@@ -36,7 +36,11 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
                 'entries.player.club', 'entries.player.category', 'entries.registration',
             ])->firstOrFail();
 
-        abort_unless($competition->is_public || auth()->check(), 404);
+        if (! $competition->is_public && ! auth()->check()) {
+            return response()->view('public.five-quillas-competition-unavailable', [
+                'competition' => $competition,
+            ], 403);
+        }
         app(FiveQuillasCompetitionService::class)->ensureFinalStandingsOrder($competition);
         $competition->unsetRelation('entries')->load([
             'entries.player.club', 'entries.player.category', 'entries.registration',
@@ -45,7 +49,15 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
         $phase = null;
         if ($section !== 'positions') {
             abort_unless(str_starts_with($section, 'phase-'), 404);
-            $phase = $competition->phases->firstWhere('id', (int) substr($section, 6));
+            $phaseId = (int) substr($section, 6);
+            $phase = $competition->phases->firstWhere('id', $phaseId);
+
+            if (! $phase && ! auth()->check() && $competition->phases()->whereKey($phaseId)->exists()) {
+                return response()->view('public.five-quillas-competition-unavailable', [
+                    'competition' => $competition,
+                ], 403);
+            }
+
             abort_unless($phase, 404);
         }
 
@@ -117,7 +129,9 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
         foreach ($competition->phases->flatMap->matches->where('status', 'completed') as $match) {
             $isOne = (int) $match->player_one_entry_id === $entryId;
             $isTwo = (int) $match->player_two_entry_id === $entryId;
-            if (! $isOne && ! $isTwo) { continue; }
+            if (! $isOne && ! $isTwo) {
+                continue;
+            }
             $setsFor += $isOne ? (int) $match->player_one_computed_sets : (int) $match->player_two_computed_sets;
             $setsAgainst += $isOne ? (int) $match->player_two_computed_sets : (int) $match->player_one_computed_sets;
             $pointsFor += $isOne ? (int) $match->player_one_points : (int) $match->player_two_points;

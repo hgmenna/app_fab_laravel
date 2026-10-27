@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\FiveQuillasCompetition;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
@@ -14,16 +15,22 @@ class FiveQuillasCompetitionPageController extends Controller
     /**
      * Atiende la solicitud después de resolver autorización y datos publicados.
      */
-    public function __invoke(string $slug): View
+    public function __invoke(string $slug): View|Response
     {
         $competition = FiveQuillasCompetition::query()
-            ->where('public_slug', $slug)->where('is_public', true)
+            ->where('public_slug', $slug)
             ->with([
                 'tournament.type.publicationFederation',
                 'tournament.venue.city.state.federation',
                 'tournament.externalVenueState.federation',
                 'tournament.tournamentModalities.modality',
             ])->firstOrFail();
+
+        if (! $competition->is_public) {
+            return response()->view('public.five-quillas-competition-unavailable', [
+                'competition' => $competition,
+            ], 403);
+        }
 
         $tournament = $competition->tournament;
         $logoPath = $tournament->publicationLogoPath();
