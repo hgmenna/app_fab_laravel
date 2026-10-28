@@ -10,6 +10,10 @@
     </a>
 </div>
 
-@assets
-    <script src="{{ asset('js/competition-pdf.js').'?v=2' }}" data-navigate-once></script>
-@endassets
+@once
+    @script
+    <script>
+        @include('partials.competition-pdf-script')
+    </script>
+    @endscript
+@endonce
