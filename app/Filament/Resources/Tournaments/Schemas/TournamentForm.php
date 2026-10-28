@@ -345,7 +345,7 @@ class TournamentForm
                                 Repeater::make('contacts')
                                     ->relationship('contacts')
                                     ->label('Contactos del torneo')
-                                    ->helperText('Estos contactos se informarán al usuario para consultas y envío de comprobantes.')
+                                    ->helperText('Opcional. Si agregás contactos, se informarán al usuario para consultas y envío de comprobantes.')
                                     ->schema([
                                         TextInput::make('name')->label('Apellido y nombre')->required()->maxLength(255),
                                         TextInput::make('phone')->label('Teléfono / WhatsApp')->tel()->required()->maxLength(50),
@@ -353,8 +353,6 @@ class TournamentForm
                                     ])
                                     ->columns(2)
                                     ->defaultItems(0)
-                                    ->minItems(1)
-                                    ->required()
                                     ->reorderable()
                                     ->orderColumn('sort_order')
                                     ->addActionLabel('Agregar contacto')
