@@ -1,4 +1,5 @@
-window.fqSharePdf = async function (url, title) {
+window.fqSharePdf = async function (url, title, slotName = '') {
+    if (slotName.trim()) title += ' · ' + slotName.trim();
     const dialog = document.createElement('dialog');
     dialog.style.cssText = 'max-width:460px;width:calc(100% - 40px);padding:24px;border:1px solid #c9d3df;border-radius:12px;font:16px system-ui;background:#fff;color:#17253a';
     const heading = document.createElement('h3');
