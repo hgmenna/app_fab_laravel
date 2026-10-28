@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\FiveQuillasCompetition;
 use App\Services\FiveQuillasCompetitionService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -16,7 +17,7 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
     /**
      * Atiende la solicitud después de resolver autorización y datos publicados.
      */
-    public function __invoke(string $slug, string $section): Response
+    public function __invoke(Request $request, string $slug, string $section): Response
     {
         $competition = FiveQuillasCompetition::query()
             ->where('public_slug', $slug)
@@ -83,6 +84,15 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
             }
 
             abort_unless($phase, 404);
+        }
+
+        if ($phase?->phase_type === 'zones' && $request->has('slot')) {
+            $validated = $request->validate(['slot' => ['required', 'integer', 'min:0']]);
+            $groups = $phase->groups->filter(
+                fn ($group) => (int) ($group->tournament_slot_id ?? 0) === (int) $validated['slot']
+            )->values();
+            abort_if($groups->isEmpty(), 404);
+            $phase->setRelation('groups', $groups);
         }
 
         $tournament = $competition->tournament;

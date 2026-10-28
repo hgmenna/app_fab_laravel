@@ -91,13 +91,13 @@
             $zonePhase = $competition->phases->first(fn($phase) => $phase->phase_type === 'zones' && $phase->is_enabled);
         @endphp
         @if($zonePhase)
-            <section class="fq-phase-panel" id="fq-section-{{ $zonePhase->id }}" x-show="activePhase === @js((string)$zonePhase->id)" x-cloak>
+            <section class="fq-phase-panel" id="fq-section-{{ $zonePhase->id }}" x-data="{ activeSlot: @js((string) ($zonePhase->groups->sortBy(fn($group) => [$group->slot?->starts_at?->timestamp ?? PHP_INT_MAX, (int) $group->sort_order])->first()?->tournament_slot_id ?? 0)) }" x-show="activePhase === @js((string)$zonePhase->id)" x-cloak>
             <div class="fq-phase-heading">
                 <h2>{{ $zonePhase->name }}</h2>
                 <div class="fq-phase-actions">
                     @if($zonePhase->status !== 'completed'){{ ($this->createZonesAction)(['phaseId' => $zonePhase->id]) }}@endif
                     @include('filament.resources.tournaments.pages.partials.competition-qualified-action', ['phase' => $zonePhase])
-                    @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => $zonePhase->name, 'sectionKey' => 'phase-'.$zonePhase->id])
+                    @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => $zonePhase->name, 'sectionKey' => 'phase-'.$zonePhase->id, 'filterZoneSlot' => true])
                 </div>
             </div>
         @if($zonePhase->groups->isNotEmpty())
@@ -108,9 +108,8 @@
                         (int) $group->sort_order,
                     ])
                     ->groupBy(fn($group) => (string)($group->tournament_slot_id ?? 0));
-                $firstSlotKey = (string) $groupsBySlot->keys()->first();
             @endphp
-            <div x-data="{ activeSlot: @js($firstSlotKey) }">
+            <div>
                 <div class="fq-slot-tabs">
                     @foreach($groupsBySlot as $slotKey => $slotGroups)
                         <button type="button" class="fq-slot-tab" :class="activeSlot === @js((string)$slotKey) && 'is-active'" @click="activeSlot = @js((string)$slotKey)">
