@@ -33,7 +33,13 @@ window.fqSharePdf = async function (url, title, slotName = '') {
         }
         const blob = await response.blob();
         if (!dialog.isConnected) return;
-        const filename = (title.replace(/[\\/:*?"<>|]/g, '-').trim() || 'torneo') + '.pdf';
+        const filename = (title.normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9 -]+/g, '-')
+            .replace(/\s*-\s*/g, ' - ')
+            .replace(/(?: - )+/g, ' - ')
+            .replace(/\s+/g, ' ')
+            .replace(/^[ -]+|[ -]+$/g, '') || 'torneo') + '.pdf';
         const file = new File([blob], filename, { type: 'application/pdf' });
         objectUrl = URL.createObjectURL(file);
         button('Descargar PDF', () => {
