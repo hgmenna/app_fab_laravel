@@ -49,17 +49,18 @@ window.fqSharePdf = async function (url, title, slotName = '') {
             document.body.appendChild(download);
             download.click();
             download.remove();
-            status.textContent = 'PDF descargado. En WhatsApp, abrí el chat y adjuntalo como Documento.';
+            dialog.close();
         });
         if (navigator.canShare?.({ files: [file] }) && navigator.share) {
             status.textContent = 'PDF listo. Elegí una aplicación para enviarlo. Si WhatsApp no aparece, descargá el PDF y adjuntalo como Documento en el chat.';
             button('Elegir aplicación', async () => {
+                dialog.close();
                 try {
                     // A fresh click preserves the activation required to share files.
                     await navigator.share({ files: [file], title });
                 } catch (error) {
                     if (error.name !== 'AbortError') {
-                        status.textContent = 'No se pudo compartir el archivo. Usá Descargar PDF y adjuntalo como Documento en WhatsApp.';
+                        alert('No se pudo compartir el archivo. Volvé a abrir Compartir, descargá el PDF y adjuntalo como Documento en WhatsApp.');
                     }
                 }
             });
