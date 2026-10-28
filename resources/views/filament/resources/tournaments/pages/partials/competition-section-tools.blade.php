@@ -10,6 +10,6 @@
     </a>
 </div>
 
-@once
-    <script src="{{ asset('js/competition-pdf.js') }}" data-navigate-once></script>
-@endonce
+@assets
+    <script src="{{ asset('js/competition-pdf.js').'?v=2' }}" data-navigate-once></script>
+@endassets

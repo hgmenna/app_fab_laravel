@@ -38,7 +38,7 @@
 <section class="champion" id="champion"></section>
 <nav class="tabs" id="tabs"></nav><div id="content"><div class="empty">Cargando competencia…</div></div><footer><strong>Federación Argentina de Billar</strong><span>Información oficial del torneo</span></footer></main>
 <dialog class="qualified-modal" id="qualified-modal"><div class="qualified-modal-head"><h3 id="qualified-title">Clasificados</h3><div class="qualified-modal-actions"><button type="button" title="Compartir" aria-label="Compartir clasificados" onclick="shareQualified()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.6 6.8-4.2M8.6 13.4l6.8 4.2"/></svg></button><button type="button" title="Imprimir" aria-label="Imprimir clasificados" onclick="printQualified()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8V3h10v5M7 17h10v4H7z"/><path d="M6 17H4V9h16v8h-2M16 12h1"/></svg></button><button class="qualified-close" type="button" onclick="document.querySelector('#qualified-modal').close()" aria-label="Cerrar">×</button></div></div><div class="qualified-modal-body" id="qualified-body"></div></dialog>
-<script src="{{ asset('js/competition-pdf.js') }}"></script>
+<script src="{{ asset('js/competition-pdf.js').'?v=2' }}"></script>
 <script>
 const endpoint=@json($jsonUrl),pdfBase=@json($pdfBaseUrl);let data=null;
 const esc=v=>String(v??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
