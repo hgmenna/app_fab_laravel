@@ -1,6 +1,8 @@
 @php
     $event = $competition->tournament;
     $eventLogo = $event?->publicationLogoPath();
+    $eventOrganization = $event?->publicationOrganizationName() ?? 'Organización del torneo';
+    $eventInitials = collect(explode(' ', $eventOrganization))->filter()->take(3)->map(fn ($word) => mb_substr($word, 0, 1))->implode('');
     $eventLogoUrl = $eventLogo ? \Illuminate\Support\Facades\Storage::disk('public_path')->url($eventLogo) : null;
     $eventDate = $event?->start_date?->format('d/m/Y') ?? 'Fecha a confirmar';
     if ($event?->end_date && $event?->start_date && ! $event->end_date->isSameDay($event->start_date)) {
@@ -14,8 +16,8 @@
 </style>
 <main class="availability-screen">
     <div class="availability-brand">
-        @if($eventLogoUrl)<img src="{{ $eventLogoUrl }}" alt="Logo del torneo">@else<span class="availability-emblem" aria-hidden="true">FAB</span>@endif
-        <span>Federación Argentina de Billar</span>
+        @if($eventLogoUrl)<img src="{{ $eventLogoUrl }}" alt="Logo de {{ $eventOrganization }}">@else<span class="availability-emblem" aria-hidden="true">{{ mb_strtoupper($eventInitials) }}</span>@endif
+        <span>{{ $eventOrganization }}</span>
     </div>
     <section class="availability-event" aria-label="Datos del torneo">
         <p class="availability-eyebrow">{{ $event?->type?->name ?? 'Torneo de billar' }} · {{ $eventModality }}</p>

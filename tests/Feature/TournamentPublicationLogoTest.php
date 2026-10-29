@@ -53,3 +53,20 @@ it('uses the configured national federation logo', function () {
     expect(publicationTournament(true, 'national_federation')->publicationLogoPath())
         ->toBe('logos/fab.png');
 });
+
+it('matches the publication organization name to the configured logo', function ($official, $source, $clubSource, $expected) {
+    expect(publicationTournament($official, $source, $clubSource)->publicationOrganizationName())->toBe($expected);
+})->with([
+    [false, 'none', 'venue_federation', 'Federación Provincial'],
+    [false, 'none', 'venue_club', 'Club Organizador'],
+    [true, 'venue_federation', 'venue_federation', 'Federación Provincial'],
+    [true, 'national_federation', 'venue_federation', 'Federación Argentina'],
+    [true, 'none', 'venue_federation', 'Organización del torneo'],
+]);
+
+it('uses the provincial name when a selected club has no logo', function () {
+    $tournament = publicationTournament(false, 'none', 'venue_club');
+    $tournament->venue->logo_path = null;
+    expect($tournament->publicationLogoPath())->toBe('logos/provincial.png')
+        ->and($tournament->publicationOrganizationName())->toBe('Federación Provincial');
+});

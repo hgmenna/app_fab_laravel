@@ -241,6 +241,33 @@ class Tournament extends Model
         };
     }
 
+    public function publicationOrganizationName(): string
+    {
+        $this->loadMissing([
+            'type.publicationFederation',
+            'venue.city.state.federation',
+            'externalVenueState.federation',
+        ]);
+
+        $venueFederation = $this->venue_type === 'external'
+            ? $this->externalVenueState?->federation
+            : $this->venue?->city?->state?->federation;
+
+        if (! $this->type?->is_official) {
+            if ($this->non_official_logo_source === 'venue_club' && $this->venue?->logo_path) {
+                return $this->venue->name;
+            }
+
+            return $venueFederation?->name ?: 'Organización del torneo';
+        }
+
+        return match ($this->type->publication_logo_source) {
+            'national_federation' => $this->type->publicationFederation?->name ?: 'Organización del torneo',
+            'venue_federation' => $venueFederation?->name ?: 'Organización del torneo',
+            default => 'Organización del torneo',
+        };
+    }
+
     public function scopeAvailableForRegistration($query)
     {
         return $query
