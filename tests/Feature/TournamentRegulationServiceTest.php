@@ -101,6 +101,8 @@ beforeEach(function () {
         $table->string('name');
         $table->unsignedBigInteger('discipline_id');
         $table->unsignedBigInteger('tournament_type_id');
+        $table->unsignedTinyInteger('stage_number')->nullable();
+        $table->string('venue_type')->default('club');
         $table->date('start_date');
         $table->date('end_date')->nullable();
         $table->string('status')->default('draft');
@@ -167,6 +169,7 @@ function regulationCandidate(array $attributes): Tournament
 {
     return (new Tournament)->forceFill(array_merge([
         'name' => 'Nuevo',
+        'venue_type' => 'club',
         'discipline_id' => test()->discipline->id,
         'tournament_type_id' => test()->nonOfficialType->id,
         'start_date' => '2026-10-12',
@@ -264,6 +267,25 @@ it('lists only non official tournaments actually involved in distance verificati
         ->and($options->pluck('id'))->not->toContain($official->id)
         ->and($options->pluck('id'))->not->toContain($outsideDates->id)
         ->and($options->pluck('id'))->not->toContain($differentCategory->id);
+});
+
+it('does not request distance checks when friendship tournaments do not overlap', function () {
+    regulationTournament(['start_date' => '2026-10-10', 'end_date' => '2026-10-11']);
+    regulationTournament(['start_date' => '2026-10-14', 'end_date' => null]);
+    $candidate = regulationCandidate(['start_date' => '2026-10-12', 'end_date' => '2026-10-13']);
+    $service = new TournamentRegulationService;
+
+    expect($service->distanceVerificationTournaments($candidate))->toBeEmpty()
+        ->and($service->evaluate($candidate)->passes())->toBeTrue()
+        ->and($service->evaluate($candidate)->technicalDetails['distance_checks'])->toBeEmpty();
+});
+
+it('does not require checking the distance from a tournament to itself when editing', function () {
+    $candidate = regulationTournament([]);
+    $service = new TournamentRegulationService;
+
+    expect($service->distanceVerificationTournaments($candidate))->toBeEmpty()
+        ->and($service->evaluate($candidate)->passes())->toBeTrue();
 });
 
 it('allows two non exclusive official tournaments on the same dates regardless of province', function () {

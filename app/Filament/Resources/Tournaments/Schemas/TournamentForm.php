@@ -376,10 +376,20 @@ class TournamentForm
                             ])->disabled(fn () => ! Auth::user()->canGloballyOrInAnyDiscipline('EditField')),
 
                         Tab::make('Verificación de distancias')
-                            ->visible(function (Get $get): bool {
-                                $typeId = $get('tournament_type_id');
+                            ->visible(function (Get $get, ?Tournament $record): bool {
+                                $candidate = (new Tournament)->forceFill(collect([
+                                    'discipline_id', 'tournament_type_id', 'venue_id', 'venue_type',
+                                    'external_venue_name', 'external_venue_address', 'external_venue_city',
+                                    'external_venue_state_id', 'start_date', 'end_date', 'categories',
+                                ])->mapWithKeys(fn (string $field): array => [$field => $get($field)])->all());
 
-                                return $typeId && ! (bool) TournamentType::find($typeId)?->is_official;
+                                if ($record) {
+                                    $candidate->setAttribute('id', $record->id);
+                                    $candidate->exists = true;
+                                }
+
+                                return app(TournamentRegulationService::class)
+                                    ->distanceVerificationTournaments($candidate)->isNotEmpty();
                             })
                             ->schema([
                                 Repeater::make('manual_route_checks')
