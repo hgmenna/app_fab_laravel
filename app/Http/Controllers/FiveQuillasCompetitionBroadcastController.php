@@ -14,16 +14,20 @@ class FiveQuillasCompetitionBroadcastController extends Controller
     {
         $competition = FiveQuillasCompetition::query()
             ->where('public_slug', $slug)
-            ->where('is_public', true)
+            ->with(['tournament.type.publicationFederation', 'tournament.venue.city.state.federation',
+                'tournament.externalVenueState.federation', 'tournament.tournamentModalities.modality'])
             ->firstOrFail();
 
         $settings = (array) data_get($competition->settings, 'broadcast', []);
-        abort_unless((bool) ($settings['enabled'] ?? false), 404);
+        if (! $competition->is_public || ! (bool) ($settings['enabled'] ?? false)) {
+            return view('public.five-quillas-competition-unavailable', ['competition' => $competition]);
+        }
 
         return view('public.five-quillas-competition-broadcast', [
             'competition' => $competition,
             'jsonUrl' => route('five-quillas-competition.public', ['slug' => $slug]),
             'broadcastConfig' => [
+                'enabled' => true,
                 'allPhases' => (bool) ($settings['all_phases'] ?? true),
                 'phaseIds' => collect($settings['phase_ids'] ?? [])->map(fn ($id): int => (int) $id)->values()->all(),
                 'allZoneSlots' => (bool) ($settings['all_zone_slots'] ?? empty($settings['zone_slot_keys'] ?? [])),

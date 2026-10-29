@@ -29,7 +29,7 @@ class FiveQuillasCompetitionPageController extends Controller
         if (! $competition->is_public) {
             return response()->view('public.five-quillas-competition-unavailable', [
                 'competition' => $competition,
-            ], 403);
+            ], 200);
         }
 
         $tournament = $competition->tournament;
