@@ -453,6 +453,11 @@ class FiveQuillasCompetitionService
             }
 
             $round = max(1, (int) ($schedule['round_number'] ?? 1));
+            // Crear posiciones sólo si aún no hay grilla. Programar una grilla
+            // existente nunca vuelve a sembrar jugadores ni reconstruye cruces.
+            if ($phase->phase_type === 'bracket' && $phase->matches()->doesntExist()) {
+                $this->ensureBracketSkeleton($phase);
+            }
             $matches = $phase->matches()->where('round_number', $round)
                 ->with(['playerOne', 'playerTwo'])->orderBy('bracket_order')->get();
             // Los rangos Desde/Hasta se definen sobre bracket_order, que es el
@@ -468,7 +473,7 @@ class FiveQuillasCompetitionService
             $expectedParticipants = (int) data_get($phase->settings, 'expected_participant_count', 0);
             $pairs = collect(data_get($phase->settings, 'bracket_pairs', []))->values();
             $matches = $matches->reject(function ($match) use ($expectedParticipants, $pairs): bool {
-                if ($match->is_bye) {
+                if ($match->is_bye || in_array($match->status, ['called', 'in_progress', 'completed'], true)) {
                     return true;
                 }
                 if ((int) $match->round_number !== 1 || $expectedParticipants < 1) {

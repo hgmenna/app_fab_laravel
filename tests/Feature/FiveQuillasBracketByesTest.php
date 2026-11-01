@@ -37,6 +37,8 @@ beforeEach(function () {
         foreach (['player_one_entry_id','player_two_entry_id','winner_entry_id','next_match_id','loser_next_match_id','next_match_position'] as $key) $t->unsignedBigInteger($key)->nullable();
         foreach (['player_one_actual_sets','player_two_actual_sets','player_one_computed_sets','player_two_computed_sets'] as $key) $t->integer($key)->default(0);
         $t->json('set_scores')->nullable(); $t->boolean('is_bye')->default(false);
+        $t->dateTime('scheduled_at')->nullable(); $t->unsignedInteger('table_number')->nullable();
+        $t->unsignedInteger('estimated_minutes')->nullable();
         $t->string('status')->default('pending'); $t->timestamps();
     });
     $this->competition = FiveQuillasCompetition::create([]);
@@ -109,3 +111,30 @@ it('keeps finished zones open for missing entrants and closes them after withdra
     $service->reopenIncompleteConcurrentPhases($this->competition);
     expect($this->phase->fresh()->status)->toBe('completed');
 });
+
+it('assigns schedules without changing participants positions connections or phase settings', function () {
+    $settings = ['tables' => 2, 'estimated_minutes' => 45, 'bracket_pairs' => [[4, 1], [2, 3]],
+        'draw_seed_assignments' => [$this->entries[0]->id => 4],
+        'schedules' => [['starts_at' => '2026-11-01 09:30:00', 'round_number' => 1]]];
+    $this->phase->update(['settings' => $settings]);
+    $fields = ['id','round_number','bracket_order','player_one_entry_id','player_two_entry_id',
+        'winner_entry_id','next_match_id','next_match_position','is_bye','set_scores'];
+    $before = $this->phase->matches()->get($fields)->toArray();
+    $service = app(FiveQuillasCompetitionService::class);
+    expect($service->scheduleConfiguredMatches($this->phase, 0))->toBe(2)
+        ->and($this->phase->matches()->get($fields)->toArray())->toBe($before)
+        ->and($this->phase->fresh()->settings)->toBe($settings)
+        ->and($this->bye->fresh()->scheduled_at->format('H:i'))->toBe('09:30')
+        ->and($this->played->fresh()->scheduled_at->format('H:i'))->toBe('09:30');
+    $service->scheduleConfiguredMatches($this->phase, 0);
+    expect($this->phase->matches()->get($fields)->toArray())->toBe($before);
+});
+
+it('preserves schedules and tables of matches already called started or completed', function ($status) {
+    $this->phase->update(['settings' => ['tables' => 1, 'estimated_minutes' => 45,
+        'schedules' => [['starts_at' => '2026-11-01 09:30:00']]]]);
+    $this->played->update(['status' => $status, 'table_number' => 3, 'scheduled_at' => '2026-11-01 08:00:00']);
+    $before = $this->played->fresh()->getAttributes();
+    expect(app(FiveQuillasCompetitionService::class)->scheduleConfiguredMatches($this->phase, 0))->toBe(1)
+        ->and($this->played->fresh()->getAttributes())->toBe($before);
+})->with(['called', 'in_progress', 'completed']);

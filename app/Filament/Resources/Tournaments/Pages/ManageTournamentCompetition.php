@@ -1210,9 +1210,6 @@ class ManageTournamentCompetition extends Page
                 $phase = $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
                     ->where('phase_type', '!=', 'zones')->where('is_enabled', true)->firstOrFail();
                 $service = app(FiveQuillasCompetitionService::class);
-                // La grilla puede programarse aun cuando todavía falten rivales:
-                // se crean sus posiciones y luego se completan con los clasificados.
-                $service->ensureBracketSkeleton($phase);
                 $count = $service->scheduleConfiguredMatches(
                     $phase, (int) $data['schedule_index'],
                 );
@@ -1758,14 +1755,9 @@ class ManageTournamentCompetition extends Page
         if ($competition) {
             $service = app(FiveQuillasCompetitionService::class);
             $service->reopenIncompleteConcurrentPhases($competition);
-            // Repara una sola vez los cuadros históricos construidos con el
-            // cálculo anterior. Al abrir la fase ya debe verse el cuadro correcto,
-            // sin exigir que el usuario vuelva a presionar Preparar.
+            // La renderización no debe reconstruir una grilla ya confeccionada.
             $competition->phases->where('phase_type', 'bracket')->each(function ($phase) use ($service): void {
-                $previous = $service->previousPhaseFor($phase);
-                $hasPlayedMatch = $phase->matches()->where('is_bye', false)
-                    ->whereIn('status', ['in_progress', 'completed'])->exists();
-                if (! $hasPlayedMatch) {
+                if ($phase->matches()->doesntExist()) {
                     try {
                         // Muestra desde el inicio la estructura y los ingresos
                         // directos, sin anticipar clasificados por resultados.
@@ -1775,16 +1767,7 @@ class ManageTournamentCompetition extends Page
                         report($exception);
                     }
                 }
-                if ((int) data_get($phase->settings, 'bracket_build_version', 0) >= 3
-                    || ! $previous || $previous->status !== 'completed' || $hasPlayedMatch) {
-                    $service->resolveBracketByes($phase);
-                    return;
-                }
-                try {
-                    $service->preparePhase($phase);
-                } catch (\Throwable $exception) {
-                    report($exception);
-                }
+                $service->resolveBracketByes($phase);
             });
             $service->ensureFinalStandingsOrder($competition);
             $competition = $this->competition();
