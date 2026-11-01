@@ -608,6 +608,7 @@ class FiveQuillasCompetitionService
 
             if ($phase->matches()->exists()) {
                 if ($hasStartedMatches) {
+                    $this->resolveBracketByes($phase);
                     return $phase->matches()->count();
                 }
                 $pairs = collect(data_get($phase->settings, 'bracket_pairs', []))->values();
@@ -632,7 +633,40 @@ class FiveQuillasCompetitionService
             }
             $phase->update(['status' => 'ready']);
 
+            $this->resolveBracketByes($phase);
+
             return $count;
+        });
+    }
+
+    /**
+     * Resuelve LIBRES reales sólo cuando ya están ubicados todos los participantes.
+     */
+    public function resolveBracketByes(FiveQuillasPhase $phase): void
+    {
+        DB::transaction(function () use ($phase): void {
+            $phase = FiveQuillasPhase::query()->lockForUpdate()->findOrFail($phase->id);
+            if ($phase->phase_type !== 'bracket') {
+                return;
+            }
+            $previous = $this->previousPhase($phase);
+            if ($previous && $previous->status !== 'completed') {
+                return;
+            }
+            $firstRound = $phase->matches()->where('round_number', 1)->lockForUpdate()->get();
+            $placed = $firstRound->flatMap(fn ($match): array => [
+                $match->player_one_entry_id, $match->player_two_entry_id,
+            ])->filter()->unique();
+            $expected = $this->drawCandidates($phase)->pluck('id');
+            if ($placed->isEmpty() || $expected->diff($placed)->isNotEmpty()) {
+                return;
+            }
+            foreach ($firstRound as $match) {
+                if (in_array($match->status, ['pending', 'scheduled'], true)) {
+                    $this->resolveBye($match);
+                }
+            }
+            $this->resolveReadyByes($phase->matches()->pluck('id'));
         });
     }
 

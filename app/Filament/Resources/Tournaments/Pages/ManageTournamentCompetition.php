@@ -1777,6 +1777,7 @@ class ManageTournamentCompetition extends Page
                 }
                 if ((int) data_get($phase->settings, 'bracket_build_version', 0) >= 3
                     || ! $previous || $previous->status !== 'completed' || $hasPlayedMatch) {
+                    $service->resolveBracketByes($phase);
                     return;
                 }
                 try {
