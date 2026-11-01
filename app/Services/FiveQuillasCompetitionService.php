@@ -645,6 +645,58 @@ class FiveQuillasCompetitionService
     }
 
     /**
+     * Repara una grilla no iniciada ordenada por ranking en lugar de resultados.
+     */
+    public function repairPreviousResultsBracket(FiveQuillasPhase $phase): void
+    {
+        DB::transaction(function () use ($phase): void {
+            $phase = FiveQuillasPhase::query()->lockForUpdate()->findOrFail($phase->id);
+            if ($phase->phase_type !== 'bracket' || $phase->seeding_method !== 'previous_results'
+                || (int) data_get($phase->settings, 'results_order_version', 0) >= 1
+                || $this->previousPhase($phase)?->status !== 'completed') {
+                return;
+            }
+            $matches = $phase->matches()->lockForUpdate()->get();
+            if ($matches->isEmpty() || $matches->contains(fn ($match): bool =>
+                in_array($match->status, ['called', 'in_progress'], true)
+                || ($match->status === 'completed' && ! $match->is_bye))) {
+                return;
+            }
+            $rows = collect($this->bracketParticipantRows($phase));
+            $phase->refresh();
+            $pairs = collect(data_get($phase->settings, 'bracket_pairs', []))->values();
+            $first = $matches->where('round_number', 1)->sortBy('bracket_order')->values();
+            if ($rows->isEmpty() || $pairs->count() !== $first->count()) {
+                return;
+            }
+            $seeds = $rows->pluck('entry_id', 'seed_position');
+            foreach ($matches as $match) {
+                // Conserva identidad del partido, conexiones, fecha, hora y mesa.
+                $match->update([
+                    'player_one_entry_id' => null, 'player_two_entry_id' => null,
+                    'winner_entry_id' => null, 'is_bye' => false, 'set_scores' => null,
+                    'player_one_actual_sets' => 0, 'player_two_actual_sets' => 0,
+                    'player_one_computed_sets' => 0, 'player_two_computed_sets' => 0,
+                    'player_one_points' => 0, 'player_two_points' => 0,
+                    'status' => $match->scheduled_at ? 'scheduled' : 'pending',
+                ]);
+            }
+            foreach ($first as $index => $match) {
+                $pair = $pairs->get($index);
+                $match->update([
+                    'player_one_entry_id' => $seeds->get((int) $pair[0]),
+                    'player_two_entry_id' => $seeds->get((int) $pair[1]),
+                ]);
+            }
+            foreach ($rows as $row) {
+                FiveQuillasEntry::query()->whereKey($row['entry_id'])->update(['seed' => $row['seed_position']]);
+            }
+            $phase->update(['settings' => array_merge($phase->settings ?? [], ['results_order_version' => 1])]);
+            $this->resolveBracketByes($phase);
+        });
+    }
+
+    /**
      * Resuelve LIBRES reales sólo cuando ya están ubicados todos los participantes.
      */
     public function resolveBracketByes(FiveQuillasPhase $phase): void
@@ -1034,7 +1086,8 @@ class FiveQuillasCompetitionService
         $directCapacity = $direct->isNotEmpty()
             ? ($configuredDirectCapacity > 0 ? $configuredDirectCapacity : $direct->count())
             : 0;
-        $overrides = collect(data_get($phase->settings, 'participant_seed_overrides', []))
+        $overrides = collect($phase->seeding_method === 'previous_results'
+            ? [] : data_get($phase->settings, 'participant_seed_overrides', []))
             ->mapWithKeys(fn ($seed, $entryId): array => [(int) $entryId => (int) $seed]);
         $rank = fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX;
         $direct = $direct->sortBy($rank)->values();
@@ -1045,7 +1098,10 @@ class FiveQuillasCompetitionService
         // que 61 registros terminaran mostrando solamente 60 jugadores.
         $directOverflow = $directCapacity > 0 ? $direct->slice($directCapacity) : collect();
         $direct = $directCapacity > 0 ? $direct->take($directCapacity)->values() : $direct;
-        $qualified = $qualified->concat($directOverflow)->unique('id')->sortBy($rank)->values();
+        $qualified = $qualified->concat($directOverflow)->unique('id');
+        $qualified = $phase->seeding_method === 'previous_results'
+            ? $this->orderByPreviousPhaseResult($phase, $qualified)
+            : $qualified->sortBy($rank)->values();
 
         // Descarta posiciones heredadas de cuadros anteriores (por ejemplo 128)
         // y cualquier duplicado. Así todos los jugadores aparecen una sola vez en

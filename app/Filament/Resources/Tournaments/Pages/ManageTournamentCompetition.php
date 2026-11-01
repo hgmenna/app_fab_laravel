@@ -1767,6 +1767,7 @@ class ManageTournamentCompetition extends Page
                         report($exception);
                     }
                 }
+                $service->repairPreviousResultsBracket($phase);
                 $service->resolveBracketByes($phase);
             });
             $service->ensureFinalStandingsOrder($competition);

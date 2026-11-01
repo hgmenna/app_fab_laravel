@@ -9,6 +9,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 beforeEach(function () {
+    Schema::create('categories', function (Blueprint $t) { $t->id(); $t->string('code'); });
     Schema::create('five_quillas_competitions', function (Blueprint $t) {
         $t->id(); $t->unsignedBigInteger('tournament_id')->nullable(); $t->string('status')->default('in_progress'); $t->timestamps();
     });
@@ -22,6 +23,7 @@ beforeEach(function () {
         $t->id(); $t->unsignedBigInteger('competition_id'); $t->unsignedBigInteger('entry_phase_id')->nullable();
         $t->unsignedBigInteger('player_id')->nullable(); $t->string('status')->default('assigned'); $t->timestamps();
         $t->unsignedBigInteger('source_slot_id')->nullable();
+        $t->integer('seed')->nullable(); $t->integer('national_ranking_snapshot')->nullable();
     });
     Schema::create('five_quillas_groups', function (Blueprint $t) {
         $t->id(); $t->unsignedBigInteger('phase_id'); $t->integer('sort_order')->default(1);
@@ -30,6 +32,8 @@ beforeEach(function () {
     Schema::create('five_quillas_group_entries', function (Blueprint $t) {
         $t->id(); $t->unsignedBigInteger('group_id'); $t->unsignedBigInteger('entry_id');
         $t->integer('position'); $t->integer('final_place')->nullable(); $t->timestamps();
+        $t->integer('sets_difference')->default(0); $t->decimal('points_average', 8, 3)->default(0);
+        $t->integer('points_for')->default(0); $t->integer('match_wins')->default(0);
     });
     Schema::create('five_quillas_matches', function (Blueprint $t) {
         $t->id(); $t->unsignedBigInteger('phase_id'); $t->integer('round_number')->default(1);
@@ -39,6 +43,7 @@ beforeEach(function () {
         $t->json('set_scores')->nullable(); $t->boolean('is_bye')->default(false);
         $t->dateTime('scheduled_at')->nullable(); $t->unsignedInteger('table_number')->nullable();
         $t->unsignedInteger('estimated_minutes')->nullable();
+        $t->integer('player_one_points')->default(0); $t->integer('player_two_points')->default(0);
         $t->string('status')->default('pending'); $t->timestamps();
     });
     $this->competition = FiveQuillasCompetition::create([]);
@@ -53,7 +58,7 @@ beforeEach(function () {
 });
 
 afterEach(function () {
-    foreach (['five_quillas_group_entries','five_quillas_groups','five_quillas_matches','five_quillas_entries','five_quillas_phases','five_quillas_competitions'] as $table) Schema::dropIfExists($table);
+    foreach (['five_quillas_group_entries','five_quillas_groups','five_quillas_matches','five_quillas_entries','five_quillas_phases','five_quillas_competitions','categories'] as $table) Schema::dropIfExists($table);
 });
 
 it('resolves first round byes and advances without proclaiming an undecided final', function () {
@@ -138,3 +143,52 @@ it('preserves schedules and tables of matches already called started or complete
     expect(app(FiveQuillasCompetitionService::class)->scheduleConfiguredMatches($this->phase, 0))->toBe(1)
         ->and($this->played->fresh()->getAttributes())->toBe($before);
 })->with(['called', 'in_progress', 'completed']);
+
+function configureResultsOrderFixture(): array
+{
+    $context = test();
+    $previous = FiveQuillasPhase::create(['competition_id' => $context->competition->id,
+        'phase_type' => 'zones', 'status' => 'completed', 'sort_order' => 0]);
+    $entries = $context->entries->push(FiveQuillasEntry::create(['competition_id' => $context->competition->id]));
+    foreach ($entries as $i => $entry) $entry->update(['entry_phase_id' => $previous->id, 'national_ranking_snapshot' => [100,1,200,2][$i]]);
+    foreach ([[$entries[0],$entries[1]],[$entries[2],$entries[3]]] as $i => $groupEntries) {
+        $group = \App\Models\FiveQuillasGroup::create(['phase_id' => $previous->id]);
+        foreach ($groupEntries as $j => $entry) \App\Models\FiveQuillasGroupEntry::create([
+            'group_id' => $group->id, 'entry_id' => $entry->id, 'position' => $j+1, 'final_place' => $j+1,
+            'sets_difference' => [[2,6],[4,0]][$i][$j], 'points_average' => 1.2,
+        ]);
+    }
+    $context->phase->update(['seeding_method' => 'previous_results', 'settings' => [
+        'bracket_size' => 4, 'bracket_pairs' => [[1,4],[2,3]],
+        'participant_seed_overrides' => [$entries[1]->id => 1],
+    ]]);
+    return $entries->all();
+}
+
+it('repairs an unplayed bracket by zone results rather than national ranking and preserves schedules', function () {
+    $entries = configureResultsOrderFixture();
+    $this->bye->update(['scheduled_at' => '2026-11-01 09:30:00', 'table_number' => 2]);
+    $service = app(FiveQuillasCompetitionService::class);
+    $rows = $service->bracketParticipantRows($this->phase);
+    expect(array_column($rows, 'entry_id'))->toBe([$entries[2]->id,$entries[0]->id,$entries[1]->id,$entries[3]->id]);
+    $ids = $this->phase->matches()->pluck('id')->all();
+    $service->repairPreviousResultsBracket($this->phase);
+    expect($this->bye->fresh()->player_one_entry_id)->toBe($entries[2]->id)
+        ->and($this->bye->fresh()->player_two_entry_id)->toBe($entries[3]->id)
+        ->and($this->played->fresh()->player_one_entry_id)->toBe($entries[0]->id)
+        ->and($this->played->fresh()->player_two_entry_id)->toBe($entries[1]->id)
+        ->and($this->bye->fresh()->scheduled_at->format('H:i'))->toBe('09:30')
+        ->and($this->bye->fresh()->table_number)->toBe(2)
+        ->and($this->phase->matches()->pluck('id')->all())->toBe($ids);
+    $before = $this->phase->matches()->get()->toArray();
+    $service->repairPreviousResultsBracket($this->phase);
+    expect($this->phase->matches()->get()->toArray())->toBe($before);
+});
+
+it('does not automatically recalculate a bracket with a played match', function () {
+    configureResultsOrderFixture();
+    $this->played->update(['status' => 'completed', 'winner_entry_id' => $this->entries[1]->id]);
+    $before = $this->phase->matches()->get()->toArray();
+    app(FiveQuillasCompetitionService::class)->repairPreviousResultsBracket($this->phase);
+    expect($this->phase->matches()->get()->toArray())->toBe($before);
+});
