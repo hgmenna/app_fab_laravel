@@ -2436,6 +2436,11 @@ class FiveQuillasCompetitionService
     private function completePhaseWhenReady(int $phaseId): void
     {
         $phase = FiveQuillasPhase::query()->with('competition.tournament.type')->findOrFail($phaseId);
+        if ($phase->phase_type === 'zones' && ! $this->zonesHaveEveryScheduledPlayer($phase)) {
+            $phase->update(['status' => 'in_progress']);
+            $phase->competition()->update(['status' => 'in_progress']);
+            return;
+        }
         if ($phase->phase_type === 'slot_elimination') {
             if (! $this->slotEliminationHasEveryCrossing($phase)) {
                 $phase->update(['status' => 'in_progress']);
@@ -2481,12 +2486,18 @@ class FiveQuillasCompetitionService
     public function reopenIncompleteConcurrentPhases(FiveQuillasCompetition $competition): void
     {
         $competition->phases()->where('phase_type', 'zones')
-            ->where('is_enabled', true)->where('status', 'completed')->get()
+            ->where('is_enabled', true)->get()
             ->each(function (FiveQuillasPhase $phase) use ($competition): void {
                 if ($this->zonesHaveEveryScheduledPlayer($phase)) {
+                    if ($phase->status !== 'completed') {
+                        $this->completePhaseWhenReady($phase->id);
+                    }
                     return;
                 }
 
+                if ($phase->status !== 'completed') {
+                    return;
+                }
                 $phase->update(['status' => 'in_progress']);
                 if ($competition->status === 'completed') {
                     $competition->update(['status' => 'in_progress']);

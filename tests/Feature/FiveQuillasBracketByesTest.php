@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Schema;
 
 beforeEach(function () {
     Schema::create('five_quillas_competitions', function (Blueprint $t) {
-        $t->id(); $t->unsignedBigInteger('tournament_id')->nullable(); $t->timestamps();
+        $t->id(); $t->unsignedBigInteger('tournament_id')->nullable(); $t->string('status')->default('in_progress'); $t->timestamps();
     });
     Schema::create('five_quillas_phases', function (Blueprint $t) {
         $t->id(); $t->unsignedBigInteger('competition_id'); $t->string('phase_type')->default('bracket');
@@ -21,6 +21,15 @@ beforeEach(function () {
     Schema::create('five_quillas_entries', function (Blueprint $t) {
         $t->id(); $t->unsignedBigInteger('competition_id'); $t->unsignedBigInteger('entry_phase_id')->nullable();
         $t->unsignedBigInteger('player_id')->nullable(); $t->string('status')->default('assigned'); $t->timestamps();
+        $t->unsignedBigInteger('source_slot_id')->nullable();
+    });
+    Schema::create('five_quillas_groups', function (Blueprint $t) {
+        $t->id(); $t->unsignedBigInteger('phase_id'); $t->integer('sort_order')->default(1);
+        $t->string('status')->default('completed'); $t->timestamps();
+    });
+    Schema::create('five_quillas_group_entries', function (Blueprint $t) {
+        $t->id(); $t->unsignedBigInteger('group_id'); $t->unsignedBigInteger('entry_id');
+        $t->integer('position'); $t->integer('final_place')->nullable(); $t->timestamps();
     });
     Schema::create('five_quillas_matches', function (Blueprint $t) {
         $t->id(); $t->unsignedBigInteger('phase_id'); $t->integer('round_number')->default(1);
@@ -42,7 +51,7 @@ beforeEach(function () {
 });
 
 afterEach(function () {
-    foreach (['five_quillas_matches','five_quillas_entries','five_quillas_phases','five_quillas_competitions'] as $table) Schema::dropIfExists($table);
+    foreach (['five_quillas_group_entries','five_quillas_groups','five_quillas_matches','five_quillas_entries','five_quillas_phases','five_quillas_competitions'] as $table) Schema::dropIfExists($table);
 });
 
 it('resolves first round byes and advances without proclaiming an undecided final', function () {
@@ -76,4 +85,27 @@ it('preserves played results and can be repeated safely', function () {
     expect($this->played->fresh()->getAttributes())->toBe($before)
         ->and($this->final->fresh()->player_one_entry_id)->toBe($this->entries[0]->id)
         ->and($this->final->fresh()->player_two_entry_id)->toBe($this->entries[1]->id);
+});
+
+it('keeps finished zones open for missing entrants and closes them after withdrawal', function () {
+    $this->phase->update(['phase_type' => 'zones', 'status' => 'in_progress']);
+    FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'sort_order' => 2]);
+    $this->competition->entries()->update(['entry_phase_id' => $this->phase->id, 'source_slot_id' => 1]);
+    $group = \App\Models\FiveQuillasGroup::create(['phase_id' => $this->phase->id, 'status' => 'completed']);
+    foreach ($this->entries->take(2) as $i => $entry) {
+        \App\Models\FiveQuillasGroupEntry::create([
+            'group_id' => $group->id, 'entry_id' => $entry->id, 'position' => $i + 1, 'final_place' => $i + 1,
+        ]);
+    }
+    $this->phase->matches()->update(['status' => 'completed']);
+    $before = $this->phase->matches()->get()->map->getAttributes()->all();
+    $service = app(FiveQuillasCompetitionService::class);
+    $service->reopenIncompleteConcurrentPhases($this->competition);
+    expect($this->phase->fresh()->status)->toBe('in_progress');
+    $this->entries[2]->update(['status' => 'withdrawn']);
+    $service->reopenIncompleteConcurrentPhases($this->competition);
+    expect($this->phase->fresh()->status)->toBe('completed')
+        ->and($this->phase->matches()->get()->map->getAttributes()->all())->toBe($before);
+    $service->reopenIncompleteConcurrentPhases($this->competition);
+    expect($this->phase->fresh()->status)->toBe('completed');
 });
