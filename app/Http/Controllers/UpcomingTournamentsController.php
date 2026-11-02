@@ -188,9 +188,7 @@ class UpcomingTournamentsController extends Controller
                     'fecha' => $dayLabel,
                     'fecha_inicio' => $start?->toDateString(),
                     'fecha_fin' => $end?->toDateString(),
-                    'estado_torneo' => $end?->lt($today)
-                        ? 'Finalizado'
-                        : ($start?->gt($today) ? 'Próximo' : 'En curso'),
+                    'estado_torneo' => $tournament->calendarStatus($today),
                     'torneo' => $tournament->name,
                     'disciplina_id' => $tournament->discipline_id,
                     'disciplina' => $tournament->discipline?->name ?? '',

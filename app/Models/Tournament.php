@@ -268,6 +268,20 @@ class Tournament extends Model
         };
     }
 
+    public function calendarStatus(?\Carbon\CarbonInterface $reference = null): string
+    {
+        // Las fechas del calendario son días civiles, no instantes UTC.
+        $today = ($reference ?? today('America/Argentina/Buenos_Aires'))->toDateString();
+        $start = $this->start_date?->toDateString();
+        $end = ($this->end_date ?? $this->start_date)?->toDateString();
+
+        if ($end && $end < $today) {
+            return 'Finalizado';
+        }
+
+        return $start && $start > $today ? 'Próximo' : 'En curso';
+    }
+
     public function scopeAvailableForRegistration($query)
     {
         return $query
