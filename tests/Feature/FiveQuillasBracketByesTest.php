@@ -368,3 +368,32 @@ it('disables an unnecessary circuit play in only after all 32 qualifiers are con
         ->and($playIn->fresh()->settings['qualified_entry_ids'])->toBe($ids)
         ->and((new ReflectionMethod($service, 'previousPhase'))->invoke($service, $national)->id)->toBe($this->phase->id);
 });
+
+it('creates only eight play in matches for forty qualifiers and advances twenty four byes plus eight winners', function () {
+    FiveQuillasMatch::query()->delete();
+    $this->competition->update(['settings' => ['format' => 'circuit_argentino']]);
+    $this->phase->update(['phase_type' => 'slot_elimination', 'status' => 'completed']);
+    $qualified = collect(range(1,40))->map(fn ($rank) => FiveQuillasEntry::create([
+        'competition_id' => $this->competition->id, 'entry_phase_id' => $this->phase->id,
+        'national_ranking_snapshot' => $rank, 'status' => 'qualified',
+    ]));
+    $this->phase->update(['settings' => ['qualified_entry_ids' => $qualified->pluck('id')->all()]]);
+    $playIn = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'national-play-in', 'phase_type' => 'play_in', 'sort_order' => 2, 'is_enabled' => true, 'settings' => ['qualifiers' => 32]]);
+    $service = app(FiveQuillasCompetitionService::class);
+    $service->skipUnnecessaryCircuitPlayIn($this->competition);
+    $matches = $playIn->matches()->orderBy('bracket_order')->get();
+    expect($matches)->toHaveCount(8)
+        ->and($playIn->fresh()->is_enabled)->toBeTrue()
+        ->and($playIn->fresh()->settings['play_in_bye_entry_ids'])->toBe($qualified->take(24)->pluck('id')->all());
+    foreach ($matches as $i => $match) {
+        expect($match->player_one_entry_id)->toBe($qualified[24+$i]->id)
+            ->and($match->player_two_entry_id)->toBe($qualified[39-$i]->id);
+        $match->update(['winner_entry_id' => $match->player_two_entry_id, 'status' => 'completed']);
+    }
+    $service->skipUnnecessaryCircuitPlayIn($this->competition);
+    expect($playIn->matches()->count())->toBe(8);
+    $advancing = (new ReflectionMethod($service, 'qualifiedEntriesFromPhase'))->invoke($service, $playIn->fresh());
+    $expected = $qualified->take(24)->pluck('id')->merge($matches->pluck('player_two_entry_id'))->sort()->values()->all();
+    expect($advancing)->toHaveCount(32)
+        ->and($advancing->pluck('id')->sort()->values()->all())->toBe($expected);
+});

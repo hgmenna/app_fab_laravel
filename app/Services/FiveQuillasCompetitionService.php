@@ -1894,8 +1894,16 @@ class FiveQuillasCompetitionService
         return $size;
     }
 
-    /** Omite la reclasificación del circuito cuando ya hay exactamente 32 clasificados. */
+    /** Prepara sólo los emparejamientos necesarios una vez confirmados los clasificados. */
     public function skipUnnecessaryCircuitPlayIn(FiveQuillasCompetition $competition): void
+    {
+        DB::transaction(function () use ($competition): void {
+            FiveQuillasCompetition::query()->whereKey($competition->id)->lockForUpdate()->firstOrFail();
+            $this->reconcileCircuitPlayIn($competition);
+        });
+    }
+
+    private function reconcileCircuitPlayIn(FiveQuillasCompetition $competition): void
     {
         if (data_get($competition->settings, 'format') !== 'circuit_argentino') {
             return;
@@ -1909,6 +1917,11 @@ class FiveQuillasCompetitionService
             return;
         }
         $qualified = $this->qualifiedEntriesFromPhase($previous);
+        if ($qualified->count() > 32 && $qualified->count() <= 64) {
+            $this->createPlayIn($phase, $qualified);
+
+            return;
+        }
         if ($qualified->count() !== 32) {
             return;
         }
@@ -1971,8 +1984,13 @@ class FiveQuillasCompetitionService
      */
     private function createPlayIn(FiveQuillasPhase $phase, $source): int
     {
-        $ordered = $source->sortBy(fn ($entry): int => $entry->national_ranking_snapshot ?: PHP_INT_MAX)->values();
+        $ordered = collect($source)->unique('id')->sortBy(fn ($entry): array => [
+            $entry->national_ranking_snapshot ?: PHP_INT_MAX, (int) $entry->id,
+        ])->values();
         $target = max(1, (int) data_get($phase->settings, 'qualifiers', 32));
+        if ($ordered->count() > $target * 2) {
+            throw ValidationException::withMessages(['phase' => 'La cantidad de clasificados requiere más de una ronda de emparejamientos.']);
+        }
         $excess = max(0, $ordered->count() - $target);
         if ($excess === 0) {
             $phase->update(['status' => 'completed', 'settings' => array_merge($phase->settings ?? [], [
@@ -1991,6 +2009,7 @@ class FiveQuillasCompetitionService
             ]);
         }
         $phase->update(['status' => 'ready', 'settings' => array_merge($phase->settings ?? [], [
+            'qualified_entry_ids' => [],
             'play_in_bye_entry_ids' => $ordered->take($target - $excess)->pluck('id')->all(),
         ])]);
         return $excess;
