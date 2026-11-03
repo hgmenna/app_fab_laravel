@@ -2990,6 +2990,28 @@ class FiveQuillasCompetitionService
         $instance = Str::lower(Str::ascii($this->finalInstanceForEntry($competition, $entry)));
         $instance = preg_replace('/[^a-z0-9]+/', ' ', $instance) ?: '';
 
+        // Una regla de zonas se aplica por la fase alcanzada, aunque el puesto
+        // general caiga dentro del rango numérico de una grilla incompleta.
+        if (str_starts_with($instance, 'zonas ')) {
+            preg_match('/\d+/', $instance, $zonePlace);
+            $genericZoneRule = null;
+            foreach ($rules as $rule) {
+                $description = Str::lower(Str::ascii((string) ($rule['description'] ?? '')));
+                if (! preg_match('/\bzonas?\b/', $description)) {
+                    continue;
+                }
+                preg_match_all('/\d+/', $description, $places);
+                if (empty($places[0])) {
+                    $genericZoneRule ??= $rule;
+                } elseif (in_array($zonePlace[0] ?? '', $places[0], true)) {
+                    return $rule;
+                }
+            }
+            if ($genericZoneRule) {
+                return $genericZoneRule;
+            }
+        }
+
         // En Circuito Argentino las instancias F1 NAC y F2 NAC identifican
         // la ronda Nacional exacta. Si la tabla de puntuación usa esos códigos,
         // tienen prioridad sobre un rango numérico genérico.
@@ -3005,7 +3027,65 @@ class FiveQuillasCompetitionService
             }
         }
 
-        return $this->ruleForPlacement($rules, (int) $entry->final_position);
+        return $this->ruleForPlacement($rules, $this->scoringPlacementForEntry($competition, $entry));
+    }
+
+    /**
+     * Los puestos generales son consecutivos, pero LIBRE no representa una
+     * eliminación ni permite a la fase anterior ocupar el rango de la llave.
+     */
+    private function scoringPlacementForEntry(FiveQuillasCompetition $competition, FiveQuillasEntry $entry): int
+    {
+        $entryId = (int) $entry->id;
+        $phases = $competition->phases->where('is_enabled', true);
+        $participated = fn ($match): bool => in_array($entryId, [
+            (int) $match->player_one_entry_id, (int) $match->player_two_entry_id,
+        ], true);
+        $phase = $phases->sortByDesc('sort_order')->first(function ($phase) use ($entryId, $participated): bool {
+            return $phase->phase_type === 'zones'
+                ? $phase->groups->flatMap->groupEntries->contains('entry_id', $entryId)
+                : $phase->matches->contains($participated);
+        });
+
+        if (! $phase) {
+            return (int) $entry->final_position;
+        }
+
+        if ($phase->phase_type === 'bracket') {
+            $loss = $phase->matches->filter($participated)
+                ->where('status', 'completed')
+                ->first(fn ($match): bool => $match->winner_entry_id
+                    && (int) $match->winner_entry_id !== $entryId);
+            if ($loss) {
+                $size = (int) data_get($phase->settings, 'bracket_size', 0);
+                if ($size < 2) {
+                    $size = $phase->matches->where('round_number', 1)->count() * 2;
+                }
+                if ($size >= 2) {
+                    $losers = $phase->matches->where('round_number', $loss->round_number)
+                        ->map(fn ($match) => $this->loserEntryId($match))->filter();
+                    $firstPlace = $competition->entries->whereIn('id', $losers)->min('final_position');
+                    $offset = $firstPlace ? max(0, (int) $entry->final_position - (int) $firstPlace) : 0;
+
+                    return intdiv($size, 2 ** (int) $loss->round_number) + 1 + $offset;
+                }
+            }
+        }
+
+        $later = $phases->where('sort_order', '>', $phase->sort_order);
+        $capacity = $later->where('phase_type', 'bracket')->max(function ($phase): int {
+            return (int) data_get($phase->settings, 'bracket_size', 0)
+                ?: $phase->matches->where('round_number', 1)->count() * 2;
+        }) ?? 0;
+        $laterEntrants = $later->flatMap(function ($phase) {
+            return $phase->phase_type === 'zones'
+                ? $phase->groups->flatMap->groupEntries->pluck('entry_id')
+                : $phase->matches->flatMap(fn ($match): array => [
+                    $match->player_one_entry_id, $match->player_two_entry_id,
+                ]);
+        })->filter()->unique()->count();
+
+        return (int) $entry->final_position + max(0, $capacity - $laterEntrants);
     }
 
     /**
