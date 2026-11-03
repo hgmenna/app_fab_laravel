@@ -552,11 +552,20 @@ class ManageTournamentCompetition extends Page
                 ->requiresConfirmation()
                 ->modalHeading('Elegir formato inicial del torneo')
                 ->modalDescription('El formato se aplica solamente a este torneo. Luego podés modificar libremente sus fases y nombres. Solo se permite antes de cargar zonas o partidos.')
-                ->action(function (array $data): void {
-                    $count = app(FiveQuillasCompetitionService::class)->applyCompetitionTemplate(
-                        $this->competition(),
-                        (string) $data['format'],
-                    );
+                ->action(function (Action $action, array $data): void {
+                    try {
+                        $count = app(FiveQuillasCompetitionService::class)->applyCompetitionTemplate(
+                            $this->competition(),
+                            (string) $data['format'],
+                        );
+                    } catch (ValidationException $exception) {
+                        Notification::make()->danger()->title('No se pudo aplicar el formato')
+                            ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
+                            ->persistent()->send();
+                        $action->halt();
+
+                        return;
+                    }
                     Notification::make()->success()->title('Plantilla aplicada')
                         ->body($count.' fases creadas para este torneo.')->send();
                 }),

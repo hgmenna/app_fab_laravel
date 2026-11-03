@@ -50,7 +50,7 @@
         @php
             $enabledPhases = $competition->phases->where('is_enabled', true)->values();
         @endphp
-        <div x-data="{ activePhase: @js((string) optional($enabledPhases->first())->id) }">
+        <div wire:key="competition-phases-{{ $competition->id }}-{{ $enabledPhases->pluck('id')->implode('-') }}" x-data="{ activePhase: @js((string) optional($enabledPhases->first())->id) }">
         <div class="fq-phases" role="tablist" aria-label="Fases del torneo">
             @foreach($competition->phases as $phase)
                 <button type="button" class="fq-phase fq-phase-tab" :class="activePhase === @js((string)$phase->id) && 'is-active'" @click="activePhase = @js((string)$phase->id)" style="{{ $phase->is_enabled ? '' : 'opacity:.48;pointer-events:none' }}">

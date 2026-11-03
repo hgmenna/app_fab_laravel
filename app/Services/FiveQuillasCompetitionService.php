@@ -416,7 +416,20 @@ class FiveQuillasCompetitionService
     {
         return DB::transaction(function () use ($competition, $format): int {
             if ($competition->phases()->whereHas('groups')->exists()
-                || $competition->phases()->whereHas('matches')->exists()) {
+                || $competition->phases()->whereHas('matches', function ($query): void {
+                    // La vista crea cruces vacíos para previsualizar la grilla.
+                    // Sólo bloqueamos cuando ya hay datos deportivos cargados.
+                    $query->where(function ($query): void {
+                        $query->whereNotNull('player_one_entry_id')
+                            ->orWhereNotNull('player_two_entry_id')
+                            ->orWhereNotNull('winner_entry_id')
+                            ->orWhereNotNull('scheduled_at')
+                            ->orWhereNotNull('table_number')
+                            ->orWhere('status', '!=', 'pending')
+                            ->orWhere('is_bye', true)
+                            ->orWhereNotNull('set_scores');
+                    });
+                })->exists()) {
                 throw ValidationException::withMessages([
                     'format' => 'No se puede reemplazar la plantilla porque ya existen zonas o partidos cargados.',
                 ]);

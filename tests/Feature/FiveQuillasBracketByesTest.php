@@ -9,12 +9,14 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 beforeEach(function () {
-    Schema::create('categories', function (Blueprint $t) { $t->id(); $t->string('code'); });
+    Schema::create('categories', function (Blueprint $t) { $t->id(); $t->string('code'); $t->string('name')->nullable(); $t->unsignedBigInteger('discipline_id')->nullable(); });
     Schema::create('five_quillas_competitions', function (Blueprint $t) {
         $t->id(); $t->unsignedBigInteger('tournament_id')->nullable(); $t->string('status')->default('in_progress'); $t->json('settings')->nullable(); $t->timestamps();
     });
     Schema::create('five_quillas_phases', function (Blueprint $t) {
         $t->id(); $t->unsignedBigInteger('competition_id'); $t->string('phase_type')->default('bracket');
+        $t->string('code')->nullable(); $t->string('name')->nullable();
+        $t->integer('points_per_set')->default(60); $t->boolean('split_by_slot')->default(false); $t->boolean('is_public')->default(false);
         $t->integer('sort_order')->default(1); $t->boolean('is_enabled')->default(true);
         $t->integer('sets_to_play')->default(3); $t->string('status')->default('ready');
         $t->string('seeding_method')->default('number_draw'); $t->json('settings')->nullable(); $t->timestamps();
@@ -294,3 +296,40 @@ it('recovers all 48 final positions when only the 24 bracket players retained th
     $service->ensureFinalStandingsOrder($this->competition->fresh());
     expect($this->competition->entries()->get()->map->getAttributes()->all())->toBe($before);
 })->with([4, 5]);
+
+it('applies the Argentine circuit over an automatically generated empty bracket', function () {
+    FiveQuillasMatch::query()->delete();
+    $this->phase->update(['settings' => ['bracket_size' => 16]]);
+    $service = Mockery::mock(FiveQuillasCompetitionService::class)->makePartial();
+    $service->shouldReceive('syncApprovedEntries')->once()->andReturn(0);
+    $service->ensureBracketSkeleton($this->phase);
+    expect($this->phase->matches()->count())->toBe(15);
+    $this->competition->setRelation('tournament', new \App\Models\Tournament(['discipline_id' => 1]));
+    foreach ([['S', 'Segunda'], ['PN', 'Primera Nacional'], ['M', 'Master']] as [$code, $name]) {
+        \App\Models\Category::query()->insert(['code' => $code, 'name' => $name, 'discipline_id' => 1]);
+    }
+
+    expect($service->applyCompetitionTemplate($this->competition, 'circuit_argentino'))->toBe(5);
+    $phases = $this->competition->phases()->orderBy('sort_order')->get();
+    expect($phases->pluck('code')->all())->toBe(['zones', 'slot-elimination', 'national-play-in', 'national', 'master-final'])
+        ->and($phases[0]->settings['entry_category_ids'])->toBe([1])
+        ->and($phases[3]->settings['entry_category_ids'])->toBe([2])
+        ->and($phases[4]->settings['entry_category_ids'])->toBe([3])
+        ->and($this->competition->fresh()->settings['format'])->toBe('circuit_argentino');
+});
+
+it('preserves a template with sporting or scheduling data', function (array $attributes) {
+    FiveQuillasMatch::query()->delete();
+    $match = FiveQuillasMatch::create(array_merge(['phase_id' => $this->phase->id], $attributes));
+    $service = app(FiveQuillasCompetitionService::class);
+    expect(fn () => $service->applyCompetitionTemplate($this->competition, 'circuit_argentino'))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+    expect($match->fresh())->not->toBeNull()
+        ->and($this->phase->fresh())->not->toBeNull();
+})->with([
+    'player assigned' => [['player_one_entry_id' => 1]],
+    'scheduled' => [['scheduled_at' => '2026-11-03 10:00:00']],
+    'table assigned' => [['table_number' => 2]],
+    'called' => [['status' => 'called']],
+    'scores' => [['set_scores' => [['player_one' => 10, 'player_two' => 5]]]],
+]);
