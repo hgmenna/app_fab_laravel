@@ -67,6 +67,12 @@ class ManageTournamentCompetition extends Page
             && $user->canAccessTournament('ManageTournamentCompetition', $this->record),
             403,
         );
+
+        // Incorpora cambios de inscripción realizados fuera de esta pantalla,
+        // incluidos los ausentes que antes estaban pendientes o retirados.
+        if ($competition = FiveQuillasCompetition::query()->where('tournament_id', $this->record->id)->first()) {
+            app(FiveQuillasCompetitionService::class)->syncApprovedEntries($competition);
+        }
     }
 
     /**

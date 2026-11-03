@@ -495,6 +495,21 @@ it('loads historical Masters from their inactive slot despite a different curren
         \Illuminate\Support\Facades\DB::table('general_rankings')->update(['RG' => 999]);
         $service->loadRegisteredMasters($master->fresh());
         expect($this->competition->entries()->where('entry_phase_id', $master->id)->count())->toBe(16);
+        // An absent registration created after the bracket is already present
+        // must join National when the organization page synchronizes again.
+        \Illuminate\Support\Facades\DB::table('players')->insert(['id' => 33]);
+        \Illuminate\Support\Facades\DB::table('general_rankings')->insert(['player_id' => 33, 'category' => 'N', 'RG' => 200]);
+        \Illuminate\Support\Facades\DB::table('tournament_slots')->insert(['id' => 2, 'tournament_id' => 1, 'name' => 'NACIONALES', 'is_active' => true]);
+        \Illuminate\Support\Facades\DB::table('tournament_registrations')->insert(['id' => 33, 'tournament_id' => 1, 'tournament_slot_id' => 2, 'player_id' => 33, 'status' => 'ausente']);
+        \Illuminate\Support\Facades\DB::table('tournament_registration_participants')->insert(['tournament_registration_id' => 33, 'player_id' => 33, 'position' => 1]);
+        expect($service->syncApprovedEntries($this->competition))->toBe(17);
+        $absentEntry = $this->competition->entries()->where('player_id', 33)->firstOrFail();
+        expect($absentEntry->entry_phase_id)->toBe($this->phase->id)
+            ->and($absentEntry->status)->toBe('eligible')
+            ->and($absentEntry->national_ranking_snapshot)->toBe(200);
+        \Illuminate\Support\Facades\DB::table('general_rankings')->where('player_id', 33)->update(['RG' => 500]);
+        $service->syncApprovedEntries($this->competition);
+        expect($absentEntry->fresh()->national_ranking_snapshot)->toBe(200);
         $master->matches()->first()->update(['status' => 'called']);
         expect(fn () => $service->loadRegisteredMasters($master->fresh()))->toThrow(\Illuminate\Validation\ValidationException::class);
     } finally {
