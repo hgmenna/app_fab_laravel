@@ -442,37 +442,60 @@ it('keeps only direct masters until the whole national phase finishes even with 
     expect($assigned())->toBe($all->pluck('id')->sort()->values()->all());
 });
 
-it('loads sixteen ranked Masters immediately while National is pending and keeps their places stable', function () {
+it('loads historical Masters from their inactive slot despite a different current ranking and protects played matches', function () {
     Schema::create('players', function (Blueprint $t) { $t->id(); });
     Schema::create('general_rankings', function (Blueprint $t) { $t->id(); $t->unsignedBigInteger('player_id'); $t->string('category'); $t->integer('RG'); });
+    Schema::create('tournament_slots', function (Blueprint $t) { $t->id(); $t->unsignedBigInteger('tournament_id'); $t->string('name'); $t->boolean('is_active'); });
+    Schema::create('tournament_registration_participants', function (Blueprint $t) { $t->id(); $t->unsignedBigInteger('tournament_registration_id'); $t->unsignedBigInteger('player_id'); $t->integer('position'); });
+    Schema::table('tournament_registrations', function (Blueprint $t) { $t->unsignedBigInteger('tournament_id')->nullable(); $t->unsignedBigInteger('tournament_slot_id')->nullable(); $t->unsignedBigInteger('player_id')->nullable(); $t->string('status')->nullable(); });
+    Schema::table('five_quillas_entries', function (Blueprint $t) { $t->unsignedBigInteger('registration_participant_id')->nullable(); });
     try {
         FiveQuillasMatch::query()->delete();
-        $this->competition->update(['settings' => ['format' => 'circuit_argentino']]);
+        $this->competition->update(['tournament_id' => 1, 'settings' => ['format' => 'circuit_argentino']]);
+        Schema::create('tournaments', function (Blueprint $t) { $t->id(); });
+        \Illuminate\Support\Facades\DB::table('tournaments')->insert(['id' => 1]);
+        \Illuminate\Support\Facades\DB::table('tournament_slots')->insert(['id' => 1, 'tournament_id' => 1, 'name' => 'MASTERS', 'is_active' => false]);
         $this->phase->update(['code' => 'national', 'status' => 'pending', 'settings' => ['qualifiers' => 16]]);
         $master = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'master-final',
             'phase_type' => 'bracket', 'sort_order' => 2, 'seeding_method' => 'national_ranking',
             'settings' => ['bracket_size' => 32, 'direct_entry_seed_count' => 16],
         ]);
-        foreach (range(1,16) as $rank) {
-            \Illuminate\Support\Facades\DB::table('players')->insert(['id' => $rank]);
-            \Illuminate\Support\Facades\DB::table('general_rankings')->insert(['player_id' => $rank, 'category' => 'M', 'RG' => 17-$rank]);
+        foreach (range(1,32) as $id) {
+            \Illuminate\Support\Facades\DB::table('players')->insert(['id' => $id]);
+            \Illuminate\Support\Facades\DB::table('general_rankings')->insert(['player_id' => $id, 'category' => $id <= 16 ? 'P' : 'M', 'RG' => $id]);
+            if ($id <= 16) {
+                \Illuminate\Support\Facades\DB::table('tournament_registrations')->insert(['id' => $id, 'tournament_id' => 1, 'tournament_slot_id' => 1, 'player_id' => $id, 'status' => 'aprobado']);
+                \Illuminate\Support\Facades\DB::table('tournament_registration_participants')->insert(['tournament_registration_id' => $id, 'player_id' => $id, 'position' => 1]);
+            }
         }
         $service = app(FiveQuillasCompetitionService::class);
-        expect($service->loadRankedMasters($master))->toBe(16);
+        $misplaced = FiveQuillasEntry::create(['competition_id' => $this->competition->id,
+            'entry_phase_id' => $this->phase->id, 'player_id' => 16, 'national_ranking_snapshot' => 1]);
+        $group = \App\Models\FiveQuillasGroup::create(['phase_id' => $this->phase->id, 'status' => 'draft']);
+        \App\Models\FiveQuillasGroupEntry::create(['group_id' => $group->id, 'entry_id' => $misplaced->id, 'position' => 1]);
+        $otherMatch = FiveQuillasMatch::create(['phase_id' => $this->phase->id, 'group_id' => $group->id,
+            'player_one_entry_id' => $misplaced->id, 'status' => 'in_progress']);
+        expect(fn () => $service->loadRegisteredMasters($master))->toThrow(\Illuminate\Validation\ValidationException::class);
+        expect($misplaced->fresh()->entry_phase_id)->toBe($this->phase->id)->and($group->groupEntries()->count())->toBe(1);
+        $otherMatch->update(['status' => 'pending']);
+        expect($service->loadRegisteredMasters($master))->toBe(16);
+        expect($otherMatch->fresh()->player_one_entry_id)->toBeNull()->and($group->groupEntries()->count())->toBe(0);
         $entries = $this->competition->entries()->where('entry_phase_id', $master->id)->orderBy('seed')->get();
         $assigned = $master->matches()->where('round_number', 1)->get()->flatMap(fn ($match) => [
             $match->player_one_entry_id, $match->player_two_entry_id,
         ])->filter()->unique();
         expect($assigned)->toHaveCount(16)
-            ->and($entries->pluck('player_id')->all())->toBe(range(16,1))
-            ->and($master->fresh()->settings['manual_direct_player_ids'])->toBe(range(16,1))
+            ->and($entries->pluck('player_id')->sort()->values()->all())->toBe(range(1,16))
+            ->and($entries->first()->player_id)->toBe(16)
+            ->and($entries->first()->national_ranking_snapshot)->toBe(1)
+            ->and($entries->where('player_id', 1)->first()->national_ranking_snapshot)->toBeNull()
+            ->and($entries->pluck('tournament_registration_id')->sort()->values()->all())->toBe(range(1,16))
             ->and($this->phase->fresh()->status)->toBe('pending');
-        $service->loadRankedMasters($master->fresh());
+        $service->loadRegisteredMasters($master->fresh());
         expect($this->competition->entries()->where('entry_phase_id', $master->id)->count())->toBe(16);
         $master->matches()->first()->update(['status' => 'called']);
-        expect(fn () => $service->loadRankedMasters($master->fresh()))->toThrow(\Illuminate\Validation\ValidationException::class);
+        expect(fn () => $service->loadRegisteredMasters($master->fresh()))->toThrow(\Illuminate\Validation\ValidationException::class);
     } finally {
-        Schema::dropIfExists('general_rankings');
-        Schema::dropIfExists('players');
+        foreach (['tournament_registration_participants', 'tournament_slots', 'general_rankings', 'players', 'tournaments'] as $table) Schema::dropIfExists($table);
     }
 });

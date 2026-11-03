@@ -250,7 +250,7 @@
                     @if($phase->status !== 'completed')
                         <div class="fq-phase-actions">
                             @if($phase->code === 'master-final' && data_get($competition->settings, 'format') === 'circuit_argentino')
-                                {{ ($this->loadRankedMastersAction)(['phaseId' => $phase->id]) }}
+                                {{ ($this->loadRegisteredMastersAction)(['phaseId' => $phase->id]) }}
                             @endif
                             @if($phase->phase_type === 'slot_elimination')
                                 {{ ($this->configureSlotCrossingsAction)(['phaseId' => $phase->id]) }}

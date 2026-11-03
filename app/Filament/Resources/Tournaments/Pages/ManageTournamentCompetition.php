@@ -913,23 +913,24 @@ class ManageTournamentCompetition extends Page
             });
     }
 
-    public function loadRankedMastersAction(): Action
+    public function loadRegisteredMastersAction(): Action
     {
-        return Action::make('loadRankedMasters')
-            ->label('Cargar 16 Masters del ranking')->icon('heroicon-o-user-group')->color('primary')->size('sm')
+        return Action::make('loadRegisteredMasters')
+            ->label('Cargar Masters del horario')->icon('heroicon-o-user-group')->color('primary')->size('sm')
             ->requiresConfirmation()->modalHeading('Cargar ingresos directos a Masters')
-            ->modalDescription('Se cargarán los primeros 16 jugadores con categoría M del ranking nacional. Las plazas provenientes de Nacional seguirán pendientes hasta finalizar esa fase.')
+            ->modalDescription('Se cargarán los 16 jugadores con inscripción aprobada en el horario Masters de este torneo, aunque el horario esté desactivado. Las plazas provenientes de Nacional seguirán pendientes hasta finalizar esa fase.')
             ->schema([
-                Placeholder::make('masters')->label('Jugadores del ranking')
-                    ->content(fn (): string => \App\Models\GeneralRanking::query()
-                        ->whereRaw('UPPER(TRIM(category)) = ?', ['M'])->whereNotNull('RG')->whereHas('player')
-                        ->with('player')->orderBy('RG')->orderBy('player_id')->get()->unique('player_id')->take(16)
-                        ->map(fn ($row): string => $row->RG.'. '.$row->player->full_name)->implode(' · ')),
+                Placeholder::make('masters')->label('Inscriptos en Masters')
+                    ->content(fn (): string => $this->record->registrations()->where('status', 'aprobado')
+                        ->whereIn('tournament_slot_id', $this->record->slots
+                            ->filter(fn ($slot): bool => \Illuminate\Support\Str::contains(\Illuminate\Support\Str::lower(\Illuminate\Support\Str::ascii($slot->name)), 'master'))->pluck('id'))
+                        ->with('participants.player')->orderBy('id')->get()
+                        ->map(fn ($registration): string => $registration->participant_names)->implode(' · ')),
             ])
             ->action(function (Action $action, array $arguments): void {
                 $phase = $this->competition()->phases()->findOrFail((int) ($arguments['phaseId'] ?? 0));
                 try {
-                    app(FiveQuillasCompetitionService::class)->loadRankedMasters($phase);
+                    app(FiveQuillasCompetitionService::class)->loadRegisteredMasters($phase);
                 } catch (ValidationException $exception) {
                     Notification::make()->danger()->title('No se pudieron cargar los Masters')
                         ->body(collect($exception->errors())->flatten()->first())->persistent()->send();

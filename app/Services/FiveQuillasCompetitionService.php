@@ -105,7 +105,7 @@ class FiveQuillasCompetitionService
                     'registration_participant_id' => $participant->id ?? null,
                     'source_slot_id' => $registration->tournament_slot_id,
                     'entry_phase_id' => $entryPhase?->id,
-                    'national_ranking_snapshot' => $ranking,
+                    'national_ranking_snapshot' => $entry->exists ? $entry->national_ranking_snapshot : $ranking,
                 ]);
                 if (! $entry->exists || $entry->status === 'withdrawn') {
                     $entry->status = 'eligible';
@@ -1961,10 +1961,11 @@ class FiveQuillasCompetitionService
                 && $this->slotEliminationHasEveryCrossing($crossings));
     }
 
-    /** Carga explícitamente los 16 Masters del ranking sin anticipar clasificados de Nacional. */
-    public function loadRankedMasters(FiveQuillasPhase $phase): int
+    /** Recupera los ingresos históricos del horario Masters sin consultar el ranking actual. */
+    public function loadRegisteredMasters(FiveQuillasPhase $phase): int
     {
         return DB::transaction(function () use ($phase): int {
+            FiveQuillasCompetition::query()->whereKey($phase->competition_id)->lockForUpdate()->firstOrFail();
             $phase = FiveQuillasPhase::query()->whereKey($phase->id)->lockForUpdate()->firstOrFail();
             if ($phase->code !== 'master-final' || ! $phase->is_enabled
                 || data_get($phase->competition->settings, 'format') !== 'circuit_argentino') {
@@ -1973,25 +1974,69 @@ class FiveQuillasCompetitionService
             if ($phase->matches()->whereIn('status', ['called', 'in_progress', 'completed'])->where('is_bye', false)->exists()) {
                 throw ValidationException::withMessages(['masters' => 'No se pueden cargar ingresos después de comenzar Masters.']);
             }
-            $masters = GeneralRanking::query()->whereRaw('UPPER(TRIM(category)) = ?', ['M'])
-                ->whereNotNull('RG')->whereHas('player')->orderBy('RG')->orderBy('player_id')->get()->unique('player_id')->take(16);
+            $slotIds = $phase->competition->tournament->slots
+                ->filter(fn ($slot): bool => Str::contains(Str::lower(Str::ascii($slot->name)), 'master'))->pluck('id');
+            $registrations = $phase->competition->tournament->registrations()->where('status', 'aprobado')
+                ->whereIn('tournament_slot_id', $slotIds)->with('participants')->orderBy('id')->get();
+            $masters = $registrations->flatMap(function ($registration) {
+                return collect($registration->participantIds())->map(fn ($playerId) => (object) [
+                    'player_id' => (int) $playerId,
+                    'registration' => $registration,
+                    'participant_id' => $registration->participants->firstWhere('player_id', $playerId)?->id,
+                ]);
+            })->unique('player_id')->values();
             if ($masters->count() !== 16) {
-                throw ValidationException::withMessages(['masters' => 'El ranking debe tener 16 jugadores Master vinculados a sus fichas.']);
+                throw ValidationException::withMessages(['masters' => 'El horario Masters de este torneo debe tener 16 jugadores con inscripción aprobada. No se utilizará el ranking actual para completar los faltantes.']);
             }
             if ($phase->competition->entries()->where('entry_phase_id', $phase->id)->where('status', '!=', 'withdrawn')
                 ->whereNotIn('player_id', $masters->pluck('player_id'))->exists()) {
-                throw ValidationException::withMessages(['masters' => 'La fase ya tiene ingresos directos distintos de estos 16 Masters. Revisá la lista antes de reemplazarla.']);
+                throw ValidationException::withMessages(['masters' => 'La fase ya tiene ingresos directos distintos de los inscriptos en el horario Masters. Revisá la lista antes de reemplazarla.']);
             }
             $existing = $phase->competition->entries()->whereIn('player_id', $masters->pluck('player_id'))->get();
+            $existingByPlayer = $existing->keyBy('player_id');
+            $masters = $masters->sortBy(fn ($master): array => [
+                $existingByPlayer->get($master->player_id)?->national_ranking_snapshot ?: PHP_INT_MAX,
+                $master->registration->id, $master->player_id,
+            ])->values();
             $ids = $existing->pluck('id');
-            if (FiveQuillasGroupEntry::query()->whereIn('entry_id', $ids)->exists()
-                || FiveQuillasMatch::query()->where('phase_id', '!=', $phase->id)->where(fn ($query) => $query
-                    ->whereIn('player_one_entry_id', $ids)->orWhereIn('player_two_entry_id', $ids))->exists()) {
-                throw ValidationException::withMessages(['masters' => 'Hay Masters del ranking asignados a otra fase. Revisá sus inscripciones antes de cargarlos.']);
+            $groupIds = FiveQuillasGroupEntry::query()->whereIn('entry_id', $ids)->pluck('group_id');
+            $affectedMatches = FiveQuillasMatch::query()->where('phase_id', '!=', $phase->id)
+                ->where(fn ($query) => $query->whereIn('player_one_entry_id', $ids)
+                    ->orWhereIn('player_two_entry_id', $ids)->orWhereIn('winner_entry_id', $ids)
+                    ->orWhereIn('group_id', $groupIds))->get();
+            if ($affectedMatches->contains(fn ($match): bool => ! $match->is_bye
+                && (in_array($match->status, ['called', 'in_progress', 'completed', 'suspended'], true)
+                    || ! empty($match->set_scores)
+                    || $match->player_one_actual_sets > 0 || $match->player_two_actual_sets > 0
+                    || $match->player_one_points > 0 || $match->player_two_points > 0))) {
+                throw ValidationException::withMessages(['masters' => 'No se pueden trasladar Masters: su zona o partido ya fue llamado o tiene resultados cargados.']);
             }
+            // Las asignaciones preparatorias se pueden corregir; los resultados
+            // disputados se protegen arriba y toda la operación es atómica.
+            foreach ($affectedMatches as $match) {
+                $updates = [];
+                foreach (['player_one_entry_id', 'player_two_entry_id', 'winner_entry_id'] as $field) {
+                    if ($ids->contains($match->$field)) {
+                        $updates[$field] = null;
+                    }
+                }
+                if ($updates !== []) {
+                    $match->update(array_merge($updates, [
+                        'winner_entry_id' => null, 'is_bye' => false, 'set_scores' => null,
+                        'player_one_actual_sets' => 0, 'player_two_actual_sets' => 0,
+                        'player_one_computed_sets' => 0, 'player_two_computed_sets' => 0,
+                        'player_one_points' => 0, 'player_two_points' => 0,
+                        'status' => $match->scheduled_at ? 'scheduled' : 'pending',
+                    ]));
+                }
+            }
+            FiveQuillasGroupEntry::query()->whereIn('entry_id', $ids)->delete();
             foreach ($masters as $index => $master) {
                 $phase->competition->entries()->updateOrCreate(['player_id' => $master->player_id], [
-                    'entry_phase_id' => $phase->id, 'national_ranking_snapshot' => $master->RG,
+                    'entry_phase_id' => $phase->id,
+                    'tournament_registration_id' => $master->registration->id,
+                    'registration_participant_id' => $master->participant_id,
+                    'source_slot_id' => $master->registration->tournament_slot_id,
                     'seed' => $index + 1, 'status' => 'eligible',
                 ]);
             }
