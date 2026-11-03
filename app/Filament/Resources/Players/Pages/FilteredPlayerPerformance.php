@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\Players\Pages;
 
 use App\Filament\Resources\Players\PlayerResource;
-use App\Jobs\GeneratePlayerPerformancePdf;
 use App\Models\Discipline;
 use App\Models\Category;
 use App\Models\Federation;
@@ -17,7 +16,6 @@ use Filament\Resources\Pages\Page;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 
@@ -54,12 +52,6 @@ class FilteredPlayerPerformance extends Page
 
     #[Locked]
     public ?string $pdfExportToken = null;
-
-    #[Locked]
-    public ?int $pdfExportStartedAt = null;
-
-    #[Locked]
-    public string $pdfExportStage = 'pending';
 
     public function mount(string $report): void
     {
@@ -223,29 +215,22 @@ class FilteredPlayerPerformance extends Page
         $snapshot = collect(['playerIds', 'searchPlayer', 'disciplineId', 'federationId', 'categoryId',
             'typeIds', 'fromDate', 'untilDate', 'minPoints', 'maxPoints', 'onlyParticipants'])
             ->mapWithKeys(fn ($key) => [$key => $this->$key])->all();
-        session()->put('player-performance-pdf.'.$token, ['user_id' => Auth::id(), 'expires_at' => now()->addHour()->timestamp]);
-        Cache::put('player-performance-pdf:'.$token, 'pending', now()->addHour());
-        GeneratePlayerPerformancePdf::dispatch($token, $snapshot)->onConnection('background');
+        session()->put('player-performance-pdf.'.$token, [
+            'user_id' => Auth::id(), 'expires_at' => now()->addHour()->timestamp, 'filters' => $snapshot,
+        ]);
         $this->pdfExportToken = $token;
-        $this->pdfExportStartedAt = now()->timestamp;
-        $this->pdfExportStage = 'pending';
+        $this->dispatch('player-performance-pdf-requested', url: route('players.performance-pdf', ['token' => $token]),
+            token: $token, filename: 'desempeno-jugadores-'.now()->format('Y-m-d').'.pdf');
     }
 
-    public function checkPdfExport(): void
+    public function finishPdfExport(string $token, bool $successful): void
     {
-        if (! $this->pdfExportToken) { $this->skipRender(); return; }
-        $state = Cache::get('player-performance-pdf:'.$this->pdfExportToken);
-        if ($state === 'ready') {
-            $this->dispatch('player-performance-pdf-ready', url: route('players.performance-pdf', ['token' => $this->pdfExportToken]));
-            $this->pdfExportToken = null;
-        } elseif ($state === 'failed' || now()->timestamp - (int) $this->pdfExportStartedAt > 600) {
+        if ($token !== $this->pdfExportToken) return;
+        $this->pdfExportToken = null;
+        if (! $successful) {
             \Filament\Notifications\Notification::make()->danger()->title('No se pudo generar el PDF')
-                ->body('Intentá nuevamente o reducí el período del informe.')->persistent()->send();
-            $this->pdfExportToken = null;
-        } elseif (in_array($state, ['loading', 'rendering'], true) && $state !== $this->pdfExportStage) {
-            $this->pdfExportStage = $state;
-        } else {
-            $this->skipRender();
+                ->body('La descarga no se completó. Volvé a intentar la exportación.')->persistent()->send();
         }
     }
+
 }

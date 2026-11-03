@@ -34,9 +34,24 @@
         .performance-empty { padding: 1rem 1.25rem; }
     </style>
 
-    <div x-data x-on:player-performance-pdf-ready.window="window.location.assign($event.detail.url)"></div>
+    <div x-data x-on:player-performance-pdf-requested.window="
+        const request = $event.detail;
+        const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 120000);
+        fetch(request.url, { credentials: 'same-origin', signal: controller.signal, headers: { Accept: 'application/pdf' } })
+            .then(response => { if (!response.ok) throw new Error('pdf'); return response.blob(); })
+            .then(async blob => {
+                if (!blob.size || !blob.type.includes('application/pdf')) throw new Error('pdf');
+                const url = URL.createObjectURL(blob), link = document.createElement('a');
+                link.href = url; link.download = request.filename;
+                document.body.appendChild(link); link.click(); link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+                await $wire.finishPdfExport(request.token, true);
+            })
+            .catch(() => $wire.finishPdfExport(request.token, false))
+            .finally(() => clearTimeout(timeout));
+    "></div>
     @if ($this->pdfExportToken)
-        <div wire:poll.2s="checkPdfExport" role="status" class="performance-totals">{{ match($this->pdfExportStage) { 'loading' => 'Reuniendo los resultados…', 'rendering' => 'Generando las páginas del PDF…', default => 'Iniciando la exportación…' } }} La descarga comenzará cuando esté listo.</div>
+        <div role="status" class="performance-totals">Generando el PDF… La descarga comenzará cuando esté listo.</div>
     @endif
     <div class="performance-filters">
         <div class="performance-filter-row">

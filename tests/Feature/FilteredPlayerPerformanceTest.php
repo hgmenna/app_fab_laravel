@@ -79,18 +79,21 @@ it('clears the category when changing discipline', function () {
     expect($this->page->categoryId)->toBe('')->and($this->page->typeIds)->toBe([]);
 });
 
-it('starts PDF generation in an independent process and freezes the selected filters', function () {
+it('prepares a direct download with frozen filters without dispatching background work', function () {
     \Illuminate\Support\Facades\Bus::fake([\App\Jobs\GeneratePlayerPerformancePdf::class]);
     $this->page->federationId = '2';
     $this->page->categoryId = '1';
     $this->page->startPdfExport();
     $token = $this->page->pdfExportToken;
     expect($token)->not->toBeNull();
-    \Illuminate\Support\Facades\Bus::assertDispatched(\App\Jobs\GeneratePlayerPerformancePdf::class,
-        fn ($job) => $job->connection === 'background' && $job->token === $token && $job->filters['federationId'] === '2'
-            && $job->filters['categoryId'] === '1' && $job->filters['playerIds'] === [1, 2, 3, 4]);
+    $filters = session('player-performance-pdf.'.$token.'.filters');
+    expect($filters['federationId'])->toBe('2')->and($filters['categoryId'])->toBe('1')
+        ->and($filters['playerIds'])->toBe([1, 2, 3, 4]);
     $this->page->startPdfExport();
-    \Illuminate\Support\Facades\Bus::assertDispatchedTimes(\App\Jobs\GeneratePlayerPerformancePdf::class, 1);
+    expect($this->page->pdfExportToken)->toBe($token);
+    \Illuminate\Support\Facades\Bus::assertNothingDispatched();
+    $this->page->finishPdfExport($token, true);
+    expect($this->page->pdfExportToken)->toBeNull();
 });
 
 it('generates a private PDF using the same filtered descending points data', function () {
@@ -104,7 +107,6 @@ it('generates a private PDF using the same filtered descending points data', fun
     \Barryvdh\DomPDF\Facade\Pdf::shouldReceive('output')->once()->andReturn('%PDF-1.4 test');
     (new \App\Jobs\GeneratePlayerPerformancePdf($token, ['playerIds' => [1, 2, 3, 4], 'federationId' => '2']))->handle();
     \Illuminate\Support\Facades\Storage::disk('local')->assertExists('performance-exports/'.$token.'.pdf');
-    expect(\Illuminate\Support\Facades\Cache::get('player-performance-pdf:'.$token))->toBe('ready');
     $this->withSession(['player-performance-pdf.'.$token => ['user_id' => null, 'expires_at' => now()->addHour()->timestamp]])
         ->get(route('players.performance-pdf', ['token' => $token]))->assertOk()->assertDownload();
 });
@@ -122,10 +124,30 @@ it('does not expose PDFs outside their owning session or after expiry', function
         ->get($url)->assertNotFound();
 });
 
-it('renders a real PDF successfully after the response', function () {
+it('generates and returns a real PDF through the download route without a pre-existing file', function () {
     \Illuminate\Support\Facades\Storage::fake('local');
     $token = (string) \Illuminate\Support\Str::uuid();
-    (new \App\Jobs\GeneratePlayerPerformancePdf($token, ['playerIds' => [1, 2, 3, 4]]))->handle();
-    expect(\Illuminate\Support\Facades\Cache::get('player-performance-pdf:'.$token))->toBe('ready')
-        ->and(\Illuminate\Support\Facades\Storage::disk('local')->get('performance-exports/'.$token.'.pdf'))->toStartWith('%PDF-');
+    $this->withSession(['player-performance-pdf.'.$token => [
+        'user_id' => null, 'expires_at' => now()->addHour()->timestamp, 'filters' => ['playerIds' => [1, 2, 3, 4]],
+    ]])->get(route('players.performance-pdf', ['token' => $token]))->assertOk()->assertDownload()
+        ->assertHeader('Content-Type', 'application/pdf');
+    expect(\Illuminate\Support\Facades\Storage::disk('local')->get('performance-exports/'.$token.'.pdf'))->toStartWith('%PDF-');
+});
+
+it('exports a real 56-player 133-participation report without background processing', function () {
+    \Illuminate\Support\Facades\Storage::fake('local');
+    for ($id = 5; $id <= 56; $id++) {
+        DB::table('players')->insert(['id' => $id, 'first_name' => 'José', 'last_name' => 'González '.$id,
+            'category_id' => 1, 'discipline_id' => 1, 'club_id' => 1]);
+    }
+    for ($id = 5; $id <= 133; $id++) {
+        DB::table('tournament_registrations')->insert(['id' => $id, 'tournament_id' => 1, 'points' => $id % 20]);
+        DB::table('tournament_registration_participants')->insert(['tournament_registration_id' => $id,
+            'player_id' => (($id - 5) % 56) + 1, 'position' => 1]);
+    }
+    $token = (string) \Illuminate\Support\Str::uuid();
+    $this->withSession(['player-performance-pdf.'.$token => [
+        'user_id' => null, 'expires_at' => now()->addHour()->timestamp, 'filters' => ['playerIds' => range(1, 56)],
+    ]])->get(route('players.performance-pdf', ['token' => $token]))->assertOk()->assertDownload();
+    expect(\Illuminate\Support\Facades\Storage::disk('local')->get('performance-exports/'.$token.'.pdf'))->toStartWith('%PDF-');
 });
