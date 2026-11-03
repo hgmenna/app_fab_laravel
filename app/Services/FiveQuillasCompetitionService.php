@@ -63,6 +63,8 @@ class FiveQuillasCompetitionService
             ->get();
         $phases = $competition->phases()->where('is_enabled', true)->orderBy('sort_order')->get();
         $fallbackPhase = $phases->first();
+        $manualMasters = $phases->firstWhere('code', 'master-final');
+        $manualMasterIds = collect(data_get($manualMasters?->settings, 'manual_direct_player_ids', []));
         // Esta colección representa la foto actual de inscripciones aprobadas.
         // Al final se usa para retirar entradas que dejaron de estar habilitadas.
         $activePlayerIds = collect();
@@ -92,6 +94,9 @@ class FiveQuillasCompetitionService
                     $player,
                     $registration->slot?->name,
                 ) ?: $fallbackPhase;
+                if ($manualMasterIds->contains((int) $participant->player_id)) {
+                    $entryPhase = $manualMasters;
+                }
                 $entry = $competition->entries()->firstOrNew(
                     ['player_id' => $participant->player_id],
                 );
@@ -110,7 +115,8 @@ class FiveQuillasCompetitionService
             }
         }
 
-        $competition->entries()->whereNotIn('player_id', $activePlayerIds->unique()->all())->update(['status' => 'withdrawn']);
+        $activePlayerIds = $activePlayerIds->merge($manualMasterIds)->unique();
+        $competition->entries()->whereNotIn('player_id', $activePlayerIds->all())->update(['status' => 'withdrawn']);
 
         return $activePlayerIds->unique()->count();
     }
@@ -146,7 +152,9 @@ class FiveQuillasCompetitionService
         $changed = false;
 
         foreach ($entries as $entry) {
-            $phase = $this->entryPhaseForRegistration(
+            $phase = $phases->first(fn ($phase): bool => collect(data_get($phase->settings, 'manual_direct_player_ids', []))
+                ->contains((int) $entry->player_id));
+            $phase ??= $this->entryPhaseForRegistration(
                 $phases,
                 $entry->player,
                 $entry->sourceSlot?->name,
@@ -1951,6 +1959,50 @@ class FiveQuillasCompetitionService
             ->where('phase_type', 'slot_elimination')->where('sort_order', '<', $phase->sort_order)
             ->get()->every(fn ($crossings): bool => $crossings->status === 'completed'
                 && $this->slotEliminationHasEveryCrossing($crossings));
+    }
+
+    /** Carga explícitamente los 16 Masters del ranking sin anticipar clasificados de Nacional. */
+    public function loadRankedMasters(FiveQuillasPhase $phase): int
+    {
+        return DB::transaction(function () use ($phase): int {
+            $phase = FiveQuillasPhase::query()->whereKey($phase->id)->lockForUpdate()->firstOrFail();
+            if ($phase->code !== 'master-final' || ! $phase->is_enabled
+                || data_get($phase->competition->settings, 'format') !== 'circuit_argentino') {
+                throw ValidationException::withMessages(['masters' => 'La carga corresponde a la fase Masters del Circuito Argentino.']);
+            }
+            if ($phase->matches()->whereIn('status', ['called', 'in_progress', 'completed'])->where('is_bye', false)->exists()) {
+                throw ValidationException::withMessages(['masters' => 'No se pueden cargar ingresos después de comenzar Masters.']);
+            }
+            $masters = GeneralRanking::query()->whereRaw('UPPER(TRIM(category)) = ?', ['M'])
+                ->whereNotNull('RG')->whereHas('player')->orderBy('RG')->orderBy('player_id')->get()->unique('player_id')->take(16);
+            if ($masters->count() !== 16) {
+                throw ValidationException::withMessages(['masters' => 'El ranking debe tener 16 jugadores Master vinculados a sus fichas.']);
+            }
+            if ($phase->competition->entries()->where('entry_phase_id', $phase->id)->where('status', '!=', 'withdrawn')
+                ->whereNotIn('player_id', $masters->pluck('player_id'))->exists()) {
+                throw ValidationException::withMessages(['masters' => 'La fase ya tiene ingresos directos distintos de estos 16 Masters. Revisá la lista antes de reemplazarla.']);
+            }
+            $existing = $phase->competition->entries()->whereIn('player_id', $masters->pluck('player_id'))->get();
+            $ids = $existing->pluck('id');
+            if (FiveQuillasGroupEntry::query()->whereIn('entry_id', $ids)->exists()
+                || FiveQuillasMatch::query()->where('phase_id', '!=', $phase->id)->where(fn ($query) => $query
+                    ->whereIn('player_one_entry_id', $ids)->orWhereIn('player_two_entry_id', $ids))->exists()) {
+                throw ValidationException::withMessages(['masters' => 'Hay Masters del ranking asignados a otra fase. Revisá sus inscripciones antes de cargarlos.']);
+            }
+            foreach ($masters as $index => $master) {
+                $phase->competition->entries()->updateOrCreate(['player_id' => $master->player_id], [
+                    'entry_phase_id' => $phase->id, 'national_ranking_snapshot' => $master->RG,
+                    'seed' => $index + 1, 'status' => 'eligible',
+                ]);
+            }
+            $phase->update(['settings' => array_merge($phase->settings ?? [], [
+                'manual_direct_player_ids' => $masters->pluck('player_id')->values()->all(),
+                'direct_entry_seed_count' => 16,
+            ])]);
+            $this->ensureBracketSkeleton($phase);
+
+            return 16;
+        });
     }
 
     /**

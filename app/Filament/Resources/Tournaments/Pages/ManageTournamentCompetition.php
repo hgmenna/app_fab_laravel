@@ -913,6 +913,34 @@ class ManageTournamentCompetition extends Page
             });
     }
 
+    public function loadRankedMastersAction(): Action
+    {
+        return Action::make('loadRankedMasters')
+            ->label('Cargar 16 Masters del ranking')->icon('heroicon-o-user-group')->color('primary')->size('sm')
+            ->requiresConfirmation()->modalHeading('Cargar ingresos directos a Masters')
+            ->modalDescription('Se cargarán los primeros 16 jugadores con categoría M del ranking nacional. Las plazas provenientes de Nacional seguirán pendientes hasta finalizar esa fase.')
+            ->schema([
+                Placeholder::make('masters')->label('Jugadores del ranking')
+                    ->content(fn (): string => \App\Models\GeneralRanking::query()
+                        ->whereRaw('UPPER(TRIM(category)) = ?', ['M'])->whereNotNull('RG')->whereHas('player')
+                        ->with('player')->orderBy('RG')->orderBy('player_id')->get()->unique('player_id')->take(16)
+                        ->map(fn ($row): string => $row->RG.'. '.$row->player->full_name)->implode(' · ')),
+            ])
+            ->action(function (Action $action, array $arguments): void {
+                $phase = $this->competition()->phases()->findOrFail((int) ($arguments['phaseId'] ?? 0));
+                try {
+                    app(FiveQuillasCompetitionService::class)->loadRankedMasters($phase);
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('No se pudieron cargar los Masters')
+                        ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
+                    $action->halt();
+
+                    return;
+                }
+                Notification::make()->success()->title('16 Masters cargados')->send();
+            });
+    }
+
     /** Configura la revisión de participantes y preparación de una fase. */
     public function preparePhaseAction(): Action
     {

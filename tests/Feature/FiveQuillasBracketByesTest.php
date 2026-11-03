@@ -441,3 +441,38 @@ it('keeps only direct masters until the whole national phase finishes even with 
     $service->ensureBracketSkeleton($master->fresh());
     expect($assigned())->toBe($all->pluck('id')->sort()->values()->all());
 });
+
+it('loads sixteen ranked Masters immediately while National is pending and keeps their places stable', function () {
+    Schema::create('players', function (Blueprint $t) { $t->id(); });
+    Schema::create('general_rankings', function (Blueprint $t) { $t->id(); $t->unsignedBigInteger('player_id'); $t->string('category'); $t->integer('RG'); });
+    try {
+        FiveQuillasMatch::query()->delete();
+        $this->competition->update(['settings' => ['format' => 'circuit_argentino']]);
+        $this->phase->update(['code' => 'national', 'status' => 'pending', 'settings' => ['qualifiers' => 16]]);
+        $master = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'master-final',
+            'phase_type' => 'bracket', 'sort_order' => 2, 'seeding_method' => 'national_ranking',
+            'settings' => ['bracket_size' => 32, 'direct_entry_seed_count' => 16],
+        ]);
+        foreach (range(1,16) as $rank) {
+            \Illuminate\Support\Facades\DB::table('players')->insert(['id' => $rank]);
+            \Illuminate\Support\Facades\DB::table('general_rankings')->insert(['player_id' => $rank, 'category' => 'M', 'RG' => 17-$rank]);
+        }
+        $service = app(FiveQuillasCompetitionService::class);
+        expect($service->loadRankedMasters($master))->toBe(16);
+        $entries = $this->competition->entries()->where('entry_phase_id', $master->id)->orderBy('seed')->get();
+        $assigned = $master->matches()->where('round_number', 1)->get()->flatMap(fn ($match) => [
+            $match->player_one_entry_id, $match->player_two_entry_id,
+        ])->filter()->unique();
+        expect($assigned)->toHaveCount(16)
+            ->and($entries->pluck('player_id')->all())->toBe(range(16,1))
+            ->and($master->fresh()->settings['manual_direct_player_ids'])->toBe(range(16,1))
+            ->and($this->phase->fresh()->status)->toBe('pending');
+        $service->loadRankedMasters($master->fresh());
+        expect($this->competition->entries()->where('entry_phase_id', $master->id)->count())->toBe(16);
+        $master->matches()->first()->update(['status' => 'called']);
+        expect(fn () => $service->loadRankedMasters($master->fresh()))->toThrow(\Illuminate\Validation\ValidationException::class);
+    } finally {
+        Schema::dropIfExists('general_rankings');
+        Schema::dropIfExists('players');
+    }
+});
