@@ -1,0 +1,149 @@
+(function (root) {
+    'use strict';
+
+    const normalize = value => String(value ?? '').normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+
+    function matches(row, filters) {
+        if (!row) return false;
+        const states = { proximos: 'PROXIMO', encurso: 'EN CURSO', finalizados: 'FINALIZADO' };
+        if (states[filters.estado] && normalize(row.estado_torneo) !== states[filters.estado]) return false;
+        if (filters.desde && filters.hasta && filters.desde > filters.hasta) return false;
+        if (filters.desde && row.fecha_fin < filters.desde) return false;
+        if (filters.hasta && row.fecha_inicio > filters.hasta) return false;
+        const text = normalize([row.torneo, row.club, row.disciplina, row.tipo, row.categorias].join(' '));
+        return normalize(filters.buscar).split(' ').filter(Boolean).every(word => text.includes(word));
+    }
+
+    function sortOrder(state, column) {
+        const descending = state === 'finalizados';
+        const direction = descending ? 'desc' : 'asc';
+        return [[column(descending ? 'fecha_fin' : 'fecha_inicio'), direction], [column('id'), direction]];
+    }
+
+    if (typeof module === 'object' && module.exports) {
+        module.exports = { normalize, matches, sortOrder };
+        return;
+    }
+    if (root.fabCalendarInitialized) return;
+    root.fabCalendarInitialized = true;
+
+    const selector = '.wpDataTableID-64';
+    const endpoint = 'https://sistem.federacionargentinadebillar.org/torneos.json?estado=todos';
+    const filters = { estado: 'proximos', desde: '', hasta: '', buscar: '' };
+    let rows = new Map(), ready = false, api, controls, status, timer;
+
+    function decorate() {
+        const table = document.querySelector(selector);
+        if (!table) return;
+        let header, hasRows = false;
+        const finishGroup = () => { if (header) header.hidden = !hasRows; };
+        table.querySelectorAll('tbody tr').forEach(tr => {
+            // wpDataTables month headings span the entire table.
+            if (tr.cells.length === 1 && !tr.querySelector('.dataTables_empty')) {
+                finishGroup(); header = tr; hasRows = false; return;
+            }
+            const row = rows.get(tr.cells[0]?.textContent.trim());
+            if (!row) return;
+            hasRows = true;
+            const cell = tr.querySelector('.column-torneo, .fab-torneo') || tr.cells[5];
+            if (!cell || !row.desarrollo_url || cell.querySelector('.fab-resultados-publicos')) return;
+            const link = document.createElement('a');
+            link.className = 'fab-resultados-publicos';
+            link.textContent = 'Ver resultados';
+            link.href = row.desarrollo_url;
+            link.target = '_blank'; link.rel = 'noopener';
+            cell.appendChild(link);
+        });
+        finishGroup();
+        if (ready && api) {
+            const count = api.page.info().recordsDisplay;
+            status.textContent = filters.desde && filters.hasta && filters.desde > filters.hasta
+                ? 'La fecha Desde debe ser anterior o igual a Hasta.'
+                : count ? `${count} ${count === 1 ? 'torneo encontrado' : 'torneos encontrados'}`
+                    : 'No hay torneos que coincidan con los filtros.';
+        }
+    }
+
+    function draw() {
+        clearTimeout(timer);
+        if (!api || !ready) return;
+        const table = api.table().node();
+        const column = name => Array.from(table.querySelectorAll('thead tr:first-child th'))
+            .findIndex(th => th.classList.contains(`column-${name}`));
+        // Do not let a fixed month order override the selected chronological order.
+        api.order.fixed([]);
+        api.order(sortOrder(filters.estado, column)).draw();
+        decorate();
+    }
+
+    function setup() {
+        const $ = root.jQuery;
+        const table = document.querySelector(selector);
+        if (!table || !$?.fn?.dataTable?.isDataTable(table)) return false;
+        api = $(table).DataTable();
+        const wrapper = table.closest('.wpDataTablesWrapper') || table.parentElement;
+        controls = document.createElement('div');
+        controls.id = 'fab-cal-filtros'; controls.className = 'fab-cal-filtros';
+        controls.innerHTML = `<div class="fab-cal-estados">${[
+            ['proximos', 'Próximos'], ['encurso', 'En curso'], ['finalizados', 'Finalizados'], ['todos', 'Todos'],
+        ].map(([value, text]) => `<button type="button" class="fab-cal-btn" data-e="${value}" aria-pressed="${value === filters.estado}">${text}</button>`).join('')}</div>
+            <label class="fab-cal-campo">Buscar torneo o sede<input type="search" name="buscar" placeholder="Nombre del torneo o sede" autocomplete="off"></label>
+            <label class="fab-cal-campo">Desde<input type="date" name="desde"></label>
+            <label class="fab-cal-campo">Hasta<input type="date" name="hasta"></label>
+            <button type="button" class="fab-cal-limpiar">Limpiar filtros</button>`;
+        wrapper.before(controls);
+        status = document.createElement('p'); status.setAttribute('role', 'status');
+        status.textContent = 'Cargando torneos…'; controls.after(status);
+        const buttons = () => controls.querySelectorAll('[data-e]').forEach(button => {
+            const active = button.dataset.e === filters.estado;
+            button.classList.toggle('activo', active); button.setAttribute('aria-pressed', String(active));
+        });
+        controls.addEventListener('click', event => {
+            const button = event.target.closest('button');
+            if (!button) return;
+            if (button.dataset.e) filters.estado = button.dataset.e;
+            else {
+                Object.assign(filters, { estado: 'proximos', desde: '', hasta: '', buscar: '' });
+                controls.querySelectorAll('input').forEach(input => { input.value = ''; });
+            }
+            buttons(); draw();
+        });
+        controls.addEventListener('input', event => {
+            const input = event.target;
+            if (!Object.hasOwn(filters, input.name)) return;
+            filters[input.name] = input.value;
+            clearTimeout(timer);
+            if (input.name === 'buscar') timer = setTimeout(draw, 120);
+            else draw();
+        });
+        buttons();
+        // Filter the whole dataset before pagination and month headings are built.
+        $.fn.dataTable.ext.search.push((settings, data) => settings.nTable !== table
+            || (ready && matches(rows.get(String(data[0]).replace(/<[^>]*>/g, '').trim()), filters)));
+        api.search(''); api.columns().search('');
+        $(table).on('draw.dt.fabCalendar', decorate);
+        draw();
+        fetch(endpoint + '&actualizacion=' + Date.now(), { cache: 'no-store', credentials: 'omit' })
+            .then(response => { if (!response.ok) throw new Error('calendar'); return response.json(); })
+            .then(payload => {
+                if (!Array.isArray(payload.data)) throw new Error('calendar');
+                rows = new Map(payload.data.map(row => [String(row.id), row]));
+                ready = true; draw();
+            }).catch(() => { status.textContent = 'No se pudo cargar el calendario. Recargá la página para intentar nuevamente.'; });
+        return true;
+    }
+
+    function start() {
+        const style = document.createElement('style');
+        style.textContent = `.fab-cal-filtros{display:grid;grid-template-columns:minmax(210px,1.2fr) repeat(2,minmax(145px,.7fr)) auto;gap:10px;align-items:end;margin:0 0 12px;padding:15px;border:1px solid #d7e0ed;border-radius:12px;background:#f7f9fc}.fab-cal-campo{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:800;color:#17365d}.fab-cal-campo input{height:40px;border:1px solid #b8c5d6;border-radius:8px;padding:0 11px;background:#fff;color:#172033}.fab-cal-estados{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}.fab-cal-btn,.fab-cal-limpiar{border:1px solid #17468a;border-radius:8px;padding:9px 15px;background:#fff;color:#17468a;font-weight:800;cursor:pointer}.fab-cal-btn.activo,.fab-cal-btn:hover{background:#17468a;color:#fff}.fab-cal-limpiar{height:40px;background:#e9eef6}.fab-resultados-publicos{display:table;margin-top:8px;padding:7px 12px;border-radius:7px;background:#075aa8;color:#fff!important;font-size:12px;font-weight:700;text-decoration:none!important}#table_1 thead tr:nth-child(2){display:none!important}#table_1{width:100%!important}#table_1 td{vertical-align:middle;padding:8px 7px;line-height:1.25}#table_1 [hidden]{display:none!important}#table_1 .column-torneo,#table_1 .column-club{min-width:150px}#table_1 .column-flyer img,#table_1 .column-logo_publicacion img{max-width:46px;max-height:46px;object-fit:contain}@media(max-width:767px){.fab-cal-filtros{grid-template-columns:1fr 1fr}.fab-cal-campo:has(input[type=search]),.fab-cal-limpiar{grid-column:1/-1}.fab-cal-btn{flex:1;padding:9px 7px;font-size:12px}}`;
+        const internal = ['id', 'fecha_inicio', 'fecha_fin', 'estado_torneo', 'disciplina_id', 'tipo_id', 'contactos', 'desarrollo_disponible', 'desarrollo_slug', 'desarrollo_estado', 'desarrollo_texto', 'desarrollo_mensaje', 'desarrollo_json_url', 'desarrollo_url'];
+        style.textContent += internal.map(name => `#table_1 .column-${name}`).join(',') + '{display:none!important}';
+        document.head.appendChild(style);
+        if (setup()) return;
+        const observer = new MutationObserver(() => { if (setup()) observer.disconnect(); });
+        observer.observe(document.body, { childList: true, subtree: true });
+        setTimeout(() => observer.disconnect(), 30000);
+    }
+    document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', start, { once: true }) : start();
+})(typeof window === 'undefined' ? globalThis : window);
