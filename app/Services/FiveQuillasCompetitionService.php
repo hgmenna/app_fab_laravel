@@ -120,6 +120,27 @@ class FiveQuillasCompetitionService
      */
     public function refreshEntryPhaseAssignments(FiveQuillasCompetition $competition): void
     {
+        if (data_get($competition->settings, 'format') === 'circuit_argentino') {
+            $hasActivity = $competition->phases()->whereHas('matches', fn ($query) => $query
+                ->whereIn('status', ['called', 'in_progress', 'completed'])->where('is_bye', false))->exists();
+            if (! $hasActivity) {
+                $templates = collect($this->phaseTemplate($competition->tournament, 'circuit_argentino'))->keyBy('code');
+                $competition->phases()->whereIn('code', ['zones', 'national-play-in', 'national', 'master-final'])->get()
+                    ->each(function ($phase) use ($templates): void {
+                        $settings = $phase->settings ?? [];
+                        $templateSettings = data_get($templates->get($phase->code), 'settings', []);
+                        if (array_key_exists('entry_category_ids', $templateSettings)) {
+                            $settings['entry_category_ids'] = $templateSettings['entry_category_ids'];
+                        }
+                        if (! array_key_exists('qualifiers', $settings) && isset($templateSettings['qualifiers'])) {
+                            $settings['qualifiers'] = $templateSettings['qualifiers'];
+                        }
+                        if ($settings !== ($phase->settings ?? [])) {
+                            $phase->update(['settings' => $settings]);
+                        }
+                    });
+            }
+        }
         $phases = $competition->phases()->where('is_enabled', true)->orderBy('sort_order')->get();
         $entries = $competition->entries()->with(['player.category', 'sourceSlot'])->get();
         $changed = false;
@@ -1873,6 +1894,31 @@ class FiveQuillasCompetitionService
         return $size;
     }
 
+    /** Omite la reclasificación del circuito cuando ya hay exactamente 32 clasificados. */
+    public function skipUnnecessaryCircuitPlayIn(FiveQuillasCompetition $competition): void
+    {
+        if (data_get($competition->settings, 'format') !== 'circuit_argentino') {
+            return;
+        }
+        $phase = $competition->phases()->where('code', 'national-play-in')->where('is_enabled', true)->first();
+        if (! $phase || $phase->matches()->exists()) {
+            return;
+        }
+        $previous = $this->previousPhase($phase);
+        if (! $previous || $previous->status !== 'completed') {
+            return;
+        }
+        $qualified = $this->qualifiedEntriesFromPhase($previous);
+        if ($qualified->count() !== 32) {
+            return;
+        }
+        $phase->update(['is_enabled' => false, 'status' => 'completed', 'settings' => array_merge($phase->settings ?? [], [
+            'qualifiers' => 32,
+            'qualified_entry_ids' => $qualified->pluck('id')->all(),
+            'automatically_skipped' => true,
+        ])]);
+    }
+
     /**
      * Determina la fase de ingreso por categoría y horario guardados en la inscripción.
      */
@@ -1892,13 +1938,16 @@ class FiveQuillasCompetitionService
         $normalizedSlot = Str::lower(Str::ascii((string) $slotName));
         $specialCode = Str::contains($normalizedSlot, ['master'])
             ? 'M'
-            : (Str::contains($normalizedSlot, ['nacional', '1ra', 'primera']) ? 'N' : null);
+            : (Str::contains($normalizedSlot, 'nacional') ? 'N' : null);
         // En torneos históricos la categoría del Ranking General actual puede ser
         // distinta de la que tenía el jugador al inscribirse. El horario NACIONALES
         // o MASTER es la fuente persistente que define el ingreso directo; el ranking
         // se utiliza después únicamente para ordenar ese bloque.
         if ($specialCode) {
             $slotPhase = $phases->first(function ($phase) use ($phaseCodes, $specialCode): bool {
+                if ($phase->phase_type !== 'bracket') {
+                    return false;
+                }
                 if ($phaseCodes->get((int) $phase->id, collect())->contains($specialCode)) {
                     return true;
                 }
@@ -1906,7 +1955,7 @@ class FiveQuillasCompetitionService
 
                 return $specialCode === 'M'
                     ? Str::contains($label, 'master')
-                    : Str::contains($label, ['nacional', '1ra', 'primera']);
+                    : Str::contains($label, 'nacional');
             });
             if ($slotPhase) {
                 return $slotPhase;
@@ -3482,17 +3531,21 @@ class FiveQuillasCompetitionService
     {
         if ($format === 'circuit_argentino') {
             $categories = Category::query()->where('discipline_id', $tournament->discipline_id)->get();
-            $masters = $categories->filter(fn ($category): bool => Str::contains(Str::lower($category->code.' '.$category->name), 'master'))->pluck('id')->all();
-            $nationals = $categories->filter(fn ($category): bool => Str::contains(Str::lower($category->code.' '.$category->name), ['1ra', '1°', 'primera', 'nacional']))->pluck('id')->all();
+            $masters = $categories->filter(fn ($category): bool => Str::upper(trim($category->code)) === 'M'
+                || Str::contains(Str::lower(Str::ascii($category->name)), 'master'))->pluck('id')->all();
+            $nationals = $categories->filter(fn ($category): bool => in_array(Str::upper(trim($category->code)), ['N', 'PN'], true)
+                || Str::contains(Str::lower(Str::ascii($category->name)), 'nacional'))
+                ->whereNotIn('id', $masters)->pluck('id')->all();
             $initial = $categories->whereNotIn('id', array_merge($masters, $nationals))->pluck('id')->all();
             return [
                 $this->phase('zones', 'Zonas', 'zones', 1, 3, 'manual', true, ['entry_category_ids' => $initial]),
                 $this->phase('slot-elimination', 'Eliminación por horario', 'slot_elimination', 2, 3, 'manual', true),
-                $this->phase('national-play-in', 'Emparejamientos de Primera Nacional', 'play_in', 3, 3, 'national_ranking', true),
+                $this->phase('national-play-in', 'Emparejamientos de Primera Nacional', 'play_in', 3, 3, 'national_ranking', true, ['qualifiers' => 32]),
                 $this->phase('national', 'Primera Nacional', 'bracket', 4, 5, 'national_ranking', true, [
                     'entry_category_ids' => $nationals,
                     'direct_entry_seed_count' => 32,
                     'bracket_size' => 64,
+                    'qualifiers' => 16,
                     'stop_after_rounds' => 2,
                     'bracket_pairs' => $this->officialBracketPairs(64),
                     'schedules' => [

@@ -305,14 +305,14 @@ it('applies the Argentine circuit over an automatically generated empty bracket'
     $service->ensureBracketSkeleton($this->phase);
     expect($this->phase->matches()->count())->toBe(15);
     $this->competition->setRelation('tournament', new \App\Models\Tournament(['discipline_id' => 1]));
-    foreach ([['S', 'Segunda'], ['PN', 'Primera Nacional'], ['M', 'Master']] as [$code, $name]) {
+    foreach ([['S', 'Segunda'], ['PN', 'Primera Nacional'], ['M', 'Master'], ['P', 'Primera']] as [$code, $name]) {
         \App\Models\Category::query()->insert(['code' => $code, 'name' => $name, 'discipline_id' => 1]);
     }
 
     expect($service->applyCompetitionTemplate($this->competition, 'circuit_argentino'))->toBe(5);
     $phases = $this->competition->phases()->orderBy('sort_order')->get();
     expect($phases->pluck('code')->all())->toBe(['zones', 'slot-elimination', 'national-play-in', 'national', 'master-final'])
-        ->and($phases[0]->settings['entry_category_ids'])->toBe([1])
+        ->and($phases[0]->settings['entry_category_ids'])->toBe([1, 4])
         ->and($phases[3]->settings['entry_category_ids'])->toBe([2])
         ->and($phases[4]->settings['entry_category_ids'])->toBe([3])
         ->and($this->competition->fresh()->settings['format'])->toBe('circuit_argentino');
@@ -333,3 +333,38 @@ it('preserves a template with sporting or scheduling data', function (array $att
     'called' => [['status' => 'called']],
     'scores' => [['set_scores' => [['player_one' => 10, 'player_two' => 5]]]],
 ]);
+
+it('assigns national slots to the national bracket instead of the play in and keeps Primera in zones', function () {
+    foreach ([['P', 'Primera'], ['N', 'Primera Nacional'], ['M', 'Master']] as $index => [$code, $name]) {
+        \App\Models\Category::query()->insert(['id' => $index + 1, 'code' => $code, 'name' => $name, 'discipline_id' => 1]);
+    }
+    $zones = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'zones', 'phase_type' => 'zones', 'settings' => ['entry_category_ids' => [1]]]);
+    $playIn = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'national-play-in', 'name' => 'Emparejamientos de Primera Nacional', 'phase_type' => 'play_in']);
+    $national = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'national', 'name' => 'Primera Nacional', 'phase_type' => 'bracket', 'settings' => ['entry_category_ids' => [2]]]);
+    $master = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'master-final', 'name' => 'Master', 'phase_type' => 'bracket', 'settings' => ['entry_category_ids' => [3]]]);
+    $phases = collect([$zones, $playIn, $national, $master]);
+    $method = new ReflectionMethod(FiveQuillasCompetitionService::class, 'entryPhaseForRegistration');
+    $service = app(FiveQuillasCompetitionService::class);
+    $primera = new \App\Models\Player(['category_id' => 1]);
+    expect($method->invoke($service, $phases, $primera, 'NACIONALES - 10:00')->id)->toBe($national->id)
+        ->and($method->invoke($service, $phases, $primera, 'PRIMERA - 10:00')->id)->toBe($zones->id)
+        ->and($method->invoke($service, $phases, $primera, 'MASTERS - 18:00')->id)->toBe($master->id);
+});
+
+it('disables an unnecessary circuit play in only after all 32 qualifiers are confirmed', function () {
+    FiveQuillasMatch::query()->delete();
+    $this->competition->update(['settings' => ['format' => 'circuit_argentino']]);
+    $this->phase->update(['phase_type' => 'slot_elimination', 'status' => 'in_progress']);
+    $ids = collect(range(1,32))->map(fn () => FiveQuillasEntry::create(['competition_id' => $this->competition->id])->id)->all();
+    $this->phase->update(['settings' => ['qualified_entry_ids' => $ids]]);
+    $playIn = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'national-play-in', 'phase_type' => 'play_in', 'sort_order' => 2, 'is_enabled' => true]);
+    $national = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'national', 'phase_type' => 'bracket', 'sort_order' => 3]);
+    $service = app(FiveQuillasCompetitionService::class);
+    $service->skipUnnecessaryCircuitPlayIn($this->competition);
+    expect($playIn->fresh()->is_enabled)->toBeTrue();
+    $this->phase->update(['status' => 'completed']);
+    $service->skipUnnecessaryCircuitPlayIn($this->competition);
+    expect($playIn->fresh()->is_enabled)->toBeFalse()
+        ->and($playIn->fresh()->settings['qualified_entry_ids'])->toBe($ids)
+        ->and((new ReflectionMethod($service, 'previousPhase'))->invoke($service, $national)->id)->toBe($this->phase->id);
+});

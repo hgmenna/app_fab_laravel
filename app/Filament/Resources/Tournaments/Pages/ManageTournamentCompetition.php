@@ -1812,9 +1812,18 @@ class ManageTournamentCompetition extends Page
         if ($competition) {
             $service = app(FiveQuillasCompetitionService::class);
             $service->reopenIncompleteConcurrentPhases($competition);
+            $isCircuit = data_get($competition->settings, 'format') === 'circuit_argentino';
+            if ($isCircuit) {
+                $service->refreshEntryPhaseAssignments($competition);
+                $service->skipUnnecessaryCircuitPlayIn($competition);
+                $competition = $this->competition();
+            }
             // La renderización no debe reconstruir una grilla ya confeccionada.
-            $competition->phases->where('phase_type', 'bracket')->each(function ($phase) use ($service): void {
-                if ($phase->matches()->doesntExist()) {
+            $competition->phases->where('phase_type', 'bracket')->each(function ($phase) use ($service, $isCircuit): void {
+                $refreshDirectEntries = $isCircuit && in_array($phase->code, ['national', 'master-final'], true)
+                    && ! $phase->matches()->whereIn('status', ['called', 'in_progress', 'completed'])
+                        ->where('is_bye', false)->exists();
+                if ($phase->matches()->doesntExist() || $refreshDirectEntries) {
                     try {
                         // Muestra desde el inicio la estructura y los ingresos
                         // directos, sin anticipar clasificados por resultados.
