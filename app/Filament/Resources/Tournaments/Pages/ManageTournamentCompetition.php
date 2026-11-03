@@ -872,8 +872,39 @@ class ManageTournamentCompetition extends Page
     }
 
     /**
-     * Configura la revisión de participantes y preparación de una fase.
+     * Registra desde la zona el número sorteado por un clasificado.
      */
+    public function zoneDrawNumberAction(): Action
+    {
+        return Action::make('zoneDrawNumber')->label('Cargar sorteo')
+            ->icon('heroicon-o-ticket')->size('xs')->color('warning')
+            ->fillForm(function (array $arguments): array {
+                $phase = $this->competition()->phases()->findOrFail((int) $arguments['phaseId']);
+                return ['draw_number' => data_get($phase->settings, 'draw_seed_assignments.'.(int) $arguments['entryId'])];
+            })
+            ->schema([TextInput::make('draw_number')->label('Posición obtenida en el sorteo')
+                ->integer()->minValue(1)->required()])
+            ->modalHeading(fn (array $arguments): string => 'Sorteo · '.(
+                $this->competition()->entries->firstWhere('id', (int) $arguments['entryId'])?->player?->full_name ?? 'Clasificado'
+            ))
+            ->modalDescription('El número quedará visible en la zona y el jugador ocupará inmediatamente ese casillero de la grilla siguiente.')
+            ->action(function (array $data, array $arguments, Action $action): void {
+                $phase = $this->competition()->phases()->findOrFail((int) $arguments['phaseId']);
+                try {
+                    app(FiveQuillasCompetitionService::class)->saveQualifiedDrawNumber(
+                        $phase, (int) $arguments['entryId'], (int) $data['draw_number'],
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('No se pudo guardar el sorteo')
+                        ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
+                    $action->halt();
+                    return;
+                }
+                Notification::make()->success()->title('Sorteo guardado y grilla actualizada')->send();
+            });
+    }
+
+    /** Configura la revisión de participantes y preparación de una fase. */
     public function preparePhaseAction(): Action
     {
         return Action::make('preparePhase')
@@ -1487,6 +1518,8 @@ class ManageTournamentCompetition extends Page
                     Notification::make()->success()->title('Ganador proclamado')
                         ->body('La partida quedó finalizada sin registrar resultados por set.')->send();
 
+                    $this->promptQualifiedDraw($updatedMatch);
+
                     return;
                 }
                 $scores = collect(range(1, max(1, (int) $match->phase()->value('sets_to_play'))))
@@ -1539,7 +1572,22 @@ class ManageTournamentCompetition extends Page
                         ? 'El ganador, la clasificación y la progresión del cuadro fueron actualizados.'
                         : 'La partida continúa en curso y el resultado ya está disponible para el público.')
                     ->send();
+                $this->promptQualifiedDraw($updatedMatch);
             });
+    }
+
+    private function promptQualifiedDraw(FiveQuillasMatch $match): void
+    {
+        if ($match->status !== 'completed' || ! $match->winner_entry_id
+            || ! in_array($match->label, ['Definición del primer puesto', 'Definición del segundo puesto'], true)) {
+            return;
+        }
+        $phase = $this->competition()->phases->where('is_enabled', true)
+            ->where('sort_order', '>', $match->phase->sort_order)->sortBy('sort_order')->first();
+        if ($phase?->phase_type === 'bracket' && $phase->seeding_method === 'number_draw'
+            && ! data_get($phase->settings, 'draw_seed_assignments.'.(int) $match->winner_entry_id)) {
+            $this->replaceMountedAction('zoneDrawNumber', ['phaseId' => $phase->id, 'entryId' => $match->winner_entry_id]);
+        }
     }
 
     /**

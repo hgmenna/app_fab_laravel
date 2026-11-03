@@ -37,6 +37,7 @@ beforeEach(function () {
     });
     Schema::create('five_quillas_matches', function (Blueprint $t) {
         $t->id(); $t->unsignedBigInteger('phase_id'); $t->integer('round_number')->default(1);
+        $t->string('label')->nullable(); $t->unsignedBigInteger('group_id')->nullable(); $t->boolean('is_public')->default(false);
         $t->integer('bracket_order')->default(1);
         foreach (['player_one_entry_id','player_two_entry_id','winner_entry_id','next_match_id','loser_next_match_id','next_match_position'] as $key) $t->unsignedBigInteger($key)->nullable();
         foreach (['player_one_actual_sets','player_two_actual_sets','player_one_computed_sets','player_two_computed_sets'] as $key) $t->integer($key)->default(0);
@@ -191,4 +192,60 @@ it('does not automatically recalculate a bracket with a played match', function 
     $before = $this->phase->matches()->get()->toArray();
     app(FiveQuillasCompetitionService::class)->repairPreviousResultsBracket($this->phase);
     expect($this->phase->matches()->get()->toArray())->toBe($before);
+});
+
+function configureProgressiveDrawFixture(): array
+{
+    $context = test();
+    $entries = configureResultsOrderFixture();
+    $previous = $context->competition->phases()->where('phase_type', 'zones')->first();
+    $previous->update(['status' => 'in_progress']);
+    $previous->groups()->update(['status' => 'in_progress']);
+    $context->phase->update(['seeding_method' => 'number_draw']);
+    $context->phase->refresh();
+    foreach ([$entries[0], $entries[2]] as $entry) {
+        FiveQuillasMatch::create(['phase_id' => $previous->id, 'label' => 'Definición del primer puesto',
+            'status' => 'completed', 'player_one_entry_id' => $entry->id, 'winner_entry_id' => $entry->id]);
+    }
+    return $entries;
+}
+
+it('places each drawn zone winner immediately while other zone matches remain unfinished', function () {
+    $entries = configureProgressiveDrawFixture();
+    $service = app(FiveQuillasCompetitionService::class);
+    expect($service->drawCandidates($this->phase)->pluck('id')->all())->toBe([$entries[0]->id, $entries[2]->id]);
+    $service->saveQualifiedDrawNumber($this->phase, $entries[0]->id, 3);
+    expect(data_get($this->phase->fresh()->settings, 'draw_seed_assignments.'.$entries[0]->id))->toBe(3)
+        ->and($this->played->fresh()->player_two_entry_id)->toBe($entries[0]->id);
+    $service->saveQualifiedDrawNumber($this->phase, $entries[2]->id, 1);
+    expect($this->bye->fresh()->player_one_entry_id)->toBe($entries[2]->id)
+        ->and($this->played->fresh()->player_two_entry_id)->toBe($entries[0]->id)
+        ->and(data_get($this->phase->fresh()->settings, 'draw_seed_assignments.'.$entries[0]->id))->toBe(3);
+});
+
+it('rejects duplicate draw numbers and preserves all existing assignments', function () {
+    $entries = configureProgressiveDrawFixture();
+    $service = app(FiveQuillasCompetitionService::class);
+    $service->saveQualifiedDrawNumber($this->phase, $entries[0]->id, 3);
+    $before = $this->phase->fresh()->settings;
+    expect(fn () => $service->saveQualifiedDrawNumber($this->phase, $entries[2]->id, 3))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+    expect($this->phase->fresh()->settings)->toBe($before)
+        ->and($this->played->fresh()->player_two_entry_id)->toBe($entries[0]->id);
+});
+
+it('does not draw provisional qualifiers or positions outside the bracket', function () {
+    $entries = configureProgressiveDrawFixture();
+    $service = app(FiveQuillasCompetitionService::class);
+    expect(fn () => $service->saveQualifiedDrawNumber($this->phase, $entries[1]->id, 2))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+    expect(fn () => $service->saveQualifiedDrawNumber($this->phase, $entries[0]->id, 5))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+});
+
+it('protects a bracket that already has called or played matches from draw edits', function () {
+    $entries = configureProgressiveDrawFixture();
+    $this->played->update(['status' => 'called']);
+    expect(fn () => app(FiveQuillasCompetitionService::class)->saveQualifiedDrawNumber($this->phase, $entries[0]->id, 3))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
 });

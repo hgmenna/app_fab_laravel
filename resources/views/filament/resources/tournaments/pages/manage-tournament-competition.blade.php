@@ -127,6 +127,8 @@
                                     <div class="fq-zone-bracket-wrap">
                                     <div class="fq-zone-bracket">
                                         @php
+                                            $drawPhase = $competition->phases->where('is_enabled', true)->where('sort_order', '>', $zonePhase->sort_order)->sortBy('sort_order')->first();
+                                            $drawPhase = $drawPhase?->phase_type === 'bracket' && $drawPhase->seeding_method === 'number_draw' ? $drawPhase : null;
                                             // Las posiciones estadísticas son provisorias mientras se juega la zona.
                                             // Un puesto se proclama únicamente al finalizar su partido definitorio.
                                             $firstPlace = $group->matches
@@ -190,8 +192,18 @@
                                                 </article>
                                             </div>
                                         @endforeach
-                                        <div class="fq-place z-first"><b>1° puesto</b><span>{{ $firstPlace ?? 'A definir' }}</span></div>
-                                        <div class="fq-place z-runner"><b>2.º puesto</b><span>{{ $secondPlace ?? 'A definir' }}</span></div>
+                                        @foreach(['z-first' => ['1° puesto', 'Definición del primer puesto', $firstPlace], 'z-runner' => ['2.º puesto', 'Definición del segundo puesto', $secondPlace]] as $placeClass => [$placeLabel, $matchLabel, $placeName])
+                                            @php
+                                                $qualifiedEntryId = $group->matches->first(fn($match) => $match->label === $matchLabel && $match->status === 'completed')?->winner_entry_id;
+                                                $drawNumber = $drawPhase && $qualifiedEntryId ? data_get($drawPhase->settings, 'draw_seed_assignments.'.$qualifiedEntryId) : null;
+                                            @endphp
+                                            <div class="fq-place {{ $placeClass }}"><b>{{ $placeLabel }}</b><span>{{ $placeName ?? 'A definir' }}</span>
+                                                @if($drawPhase && $qualifiedEntryId)
+                                                    <strong style="color:#d97706">{{ $drawNumber ? 'Sorteo N.º '.$drawNumber : 'Sorteo pendiente' }}</strong>
+                                                    {{ ($this->zoneDrawNumberAction)(['phaseId' => $drawPhase->id, 'entryId' => $qualifiedEntryId]) }}
+                                                @endif
+                                            </div>
+                                        @endforeach
                                     </div>
                                     </div>
                                     <div class="fq-standings-wrap">

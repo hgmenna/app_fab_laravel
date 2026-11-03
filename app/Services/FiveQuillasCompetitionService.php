@@ -1044,9 +1044,19 @@ class FiveQuillasCompetitionService
     public function drawCandidates(FiveQuillasPhase $phase)
     {
         $previous = $this->previousPhase($phase);
-        $source = $previous
-            ? $this->qualifiedEntriesFromPhase($previous)
-            : $phase->competition->entries()->whereIn('status', ['eligible', 'assigned', 'qualified'])->get();
+        if ($phase->seeding_method === 'number_draw' && $previous?->phase_type === 'zones') {
+            // Para sortear durante las zonas sólo sirven puestos ya proclamados;
+            // las estadísticas parciales no determinan todavía un clasificado.
+            $winnerIds = $previous->matches()->where('status', 'completed')
+                ->whereIn('label', ['Definición del primer puesto', 'Definición del segundo puesto'])
+                ->pluck('winner_entry_id')->filter()->unique();
+            $source = $phase->competition->entries()->whereIn('id', $winnerIds)
+                ->where('status', '!=', 'withdrawn')->get();
+        } else {
+            $source = $previous
+                ? $this->qualifiedEntriesFromPhase($previous)
+                : $phase->competition->entries()->whereIn('status', ['eligible', 'assigned', 'qualified'])->get();
+        }
         $direct = $phase->competition->entries()->where('entry_phase_id', $phase->id)
             ->whereIn('status', ['eligible', 'assigned', 'qualified'])->get();
 
@@ -1470,6 +1480,29 @@ class FiveQuillasCompetitionService
                 ->all(),
         ])]);
         $this->ensureBracketSkeleton($phase->fresh());
+    }
+
+    /** Guarda un sorteo individual sin reemplazar los números de otros clasificados. */
+    public function saveQualifiedDrawNumber(FiveQuillasPhase $phase, int $entryId, int $number): void
+    {
+        DB::transaction(function () use ($phase, $entryId, $number): void {
+            FiveQuillasCompetition::query()->whereKey($phase->competition_id)->lockForUpdate()->firstOrFail();
+            $phase = FiveQuillasPhase::query()->whereKey($phase->id)->lockForUpdate()->firstOrFail();
+            if (! $phase->is_enabled || $phase->phase_type !== 'bracket' || $phase->seeding_method !== 'number_draw'
+                || ! $this->drawCandidates($phase)->contains('id', $entryId)) {
+                throw ValidationException::withMessages(['draw_number' => 'El jugador debe tener su clasificación confirmada para participar de este sorteo.']);
+            }
+            if ($phase->matches()->whereIn('status', ['called', 'in_progress', 'completed'])->where('is_bye', false)->exists()) {
+                throw ValidationException::withMessages(['draw_number' => 'No se puede modificar el sorteo después de convocar o iniciar partidos de la grilla.']);
+            }
+            $this->ensureBracketSkeleton($phase);
+            $phase->refresh();
+            $assignments = collect(data_get($phase->settings, 'draw_seed_assignments', []));
+            $assignments->put($entryId, $number);
+            $this->saveDrawNumbers($phase, $assignments->map(fn ($seed, $id): array => [
+                'entry_id' => (int) $id, 'draw_number' => (int) $seed,
+            ])->values()->all());
+        });
     }
 
     /**
