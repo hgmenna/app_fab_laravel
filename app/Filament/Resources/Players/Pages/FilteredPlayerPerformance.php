@@ -3,19 +3,22 @@
 namespace App\Filament\Resources\Players\Pages;
 
 use App\Filament\Resources\Players\PlayerResource;
-use App\Helpers\FabPath;
+use App\Jobs\GeneratePlayerPerformancePdf;
 use App\Models\Discipline;
+use App\Models\Category;
+use App\Models\Federation;
 use App\Models\Player;
 use App\Models\Tournament;
 use App\Models\TournamentRegistration;
 use App\Models\TournamentType;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Resources\Pages\Page;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 
 class FilteredPlayerPerformance extends Page
@@ -33,6 +36,10 @@ class FilteredPlayerPerformance extends Page
 
     public string $disciplineId = '';
 
+    public string $federationId = '';
+
+    public string $categoryId = '';
+
     public array $typeIds = [];
 
     public string $fromDate = '';
@@ -44,6 +51,12 @@ class FilteredPlayerPerformance extends Page
     public string $maxPoints = '';
 
     public bool $onlyParticipants = true;
+
+    #[Locked]
+    public ?string $pdfExportToken = null;
+
+    #[Locked]
+    public ?int $pdfExportStartedAt = null;
 
     public function mount(string $report): void
     {
@@ -76,9 +89,22 @@ class FilteredPlayerPerformance extends Page
             ->all();
     }
 
+    public function federationOptions(): array
+    {
+        return Federation::query()->orderBy('name')->pluck('name', 'id')->all();
+    }
+
+    public function categoryOptions(): array
+    {
+        return Category::query()
+            ->when($this->disciplineId !== '', fn (Builder $query) => $query->where('discipline_id', $this->disciplineId))
+            ->orderBy('name')->pluck('name', 'id')->all();
+    }
+
     public function updatedDisciplineId(): void
     {
         $this->typeIds = [];
+        $this->categoryId = '';
     }
 
     /**
@@ -88,6 +114,15 @@ class FilteredPlayerPerformance extends Page
     {
         $players = Player::query()
             ->whereIn('id', $this->playerIds)
+            ->when($this->categoryId !== '', fn (Builder $query) => $query->where('category_id', $this->categoryId))
+            ->when($this->federationId !== '', function (Builder $query): void {
+                $query->where(fn (Builder $affiliations) => $affiliations
+                    ->whereHas('discipline', fn (Builder $discipline) => $discipline
+                        ->where('affiliation_mode', 'direct')->where('direct_federation_id', $this->federationId))
+                    ->orWhere(fn (Builder $provincial) => $provincial
+                        ->whereHas('discipline', fn (Builder $discipline) => $discipline->where('affiliation_mode', 'provincial'))
+                        ->whereHas('club.city.state', fn (Builder $state) => $state->where('federation_id', $this->federationId))));
+            })
             ->when(trim($this->searchPlayer) !== '', function (Builder $query): void {
                 $search = trim($this->searchPlayer);
                 $query->where(fn (Builder $names) => $names
@@ -122,9 +157,6 @@ class FilteredPlayerPerformance extends Page
                 fn (Builder $query) => $query->where('points', '>=', (float) $this->minPoints))
             ->when($this->maxPoints !== '' && is_numeric($this->maxPoints),
                 fn (Builder $query) => $query->where('points', '<=', (float) $this->maxPoints))
-            ->addSelect(['participant_count' => DB::table('tournament_registrations as participant_counts')
-                ->selectRaw('COUNT(*)')
-                ->whereColumn('participant_counts.tournament_id', 'tournament_registrations.tournament_id')])
             ->with(['tournament.type', 'tournamentInstance', 'participants'])
             ->orderByDesc(Tournament::query()
                 ->select('end_date')
@@ -133,12 +165,18 @@ class FilteredPlayerPerformance extends Page
             ->orderByDesc('id')
             ->get();
 
-        $summaries = $players->map(function (Player $player) use ($rows): array {
-            $playerRows = $rows->filter(fn (TournamentRegistration $registration): bool => in_array(
-                (int) $player->id,
-                $registration->participantIds(),
-                true,
-            ));
+        $counts = DB::table('tournament_registrations')->whereIn('tournament_id', $rows->pluck('tournament_id')->unique())
+            ->groupBy('tournament_id')->selectRaw('tournament_id, COUNT(*) as total')->pluck('total', 'tournament_id');
+        $rowsByPlayer = [];
+        foreach ($rows as $registration) {
+            $registration->setAttribute('participant_count', (int) ($counts[$registration->tournament_id] ?? 0));
+            foreach ($registration->participantIds() as $id) {
+                $rowsByPlayer[$id][] = $registration;
+            }
+        }
+
+        $summaries = $players->map(function (Player $player) use ($rowsByPlayer): array {
+            $playerRows = collect($rowsByPlayer[(int) $player->id] ?? []);
 
             return [
                 'id' => $player->id,
@@ -151,7 +189,7 @@ class FilteredPlayerPerformance extends Page
         })->when(
             $this->onlyParticipants,
             fn ($summaries) => $summaries->filter(fn (array $player): bool => $player['tournaments'] > 0)->values()
-        );
+        )->sortByDesc('points')->values();
 
         return [
             'players' => $summaries,
@@ -170,24 +208,38 @@ class FilteredPlayerPerformance extends Page
             Action::make('exportPdf')
                 ->label('Exportar PDF')
                 ->icon('heroicon-o-document-arrow-down')
-                ->action(function () {
-                    ini_set('memory_limit', '512M');
-                    set_time_limit(300);
-
-                    $report = $this->reportData();
-                    $pdf = Pdf::loadView('pdf.filtered-player-performance', [
-                        'players' => $report['players'],
-                        'totals' => $report['totals'],
-                        'generatedAt' => now()->format('d/m/Y H:i'),
-                        'logo' => is_file(FabPath::logo()) ? FabPath::logo() : public_path(config('fab.paths.logo')),
-                        'footer_image' => is_file(FabPath::footer()) ? FabPath::footer() : public_path(config('fab.paths.footer')),
-                    ])->setPaper('a4', 'landscape');
-
-                    return response()->streamDownload(
-                        fn () => print ($pdf->output()),
-                        'desempeno-jugadores-'.now()->format('Y-m-d').'.pdf'
-                    );
-                }),
+                ->disabled(fn (): bool => $this->pdfExportToken !== null)
+                ->action(fn () => $this->startPdfExport()),
         ];
+    }
+
+    public function startPdfExport(): void
+    {
+        if ($this->pdfExportToken !== null) return;
+        $token = (string) Str::uuid();
+        $snapshot = collect(['playerIds', 'searchPlayer', 'disciplineId', 'federationId', 'categoryId',
+            'typeIds', 'fromDate', 'untilDate', 'minPoints', 'maxPoints', 'onlyParticipants'])
+            ->mapWithKeys(fn ($key) => [$key => $this->$key])->all();
+        session()->put('player-performance-pdf.'.$token, ['user_id' => Auth::id(), 'expires_at' => now()->addHour()->timestamp]);
+        Cache::put('player-performance-pdf:'.$token, 'pending', now()->addHour());
+        GeneratePlayerPerformancePdf::dispatchAfterResponse($token, $snapshot);
+        $this->pdfExportToken = $token;
+        $this->pdfExportStartedAt = now()->timestamp;
+    }
+
+    public function checkPdfExport(): void
+    {
+        if (! $this->pdfExportToken) { $this->skipRender(); return; }
+        $state = Cache::get('player-performance-pdf:'.$this->pdfExportToken);
+        if ($state === 'ready') {
+            $this->dispatch('player-performance-pdf-ready', url: route('players.performance-pdf', ['token' => $this->pdfExportToken]));
+            $this->pdfExportToken = null;
+        } elseif ($state === 'failed' || now()->timestamp - (int) $this->pdfExportStartedAt > 600) {
+            \Filament\Notifications\Notification::make()->danger()->title('No se pudo generar el PDF')
+                ->body('Intentá nuevamente o reducí el período del informe.')->persistent()->send();
+            $this->pdfExportToken = null;
+        } else {
+            $this->skipRender();
+        }
     }
 }

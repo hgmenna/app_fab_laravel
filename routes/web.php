@@ -16,6 +16,8 @@ use App\Http\Controllers\FiveQuillasCompetitionSectionPdfController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/torneos-proximos.json', UpcomingTournamentsController::class);
+Route::get('/reports/player-performance/{token}', \App\Http\Controllers\PlayerPerformancePdfDownloadController::class)
+    ->whereUuid('token')->name('players.performance-pdf');
 Route::get('/torneos.json', UpcomingTournamentsController::class)
     ->name('tournaments.public-calendar');
 Route::get('/ranking-carambola-3-bandas.json', ThreeCushionRankingController::class);

@@ -34,7 +34,31 @@
         .performance-empty { padding: 1rem 1.25rem; }
     </style>
 
+    <div x-data x-on:player-performance-pdf-ready.window="window.location.assign($event.detail.url)"></div>
+    @if ($this->pdfExportToken)
+        <div wire:poll.3s="checkPdfExport" role="status" class="performance-totals">Preparando el PDF… La descarga comenzará cuando esté listo.</div>
+    @endif
     <div class="performance-filters">
+        <div class="performance-filter-row">
+            <div>
+                <label for="performance-federation">Federación</label>
+                <select id="performance-federation" wire:model.live="federationId">
+                    <option value="">Todas</option>
+                    @foreach ($this->federationOptions() as $id => $name)
+                        <option value="{{ $id }}">{{ $name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label for="performance-category">Categoría</label>
+                <select id="performance-category" wire:model.live="categoryId">
+                    <option value="">Todas</option>
+                    @foreach ($this->categoryOptions() as $id => $name)
+                        <option value="{{ $id }}">{{ $name }}</option>
+                    @endforeach
+                </select>
+            </div>
+        </div>
         <div class="performance-filter-row">
             <div>
                 <label for="performance-player-search">Jugador</label>
