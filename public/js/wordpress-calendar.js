@@ -28,7 +28,7 @@
     if (root.fabCalendarInitialized) return;
     root.fabCalendarInitialized = true;
 
-    const selector = '.wpDataTableID-64';
+    const selector = 'table.wpDataTableID-64';
     const endpoint = 'https://sistem.federacionargentinadebillar.org/torneos.json?estado=todos';
     const filters = { estado: 'proximos', desde: '', hasta: '', buscar: '' };
     let rows = new Map(), ready = false, api, controls, status, timer;
@@ -71,6 +71,19 @@
         const table = api.table().node();
         const column = name => Array.from(table.querySelectorAll('thead tr:first-child th'))
             .findIndex(th => th.classList.contains(`column-${name}`));
+        const settings = api.settings()[0];
+        const dateKey = filters.estado === 'finalizados' ? 'fecha_fin' : 'fecha_inicio';
+        const index = column(dateKey);
+        // wpDataTables can disable ordering or configure these cells as DD/MM/YYYY.
+        // Use the authoritative ISO dates, independent of the visible date format.
+        settings.oFeatures.bSort = true;
+        root.jQuery.fn.dataTable.ext.order['fab-calendar-date'] = function (tableSettings) {
+            return new root.jQuery.fn.dataTable.Api(tableSettings).rows({ order: 'index' }).data().toArray()
+                .map(row => rows.get(String(Array.isArray(row) ? row[0] : row.id))?.[dateKey] || '');
+        };
+        settings.aoColumns[index].sSortDataType = 'fab-calendar-date';
+        settings.aoColumns[index].sType = 'string';
+        settings.aoColumns[index].aDataSort = [index];
         // Do not let a fixed month order override the selected chronological order.
         api.order.fixed([]);
         api.order(sortOrder(filters.estado, column)).draw();
