@@ -632,7 +632,7 @@ class FiveQuillasCompetitionService
                         $seeds[$seed] = $entry;
                     }
                 }
-            } elseif (! $previous || $previous->status === 'completed') {
+            } elseif ((! $previous || $previous->status === 'completed') && $this->circuitCrossingsAreComplete($phase)) {
                 // Por resultado de la fase anterior no se toma ninguna
                 // clasificación parcial. Se incorporan todos juntos al finalizar.
                 collect($this->bracketParticipantRows($phase))->each(function (array $row) use (&$seeds): void {
@@ -933,9 +933,17 @@ class FiveQuillasCompetitionService
 
             $previous = $this->previousPhase($phase);
 
+            if (! $this->circuitCrossingsAreComplete($phase)) {
+                throw ValidationException::withMessages([
+                    'phase' => 'Todos los Cruces de zonas deben finalizar antes de preparar esta fase.',
+                ]);
+            }
+
             if ($previous && $phase->phase_type !== 'slot_elimination'
-                && ! $progressiveFill
-                && $previous->status !== 'completed') {
+                && (! $progressiveFill || data_get($phase->competition->settings, 'format') === 'circuit_argentino')
+                && ($previous->status !== 'completed'
+                    || (data_get($phase->competition->settings, 'format') === 'circuit_argentino'
+                        && $previous->matches()->where('status', '!=', 'completed')->exists()))) {
                 throw ValidationException::withMessages([
                     'phase' => "La fase {$previous->name} debe finalizar completamente antes de reunir sus clasificados en {$phase->name}.",
                 ]);
@@ -1913,7 +1921,7 @@ class FiveQuillasCompetitionService
             return;
         }
         $previous = $this->previousPhase($phase);
-        if (! $previous || $previous->status !== 'completed') {
+        if (! $previous || $previous->status !== 'completed' || ! $this->circuitCrossingsAreComplete($phase)) {
             return;
         }
         $qualified = $this->qualifiedEntriesFromPhase($previous);
@@ -1930,6 +1938,19 @@ class FiveQuillasCompetitionService
             'qualified_entry_ids' => $qualified->pluck('id')->all(),
             'automatically_skipped' => true,
         ])]);
+    }
+
+    /** Impide usar clasificaciones parciales de cualquiera de los horarios del circuito. */
+    private function circuitCrossingsAreComplete(FiveQuillasPhase $phase): bool
+    {
+        if (data_get($phase->competition->settings, 'format') !== 'circuit_argentino') {
+            return true;
+        }
+
+        return $phase->competition->phases()->where('is_enabled', true)
+            ->where('phase_type', 'slot_elimination')->where('sort_order', '<', $phase->sort_order)
+            ->get()->every(fn ($crossings): bool => $crossings->status === 'completed'
+                && $this->slotEliminationHasEveryCrossing($crossings));
     }
 
     /**
@@ -2166,6 +2187,13 @@ class FiveQuillasCompetitionService
      */
     private function qualifiedEntriesFromPhase(FiveQuillasPhase $phase)
     {
+        if (data_get($phase->competition->settings, 'format') === 'circuit_argentino'
+            && $phase->phase_type !== 'zones'
+            && ($phase->status !== 'completed' || $phase->matches()->where('status', '!=', 'completed')->exists()
+                || ! $this->circuitCrossingsAreComplete($phase)
+                || ($phase->phase_type === 'slot_elimination' && ! $this->slotEliminationHasEveryCrossing($phase)))) {
+            return collect();
+        }
         if ($phase->phase_type === 'zones') {
             return $this->qualifiedZoneRows($phase)
                 ->sort(function ($left, $right): int {

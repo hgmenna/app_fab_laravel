@@ -356,13 +356,19 @@ it('disables an unnecessary circuit play in only after all 32 qualifiers are con
     $this->competition->update(['settings' => ['format' => 'circuit_argentino']]);
     $this->phase->update(['phase_type' => 'slot_elimination', 'status' => 'in_progress']);
     $ids = collect(range(1,32))->map(fn () => FiveQuillasEntry::create(['competition_id' => $this->competition->id])->id)->all();
-    $this->phase->update(['settings' => ['qualified_entry_ids' => $ids]]);
+    $this->phase->update(['settings' => ['qualifiers' => 32, 'qualified_entry_ids' => $ids]]);
+    foreach ($ids as $id) FiveQuillasMatch::create(['phase_id' => $this->phase->id, 'status' => 'completed', 'winner_entry_id' => $id]);
     $playIn = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'national-play-in', 'phase_type' => 'play_in', 'sort_order' => 2, 'is_enabled' => true]);
     $national = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'national', 'phase_type' => 'bracket', 'sort_order' => 3]);
     $service = app(FiveQuillasCompetitionService::class);
     $service->skipUnnecessaryCircuitPlayIn($this->competition);
     expect($playIn->fresh()->is_enabled)->toBeTrue();
     $this->phase->update(['status' => 'completed']);
+    $lastCrossing = $this->phase->matches()->latest('id')->first();
+    $lastCrossing->update(['status' => 'pending']);
+    $service->skipUnnecessaryCircuitPlayIn($this->competition);
+    expect($playIn->fresh()->is_enabled)->toBeTrue();
+    $lastCrossing->update(['status' => 'completed']);
     $service->skipUnnecessaryCircuitPlayIn($this->competition);
     expect($playIn->fresh()->is_enabled)->toBeFalse()
         ->and($playIn->fresh()->settings['qualified_entry_ids'])->toBe($ids)
@@ -377,7 +383,8 @@ it('creates only eight play in matches for forty qualifiers and advances twenty 
         'competition_id' => $this->competition->id, 'entry_phase_id' => $this->phase->id,
         'national_ranking_snapshot' => $rank, 'status' => 'qualified',
     ]));
-    $this->phase->update(['settings' => ['qualified_entry_ids' => $qualified->pluck('id')->all()]]);
+    $this->phase->update(['settings' => ['qualifiers' => 40, 'qualified_entry_ids' => $qualified->pluck('id')->all()]]);
+    foreach ($qualified as $entry) FiveQuillasMatch::create(['phase_id' => $this->phase->id, 'status' => 'completed', 'winner_entry_id' => $entry->id]);
     $playIn = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'national-play-in', 'phase_type' => 'play_in', 'sort_order' => 2, 'is_enabled' => true, 'settings' => ['qualifiers' => 32]]);
     $service = app(FiveQuillasCompetitionService::class);
     $service->skipUnnecessaryCircuitPlayIn($this->competition);
@@ -392,8 +399,45 @@ it('creates only eight play in matches for forty qualifiers and advances twenty 
     }
     $service->skipUnnecessaryCircuitPlayIn($this->competition);
     expect($playIn->matches()->count())->toBe(8);
+    $playIn->update(['status' => 'completed']);
     $advancing = (new ReflectionMethod($service, 'qualifiedEntriesFromPhase'))->invoke($service, $playIn->fresh());
     $expected = $qualified->take(24)->pluck('id')->merge($matches->pluck('player_two_entry_id'))->sort()->values()->all();
     expect($advancing)->toHaveCount(32)
         ->and($advancing->pluck('id')->sort()->values()->all())->toBe($expected);
+});
+
+it('keeps only direct masters until the whole national phase finishes even with progressive filling', function () {
+    FiveQuillasMatch::query()->delete();
+    $this->competition->update(['settings' => ['format' => 'circuit_argentino']]);
+    $qualified = $this->entries->take(2);
+    $this->phase->update(['code' => 'national', 'name' => 'Nacional', 'status' => 'in_progress', 'settings' => [
+        'qualifiers' => 2, 'qualified_entry_ids' => $qualified->pluck('id')->all(),
+    ]]);
+    $nationalMatches = $qualified->map(fn ($entry) => FiveQuillasMatch::create([
+        'phase_id' => $this->phase->id, 'status' => 'completed', 'winner_entry_id' => $entry->id,
+    ]));
+    $master = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'master-final',
+        'name' => 'Masters', 'phase_type' => 'bracket', 'sort_order' => 2, 'seeding_method' => 'national_ranking',
+        'settings' => ['bracket_size' => 4, 'direct_entry_seed_count' => 2, 'progressive_fill' => true],
+    ]);
+    $direct = collect(range(1,2))->map(fn ($rank) => FiveQuillasEntry::create([
+        'competition_id' => $this->competition->id, 'entry_phase_id' => $master->id, 'status' => 'eligible', 'national_ranking_snapshot' => $rank,
+    ]));
+    $service = Mockery::mock(FiveQuillasCompetitionService::class)->makePartial();
+    $all = $direct->concat($qualified)->values();
+    $service->shouldReceive('bracketParticipantRows')->andReturn($all->map(fn ($entry, $i) => [
+        'entry_id' => $entry->id, 'seed_position' => $i+1,
+    ])->all());
+    $service->ensureBracketSkeleton($master);
+    $assigned = fn () => $master->matches()->where('round_number', 1)->get()->flatMap(fn ($match) => [
+        $match->player_one_entry_id, $match->player_two_entry_id,
+    ])->filter()->sort()->values()->all();
+    expect($assigned())->toBe($direct->pluck('id')->sort()->values()->all())
+        ->and(fn () => $service->preparePhase($master->fresh()))->toThrow(\Illuminate\Validation\ValidationException::class);
+    $this->phase->update(['status' => 'completed']);
+    $nationalMatches->last()->update(['status' => 'in_progress']);
+    expect(fn () => $service->preparePhase($master->fresh()))->toThrow(\Illuminate\Validation\ValidationException::class);
+    $nationalMatches->last()->update(['status' => 'completed']);
+    $service->ensureBracketSkeleton($master->fresh());
+    expect($assigned())->toBe($all->pluck('id')->sort()->values()->all());
 });
