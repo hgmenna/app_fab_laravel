@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Schema;
 beforeEach(function () {
     Schema::create('categories', function (Blueprint $t) { $t->id(); $t->string('code'); });
     Schema::create('five_quillas_competitions', function (Blueprint $t) {
-        $t->id(); $t->unsignedBigInteger('tournament_id')->nullable(); $t->string('status')->default('in_progress'); $t->timestamps();
+        $t->id(); $t->unsignedBigInteger('tournament_id')->nullable(); $t->string('status')->default('in_progress'); $t->json('settings')->nullable(); $t->timestamps();
     });
     Schema::create('five_quillas_phases', function (Blueprint $t) {
         $t->id(); $t->unsignedBigInteger('competition_id'); $t->string('phase_type')->default('bracket');
@@ -23,6 +23,7 @@ beforeEach(function () {
         $t->id(); $t->unsignedBigInteger('competition_id'); $t->unsignedBigInteger('entry_phase_id')->nullable();
         $t->unsignedBigInteger('player_id')->nullable(); $t->string('status')->default('assigned'); $t->timestamps();
         $t->unsignedBigInteger('source_slot_id')->nullable();
+        $t->unsignedBigInteger('tournament_registration_id')->nullable(); $t->integer('final_position')->nullable();
         $t->integer('seed')->nullable(); $t->integer('national_ranking_snapshot')->nullable();
     });
     Schema::create('five_quillas_groups', function (Blueprint $t) {
@@ -47,6 +48,7 @@ beforeEach(function () {
         $t->integer('player_one_points')->default(0); $t->integer('player_two_points')->default(0);
         $t->string('status')->default('pending'); $t->timestamps();
     });
+    Schema::create('tournament_registrations', function (Blueprint $t) { $t->id(); $t->decimal('points')->nullable(); });
     $this->competition = FiveQuillasCompetition::create([]);
     $this->phase = FiveQuillasPhase::create(['competition_id' => $this->competition->id]);
     $this->entries = collect(range(1,3))->map(fn () => FiveQuillasEntry::create(['competition_id' => $this->competition->id]));
@@ -59,7 +61,7 @@ beforeEach(function () {
 });
 
 afterEach(function () {
-    foreach (['five_quillas_group_entries','five_quillas_groups','five_quillas_matches','five_quillas_entries','five_quillas_phases','five_quillas_competitions','categories'] as $table) Schema::dropIfExists($table);
+    foreach (['tournament_registrations','five_quillas_group_entries','five_quillas_groups','five_quillas_matches','five_quillas_entries','five_quillas_phases','five_quillas_competitions','categories'] as $table) Schema::dropIfExists($table);
 });
 
 it('resolves first round byes and advances without proclaiming an undecided final', function () {
@@ -249,3 +251,46 @@ it('protects a bracket that already has called or played matches from draw edits
     expect(fn () => app(FiveQuillasCompetitionService::class)->saveQualifiedDrawNumber($this->phase, $entries[0]->id, 3))
         ->toThrow(\Illuminate\Validation\ValidationException::class);
 });
+
+it('recovers all 48 final positions when only the 24 bracket players retained theirs', function (int $version) {
+    $this->competition->update(['status' => 'completed', 'settings' => ['standings_order_version' => $version]]);
+    $this->phase->matches()->delete();
+    $this->phase->update(['status' => 'completed', 'sort_order' => 2, 'settings' => ['bracket_size' => 32]]);
+    $zones = FiveQuillasPhase::create(['competition_id' => $this->competition->id,
+        'phase_type' => 'zones', 'sort_order' => 1, 'status' => 'completed']);
+    $entries = $this->entries;
+    for ($i = $entries->count(); $i < 48; $i++) {
+        $entries->push(FiveQuillasEntry::create(['competition_id' => $this->competition->id]));
+    }
+    foreach ($entries as $index => $entry) {
+        $entry->update(['entry_phase_id' => $zones->id, 'final_position' => $index < 24 ? $index + 1 : null]);
+    }
+    for ($i = 0; $i < 12; $i++) {
+        $group = \App\Models\FiveQuillasGroup::create(['phase_id' => $zones->id, 'status' => 'completed']);
+        foreach ([$entries[$i * 2], $entries[$i * 2 + 1], $entries[24 + $i], $entries[36 + $i]] as $place => $entry) {
+            \App\Models\FiveQuillasGroupEntry::create(['group_id' => $group->id, 'entry_id' => $entry->id,
+                'position' => $place + 1, 'final_place' => $place + 1, 'sets_difference' => -$place]);
+        }
+    }
+    for ($remaining = 2, $round = 5; $remaining <= 32; $remaining *= 2, $round--) {
+        for ($winner = 0; $winner < $remaining / 2; $winner++) {
+            $loser = $winner + $remaining / 2;
+            FiveQuillasMatch::create(['phase_id' => $this->phase->id, 'round_number' => $round,
+                'player_one_entry_id' => $entries[$winner]->id,
+                'player_two_entry_id' => $loser < 24 ? $entries[$loser]->id : null,
+                'winner_entry_id' => $entries[$winner]->id, 'status' => 'completed', 'is_bye' => $loser >= 24]);
+        }
+    }
+    $withdrawn = FiveQuillasEntry::create(['competition_id' => $this->competition->id, 'status' => 'withdrawn']);
+    $service = app(FiveQuillasCompetitionService::class);
+    $service->ensureFinalStandingsOrder($this->competition->fresh());
+    $result = $this->competition->entries()->whereNotNull('final_position')->orderBy('final_position')->get();
+    expect($result->count())->toBe(48)
+        ->and($result->pluck('final_position')->all())->toBe(range(1, 48))
+        ->and($result->take(24)->pluck('id')->all())->toBe($entries->take(24)->pluck('id')->all())
+        ->and($result->slice(24)->pluck('id')->all())->toBe($entries->slice(24)->pluck('id')->all())
+        ->and($withdrawn->fresh()->final_position)->toBeNull();
+    $before = $this->competition->entries()->get()->map->getAttributes()->all();
+    $service->ensureFinalStandingsOrder($this->competition->fresh());
+    expect($this->competition->entries()->get()->map->getAttributes()->all())->toBe($before);
+})->with([4, 5]);

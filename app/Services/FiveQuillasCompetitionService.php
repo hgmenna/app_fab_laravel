@@ -2568,7 +2568,9 @@ class FiveQuillasCompetitionService
                 ->where('sort_order', '>', $phase->sort_order)->orderBy('sort_order')->first();
             if (! $next) {
                 $phase->competition->update(['status' => 'completed']);
-                $this->assignFinalPoints($phase);
+                // Incluye también eliminados de fases anteriores si sus puestos
+                // se borraron al corregir resultados o reconstruir la grilla.
+                $this->recalculateFinalStandings($phase->competition->fresh());
             } else {
                 $this->assignPhaseEliminationPoints($phase);
             }
@@ -2711,14 +2713,28 @@ class FiveQuillasCompetitionService
      */
     public function ensureFinalStandingsOrder(FiveQuillasCompetition $competition): void
     {
-        if ((int) data_get($competition->settings, 'standings_order_version', 0) >= 4) {
-            return;
+        if ((int) data_get($competition->settings, 'standings_order_version', 0) >= 5) {
+            if ($competition->status !== 'completed') {
+                return;
+            }
+            $participantIds = $competition->phases->where('is_enabled', true)
+                ->where('status', 'completed')->flatMap(fn ($phase) => $phase->phase_type === 'zones'
+                    ? $phase->groups->flatMap->groupEntries->pluck('entry_id')
+                    : $phase->matches->flatMap(fn ($match): array => [
+                        $match->player_one_entry_id, $match->player_two_entry_id,
+                    ]))->filter()->unique();
+            $participants = $competition->entries()->whereIn('id', $participantIds)
+                ->where('status', '!=', 'withdrawn')->get(['id', 'final_position']);
+            $positions = $participants->pluck('final_position')->sort()->values()->all();
+            if ($participants->isEmpty() || $positions === range(1, $participants->count())) {
+                return;
+            }
         }
 
         $this->normalizeByeScores($competition);
         $this->recalculateFinalStandings($competition);
         $competition->update([
-            'settings' => array_merge($competition->settings ?? [], ['standings_order_version' => 4]),
+            'settings' => array_merge($competition->settings ?? [], ['standings_order_version' => 5]),
         ]);
     }
 
