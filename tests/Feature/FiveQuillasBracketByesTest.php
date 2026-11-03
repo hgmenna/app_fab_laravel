@@ -462,7 +462,7 @@ it('loads historical Masters from their inactive slot despite a different curren
         ]);
         foreach (range(1,32) as $id) {
             \Illuminate\Support\Facades\DB::table('players')->insert(['id' => $id]);
-            \Illuminate\Support\Facades\DB::table('general_rankings')->insert(['player_id' => $id, 'category' => $id <= 16 ? 'P' : 'M', 'RG' => $id]);
+            \Illuminate\Support\Facades\DB::table('general_rankings')->insert(['player_id' => $id, 'category' => $id <= 16 ? 'P' : 'M', 'RG' => 100+33-$id]);
             if ($id <= 16) {
                 \Illuminate\Support\Facades\DB::table('tournament_registrations')->insert(['id' => $id, 'tournament_id' => 1, 'tournament_slot_id' => 1, 'player_id' => $id, 'status' => 'aprobado']);
                 \Illuminate\Support\Facades\DB::table('tournament_registration_participants')->insert(['tournament_registration_id' => $id, 'player_id' => $id, 'position' => 1]);
@@ -488,9 +488,11 @@ it('loads historical Masters from their inactive slot despite a different curren
             ->and($entries->pluck('player_id')->sort()->values()->all())->toBe(range(1,16))
             ->and($entries->first()->player_id)->toBe(16)
             ->and($entries->first()->national_ranking_snapshot)->toBe(1)
-            ->and($entries->where('player_id', 1)->first()->national_ranking_snapshot)->toBeNull()
+            ->and($entries->where('player_id', 1)->first()->national_ranking_snapshot)->toBe(132)
+            ->and($entries->pluck('player_id')->all())->toBe(range(16,1))
             ->and($entries->pluck('tournament_registration_id')->sort()->values()->all())->toBe(range(1,16))
             ->and($this->phase->fresh()->status)->toBe('pending');
+        \Illuminate\Support\Facades\DB::table('general_rankings')->update(['RG' => 999]);
         $service->loadRegisteredMasters($master->fresh());
         expect($this->competition->entries()->where('entry_phase_id', $master->id)->count())->toBe(16);
         $master->matches()->first()->update(['status' => 'called']);

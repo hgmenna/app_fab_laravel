@@ -1971,6 +1971,9 @@ class FiveQuillasCompetitionService
                 || data_get($phase->competition->settings, 'format') !== 'circuit_argentino') {
                 throw ValidationException::withMessages(['masters' => 'La carga corresponde a la fase Masters del Circuito Argentino.']);
             }
+            if ($phase->seeding_method !== 'national_ranking') {
+                throw ValidationException::withMessages(['masters' => 'Esta carga por ranking requiere que la fase tenga configurado Ranking nacional. Usá la preparación correspondiente al método elegido para esta fase.']);
+            }
             if ($phase->matches()->whereIn('status', ['called', 'in_progress', 'completed'])->where('is_bye', false)->exists()) {
                 throw ValidationException::withMessages(['masters' => 'No se pueden cargar ingresos después de comenzar Masters.']);
             }
@@ -1994,9 +1997,16 @@ class FiveQuillasCompetitionService
             }
             $existing = $phase->competition->entries()->whereIn('player_id', $masters->pluck('player_id'))->get();
             $existingByPlayer = $existing->keyBy('player_id');
+            $ranking = GeneralRanking::query()->whereIn('player_id', $masters->pluck('player_id'))->pluck('RG', 'player_id');
+            $masters->each(function ($master) use ($existingByPlayer, $ranking): void {
+                $master->ranking = $existingByPlayer->get($master->player_id)?->national_ranking_snapshot
+                    ?: $ranking->get($master->player_id);
+            });
+            if ($masters->contains(fn ($master): bool => (int) $master->ranking < 1)) {
+                throw ValidationException::withMessages(['masters' => 'Falta el ranking de uno o más inscriptos Masters. Completá su ranking antes de ubicarlos en la grilla.']);
+            }
             $masters = $masters->sortBy(fn ($master): array => [
-                $existingByPlayer->get($master->player_id)?->national_ranking_snapshot ?: PHP_INT_MAX,
-                $master->registration->id, $master->player_id,
+                (int) $master->ranking, $master->player_id,
             ])->values();
             $ids = $existing->pluck('id');
             $groupIds = FiveQuillasGroupEntry::query()->whereIn('entry_id', $ids)->pluck('group_id');
@@ -2034,6 +2044,7 @@ class FiveQuillasCompetitionService
             foreach ($masters as $index => $master) {
                 $phase->competition->entries()->updateOrCreate(['player_id' => $master->player_id], [
                     'entry_phase_id' => $phase->id,
+                    'national_ranking_snapshot' => (int) $master->ranking,
                     'tournament_registration_id' => $master->registration->id,
                     'registration_participant_id' => $master->participant_id,
                     'source_slot_id' => $master->registration->tournament_slot_id,
