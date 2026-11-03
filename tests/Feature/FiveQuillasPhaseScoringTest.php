@@ -114,3 +114,17 @@ it('preserves explicit national phase rules over numeric ranges', function () {
     ]);
     expect(app(FiveQuillasCompetitionService::class)->proposedPointsForEntry($tournament, $competition, $entries[16]))->toBe(7.0);
 });
+
+it('labels the completed tournament champion and runner-up without changing their points', function () {
+    [$tournament, $competition, $entries] = phaseScoringFixture();
+    $competition->status = 'completed';
+    $service = app(FiveQuillasCompetitionService::class);
+
+    expect($service->finalInstanceForEntry($competition, $entries[0]))->toBe('Campeón')
+        ->and($service->finalInstanceForEntry($competition, $entries[1]))->toBe('Subcampeón')
+        ->and($service->proposedPointsForEntry($tournament, $competition, $entries[0]))->toBe(50.0)
+        ->and($service->proposedPointsForEntry($tournament, $competition, $entries[1]))->toBe(35.0);
+
+    $competition->status = 'in_progress';
+    expect($service->finalInstanceForEntry($competition, $entries[0]))->toBe('Final');
+});

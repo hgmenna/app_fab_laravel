@@ -2397,6 +2397,10 @@ class FiveQuillasCompetitionService
      */
     public function finalInstanceForEntry(FiveQuillasCompetition $competition, FiveQuillasEntry $entry): string
     {
+        if ($competition->status === 'completed' && in_array((int) $entry->final_position, [1, 2], true)) {
+            return (int) $entry->final_position === 1 ? 'Campeón' : 'Subcampeón';
+        }
+
         $lastMatch = $competition->phases->where('phase_type', '!=', 'zones')->flatMap->matches
             ->filter(fn ($match): bool => in_array((int) $entry->id, [
                 (int) $match->player_one_entry_id, (int) $match->player_two_entry_id,
