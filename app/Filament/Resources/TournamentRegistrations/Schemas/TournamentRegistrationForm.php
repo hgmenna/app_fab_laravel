@@ -61,7 +61,7 @@ class TournamentRegistrationForm
                         $slot->id => $slot->name.' — '.$slot->starts_at?->format('d/m/Y H:i').' ('.($slot->max_players - $slot->occupiedPlaces()).' cupos)',
                     ])->all();
             })->native(false),
-            Select::make('status')->options(['pendiente' => 'Pendiente', 'aprobado' => 'Aprobado', 'rechazado' => 'Rechazado'])
+            Select::make('status')->options(['pendiente' => 'Pendiente', 'aprobado' => 'Aprobado', 'ausente' => 'Ausente', 'rechazado' => 'Rechazado'])
                 ->default('pendiente')->disabled(fn (): bool => ! (Auth::user()?->canGloballyOrInAnyDiscipline('UpdateStatusTournament') ?? false))->dehydrated(),
         ]);
     }

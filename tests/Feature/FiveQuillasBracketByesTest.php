@@ -501,3 +501,53 @@ it('loads historical Masters from their inactive slot despite a different curren
         foreach (['tournament_registration_participants', 'tournament_slots', 'general_rankings', 'players', 'tournaments'] as $table) Schema::dropIfExists($table);
     }
 });
+
+it('keeps an absent national in the bracket and advances the rival with a phase based penalty exactly once', function () {
+    Schema::create('tournament_types', function (Blueprint $t) { $t->id(); $t->boolean('assigns_points'); $t->boolean('affects_ranking'); $t->string('scoring_method'); $t->json('scoring_rules'); });
+    Schema::create('tournaments', function (Blueprint $t) { $t->id(); $t->unsignedBigInteger('tournament_type_id'); $t->unsignedBigInteger('discipline_id')->nullable(); });
+    Schema::table('tournament_registrations', function (Blueprint $t) {
+        $t->unsignedBigInteger('tournament_id')->nullable(); $t->string('status')->nullable(); $t->integer('penalty_points')->default(0);
+        $t->string('result_code')->nullable(); $t->string('result_description')->nullable(); $t->integer('result_instance_value')->nullable();
+        $t->unsignedBigInteger('tournament_instance_id')->nullable(); $t->timestamps();
+    });
+    try {
+        $db = \Illuminate\Support\Facades\DB::class;
+        $db::table('tournament_types')->insert(['id' => 1, 'assigns_points' => true, 'affects_ranking' => false, 'scoring_method' => 'position',
+            'scoring_rules' => json_encode([['code' => 'F1 NAC', 'description' => 'F1 NAC', 'instance_value' => 32, 'points' => 10]])]);
+        $db::table('tournaments')->insert(['id' => 1, 'tournament_type_id' => 1]);
+        $db::table('tournament_registrations')->insert([
+            ['id' => 1, 'tournament_id' => 1, 'status' => 'ausente'],
+            ['id' => 2, 'tournament_id' => 1, 'status' => 'aprobado'],
+        ]);
+        $this->competition->update(['tournament_id' => 1]);
+        $this->phase->update(['code' => 'national', 'name' => 'Primera Nacional', 'settings' => ['bracket_size' => 4]]);
+        $this->entries[1]->update(['tournament_registration_id' => 1]);
+        $this->entries[2]->update(['tournament_registration_id' => 2]);
+        $previous = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'sort_order' => 0, 'status' => 'pending']);
+        $service = app(FiveQuillasCompetitionService::class);
+        expect($service->resolveAbsentMatch($this->played))->toBeFalse();
+        $absentBye = FiveQuillasMatch::create(['phase_id' => $this->phase->id,
+            'player_one_entry_id' => $this->entries[1]->id]);
+        (new ReflectionMethod($service, 'resolveBye'))->invoke($service, $absentBye);
+        expect($absentBye->fresh()->winner_entry_id)->toBeNull();
+        $previous->update(['status' => 'completed']);
+        $db::table('tournament_registrations')->where('id', 2)->update(['status' => 'ausente']);
+        expect($service->resolveAbsentMatch($this->played))->toBeFalse();
+        $db::table('tournament_registrations')->where('id', 2)->update(['status' => 'aprobado']);
+        expect($service->resolveAbsentMatch($this->played))->toBeTrue()
+            ->and($this->played->fresh()->winner_entry_id)->toBe($this->entries[2]->id)
+            ->and($this->played->fresh()->player_one_entry_id)->toBe($this->entries[1]->id)
+            ->and($this->played->fresh()->is_bye)->toBeFalse()
+            ->and($this->final->fresh()->player_two_entry_id)->toBe($this->entries[2]->id);
+        $registration = \App\Models\TournamentRegistration::findOrFail(1);
+        expect((float) $registration->points)->toBe(0.0)
+            ->and((int) $registration->penalty_points)->toBe(10)
+            ->and($registration->status)->toBe('ausente')
+            ->and($registration->result_code)->toBe('F1 NAC')
+            ->and($service->resolveAbsentMatch($this->played))->toBeFalse()
+            ->and((int) $registration->fresh()->penalty_points)->toBe(10);
+    } finally {
+        Schema::dropIfExists('tournaments');
+        Schema::dropIfExists('tournament_types');
+    }
+});

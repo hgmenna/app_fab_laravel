@@ -921,7 +921,7 @@ class ManageTournamentCompetition extends Page
             ->modalDescription('Se cargarán los 16 jugadores con inscripción aprobada en el horario Masters de este torneo, aunque el horario esté desactivado. Las plazas provenientes de Nacional seguirán pendientes hasta finalizar esa fase.')
             ->schema([
                 Placeholder::make('masters')->label('Inscriptos en Masters')
-                    ->content(fn (): string => $this->record->registrations()->where('status', 'aprobado')
+                    ->content(fn (): string => $this->record->registrations()->whereIn('status', ['aprobado', 'ausente'])
                         ->whereIn('tournament_slot_id', $this->record->slots
                             ->filter(fn ($slot): bool => \Illuminate\Support\Str::contains(\Illuminate\Support\Str::lower(\Illuminate\Support\Str::ascii($slot->name)), 'master'))->pluck('id'))
                         ->with('participants.player')->orderBy('id')->get()
@@ -1863,7 +1863,12 @@ class ManageTournamentCompetition extends Page
                     }
                 }
                 $service->repairPreviousResultsBracket($phase);
-                $service->resolveBracketByes($phase);
+                try {
+                    $service->resolveBracketByes($phase);
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('Revisar incomparecencia')
+                        ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
+                }
             });
             $service->ensureFinalStandingsOrder($competition);
             $competition = $this->competition();

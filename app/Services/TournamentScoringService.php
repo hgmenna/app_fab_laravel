@@ -216,6 +216,11 @@ class TournamentScoringService
                     $registration->result_description = (string) $rule['description'];
                     $registration->result_instance_value = (int) $rule['instance_value'];
                     $registration->points = (float) $rule['points'];
+                    if ($registration->status === 'ausente') {
+                        $registration->points = 0;
+                        $registration->penalty_points = (float) $rule['points'];
+                        $registration->result_description = 'Ausente · '.(string) $rule['description'];
+                    }
                     $registration->saveQuietly();
                 });
         });
@@ -443,6 +448,11 @@ class TournamentScoringService
 
             $registration->points =
                 (float) $rule['points'];
+            if ($registration->status === 'ausente') {
+                $registration->points = 0;
+                $registration->penalty_points = (float) $rule['points'];
+                $registration->result_description = 'Ausente · '.(string) $rule['description'];
+            }
 
             /*
          * Los torneos de ranking conservan la relación con

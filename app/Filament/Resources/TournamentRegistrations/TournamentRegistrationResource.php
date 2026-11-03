@@ -100,6 +100,7 @@ class TournamentRegistrationResource extends Resource
 
         $status = match ($registration->status) {
             'aprobado' => 'APROBADA',
+            'ausente' => 'AUSENTE',
             'denegado', 'rechazado' => 'RECHAZADA',
             default => 'PENDIENTE',
         };

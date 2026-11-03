@@ -63,7 +63,7 @@ class RankingService
         $jugadores = Player::query()
             ->whereHas('tournamentRegistrationParticipations.registration', function ($q) use ($torneos) {
                 $q->whereIn('tournament_id', $torneos)
-                    ->where('points', '>', 0);
+                    ->where(fn ($query) => $query->where('points', '>', 0)->orWhere('penalty_points', '>', 0));
             })
             ->with(['club.city.state.federation', 'category'])
             ->get();
@@ -466,7 +466,7 @@ class RankingService
         */
         $hasPendingStageResults = TournamentRegistration::query()
             ->where('tournament_id', $latestRankingTournament->id)
-            ->where('status', 'aprobado')
+            ->whereIn('status', ['aprobado', 'ausente'])
             ->whereNull('tournament_instance_id')
             ->exists();
 

@@ -58,7 +58,7 @@ class FiveQuillasCompetitionService
     {
         $competition->loadMissing('tournament');
         $registrations = $competition->tournament->registrations()
-            ->where('status', 'aprobado')
+            ->whereIn('status', ['aprobado', 'ausente'])
             ->with(['participants.player.category', 'slot'])
             ->get();
         $phases = $competition->phases()->where('is_enabled', true)->orderBy('sort_order')->get();
@@ -762,6 +762,9 @@ class FiveQuillasCompetitionService
             }
             foreach ($firstRound as $match) {
                 if (in_array($match->status, ['pending', 'scheduled'], true)) {
+                    if ($this->resolveAbsentMatch($match)) {
+                        continue;
+                    }
                     $this->resolveBye($match);
                 }
             }
@@ -1979,7 +1982,7 @@ class FiveQuillasCompetitionService
             }
             $slotIds = $phase->competition->tournament->slots
                 ->filter(fn ($slot): bool => Str::contains(Str::lower(Str::ascii($slot->name)), 'master'))->pluck('id');
-            $registrations = $phase->competition->tournament->registrations()->where('status', 'aprobado')
+            $registrations = $phase->competition->tournament->registrations()->whereIn('status', ['aprobado', 'ausente'])
                 ->whereIn('tournament_slot_id', $slotIds)->with('participants')->orderBy('id')->get();
             $masters = $registrations->flatMap(function ($registration) {
                 return collect($registration->participantIds())->map(fn ($playerId) => (object) [
@@ -2490,6 +2493,45 @@ class FiveQuillasCompetitionService
             }
 
             return $match->fresh();
+        });
+    }
+
+    /** Resuelve una incomparecencia manteniendo al ausente como participante real. */
+    public function resolveAbsentMatch(FiveQuillasMatch $match): bool
+    {
+        return DB::transaction(function () use ($match): bool {
+            $match = FiveQuillasMatch::query()->whereKey($match->id)->lockForUpdate()->firstOrFail();
+            if (! in_array($match->status, ['pending', 'scheduled'], true)
+                || ! $match->player_one_entry_id || ! $match->player_two_entry_id) {
+                return false;
+            }
+            $match->load(['playerOne.registration', 'playerTwo.registration', 'phase.competition']);
+            $previous = $this->previousPhase($match->phase);
+            if (($previous && $previous->status !== 'completed') || ! $this->circuitCrossingsAreComplete($match->phase)) {
+                return false;
+            }
+            $oneAbsent = $match->playerOne->registration?->status === 'ausente';
+            $twoAbsent = $match->playerTwo->registration?->status === 'ausente';
+            if ($oneAbsent === $twoAbsent) {
+                return false;
+            }
+            $absent = $oneAbsent ? $match->playerOne : $match->playerTwo;
+            $winner = $oneAbsent ? $match->playerTwo : $match->playerOne;
+            $updated = $this->declareMatchWinner($match, (int) $winner->id);
+            $updated->update(['set_scores' => array_merge($updated->set_scores ?? [], ['absence_entry_id' => $absent->id])]);
+            $competition = $match->phase->competition->fresh(['tournament.type', 'phases.matches', 'phases.groups.groupEntries', 'entries']);
+            $scoring = app(TournamentScoringService::class);
+            $rule = $this->ruleForEntryPlacement($scoring->getRules($competition->tournament), $competition, $absent);
+            if (! $rule) {
+                throw ValidationException::withMessages(['absence' => 'Falta la regla de puntuación de la instancia para calcular la penalización por ausencia.']);
+            }
+            if (! empty($rule['tournament_instance_id'])) {
+                $scoring->assignByTournamentInstance($absent->registration, (int) $rule['tournament_instance_id']);
+            } else {
+                $scoring->assignByCode($absent->registration, (string) $rule['code']);
+            }
+
+            return true;
         });
     }
 
@@ -3665,6 +3707,9 @@ class FiveQuillasCompetitionService
         }
 
         $winnerId = (int) $players->first();
+        if (FiveQuillasEntry::query()->find($winnerId)?->registration?->status === 'ausente') {
+            return;
+        }
         $match->update([
             'winner_entry_id' => $winnerId,
             'set_scores' => ['bye' => true, 'sets' => []],

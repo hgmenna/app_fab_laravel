@@ -31,7 +31,7 @@
                             $pointsPerSet = (int) $match->phase?->points_per_set;
                             $emptyLabel = function ($entry, $number) use ($match, $expectedParticipants): string {
                                 if ($entry?->player) {
-                                    return $entry->player->full_name;
+                                    return $entry->player->full_name.($entry->registration?->status === 'ausente' ? ' · AUSENTE' : '');
                                 }
                                 if ((int) $match->round_number > 1) {
                                     return 'A designar';
@@ -64,6 +64,7 @@
                                     </div>
                                 @endif
                                 <div class="fq-match-meta">
+                                    @if(data_get($match->set_scores, 'absence_entry_id'))<small>Avance por ausencia</small>@endif
                                     @if($match->scheduled_at)<small class="fq-match-time">{{ $match->scheduled_at->format('d/m/y · H:i') }}</small>@endif
                                     @if($match->table_number && in_array($match->status, ['called', 'in_progress'], true))
                                         <small class="fq-table-active">Mesa {{ $match->table_number }}</small>

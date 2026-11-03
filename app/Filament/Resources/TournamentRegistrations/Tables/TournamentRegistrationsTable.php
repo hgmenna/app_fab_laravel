@@ -121,6 +121,7 @@ class TournamentRegistrationsTable
                     ->color(fn (string $state): string => match ($state) {
                         'pendiente' => 'warning',
                         'aprobado' => 'success',
+                        'ausente' => 'danger',
                         'denegado' => 'danger',
                         default => 'gray',
                     })
@@ -423,7 +424,7 @@ class TournamentRegistrationsTable
                             );
                         })
                         ->visible(fn (TournamentRegistration $record): bool => ThreeCushionRankingService::isThreeCushion($record->tournament?->discipline)
-                            && $record->status === 'aprobado'
+                            && in_array($record->status, ['aprobado', 'ausente'], true)
                             && $record->points !== null
                             && (Auth::user()?->canAccessTournament(
                                 'AssignTournamentScore',
@@ -438,6 +439,7 @@ class TournamentRegistrationsTable
                                 ->options([
                                     'pendiente' => 'Pendiente',
                                     'aprobado' => 'Aprobado',
+                                    'ausente' => 'Ausente',
                                     'denegado' => 'Denegado',
                                 ])
                                 ->required(),
@@ -791,7 +793,7 @@ class TournamentRegistrationsTable
                     ->values();
 
                 $eligibleQuery = $resolvedTournament->registrations()
-                    ->where('status', 'aprobado')
+                    ->whereIn('status', ['aprobado', 'ausente'])
                     ->whereNull('points')
                     ->whereKey($registrationIds);
 
@@ -1017,7 +1019,7 @@ class TournamentRegistrationsTable
         }
 
         $query = $tournament->registrations()
-            ->where('status', 'aprobado')
+            ->whereIn('status', ['aprobado', 'ausente'])
             ->whereNull('points')
             ->with([
                 'participants.player.category',
@@ -1056,7 +1058,7 @@ class TournamentRegistrationsTable
         }
 
         return $tournament->registrations()
-            ->where('status', 'aprobado')
+            ->whereIn('status', ['aprobado', 'ausente'])
             ->whereNull('points')
             ->where('tournament_slot_id', $slotId)
             ->with([
