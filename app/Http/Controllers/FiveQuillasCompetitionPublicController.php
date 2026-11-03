@@ -113,7 +113,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                         return [
                         'posicion' => $entry->final_position,
                         'jugador' => $entry->player?->full_name,
-                        'club' => $entry->player?->club?->short_name ?: $entry->player?->club?->name,
+                        'club' => $entry->player?->club?->name,
                         'categoria' => $entry->player?->category?->code ?: $entry->player?->category?->name,
                         'puntos' => $entry->registration?->points,
                         'penalizacion' => $entry->registration?->penalty_points,
@@ -156,7 +156,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                         'jugadores' => $group->groupEntries->map(fn ($row): array => [
                             'posicion' => $row->position,
                             'nombre' => $row->entry->player->full_name,
-                            'club' => $row->entry->player->club?->short_name ?: $row->entry->player->club?->name,
+                            'club' => $row->entry->player->club?->name,
                             'partidos_ganados' => $row->match_wins,
                             'diferencia_sets' => $row->sets_difference,
                             'puntos_favor' => $row->points_for,

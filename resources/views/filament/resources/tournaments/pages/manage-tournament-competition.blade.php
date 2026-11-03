@@ -17,6 +17,7 @@
         .fq-match-meta .fq-match-time,.fq-match-meta .fq-table-active{display:inline-flex;width:auto;margin:0;padding:0;border-radius:0;background:transparent;color:inherit;font-size:inherit;line-height:1;text-transform:none;letter-spacing:0}
         .fq-match-meta>*+*{padding-left:.38rem!important;border-left:1px solid rgba(127,127,127,.45)}
         .fq-match-actions.fq-schedule-action{opacity:1;visibility:visible;transform:none}
+        .fq-club-short{display:none}@media screen and (max-width:767px){.fq-club-full{display:none}.fq-club-short{display:inline}}
     </style>
 
     @if(!$competition)
@@ -315,7 +316,7 @@
                     @endphp
                     <tr>
                         <td>{{ $entry->final_position }}</td><td>{{ $entry->player?->full_name }}</td>
-                        <td>{{ $entry->player?->club?->short_name ?: $entry->player?->club?->name }}</td>
+                        <td title="{{ $entry->player?->club?->name }}"><span class="fq-club-full">{{ $entry->player?->club?->name ?: '—' }}</span><span class="fq-club-short">{{ $entry->player?->club?->short_name ?: $entry->player?->club?->name ?: '—' }}</span></td>
                         <td>{{ $entry->player?->category?->code ?: $entry->player?->category?->name }}</td>
                         <td>{{ $this->finalInstanceLabel($entry) }}</td>
                         <td>{{ $performance['sets_difference'] }}</td><td>{{ $performance['average'] }}</td>
@@ -385,6 +386,7 @@
             const contentCell = layout.createTBody().insertRow().insertCell();
             contentCell.appendChild(content);
             popup.document.title = title;
+            style.textContent += '.fq-club-short{display:none!important}.fq-club-full{display:inline!important}';
             popup.document.head.appendChild(style);
             popup.document.body.appendChild(layout);
             popup.focus();

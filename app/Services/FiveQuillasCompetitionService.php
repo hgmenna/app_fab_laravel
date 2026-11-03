@@ -1316,7 +1316,7 @@ class FiveQuillasCompetitionService
             return [
                 'position' => $index + 1,
                 'player' => (string) ($entry->player?->full_name ?? 'Jugador sin nombre'),
-                'club' => (string) ($entry->player?->club?->short_name ?: $entry->player?->club?->name),
+                'club' => (string) $entry->player?->club?->name,
                 'ranking' => $entry->national_ranking_snapshot,
                 'draw_number' => $entry->seed,
                 'zone_position' => $zoneRow?->final_place,

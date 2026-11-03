@@ -106,7 +106,7 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
                 return [
                     'position' => $entry->final_position,
                     'player' => $entry->player?->full_name,
-                    'club' => $entry->player?->club?->short_name ?: $entry->player?->club?->name,
+                    'club' => $entry->player?->club?->name,
                     'category' => $entry->player?->category?->code ?: $entry->player?->category?->name,
                     'instance' => $this->finalInstance($competition, $entry),
                     'sets_difference' => $performance['sets_difference'],
