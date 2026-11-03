@@ -79,18 +79,18 @@ it('clears the category when changing discipline', function () {
     expect($this->page->categoryId)->toBe('')->and($this->page->typeIds)->toBe([]);
 });
 
-it('starts PDF generation after responding and freezes the selected filters', function () {
+it('starts PDF generation in an independent process and freezes the selected filters', function () {
     \Illuminate\Support\Facades\Bus::fake([\App\Jobs\GeneratePlayerPerformancePdf::class]);
     $this->page->federationId = '2';
     $this->page->categoryId = '1';
     $this->page->startPdfExport();
     $token = $this->page->pdfExportToken;
     expect($token)->not->toBeNull();
-    \Illuminate\Support\Facades\Bus::assertDispatchedAfterResponse(\App\Jobs\GeneratePlayerPerformancePdf::class,
-        fn ($job) => $job->token === $token && $job->filters['federationId'] === '2'
+    \Illuminate\Support\Facades\Bus::assertDispatched(\App\Jobs\GeneratePlayerPerformancePdf::class,
+        fn ($job) => $job->connection === 'background' && $job->token === $token && $job->filters['federationId'] === '2'
             && $job->filters['categoryId'] === '1' && $job->filters['playerIds'] === [1, 2, 3, 4]);
     $this->page->startPdfExport();
-    \Illuminate\Support\Facades\Bus::assertDispatchedAfterResponseTimes(\App\Jobs\GeneratePlayerPerformancePdf::class, 1);
+    \Illuminate\Support\Facades\Bus::assertDispatchedTimes(\App\Jobs\GeneratePlayerPerformancePdf::class, 1);
 });
 
 it('generates a private PDF using the same filtered descending points data', function () {

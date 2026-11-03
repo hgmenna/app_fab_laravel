@@ -58,6 +58,9 @@ class FilteredPlayerPerformance extends Page
     #[Locked]
     public ?int $pdfExportStartedAt = null;
 
+    #[Locked]
+    public string $pdfExportStage = 'pending';
+
     public function mount(string $report): void
     {
         $selection = session("player-performance-reports.{$report}");
@@ -222,9 +225,10 @@ class FilteredPlayerPerformance extends Page
             ->mapWithKeys(fn ($key) => [$key => $this->$key])->all();
         session()->put('player-performance-pdf.'.$token, ['user_id' => Auth::id(), 'expires_at' => now()->addHour()->timestamp]);
         Cache::put('player-performance-pdf:'.$token, 'pending', now()->addHour());
-        GeneratePlayerPerformancePdf::dispatchAfterResponse($token, $snapshot);
+        GeneratePlayerPerformancePdf::dispatch($token, $snapshot)->onConnection('background');
         $this->pdfExportToken = $token;
         $this->pdfExportStartedAt = now()->timestamp;
+        $this->pdfExportStage = 'pending';
     }
 
     public function checkPdfExport(): void
@@ -238,6 +242,8 @@ class FilteredPlayerPerformance extends Page
             \Filament\Notifications\Notification::make()->danger()->title('No se pudo generar el PDF')
                 ->body('Intentá nuevamente o reducí el período del informe.')->persistent()->send();
             $this->pdfExportToken = null;
+        } elseif (in_array($state, ['loading', 'rendering'], true) && $state !== $this->pdfExportStage) {
+            $this->pdfExportStage = $state;
         } else {
             $this->skipRender();
         }

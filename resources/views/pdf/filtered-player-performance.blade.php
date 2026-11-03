@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     @include('pdf.partials.fab-report-header-styles')
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 8px; color: #222; }
+        body { font-family: Helvetica, sans-serif; font-size: 8px; color: #222; }
         .meta { color: #555; margin-bottom: 14px; }
         .player { margin: 14px 0; }
         .player h2 { font-size: 11px; background: #eee; padding: 7px; margin: 0; }
         .player h2 span { font-size: 8px; font-weight: normal; }
-        table { width: 100%; border-collapse: collapse; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
         th, td { border: 1px solid #ddd; padding: 5px; text-align: left; }
         th { background: #f5f5f5; }
         .number { text-align: right; }
@@ -36,6 +36,7 @@
                 <p class="empty">Sin participaciones para los filtros seleccionados.</p>
             @else
                 <table>
+                    <colgroup><col style="width:30%"><col style="width:23%"><col style="width:10%"><col style="width:8%"><col style="width:21%"><col style="width:8%"></colgroup>
                     <thead><tr>
                         <th>Torneo</th><th>Tipo</th><th>Fecha</th>
                         <th>Inscriptos</th><th>Posición / resultado</th><th>Puntos</th>

@@ -36,7 +36,7 @@
 
     <div x-data x-on:player-performance-pdf-ready.window="window.location.assign($event.detail.url)"></div>
     @if ($this->pdfExportToken)
-        <div wire:poll.3s="checkPdfExport" role="status" class="performance-totals">Preparando el PDF… La descarga comenzará cuando esté listo.</div>
+        <div wire:poll.2s="checkPdfExport" role="status" class="performance-totals">{{ match($this->pdfExportStage) { 'loading' => 'Reuniendo los resultados…', 'rendering' => 'Generando las páginas del PDF…', default => 'Iniciando la exportación…' } }} La descarga comenzará cuando esté listo.</div>
     @endif
     <div class="performance-filters">
         <div class="performance-filter-row">
