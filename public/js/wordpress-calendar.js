@@ -33,6 +33,70 @@
     const filters = { estado: 'proximos', desde: '', hasta: '', buscar: '' };
     let rows = new Map(), ready = false, api, controls, status, timer;
 
+    // Keep the mobile detail attached to its tournament, with one open at a time.
+    function inlineDetails(table, api) {
+        if (!api) return;
+        const close = () => {
+            table.querySelectorAll('.fab-calendar-detail').forEach(row => row.remove());
+            table.querySelectorAll('.fab-calendar-toggle').forEach(button => {
+                button.setAttribute('aria-expanded', 'false');
+                button.textContent = '+';
+            });
+        };
+        close();
+        table.querySelectorAll('tbody tr').forEach(row => {
+            const cell = row.querySelector('td.column-torneo');
+            if (!cell || cell.querySelector('.fab-calendar-toggle')) return;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'fab-calendar-toggle';
+            button.textContent = '+';
+            button.setAttribute('aria-expanded', 'false');
+            button.setAttribute('aria-label', 'Ver detalles de ' + cell.textContent.trim());
+            cell.prepend(button);
+        });
+        if (table.dataset.fabInlineDetails) return;
+        table.dataset.fabInlineDetails = 'true';
+        table.addEventListener('click', event => {
+            const button = event.target.closest('.fab-calendar-toggle');
+            if (!button) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            const expanded = button.getAttribute('aria-expanded') === 'true';
+            close();
+            if (expanded) return;
+            const row = button.closest('tr');
+            const data = api.row(row).data();
+            if (!data) return;
+            const detail = document.createElement('tr');
+            detail.className = 'row-detail fab-calendar-detail';
+            const cell = document.createElement('td');
+            cell.colSpan = Array.from(row.cells).filter(td => getComputedStyle(td).display !== 'none').length;
+            const list = document.createElement('ul');
+            api.columns().header().toArray().forEach((header, index) => {
+                const name = Array.from(header.classList).find(value => value.startsWith('column-'))?.slice(7);
+                if (!['disciplina', 'categorias', 'club', 'tipo', 'oficial', 'provincia', 'modalidad', 'handicap', 'inscriptos', 'estado_inscripcion', 'apertura_inscripcion', 'cierre_inscripcion', 'inscripcion', 'ubicacion', 'flyer', 'logo_publicacion'].includes(name)) return;
+                const html = Array.isArray(data) ? data[index] : data[name];
+                if (html === undefined || html === null || html === '') return;
+                const item = document.createElement('li');
+                item.className = 'column-' + name;
+                const title = document.createElement('span');
+                title.className = 'columnTitle';
+                title.textContent = header.textContent.trim();
+                const value = document.createElement('span');
+                value.className = 'columnValue';
+                value.innerHTML = String(html);
+                item.append(title, value);
+                list.appendChild(item);
+            });
+            cell.appendChild(list);
+            detail.appendChild(cell);
+            row.after(detail);
+            button.textContent = '−';
+            button.setAttribute('aria-expanded', 'true');
+        }, true);
+    }
+
     function decorate() {
         const table = document.querySelector(selector);
         if (!table) return;
@@ -57,6 +121,7 @@
             cell.appendChild(link);
         });
         finishGroup();
+        inlineDetails(table, api);
         if (ready && api) {
             const count = api.page.info().recordsDisplay;
             status.textContent = filters.desde && filters.hasta && filters.desde > filters.hasta
@@ -153,7 +218,7 @@
         style.textContent = `.fab-cal-filtros{display:grid;grid-template-columns:minmax(210px,1.2fr) repeat(2,minmax(145px,.7fr)) auto;gap:10px;align-items:end;margin:0 0 12px;padding:15px;border:1px solid #d7e0ed;border-radius:12px;background:#f7f9fc}.fab-cal-campo{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:800;color:#17365d}.fab-cal-campo input{height:40px;border:1px solid #b8c5d6;border-radius:8px;padding:0 11px;background:#fff;color:#172033}.fab-cal-estados{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}.fab-cal-btn,.fab-cal-limpiar{border:1px solid #17468a;border-radius:8px;padding:9px 15px;background:#fff;color:#17468a;font-weight:800;cursor:pointer}.fab-cal-btn.activo,.fab-cal-btn:hover{background:#17468a;color:#fff}.fab-cal-limpiar{height:40px;background:#e9eef6}.fab-resultados-publicos{display:table;margin-top:8px;padding:7px 12px;border-radius:7px;background:#075aa8;color:#fff!important;font-size:12px;font-weight:700;text-decoration:none!important}#table_1 thead tr:nth-child(2){display:none!important}#table_1{width:100%!important}#table_1 td{vertical-align:middle;padding:8px 7px;line-height:1.25}#table_1 [hidden]{display:none!important}#table_1 .column-torneo,#table_1 .column-club{min-width:150px}#table_1 .column-flyer img,#table_1 .column-logo_publicacion img{max-width:46px;max-height:46px;object-fit:contain}@media(max-width:767px){.fab-cal-filtros{grid-template-columns:1fr 1fr}.fab-cal-campo:has(input[type=search]),.fab-cal-limpiar{grid-column:1/-1}.fab-cal-btn{flex:1;padding:9px 7px;font-size:12px}}`;
         const internal = ['id', 'fecha_inicio', 'fecha_fin', 'estado_torneo', 'disciplina_id', 'tipo_id', 'contactos', 'desarrollo_disponible', 'desarrollo_slug', 'desarrollo_estado', 'desarrollo_texto', 'desarrollo_mensaje', 'desarrollo_json_url', 'desarrollo_url'];
         style.textContent += internal.map(name => `#table_1 .column-${name}`).join(',') + '{display:none!important}';
-        style.textContent += '#table_1.has-columns-hidden>thead>tr>th.column-id.expand,#table_1.has-columns-hidden>tbody>tr:not(.row-detail)>td.column-id.expand{display:table-cell!important;font-size:0!important;width:36px!important;min-width:36px!important;max-width:36px!important;padding:6px!important}#table_1.has-columns-hidden .column-id.expand .responsiveExpander{display:inline-block!important;width:24px!important;height:28px!important;font-size:18px!important;cursor:pointer}';
+        style.textContent += '#table_1 .responsiveExpander{display:none!important}#table_1 .fab-calendar-toggle{display:none;border:1px solid #17468a;border-radius:6px;background:#fff;color:#17468a;font-size:20px;line-height:28px;width:32px;min-height:32px;padding:0;margin:0 8px 4px 0;cursor:pointer}#table_1 .fab-calendar-detail{display:table-row!important}#table_1 .fab-calendar-detail>td{width:auto!important}#table_1 .fab-calendar-detail ul{list-style:none;margin:0;padding:8px}#table_1 .fab-calendar-detail li{display:grid;grid-template-columns:minmax(90px,30%) minmax(0,1fr);gap:8px;padding:7px 0;border-bottom:1px solid #dce3ee}#table_1 .fab-calendar-detail .columnTitle{font-weight:700;color:#17427c}#table_1 .fab-calendar-detail .columnValue{overflow-wrap:anywhere}@media(max-width:1024px){#table_1 .fab-calendar-toggle{display:inline-block!important}#table_1 .fab-calendar-detail span{font-size:13px!important;line-height:1.4!important}}';
         document.head.appendChild(style);
         if (setup()) return;
         const observer = new MutationObserver(() => { if (setup()) observer.disconnect(); });
