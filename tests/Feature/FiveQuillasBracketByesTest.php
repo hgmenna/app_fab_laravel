@@ -42,7 +42,7 @@ beforeEach(function () {
         $t->id(); $t->unsignedBigInteger('phase_id'); $t->integer('round_number')->default(1);
         $t->string('label')->nullable(); $t->unsignedBigInteger('group_id')->nullable(); $t->boolean('is_public')->default(false);
         $t->integer('bracket_order')->default(1);
-        foreach (['player_one_entry_id','player_two_entry_id','winner_entry_id','next_match_id','loser_next_match_id','next_match_position'] as $key) $t->unsignedBigInteger($key)->nullable();
+        foreach (['player_one_entry_id','player_two_entry_id','winner_entry_id','next_match_id','loser_next_match_id','next_match_position','loser_next_match_position'] as $key) $t->unsignedBigInteger($key)->nullable();
         foreach (['player_one_actual_sets','player_two_actual_sets','player_one_computed_sets','player_two_computed_sets'] as $key) $t->integer($key)->default(0);
         $t->json('set_scores')->nullable(); $t->boolean('is_bye')->default(false);
         $t->dateTime('scheduled_at')->nullable(); $t->unsignedInteger('table_number')->nullable();
@@ -110,6 +110,7 @@ it('keeps finished zones open for missing entrants and closes them after withdra
         ]);
     }
     $this->phase->matches()->update(['status' => 'completed']);
+    $emptyOrphan = FiveQuillasMatch::create(['phase_id' => $this->phase->id, 'status' => 'pending']);
     $before = $this->phase->matches()->get()->map->getAttributes()->all();
     $service = app(FiveQuillasCompetitionService::class);
     $service->reopenIncompleteConcurrentPhases($this->competition);
@@ -120,6 +121,7 @@ it('keeps finished zones open for missing entrants and closes them after withdra
         ->and($this->phase->matches()->get()->map->getAttributes()->all())->toBe($before);
     $service->reopenIncompleteConcurrentPhases($this->competition);
     expect($this->phase->fresh()->status)->toBe('completed');
+    expect($emptyOrphan->fresh()->status)->toBe('pending');
 });
 
 it('assigns schedules without changing participants positions connections or phase settings', function () {
@@ -565,4 +567,29 @@ it('keeps an absent national in the bracket and advances the rival with a phase 
         Schema::dropIfExists('tournaments');
         Schema::dropIfExists('tournament_types');
     }
+});
+
+it('trims an existing national bracket to two rounds for sixteen qualifiers without changing valid results', function () {
+    FiveQuillasMatch::query()->delete();
+    $this->phase->update(['code' => 'national', 'name' => 'Primera Nacional', 'settings' => ['bracket_size' => 64]]);
+    $service = app(FiveQuillasCompetitionService::class);
+    (new ReflectionMethod($service, 'createEliminationBracket'))->invoke($service, $this->phase, [], false);
+    expect($this->phase->matches()->count())->toBe(63);
+    $first = $this->phase->matches()->where('round_number', 1)->first();
+    $first->update(['player_one_entry_id' => $this->entries[0]->id, 'player_two_entry_id' => $this->entries[1]->id,
+        'winner_entry_id' => $this->entries[0]->id, 'status' => 'completed', 'scheduled_at' => '2026-11-03 10:00:00', 'table_number' => 4]);
+    $before = $first->fresh()->getAttributes();
+    $this->phase->update(['settings' => ['bracket_size' => 64, 'qualifiers' => 16, 'stop_after_rounds' => 6]]);
+    $extra = $this->phase->matches()->where('round_number', 3)->first();
+    $extra->update(['status' => 'called']);
+    expect(fn () => $service->reconcileBracketRounds($this->phase))->toThrow(\Illuminate\Validation\ValidationException::class);
+    expect($this->phase->matches()->count())->toBe(63);
+    $extra->update(['status' => 'pending']);
+    $service->reconcileBracketRounds($this->phase);
+    expect($this->phase->matches()->count())->toBe(48)
+        ->and($this->phase->matches()->max('round_number'))->toBe(2)
+        ->and($this->phase->matches()->where('round_number', 2)->whereNotNull('next_match_id')->count())->toBe(0)
+        ->and($first->fresh()->getAttributes())->toBe($before);
+    $service->reconcileBracketRounds($this->phase);
+    expect($this->phase->matches()->count())->toBe(48);
 });

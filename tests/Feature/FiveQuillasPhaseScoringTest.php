@@ -110,9 +110,12 @@ it('preserves explicit national phase rules over numeric ranges', function () {
     [$tournament, $competition, $entries, $bracket] = phaseScoringFixture();
     $bracket->name = 'Primera Nacional';
     $tournament->type->scoring_rules = array_merge($tournament->type->scoring_rules, [
-        ['code' => 'NAC1', 'description' => 'F1 NAC', 'points' => 7],
+        ['code' => 'NAC1', 'description' => 'F1 NAC', 'points' => 10],
+        ['code' => 'NAC2', 'description' => 'F2 NAC', 'points' => 12],
     ]);
-    expect(app(FiveQuillasCompetitionService::class)->proposedPointsForEntry($tournament, $competition, $entries[16]))->toBe(7.0);
+    $service = app(FiveQuillasCompetitionService::class);
+    expect($service->proposedPointsForEntry($tournament, $competition, $entries[16]))->toBe(10.0)
+        ->and($service->proposedPointsForEntry($tournament, $competition, $entries[8]))->toBe(12.0);
 });
 
 it('labels the completed tournament champion and runner-up without changing their points', function () {

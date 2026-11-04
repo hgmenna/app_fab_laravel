@@ -1855,6 +1855,13 @@ class ManageTournamentCompetition extends Page
             }
             // La renderización no debe reconstruir una grilla ya confeccionada.
             $competition->phases->where('phase_type', 'bracket')->each(function ($phase) use ($service, $isCircuit): void {
+                try {
+                    $service->reconcileBracketRounds($phase);
+                    $phase->refresh()->load('matches');
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('Revisar rondas de la grilla')
+                        ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
+                }
                 $refreshDirectEntries = $isCircuit && in_array($phase->code, ['national', 'master-final'], true)
                     && ! $phase->matches()->whereIn('status', ['called', 'in_progress', 'completed'])
                         ->where('is_bye', false)->exists();

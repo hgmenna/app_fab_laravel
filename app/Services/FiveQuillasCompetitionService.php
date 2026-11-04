@@ -686,6 +686,36 @@ class FiveQuillasCompetitionService
         });
     }
 
+    /** Ajusta una grilla existente al número de clasificados configurado. */
+    public function reconcileBracketRounds(FiveQuillasPhase $phase): void
+    {
+        DB::transaction(function () use ($phase): void {
+            $phase = FiveQuillasPhase::query()->whereKey($phase->id)->lockForUpdate()->firstOrFail();
+            $size = (int) data_get($phase->settings, 'bracket_size', 0);
+            $qualifiers = (int) data_get($phase->settings, 'qualifiers', 0);
+            if ($phase->phase_type !== 'bracket' || $size < 2 || $qualifiers < 1 || $qualifiers >= $size) {
+                return;
+            }
+            $rounds = (int) ceil(log($size / $qualifiers, 2));
+            $extra = $phase->matches()->where('round_number', '>', $rounds)->lockForUpdate()->get();
+            if ($extra->isEmpty()) {
+                return;
+            }
+            if ($extra->contains(fn ($match): bool => ! $match->is_bye
+                && (in_array($match->status, ['called', 'in_progress', 'completed', 'suspended'], true)
+                    || ! empty($match->set_scores)))) {
+                throw ValidationException::withMessages(['rounds' => 'La grilla tiene rondas adicionales con actividad deportiva. Revisá sus resultados antes de ajustar la cantidad de clasificados.']);
+            }
+            $phase->matches()->whereIn('next_match_id', $extra->pluck('id'))
+                ->update(['next_match_id' => null, 'next_match_position' => null]);
+            $phase->matches()->whereIn('loser_next_match_id', $extra->pluck('id'))
+                ->update(['loser_next_match_id' => null, 'loser_next_match_position' => null]);
+            $phase->matches()->whereIn('id', $extra->pluck('id'))->delete();
+            $phase->update(['settings' => array_merge($phase->settings ?? [], ['stop_after_rounds' => $rounds])]);
+            $this->completePhaseWhenReady($phase->id);
+        });
+    }
+
     /**
      * Repara una grilla no iniciada ordenada por ranking en lugar de resultados.
      */
@@ -2805,7 +2835,8 @@ class FiveQuillasCompetitionService
                 return;
             }
         }
-        if ($phase->matches()->exists() && $phase->matches()->where('status', '!=', 'completed')->doesntExist()) {
+        if ($phase->phase_type === 'zones'
+            || ($phase->matches()->exists() && $phase->matches()->where('status', '!=', 'completed')->doesntExist())) {
             $updates = ['status' => 'completed'];
             if ($phase->phase_type === 'slot_elimination') {
                 $winnerIds = $phase->matches()->whereNotNull('winner_entry_id')
@@ -2847,6 +2878,9 @@ class FiveQuillasCompetitionService
         $competition->phases()->where('phase_type', 'zones')
             ->where('is_enabled', true)->get()
             ->each(function (FiveQuillasPhase $phase) use ($competition): void {
+                $phase->groups()->where('status', '!=', 'completed')->whereHas('matches')
+                    ->whereDoesntHave('matches', fn ($query) => $query->where('status', '!=', 'completed'))
+                    ->pluck('id')->each(fn ($id) => $this->recalculateGroupStatistics((int) $id));
                 if ($this->zonesHaveEveryScheduledPlayer($phase)) {
                     if ($phase->status !== 'completed') {
                         $this->completePhaseWhenReady($phase->id);
@@ -2894,6 +2928,12 @@ class FiveQuillasCompetitionService
             ->where('status', '!=', 'withdrawn')
             ->pluck('id')->map(fn ($id): int => (int) $id)->unique();
         if ($expectedEntryIds->isEmpty()) {
+            return false;
+        }
+        // Un cruce vacío sin zona no es un partido pendiente del horario.
+        // Si tiene jugadores, se mantiene protegido hasta resolverlo.
+        if ($phase->matches()->whereNull('group_id')->where('status', '!=', 'completed')
+            ->where(fn ($query) => $query->whereNotNull('player_one_entry_id')->orWhereNotNull('player_two_entry_id'))->exists()) {
             return false;
         }
 
