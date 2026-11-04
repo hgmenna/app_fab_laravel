@@ -23,6 +23,8 @@
             '.fab-cal-filtros{display:grid;grid-template-columns:minmax(210px,1.2fr) repeat(2,minmax(145px,.7fr)) auto;gap:10px;align-items:end;margin:0 0 16px;padding:15px;border:1px solid #d7e0ed;border-radius:12px;background:#f7f9fc;box-shadow:0 6px 18px rgba(16,42,78,.08)}.fab-cal-campo{display:flex;flex-direction:column;gap:5px}.fab-cal-campo label{font-size:12px;font-weight:800;color:#17365d;text-transform:uppercase;letter-spacing:.04em}.fab-cal-campo input{height:40px;border:1px solid #b8c5d6;border-radius:8px;padding:0 11px;background:#fff;color:#172033}.fab-cal-estados{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}.fab-cal-btn{border:1px solid #17468a;border-radius:8px;padding:9px 15px;background:#fff;color:#17468a;font-weight:800;cursor:pointer}.fab-cal-btn.activo,.fab-cal-btn:hover{background:#17468a;color:#fff}.fab-cal-limpiar{height:40px;border:0;border-radius:8px;padding:0 15px;background:#e9eef6;color:#17365d;font-weight:800;cursor:pointer}.fab-torneo-titulo{display:block}.fab-resultados-publicos{display:inline-flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;padding:7px 12px;border-radius:7px;background:#075aa8!important;color:#fff!important;border:1px solid #075aa8!important;font-size:12px;font-weight:700;line-height:1.15;text-decoration:none!important;box-shadow:0 2px 5px rgba(0,0,0,.18);white-space:nowrap}.fab-resultados-publicos:hover{background:#063f77!important}.fab-resultados-publicos svg{width:15px;height:15px;fill:currentColor}@media(max-width:767px){.fab-cal-filtros{grid-template-columns:1fr 1fr;padding:12px}.fab-cal-campo:first-of-type{grid-column:1/-1}.fab-cal-estados{gap:6px}.fab-cal-btn{flex:1;padding:9px 7px;font-size:12px}.fab-cal-limpiar{grid-column:1/-1}.fab-resultados-publicos{width:100%;max-width:155px}}#table_1 .column-id,#table_1 .column-fecha_inicio,#table_1 .column-fecha_fin,#table_1 .column-estado_torneo,#table_1 .column-disciplina_id,#table_1 .column-tipo_id,#table_1 .column-contactos,#table_1 .column-desarrollo_disponible,#table_1 .column-desarrollo_slug,#table_1 .column-desarrollo_estado,#table_1 .column-desarrollo_texto,#table_1 .column-desarrollo_mensaje,#table_1 .column-desarrollo_json_url,#table_1 .column-desarrollo_url{display:none!important}#table_1 thead tr:nth-child(2){display:none!important}#table_1{width:100%!important;table-layout:auto!important}#table_1 th,#table_1 td{height:auto!important;vertical-align:middle!important}#table_1 tbody td{padding:8px 7px!important;line-height:1.25!important}#table_1 .column-torneo,#table_1 .column-club{min-width:150px}#table_1 .column-fecha{min-width:82px}#table_1 .column-flyer img,#table_1 .column-logo_publicacion img{max-width:46px!important;max-height:46px!important;object-fit:contain!important}';
         s.textContent +=
             '#table_1 .responsiveExpander{display:none!important}#table_1 .fab-calendar-toggle{display:none;border:1px solid #17468a;border-radius:6px;background:#fff;color:#17468a;font-size:20px;line-height:28px;width:32px;min-height:32px;padding:0;margin:0 8px 4px 0;cursor:pointer}#table_1 .fab-calendar-detail{display:table-row!important}#table_1 .fab-calendar-detail>td{width:auto!important}#table_1 .fab-calendar-detail ul{list-style:none;margin:0;padding:8px}#table_1 .fab-calendar-detail li{display:grid;grid-template-columns:minmax(90px,30%) minmax(0,1fr);gap:8px;padding:7px 0;border-bottom:1px solid #dce3ee}#table_1 .fab-calendar-detail .columnTitle{font-weight:700;color:#17427c}#table_1 .fab-calendar-detail .columnValue{overflow-wrap:anywhere}@media(max-width:1024px){#table_1 .fab-calendar-toggle{display:inline-block!important}#table_1 .fab-calendar-detail span{font-size:13px!important;line-height:1.4!important}}';
+        s.textContent +=
+            '@media(max-width:1024px){#table_1>thead>tr:first-child>th.column-id,#table_1>tbody>tr:not(.row-detail)>td.column-id{display:table-cell!important;width:42px!important;min-width:42px!important;max-width:42px!important;font-size:0!important;padding:5px!important;text-align:center!important}#table_1 td.column-id .fab-calendar-toggle{margin:0!important}}';
         document.head.appendChild(s);
     }
     function control() {
@@ -72,6 +74,7 @@
         return torneos.get(
             String(id || '')
                 .replace(/<[^>]*>/g, '')
+                .replace(/^[+−]\s*/, '')
                 .trim(),
         );
     }
@@ -224,7 +227,7 @@
         };
         close();
         table.querySelectorAll('tbody tr').forEach((row) => {
-            const cell = row.querySelector('td.column-torneo');
+            const cell = row.querySelector('td.column-id');
             if (!cell || cell.querySelector('.fab-calendar-toggle')) return;
             const button = document.createElement('button');
             button.type = 'button';
@@ -233,7 +236,8 @@
             button.setAttribute('aria-expanded', 'false');
             button.setAttribute(
                 'aria-label',
-                'Ver detalles de ' + cell.textContent.trim(),
+                'Ver detalles de ' +
+                    row.querySelector('td.column-torneo').textContent.trim(),
             );
             cell.prepend(button);
         });

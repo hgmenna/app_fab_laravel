@@ -45,14 +45,14 @@
         };
         close();
         table.querySelectorAll('tbody tr').forEach(row => {
-            const cell = row.querySelector('td.column-torneo');
+            const cell = row.querySelector('td.column-id');
             if (!cell || cell.querySelector('.fab-calendar-toggle')) return;
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'fab-calendar-toggle';
             button.textContent = '+';
             button.setAttribute('aria-expanded', 'false');
-            button.setAttribute('aria-label', 'Ver detalles de ' + cell.textContent.trim());
+            button.setAttribute('aria-label', 'Ver detalles de ' + row.querySelector('td.column-torneo').textContent.trim());
             cell.prepend(button);
         });
         if (table.dataset.fabInlineDetails) return;
@@ -108,7 +108,7 @@
             if (tr.cells.length === 1 && !tr.querySelector('.dataTables_empty')) {
                 finishGroup(); header = tr; hasRows = false; return;
             }
-            const row = rows.get(tr.cells[0]?.textContent.trim());
+            const row = rows.get(tr.cells[0]?.textContent.replace(/^[+−]\s*/, '').trim());
             if (!row) return;
             hasRows = true;
             const cell = tr.querySelector('.column-torneo, .fab-torneo') || tr.cells[5];
@@ -219,6 +219,7 @@
         const internal = ['id', 'fecha_inicio', 'fecha_fin', 'estado_torneo', 'disciplina_id', 'tipo_id', 'contactos', 'desarrollo_disponible', 'desarrollo_slug', 'desarrollo_estado', 'desarrollo_texto', 'desarrollo_mensaje', 'desarrollo_json_url', 'desarrollo_url'];
         style.textContent += internal.map(name => `#table_1 .column-${name}`).join(',') + '{display:none!important}';
         style.textContent += '#table_1 .responsiveExpander{display:none!important}#table_1 .fab-calendar-toggle{display:none;border:1px solid #17468a;border-radius:6px;background:#fff;color:#17468a;font-size:20px;line-height:28px;width:32px;min-height:32px;padding:0;margin:0 8px 4px 0;cursor:pointer}#table_1 .fab-calendar-detail{display:table-row!important}#table_1 .fab-calendar-detail>td{width:auto!important}#table_1 .fab-calendar-detail ul{list-style:none;margin:0;padding:8px}#table_1 .fab-calendar-detail li{display:grid;grid-template-columns:minmax(90px,30%) minmax(0,1fr);gap:8px;padding:7px 0;border-bottom:1px solid #dce3ee}#table_1 .fab-calendar-detail .columnTitle{font-weight:700;color:#17427c}#table_1 .fab-calendar-detail .columnValue{overflow-wrap:anywhere}@media(max-width:1024px){#table_1 .fab-calendar-toggle{display:inline-block!important}#table_1 .fab-calendar-detail span{font-size:13px!important;line-height:1.4!important}}';
+        style.textContent += '@media(max-width:1024px){#table_1>thead>tr:first-child>th.column-id,#table_1>tbody>tr:not(.row-detail)>td.column-id{display:table-cell!important;width:42px!important;min-width:42px!important;max-width:42px!important;font-size:0!important;padding:5px!important;text-align:center!important}#table_1 td.column-id .fab-calendar-toggle{margin:0!important}}';
         document.head.appendChild(style);
         if (setup()) return;
         const observer = new MutationObserver(() => { if (setup()) observer.disconnect(); });
