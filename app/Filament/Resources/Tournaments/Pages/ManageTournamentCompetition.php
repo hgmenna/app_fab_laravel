@@ -1276,20 +1276,41 @@ class ManageTournamentCompetition extends Page
 
                 return [
                     Select::make('schedule_index')->label('Horario a asignar')
-                        ->options($options)->default(array_key_first($options))->required()->native(false),
+                        ->options($options)->default(array_key_first($options))->required()->native(false)->live()
+                        ->afterStateUpdated(function ($state, Set $set) use ($phase): void {
+                            $schedule = data_get($phase?->settings, 'schedules.'.(int) $state, []);
+                            $set('starts_at', $schedule['starts_at'] ?? null);
+                            $set('tables', $schedule['tables'] ?? data_get($phase?->settings, 'tables'));
+                            $set('estimated_minutes', $schedule['estimated_minutes'] ?? data_get($phase?->settings, 'estimated_minutes'));
+                        }),
+                    DateTimePicker::make('starts_at')->label('Fecha y hora de inicio')->seconds(false)->required()
+                        ->default(data_get($phase?->settings, 'schedules.'.array_key_first($options).'.starts_at')),
+                    TextInput::make('tables')->label('Mesas disponibles para programar')->numeric()->integer()->minValue(1)->required()
+                        ->default(data_get($phase?->settings, 'schedules.'.array_key_first($options).'.tables') ?? data_get($phase?->settings, 'tables')),
+                    TextInput::make('estimated_minutes')->label('Duración estimada por partido (minutos)')->numeric()->integer()->minValue(1)->required()
+                        ->default(data_get($phase?->settings, 'schedules.'.array_key_first($options).'.estimated_minutes') ?? data_get($phase?->settings, 'estimated_minutes')),
                 ];
             })
             ->requiresConfirmation()
             ->modalDescription('Asigna la hora configurada a los partidos de este bloque. La mesa se elige después, al llamar cada partido.')
-            ->action(function (array $data, array $arguments): void {
+            ->action(function (Action $action, array $data, array $arguments): void {
                 $phase = $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
                     ->where('phase_type', '!=', 'zones')->where('is_enabled', true)->firstOrFail();
                 $service = app(FiveQuillasCompetitionService::class);
-                $count = $service->scheduleConfiguredMatches(
-                    $phase, (int) $data['schedule_index'],
-                );
+                try {
+                    $count = $service->scheduleConfiguredMatches($phase, (int) $data['schedule_index'], [
+                        'starts_at' => $data['starts_at'], 'tables' => (int) $data['tables'],
+                        'estimated_minutes' => (int) $data['estimated_minutes'],
+                    ]);
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('No se pudieron asignar los horarios')
+                        ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
+                    $action->halt();
+
+                    return;
+                }
                 Notification::make()->success()->title('Horarios asignados')
-                    ->body($count.' partidos recibieron su horario.')->send();
+                    ->body($count > 0 ? $count.' partidos recibieron su horario.' : 'El bloque no tiene partidos pendientes de programación.')->send();
             });
     }
 

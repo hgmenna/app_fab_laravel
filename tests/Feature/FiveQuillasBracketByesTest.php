@@ -618,3 +618,26 @@ it('closes completed zones for an unassigned absentee without penalizing or hidi
         ->invoke(app(\App\Services\TournamentScoringService::class), $registration, ['points' => 10]);
     expect($penalty)->toBe(0.0);
 });
+
+it('assigns an incomplete schedule from modal values without changing other blocks or bracket positions', function () {
+    $this->phase->update(['settings' => ['schedules' => [
+        ['name' => 'Mañana', 'starts_at' => '2026-11-03 10:00:00', 'tables' => 2, 'from_match' => 1, 'to_match' => 1],
+        ['name' => 'Tarde', 'starts_at' => null, 'tables' => null, 'from_match' => 2, 'to_match' => 2],
+    ]]]);
+    $settings = $this->phase->settings;
+    $positions = $this->phase->matches()->orderBy('id')->get(['id', 'player_one_entry_id', 'player_two_entry_id', 'next_match_id', 'next_match_position'])->toArray();
+    $service = app(FiveQuillasCompetitionService::class);
+    expect(fn () => $service->scheduleConfiguredMatches($this->phase, 1, ['starts_at' => '2026-11-03 15:00:00', 'tables' => 0, 'estimated_minutes' => 45]))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+    expect($this->phase->fresh()->settings)->toBe($settings);
+    expect($service->scheduleConfiguredMatches($this->phase, 1, [
+        'starts_at' => '2026-11-03 15:00:00', 'tables' => 1, 'estimated_minutes' => 45,
+    ]))->toBe(1);
+    expect($this->played->fresh()->scheduled_at->format('H:i'))->toBe('15:00')
+        ->and($this->bye->fresh()->scheduled_at)->toBeNull()
+        ->and($this->phase->fresh()->settings['schedules'][0])->toBe($settings['schedules'][0])
+        ->and($this->phase->fresh()->settings['schedules'][1]['estimated_minutes'])->toBe(45)
+        ->and($this->phase->matches()->orderBy('id')->get(['id', 'player_one_entry_id', 'player_two_entry_id', 'next_match_id', 'next_match_position'])->toArray())->toBe($positions);
+    $this->played->update(['status' => 'completed']);
+    expect($service->scheduleConfiguredMatches($this->phase->fresh(), 1))->toBe(0);
+});

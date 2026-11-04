@@ -476,18 +476,19 @@ class FiveQuillasCompetitionService
     /**
      * Asigna fecha, hora y mesa a los partidos comprendidos por un bloque de programación.
      */
-    public function scheduleConfiguredMatches(FiveQuillasPhase $phase, int $scheduleIndex): int
+    public function scheduleConfiguredMatches(FiveQuillasPhase $phase, int $scheduleIndex, array $overrides = []): int
     {
-        return DB::transaction(function () use ($phase, $scheduleIndex): int {
+        return DB::transaction(function () use ($phase, $scheduleIndex, $overrides): int {
             $schedule = data_get($phase->settings, "schedules.{$scheduleIndex}");
             if (! is_array($schedule)) {
                 throw ValidationException::withMessages(['schedule' => 'El horario seleccionado no existe.']);
             }
+            $schedule = array_replace($schedule, array_intersect_key($overrides, array_flip(['starts_at', 'tables', 'estimated_minutes'])));
             if (! filled($schedule['starts_at'] ?? null)) {
                 throw ValidationException::withMessages(['schedule' => 'Indicá la fecha y hora de inicio del horario.']);
             }
             $tables = (int) ($schedule['tables'] ?? data_get($phase->settings, 'tables', 0));
-            $minutes = (int) data_get($phase->settings, 'estimated_minutes', 0);
+            $minutes = (int) ($schedule['estimated_minutes'] ?? data_get($phase->settings, 'estimated_minutes', 0));
             if ($tables < 1 || $minutes < 1) {
                 throw ValidationException::withMessages([
                     'schedule' => 'Configurá al menos una mesa y la duración estimada de cada partido.',
@@ -509,6 +510,9 @@ class FiveQuillasCompetitionService
             $from = filled($schedule['from_match'] ?? null) ? (int) $schedule['from_match'] : 1;
             $to = filled($schedule['to_match'] ?? null) ? (int) $schedule['to_match'] : $matches->count();
             $matches = $matches->slice($from - 1, max(0, $to - $from + 1))->values();
+            if ($matches->isEmpty()) {
+                throw ValidationException::withMessages(['schedule' => "No hay partidos creados en el rango configurado para la ronda {$round}."]);
+            }
             // La programación pertenece a la posición de la grilla y debe poder
             // publicarse aunque uno o ambos rivales todavía estén por definirse.
             // Solamente se excluyen los pases libres ya confirmados.
@@ -529,12 +533,15 @@ class FiveQuillasCompetitionService
                     || (int) ($pair[1] ?? PHP_INT_MAX) > $expectedParticipants;
             })->values();
             if ($matches->isEmpty()) {
-                throw ValidationException::withMessages([
-                    'schedule' => "La fase todavía no tiene partidos creados para la ronda {$round}.",
-                ]);
+                return 0;
             }
 
             $start = \Illuminate\Support\Carbon::parse($schedule['starts_at']);
+            if ($overrides !== []) {
+                $settings = $phase->settings ?? [];
+                $settings['schedules'][$scheduleIndex] = $schedule;
+                $phase->update(['settings' => $settings]);
+            }
             foreach ($matches as $index => $match) {
                 $batch = intdiv($index, $tables);
                 $match->update([
