@@ -94,7 +94,7 @@ it('uses the configured ZONAS point for every zone elimination, including places
         ->and($points->contains(null))->toBeFalse();
 });
 
-it('uses the actual elimination round even when byes compact its final places', function () {
+it('uses the real final placement in the terminal bracket even when it contains byes', function () {
     [$tournament, $competition, $entries, $bracket] = phaseScoringFixture();
     $bracket->settings = ['bracket_size' => 64];
     // The same 24 players played one round earlier in a 64-place draw.
@@ -102,13 +102,17 @@ it('uses the actual elimination round even when byes compact its final places', 
     // Move only first-round losses back to the 64-place opening round.
     $bracket->matches->where('round_number', 2)->each(fn ($match) => $match->round_number = 1);
     $service = app(FiveQuillasCompetitionService::class);
-    expect($service->proposedPointsForEntry($tournament, $competition, $entries[16]))->toBe(2.0)
+    expect($service->proposedPointsForEntry($tournament, $competition, $entries[16]))->toBe(3.0)
         ->and($service->proposedPointsForEntry($tournament, $competition, $entries[24]))->toBe(1.0);
 });
 
 it('preserves explicit national phase rules over numeric ranges', function () {
     [$tournament, $competition, $entries, $bracket] = phaseScoringFixture();
     $bracket->name = 'Primera Nacional';
+    $masters = new FiveQuillasPhase(['phase_type' => 'bracket', 'sort_order' => 3, 'is_enabled' => true]);
+    $masters->setRelation('matches', new Collection);
+    $masters->setRelation('groups', new Collection);
+    $competition->phases->push($masters);
     $tournament->type->scoring_rules = array_merge($tournament->type->scoring_rules, [
         ['code' => 'NAC1', 'description' => 'F1 NAC', 'points' => 10],
         ['code' => 'NAC2', 'description' => 'F2 NAC', 'points' => 12],
@@ -130,4 +134,44 @@ it('labels the completed tournament champion and runner-up without changing thei
 
     $competition->status = 'in_progress';
     expect($service->finalInstanceForEntry($competition, $entries[0]))->toBe('Final');
+});
+
+it('uses every individually configured final position and its exact scoring description', function () {
+    [$tournament, $competition, $entries] = phaseScoringFixture(32);
+    $tournament->type->scoring_rules = collect(range(1,32))->map(fn ($place) => [
+        'code' => 'POSITION_'.$place, 'description' => 'Puesto '.$place, 'points' => 1000-$place,
+    ])->all();
+    $competition->setRelation('tournament', $tournament);
+    $service = app(FiveQuillasCompetitionService::class);
+    foreach ($entries->take(32) as $i => $entry) {
+        expect($service->proposedPointsForEntry($tournament, $competition, $entry))->toBe((float) (999-$i))
+            ->and($service->finalInstanceForEntry($competition, $entry))->toBe('Puesto '.($i+1));
+    }
+});
+
+it('scores slot crossing losers by their original first or second zone place', function () {
+    [$tournament, $competition, $entries, $bracket] = phaseScoringFixture();
+    $bracket->sort_order = 3;
+    $crossings = new FiveQuillasPhase(['phase_type' => 'slot_elimination', 'sort_order' => 2, 'is_enabled' => true]);
+    $matches = new Collection;
+    foreach ([24 => 1, 25 => 2] as $index => $zonePlace) {
+        $competition->phases->first()->groups->first()->groupEntries->firstWhere('entry_id', $entries[$index]->id)->final_place = $zonePlace;
+        $match = new FiveQuillasMatch(['round_number' => 1, 'status' => 'completed', 'player_one_entry_id' => $entries[$index]->id,
+            'player_two_entry_id' => $entries[0]->id, 'winner_entry_id' => $entries[0]->id, 'label' => 'Cruce por horario']);
+        $match->setRelation('phase', $crossings);
+        $matches->push($match);
+    }
+    $crossings->setRelation('matches', $matches);
+    $crossings->setRelation('groups', new Collection);
+    $competition->phases->push($crossings);
+    $tournament->type->scoring_rules = array_merge($tournament->type->scoring_rules, [
+        ['code' => 'ZONE_FIRST', 'description' => '1° ZONA', 'points' => 6],
+        ['code' => 'ZONE_SECOND', 'description' => '2° ZONA', 'points' => 5],
+    ]);
+    $competition->setRelation('tournament', $tournament);
+    $service = app(FiveQuillasCompetitionService::class);
+    expect($service->proposedPointsForEntry($tournament, $competition, $entries[24]))->toBe(6.0)
+        ->and($service->proposedPointsForEntry($tournament, $competition, $entries[25]))->toBe(5.0)
+        ->and($service->finalInstanceForEntry($competition, $entries[24]))->toBe('1° ZONA')
+        ->and($service->finalInstanceForEntry($competition, $entries[25]))->toBe('2° ZONA');
 });

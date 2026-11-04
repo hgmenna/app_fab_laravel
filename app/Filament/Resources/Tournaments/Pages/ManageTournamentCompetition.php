@@ -1404,12 +1404,12 @@ class ManageTournamentCompetition extends Page
                 && $this->competition()?->entries()->whereNotNull('final_position')->exists())
             ->requiresConfirmation()
             ->modalHeading('Guardar la puntuación definitiva')
-            ->modalDescription('Se aplicará la tabla configurada para el tipo de torneo según las posiciones verificadas. Las inscripciones que ya tengan puntuación serán omitidas para evitar duplicados.')
+            ->modalDescription('Se aplicará la tabla del tipo de torneo según las posiciones e instancias verificadas. Las puntuaciones anteriores que no coincidan con la tabla serán actualizadas; las correctas se conservarán.')
             ->action(function (): void {
                 $summary = app(FiveQuillasCompetitionService::class)
                     ->commitFinalScoring($this->competition());
                 Notification::make()->success()->title('Puntuación procesada')->body(sprintf(
-                    '%d guardadas · %d ya existentes · %d sin regla · %d sin inscripción.',
+                    '%d guardadas o actualizadas · %d ya correctas · %d sin regla · %d sin inscripción.',
                     $summary['assigned'],
                     $summary['existing'],
                     $summary['without_rule'],

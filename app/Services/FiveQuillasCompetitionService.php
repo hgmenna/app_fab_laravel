@@ -1686,16 +1686,19 @@ class FiveQuillasCompetitionService
                     $result['without_registration']++;
                     continue;
                 }
-                if ($registration->points !== null
-                    || filled($registration->result_code)
-                    || filled($registration->tournament_instance_id)) {
-                    $result['existing']++;
-                    continue;
-                }
-
                 $rule = $this->ruleForEntryPlacement($rules, $competition, $entry);
                 if (! $rule) {
                     $result['without_rule']++;
+                    continue;
+                }
+                $expectedPoints = $registration->status === 'ausente' ? 0.0 : (float) $rule['points'];
+                $expectedDescription = ($registration->status === 'ausente' ? 'Ausente · ' : '').(string) $rule['description'];
+                if ($registration->points !== null && (float) $registration->points === $expectedPoints
+                    && (string) $registration->result_code === (string) ($rule['code'] ?? '')
+                    && (string) $registration->result_description === $expectedDescription
+                    && ($registration->status !== 'ausente'
+                        || (float) $registration->penalty_points === $scoring->absencePenaltyForRule($registration, $rule))) {
+                    $result['existing']++;
                     continue;
                 }
 
@@ -2726,6 +2729,19 @@ class FiveQuillasCompetitionService
      */
     public function finalInstanceForEntry(FiveQuillasCompetition $competition, FiveQuillasEntry $entry): string
     {
+        $tournament = $competition->tournament;
+        if ($tournament) {
+            $rule = $this->ruleForEntryPlacement(app(TournamentScoringService::class)->getRules($tournament), $competition, $entry);
+            if (filled($rule['description'] ?? null)) {
+                return (string) $rule['description'];
+            }
+        }
+
+        return $this->competitionStageForEntry($competition, $entry);
+    }
+
+    private function competitionStageForEntry(FiveQuillasCompetition $competition, FiveQuillasEntry $entry): string
+    {
         if ($competition->status === 'completed' && in_array((int) $entry->final_position, [1, 2], true)) {
             return (int) $entry->final_position === 1 ? 'Campeón' : 'Subcampeón';
         }
@@ -2738,6 +2754,13 @@ class FiveQuillasCompetitionService
             ->first();
 
         if ($lastMatch) {
+            if ($lastMatch->phase?->phase_type === 'slot_elimination') {
+                $zoneRow = $competition->phases->where('phase_type', 'zones')->flatMap->groups->flatMap->groupEntries
+                    ->firstWhere('entry_id', $entry->id);
+                if ($zoneRow) {
+                    return 'Zonas · '.$zoneRow->final_place.'.º puesto';
+                }
+            }
             $phaseName = Str::lower(($lastMatch->phase?->code ?? '').' '.($lastMatch->phase?->name ?? ''));
             if (Str::contains($phaseName, ['nacional', 'national'])) {
                 return 'F'.(int) $lastMatch->round_number.' NAC';
@@ -3365,13 +3388,27 @@ class FiveQuillasCompetitionService
      */
     private function ruleForPlacement(array $rules, int $place): ?array
     {
+        // Una posición individual configurada tiene prioridad sobre rangos.
+        foreach ($rules as $rule) {
+            $description = Str::lower(Str::ascii((string) ($rule['description'] ?? '')));
+            if (preg_match('/\b(?:zonas?|nac|nacional)\b|\bf[12]\s*nac\b/', $description.' '.Str::lower((string) ($rule['code'] ?? '')))) {
+                continue;
+            }
+            preg_match_all('/\d+/', $description, $numbers);
+            if (count($numbers[0]) === 1 && (int) $numbers[0][0] === $place) {
+                return $rule;
+            }
+        }
         foreach ($rules as $rule) {
             $description = Str::lower((string) ($rule['description'] ?? ''));
+            if (preg_match('/\b(?:zonas?|nac|nacional)\b|\bf[12]\s*nac\b/i', Str::ascii($description.' '.($rule['code'] ?? '')))) {
+                continue;
+            }
             preg_match_all('/\d+/', $description, $matches);
             $numbers = collect($matches[0] ?? [])->map(fn ($value): int => (int) $value)->values();
             if ($numbers->count() >= 2 && $place >= $numbers[0] && $place <= $numbers[1]) { return $rule; }
             if ($numbers->count() === 1 && $place === $numbers[0]) { return $rule; }
-            if ($place === 1 && Str::contains($description, ['campeón', 'campeon', 'ganador'])) { return $rule; }
+            if ($place === 1 && Str::contains($description, ['campeón', 'campeon', 'ganador']) && ! Str::contains($description, ['subcampe', 'finalista'])) { return $rule; }
             if ($place === 2 && Str::contains($description, ['finalista', 'subcampeón', 'subcampeon'])) { return $rule; }
             if (in_array($place, [3, 4], true) && Str::contains($description, 'semifinal')) { return $rule; }
             if ($place >= 5 && $place <= 8 && Str::contains($description, 'cuartos')) { return $rule; }
@@ -3384,7 +3421,18 @@ class FiveQuillasCompetitionService
      */
     private function ruleForEntryPlacement(array $rules, FiveQuillasCompetition $competition, FiveQuillasEntry $entry): ?array
     {
-        $instance = Str::lower(Str::ascii($this->finalInstanceForEntry($competition, $entry)));
+        // En el cuadro terminal se puntúa el puesto real, no el nombre de la ronda.
+        $finalPhase = $competition->phases->where('is_enabled', true)->sortBy('sort_order')->last();
+        if ($entry->final_position > 0 && $finalPhase?->phase_type === 'bracket'
+            && $finalPhase->matches->contains(fn ($match): bool => in_array((int) $entry->id, [
+                (int) $match->player_one_entry_id, (int) $match->player_two_entry_id,
+            ], true))) {
+            $positionRule = $this->ruleForPlacement($rules, (int) $entry->final_position);
+            if ($positionRule) {
+                return $positionRule;
+            }
+        }
+        $instance = Str::lower(Str::ascii($this->competitionStageForEntry($competition, $entry)));
         $instance = preg_replace('/[^a-z0-9]+/', ' ', $instance) ?: '';
 
         // Una regla de zonas se aplica por la fase alcanzada, aunque el puesto

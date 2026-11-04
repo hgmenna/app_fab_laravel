@@ -416,7 +416,7 @@ class TournamentScoringService
     /**
      * Guarda una copia histórica del resultado y sus puntos.
      */
-    private function absencePenaltyForRule(TournamentRegistration $registration, array $rule): float
+    public function absencePenaltyForRule(TournamentRegistration $registration, array $rule): float
     {
         $entry = \App\Models\FiveQuillasEntry::query()->where('tournament_registration_id', $registration->id)
             ->with('entryPhase')->first();

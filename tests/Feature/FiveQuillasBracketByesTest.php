@@ -674,3 +674,39 @@ it('corrects a declared winner after the National phase is completed', function 
         ->and($future->fresh()->scheduled_at->format('H:i'))->toBe('15:00')
         ->and($future->fresh()->status)->toBe('scheduled');
 });
+
+it('reconciles already assigned points with configured final positions and remains idempotent', function () {
+    Schema::create('tournament_types', function (Blueprint $t) { $t->id(); $t->boolean('assigns_points'); $t->boolean('affects_ranking'); $t->string('scoring_method'); $t->json('scoring_rules'); });
+    Schema::create('tournaments', function (Blueprint $t) { $t->id(); $t->unsignedBigInteger('tournament_type_id'); $t->unsignedBigInteger('discipline_id')->nullable(); });
+    Schema::table('tournament_registrations', function (Blueprint $t) {
+        $t->unsignedBigInteger('tournament_id')->nullable(); $t->integer('penalty_points')->default(0); $t->timestamps();
+        $t->string('result_code')->nullable(); $t->string('result_description')->nullable(); $t->integer('result_instance_value')->nullable(); $t->unsignedBigInteger('tournament_instance_id')->nullable();
+    });
+    try {
+        $db = \Illuminate\Support\Facades\DB::class;
+        $db::table('tournament_types')->insert(['id' => 1, 'assigns_points' => true, 'affects_ranking' => false, 'scoring_method' => 'position',
+            'scoring_rules' => json_encode(collect(range(1,3))->map(fn ($i) => ['code' => 'P'.$i, 'description' => 'Puesto '.$i, 'instance_value' => $i, 'points' => 100-$i])->all())]);
+        $db::table('tournaments')->insert(['id' => 1, 'tournament_type_id' => 1]);
+        $this->competition->update(['tournament_id' => 1, 'status' => 'completed']);
+        $this->phase->update(['status' => 'completed']);
+        $this->phase->matches()->update(['status' => 'completed']);
+        foreach ($this->entries as $i => $entry) {
+            $id = $i+1;
+            $db::table('tournament_registrations')->insert(['id' => $id, 'tournament_id' => 1, 'status' => 'aprobado', 'points' => 999, 'result_code' => 'OLD', 'result_description' => 'Ronda anterior']);
+            $entry->update(['tournament_registration_id' => $id, 'final_position' => $id]);
+        }
+        $service = app(FiveQuillasCompetitionService::class);
+        expect($service->commitFinalScoring($this->competition)['assigned'])->toBe(3);
+        foreach (range(1,3) as $id) {
+            $registration = \App\Models\TournamentRegistration::findOrFail($id);
+            expect((float) $registration->points)->toBe((float) (100-$id))
+                ->and($registration->result_code)->toBe('P'.$id)
+                ->and($registration->result_description)->toBe('Puesto '.$id);
+        }
+        $again = $service->commitFinalScoring($this->competition->fresh());
+        expect($again['assigned'])->toBe(0)->and($again['existing'])->toBe(3);
+    } finally {
+        Schema::dropIfExists('tournaments');
+        Schema::dropIfExists('tournament_types');
+    }
+});
