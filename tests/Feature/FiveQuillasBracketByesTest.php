@@ -641,3 +641,36 @@ it('assigns an incomplete schedule from modal values without changing other bloc
     $this->played->update(['status' => 'completed']);
     expect($service->scheduleConfiguredMatches($this->phase->fresh(), 1))->toBe(0);
 });
+
+it('corrects a declared winner after the National phase is completed', function () {
+    FiveQuillasMatch::query()->delete();
+    $this->phase->update(['code' => 'national', 'name' => 'Primera Nacional', 'status' => 'completed', 'settings' => ['bracket_size' => 4, 'qualifiers' => 2]]);
+    $next = FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'code' => 'master-final', 'sort_order' => 2, 'status' => 'pending']);
+    $match = FiveQuillasMatch::create(['phase_id' => $this->phase->id, 'round_number' => 1,
+        'player_one_entry_id' => $this->entries[0]->id, 'player_two_entry_id' => $this->entries[1]->id,
+        'winner_entry_id' => $this->entries[0]->id, 'status' => 'completed', 'set_scores' => ['manual_winner' => true],
+    ]);
+    FiveQuillasMatch::create(['phase_id' => $this->phase->id, 'round_number' => 1, 'bracket_order' => 2,
+        'player_one_entry_id' => $this->entries[2]->id, 'winner_entry_id' => $this->entries[2]->id,
+        'status' => 'completed', 'is_bye' => true,
+    ]);
+    $service = app(FiveQuillasCompetitionService::class);
+    $updated = $service->declareMatchWinner($match, $this->entries[1]->id);
+    $qualified = (new ReflectionMethod($service, 'qualifiedEntriesFromPhase'))->invoke($service, $this->phase->fresh());
+    expect($updated->winner_entry_id)->toBe($this->entries[1]->id)
+        ->and($this->phase->fresh()->status)->toBe('completed')
+        ->and($qualified->pluck('id')->sort()->values()->all())->toBe([$this->entries[1]->id, $this->entries[2]->id]);
+    $direct = FiveQuillasEntry::create(['competition_id' => $this->competition->id, 'entry_phase_id' => $next->id]);
+    $future = FiveQuillasMatch::create(['phase_id' => $next->id, 'player_one_entry_id' => $this->entries[1]->id,
+        'player_two_entry_id' => $direct->id, 'status' => 'called', 'scheduled_at' => '2026-11-04 15:00:00']);
+    expect(fn () => $service->resetMatchResult($updated))->toThrow(\Illuminate\Validation\ValidationException::class);
+    expect($match->fresh()->winner_entry_id)->toBe($this->entries[1]->id);
+    $future->update(['status' => 'pending']);
+    $service->resetMatchResult($updated->fresh());
+    expect($match->fresh()->winner_entry_id)->toBeNull()
+        ->and($this->phase->fresh()->status)->toBe('in_progress')
+        ->and($future->fresh()->player_one_entry_id)->toBeNull()
+        ->and($future->fresh()->player_two_entry_id)->toBe($direct->id)
+        ->and($future->fresh()->scheduled_at->format('H:i'))->toBe('15:00')
+        ->and($future->fresh()->status)->toBe('scheduled');
+});

@@ -82,7 +82,7 @@
                                         @endif
                                     </div>
                                 @elseif($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
-                                    <div class="fq-match-actions {{ (int)$match->round_number > 1 && in_array($match->status, ['pending', 'scheduled'], true) ? 'fq-schedule-action' : '' }}">
+                                    <div class="fq-match-actions {{ $match->status === 'completed' ? 'fq-result-actions' : '' }} {{ (int)$match->round_number > 1 && in_array($match->status, ['pending', 'scheduled'], true) ? 'fq-schedule-action' : '' }}">
                                         @if((int)$match->round_number > 1 && in_array($match->status, ['pending', 'scheduled'], true)){{ ($this->scheduleWaitingMatchAction)(['matchId' => $match->id]) }}@endif
                                         @if($match->status !== 'completed'){{ ($this->callMatchAction)(['matchId' => $match->id]) }}@endif
                                         @if($match->status === 'called'){{ ($this->cancelMatchCallAction)(['matchId' => $match->id]) }}@endif

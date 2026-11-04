@@ -2754,8 +2754,35 @@ class FiveQuillasCompetitionService
     }
 
     /**
-     * Elimina resultado, ganador, estadísticas y avances originados por el partido.
+     * Retira clasificados de estructuras posteriores que todavía no tienen actividad.
      */
+    private function invalidateFollowingUnplayedPhases(FiveQuillasPhase $phase): void
+    {
+        $following = $phase->competition->phases()->where('sort_order', '>', $phase->sort_order)->with('matches')->get();
+        if ($following->flatMap->matches->contains(fn ($match): bool => ! $match->is_bye
+            && (in_array($match->status, ['called', 'in_progress', 'completed', 'suspended'], true) || ! empty($match->set_scores)))) {
+            throw ValidationException::withMessages(['match' => 'Primero tenés que reiniciar los partidos de la fase siguiente que ya fueron llamados o disputados.']);
+        }
+        foreach ($following as $next) {
+            $directIds = $next->competition->entries()->where('entry_phase_id', $next->id)->pluck('id');
+            foreach ($next->matches as $match) {
+                $match->update([
+                    'player_one_entry_id' => (int) $match->round_number === 1 && $directIds->contains($match->player_one_entry_id) ? $match->player_one_entry_id : null,
+                    'player_two_entry_id' => (int) $match->round_number === 1 && $directIds->contains($match->player_two_entry_id) ? $match->player_two_entry_id : null,
+                    'winner_entry_id' => null, 'is_bye' => false, 'set_scores' => null,
+                    'player_one_actual_sets' => 0, 'player_two_actual_sets' => 0,
+                    'player_one_computed_sets' => 0, 'player_two_computed_sets' => 0,
+                    'player_one_points' => 0, 'player_two_points' => 0, 'table_number' => null,
+                    'status' => $match->scheduled_at ? 'scheduled' : 'pending',
+                ]);
+            }
+            $settings = $next->settings ?? [];
+            unset($settings['qualified_entry_ids'], $settings['play_in_bye_entry_ids']);
+            $next->update(['status' => $next->matches->isEmpty() ? 'pending' : 'ready', 'settings' => $settings]);
+        }
+    }
+
+    /** Elimina el resultado y reabre la fase sin afectar partidas posteriores disputadas. */
     public function resetMatchResult(FiveQuillasMatch $match): FiveQuillasMatch
     {
         return DB::transaction(function () use ($match): FiveQuillasMatch {
@@ -2782,13 +2809,8 @@ class FiveQuillasCompetitionService
                 $this->resetAutomaticByeChain((int) $dependentId);
             }
 
-            $nextPrepared = $match->phase->competition->phases()
-                ->where('sort_order', '>', $match->phase->sort_order)
-                ->whereHas('matches')->exists();
-            if ($match->phase->status === 'completed' && $nextPrepared) {
-                throw ValidationException::withMessages([
-                    'match' => 'La fase siguiente ya fue preparada. Reiniciá primero sus partidos para poder corregir esta fase.',
-                ]);
+            if ($match->phase->status === 'completed') {
+                $this->invalidateFollowingUnplayedPhases($match->phase);
             }
 
             $winnerId = (int) $match->winner_entry_id;

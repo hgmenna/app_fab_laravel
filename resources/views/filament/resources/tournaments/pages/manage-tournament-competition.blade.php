@@ -17,6 +17,7 @@
         .fq-match-meta .fq-match-time,.fq-match-meta .fq-table-active{display:inline-flex;width:auto;margin:0;padding:0;border-radius:0;background:transparent;color:inherit;font-size:inherit;line-height:1;text-transform:none;letter-spacing:0}
         .fq-match-meta>*+*{padding-left:.38rem!important;border-left:1px solid rgba(127,127,127,.45)}
         .fq-match-actions.fq-schedule-action{opacity:1;visibility:visible;transform:none}
+        .fq-match-actions.fq-result-actions{position:static;opacity:1;visibility:visible;transform:none;justify-content:flex-end;margin-top:.3rem;box-shadow:none;background:transparent;border:0}
         .fq-club-short{display:none}@media screen and (max-width:767px){.fq-club-full{display:none}.fq-club-short{display:inline}}
     </style>
 
