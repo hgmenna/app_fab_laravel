@@ -39,6 +39,7 @@
         let header, hasRows = false;
         const finishGroup = () => { if (header) header.hidden = !hasRows; };
         table.querySelectorAll('tbody tr').forEach(tr => {
+            if (tr.matches('.row-detail, .child')) return;
             // wpDataTables month headings span the entire table.
             if (tr.cells.length === 1 && !tr.querySelector('.dataTables_empty')) {
                 finishGroup(); header = tr; hasRows = false; return;
@@ -152,6 +153,7 @@
         style.textContent = `.fab-cal-filtros{display:grid;grid-template-columns:minmax(210px,1.2fr) repeat(2,minmax(145px,.7fr)) auto;gap:10px;align-items:end;margin:0 0 12px;padding:15px;border:1px solid #d7e0ed;border-radius:12px;background:#f7f9fc}.fab-cal-campo{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:800;color:#17365d}.fab-cal-campo input{height:40px;border:1px solid #b8c5d6;border-radius:8px;padding:0 11px;background:#fff;color:#172033}.fab-cal-estados{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}.fab-cal-btn,.fab-cal-limpiar{border:1px solid #17468a;border-radius:8px;padding:9px 15px;background:#fff;color:#17468a;font-weight:800;cursor:pointer}.fab-cal-btn.activo,.fab-cal-btn:hover{background:#17468a;color:#fff}.fab-cal-limpiar{height:40px;background:#e9eef6}.fab-resultados-publicos{display:table;margin-top:8px;padding:7px 12px;border-radius:7px;background:#075aa8;color:#fff!important;font-size:12px;font-weight:700;text-decoration:none!important}#table_1 thead tr:nth-child(2){display:none!important}#table_1{width:100%!important}#table_1 td{vertical-align:middle;padding:8px 7px;line-height:1.25}#table_1 [hidden]{display:none!important}#table_1 .column-torneo,#table_1 .column-club{min-width:150px}#table_1 .column-flyer img,#table_1 .column-logo_publicacion img{max-width:46px;max-height:46px;object-fit:contain}@media(max-width:767px){.fab-cal-filtros{grid-template-columns:1fr 1fr}.fab-cal-campo:has(input[type=search]),.fab-cal-limpiar{grid-column:1/-1}.fab-cal-btn{flex:1;padding:9px 7px;font-size:12px}}`;
         const internal = ['id', 'fecha_inicio', 'fecha_fin', 'estado_torneo', 'disciplina_id', 'tipo_id', 'contactos', 'desarrollo_disponible', 'desarrollo_slug', 'desarrollo_estado', 'desarrollo_texto', 'desarrollo_mensaje', 'desarrollo_json_url', 'desarrollo_url'];
         style.textContent += internal.map(name => `#table_1 .column-${name}`).join(',') + '{display:none!important}';
+        style.textContent += '#table_1.has-columns-hidden>thead>tr>th.column-id.expand,#table_1.has-columns-hidden>tbody>tr:not(.row-detail)>td.column-id.expand{display:table-cell!important;font-size:0!important;width:36px!important;min-width:36px!important;max-width:36px!important;padding:6px!important}#table_1.has-columns-hidden .column-id.expand .responsiveExpander{display:inline-block!important;width:24px!important;height:28px!important;font-size:18px!important;cursor:pointer}';
         document.head.appendChild(style);
         if (setup()) return;
         const observer = new MutationObserver(() => { if (setup()) observer.disconnect(); });
