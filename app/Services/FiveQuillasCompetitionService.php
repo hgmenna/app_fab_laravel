@@ -2930,13 +2930,8 @@ class FiveQuillasCompetitionService
         if ($expectedEntryIds->isEmpty()) {
             return false;
         }
-        // Un cruce vacío sin zona no es un partido pendiente del horario.
-        // Si tiene jugadores, se mantiene protegido hasta resolverlo.
-        if ($phase->matches()->whereNull('group_id')->where('status', '!=', 'completed')
-            ->where(fn ($query) => $query->whereNotNull('player_one_entry_id')->orWhereNotNull('player_two_entry_id'))->exists()) {
-            return false;
-        }
-
+        // El cierre depende de las zonas reales, no de cruces residuales sin
+        // group_id. Los jugadores faltantes se verifican contra sus integrantes.
         $groups = $phase->groups()->with('groupEntries:id,group_id,entry_id')->get();
         if ($groups->isEmpty() || $groups->contains(fn ($group): bool => $group->status !== 'completed')) {
             return false;

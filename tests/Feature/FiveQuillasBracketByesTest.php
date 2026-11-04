@@ -110,7 +110,8 @@ it('keeps finished zones open for missing entrants and closes them after withdra
         ]);
     }
     $this->phase->matches()->update(['status' => 'completed']);
-    $emptyOrphan = FiveQuillasMatch::create(['phase_id' => $this->phase->id, 'status' => 'pending']);
+    $emptyOrphan = FiveQuillasMatch::create(['phase_id' => $this->phase->id, 'status' => 'pending',
+        'player_one_entry_id' => $this->entries[0]->id, 'player_two_entry_id' => $this->entries[1]->id]);
     $before = $this->phase->matches()->get()->map->getAttributes()->all();
     $service = app(FiveQuillasCompetitionService::class);
     $service->reopenIncompleteConcurrentPhases($this->competition);
