@@ -2917,6 +2917,25 @@ class FiveQuillasCompetitionService
             });
     }
 
+    public function unassignedCompetitionEntries(FiveQuillasCompetition $competition)
+    {
+        $competition->loadMissing(['entries.registration', 'phases.groups.groupEntries', 'phases.matches']);
+        $zonePhases = $competition->phases->where('phase_type', 'zones');
+        $zoneIds = $zonePhases->pluck('id');
+        $zoneEntries = $zonePhases->flatMap->groups->flatMap->groupEntries->pluck('entry_id');
+        $matchEntries = $competition->phases->flatMap->matches->flatMap(fn ($match): array => [
+            $match->player_one_entry_id, $match->player_two_entry_id,
+        ])->filter();
+
+        return $competition->entries->where('status', '!=', 'withdrawn')->reject(function ($entry) use ($zoneIds, $zoneEntries, $matchEntries): bool {
+            if ($zoneIds->contains($entry->entry_phase_id)) {
+                return $entry->registration?->status === 'ausente' || $zoneEntries->contains($entry->id);
+            }
+
+            return $matchEntries->contains($entry->id);
+        });
+    }
+
     /**
      * Comprueba que todos los participantes esperados estén asignados a zonas.
      */
@@ -2926,6 +2945,8 @@ class FiveQuillasCompetitionService
             ->where('entry_phase_id', $phase->id)
             ->whereNotNull('source_slot_id')
             ->where('status', '!=', 'withdrawn')
+            ->where(fn ($query) => $query->whereDoesntHave('registration')
+                ->orWhereHas('registration', fn ($registration) => $registration->where('status', '!=', 'ausente')))
             ->pluck('id')->map(fn ($id): int => (int) $id)->unique();
         if ($expectedEntryIds->isEmpty()) {
             return false;

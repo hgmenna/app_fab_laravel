@@ -50,7 +50,7 @@ beforeEach(function () {
         $t->integer('player_one_points')->default(0); $t->integer('player_two_points')->default(0);
         $t->string('status')->default('pending'); $t->timestamps();
     });
-    Schema::create('tournament_registrations', function (Blueprint $t) { $t->id(); $t->decimal('points')->nullable(); });
+    Schema::create('tournament_registrations', function (Blueprint $t) { $t->id(); $t->decimal('points')->nullable(); $t->string('status')->nullable(); });
     $this->competition = FiveQuillasCompetition::create([]);
     $this->phase = FiveQuillasPhase::create(['competition_id' => $this->competition->id]);
     $this->entries = collect(range(1,3))->map(fn () => FiveQuillasEntry::create(['competition_id' => $this->competition->id]));
@@ -450,7 +450,7 @@ it('loads historical Masters from their inactive slot despite a different curren
     Schema::create('general_rankings', function (Blueprint $t) { $t->id(); $t->unsignedBigInteger('player_id'); $t->string('category'); $t->integer('RG'); });
     Schema::create('tournament_slots', function (Blueprint $t) { $t->id(); $t->unsignedBigInteger('tournament_id'); $t->string('name'); $t->boolean('is_active'); });
     Schema::create('tournament_registration_participants', function (Blueprint $t) { $t->id(); $t->unsignedBigInteger('tournament_registration_id'); $t->unsignedBigInteger('player_id'); $t->integer('position'); });
-    Schema::table('tournament_registrations', function (Blueprint $t) { $t->unsignedBigInteger('tournament_id')->nullable(); $t->unsignedBigInteger('tournament_slot_id')->nullable(); $t->unsignedBigInteger('player_id')->nullable(); $t->string('status')->nullable(); });
+    Schema::table('tournament_registrations', function (Blueprint $t) { $t->unsignedBigInteger('tournament_id')->nullable(); $t->unsignedBigInteger('tournament_slot_id')->nullable(); $t->unsignedBigInteger('player_id')->nullable(); });
     Schema::table('five_quillas_entries', function (Blueprint $t) { $t->unsignedBigInteger('registration_participant_id')->nullable(); });
     try {
         FiveQuillasMatch::query()->delete();
@@ -524,7 +524,7 @@ it('keeps an absent national in the bracket and advances the rival with a phase 
     Schema::create('tournament_types', function (Blueprint $t) { $t->id(); $t->boolean('assigns_points'); $t->boolean('affects_ranking'); $t->string('scoring_method'); $t->json('scoring_rules'); });
     Schema::create('tournaments', function (Blueprint $t) { $t->id(); $t->unsignedBigInteger('tournament_type_id'); $t->unsignedBigInteger('discipline_id')->nullable(); });
     Schema::table('tournament_registrations', function (Blueprint $t) {
-        $t->unsignedBigInteger('tournament_id')->nullable(); $t->string('status')->nullable(); $t->integer('penalty_points')->default(0);
+        $t->unsignedBigInteger('tournament_id')->nullable(); $t->integer('penalty_points')->default(0);
         $t->string('result_code')->nullable(); $t->string('result_description')->nullable(); $t->integer('result_instance_value')->nullable();
         $t->unsignedBigInteger('tournament_instance_id')->nullable(); $t->timestamps();
     });
@@ -593,4 +593,28 @@ it('trims an existing national bracket to two rounds for sixteen qualifiers with
         ->and($first->fresh()->getAttributes())->toBe($before);
     $service->reconcileBracketRounds($this->phase);
     expect($this->phase->matches()->count())->toBe(48);
+});
+
+it('closes completed zones for an unassigned absentee without penalizing or hiding a real missing entrant', function () {
+    $this->phase->update(['phase_type' => 'zones', 'status' => 'in_progress']);
+    FiveQuillasPhase::create(['competition_id' => $this->competition->id, 'sort_order' => 2]);
+    $this->competition->entries()->update(['entry_phase_id' => $this->phase->id, 'source_slot_id' => 1]);
+    $group = \App\Models\FiveQuillasGroup::create(['phase_id' => $this->phase->id, 'status' => 'completed']);
+    foreach ($this->entries->take(2) as $i => $entry) {
+        \App\Models\FiveQuillasGroupEntry::create(['group_id' => $group->id, 'entry_id' => $entry->id, 'position' => $i+1, 'final_place' => $i+1]);
+    }
+    $this->phase->matches()->update(['status' => 'completed']);
+    $service = app(FiveQuillasCompetitionService::class);
+    expect($service->unassignedCompetitionEntries($this->competition)->pluck('id')->all())->toBe([$this->entries[2]->id]);
+    \Illuminate\Support\Facades\DB::table('tournament_registrations')->insert(['id' => 1, 'status' => 'ausente']);
+    $this->entries[2]->update(['tournament_registration_id' => 1]);
+    $service->reopenIncompleteConcurrentPhases($this->competition->fresh());
+    expect($this->phase->fresh()->status)->toBe('completed')
+        ->and($service->unassignedCompetitionEntries($this->competition->fresh()))->toHaveCount(0)
+        ->and(\App\Models\TournamentRegistration::find(1)->status)->toBe('ausente')
+        ->and(\App\Models\TournamentRegistration::find(1)->points)->toBeNull();
+    $registration = \App\Models\TournamentRegistration::find(1);
+    $penalty = (new ReflectionMethod(\App\Services\TournamentScoringService::class, 'absencePenaltyForRule'))
+        ->invoke(app(\App\Services\TournamentScoringService::class), $registration, ['points' => 10]);
+    expect($penalty)->toBe(0.0);
 });

@@ -218,7 +218,7 @@ class TournamentScoringService
                     $registration->points = (float) $rule['points'];
                     if ($registration->status === 'ausente') {
                         $registration->points = 0;
-                        $registration->penalty_points = (float) $rule['points'];
+                        $registration->penalty_points = $this->absencePenaltyForRule($registration, $rule);
                         $registration->result_description = 'Ausente · '.(string) $rule['description'];
                     }
                     $registration->saveQuietly();
@@ -416,6 +416,20 @@ class TournamentScoringService
     /**
      * Guarda una copia histórica del resultado y sus puntos.
      */
+    private function absencePenaltyForRule(TournamentRegistration $registration, array $rule): float
+    {
+        $entry = \App\Models\FiveQuillasEntry::query()->where('tournament_registration_id', $registration->id)
+            ->with('entryPhase')->first();
+        $label = $entry?->entryPhase
+            ? $entry->entryPhase->code.' '.$entry->entryPhase->name
+            : (string) $registration->slot?->name;
+
+        $label = \Illuminate\Support\Str::lower(\Illuminate\Support\Str::ascii($label.' '.($rule['code'] ?? '').' '.($rule['description'] ?? '')));
+
+        return (\Illuminate\Support\Str::contains($label, ['nacional', 'national', 'master']) || preg_match('/\bf[12]\s*nac\b/', $label))
+            ? (float) $rule['points'] : 0.0;
+    }
+
     private function applyRule(
         TournamentRegistration $registration,
         array $rule,
@@ -450,7 +464,7 @@ class TournamentScoringService
                 (float) $rule['points'];
             if ($registration->status === 'ausente') {
                 $registration->points = 0;
-                $registration->penalty_points = (float) $rule['points'];
+                $registration->penalty_points = $this->absencePenaltyForRule($registration, $rule);
                 $registration->result_description = 'Ausente · '.(string) $rule['description'];
             }
 
