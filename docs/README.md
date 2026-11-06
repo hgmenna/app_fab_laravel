@@ -1,6 +1,12 @@
 # Documentación técnica
 
-Actualizada el 23 de octubre de 2026.
+Actualizada el 6 de noviembre de 2026.
+
+## Necesito encontrar un archivo para corregir algo
+
+Empezar por la [guía de mantenimiento](guia-mantenimiento.md), que ubica las zonas administrativas y explica qué archivo corresponde a cada presentación y acción. Para el resto del sistema, usar el [mapa de archivos por módulo](mapa-archivos.md) y la [referencia de métodos y acciones](referencia-metodos.md).
+
+La documentación se entrega sin modificar vistas, cálculos, acciones ni reglas del sistema. Los criterios y las limitaciones de cobertura están en [criterios de mantenimiento](criterios-mantenimiento.md).
 
 ## Orden de lectura
 
@@ -11,6 +17,8 @@ Actualizada el 23 de octubre de 2026.
 5. [Referencia técnica](function-reference.md).
 6. [Desarrollo](development.md).
 7. [Producción](deployment.md).
+8. [Configuración e instalación por cliente](clientes.md).
+9. [Criterios de documentación y mantenimiento](criterios-mantenimiento.md).
 
 ## Principios
 

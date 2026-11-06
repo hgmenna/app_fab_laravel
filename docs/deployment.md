@@ -36,7 +36,7 @@ El servidor debe ejecutar cada minuto:
 * * * * * php artisan schedule:run >> /dev/null 2>&1
 ```
 
-Laravel dispara promociones 00:05, cambios de categoría 00:10, vencimientos de membresía 00:15 y transferencias 00:20, con zona horaria argentina y sin superposición.
+Laravel dispara promociones 00:05, cambios de categoría 00:10, vencimientos de membresía 00:15 y transferencias 00:20, con la zona `cliente.zona_horaria` y sin superposición. La instalación FAB conserva por defecto la zona argentina.
 
 Compruebe con:
 

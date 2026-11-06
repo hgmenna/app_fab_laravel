@@ -46,7 +46,7 @@ Una corrección visual reversible no necesita una prueba artificial. Una regla d
 
 ## Convenciones críticas
 
-- Fechas de competencia se interpretan en `America/Argentina/Buenos_Aires`.
+- Las comprobaciones de día civil y calendario utilizan `cliente.zona_horaria`, cuyo valor predeterminado es `America/Argentina/Buenos_Aires`. No confundir con `APP_TIMEZONE`, que conserva la interpretación de almacenamiento existente.
 - Horarios y pestañas se ordenan por fecha/hora real, no por etiqueta.
 - Ranking y categoría históricos se capturan, no se consultan dinámicamente para torneos pasados.
 - Use relaciones Eloquent y claves foráneas; evite nombres como identidad.
