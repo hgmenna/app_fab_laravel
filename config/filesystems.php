@@ -62,7 +62,7 @@ return [
 
        'public_path' => [
             'driver' => 'local',
-            'root' => base_path('../public_html'),
+            'root' => config('cliente.raiz_publica'),
             'url' => env('APP_URL'),
             'visibility' => 'public',
         ],

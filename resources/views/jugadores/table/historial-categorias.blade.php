@@ -64,11 +64,11 @@
 
                         <tr>
                             <td style="padding: 12px; white-space: nowrap; border-bottom: 1px solid #374151;">
-                                {{ $history->created_at?->format('d/m/Y H:i') ?? '-' }}
+                                {{ $history->created_at?->format(config('cliente.formato_fecha').' H:i') ?? '-' }}
                             </td>
 
                             <td style="padding: 12px; white-space: nowrap; border-bottom: 1px solid #374151;">
-                                {{ $history->effective_date?->format('d/m/Y') ?? '-' }}
+                                {{ $history->effective_date?->format(config('cliente.formato_fecha')) ?? '-' }}
                             </td>
 
                             <td style="padding: 12px; white-space: nowrap; border-bottom: 1px solid #374151;">

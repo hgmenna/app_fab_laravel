@@ -87,7 +87,7 @@ class FiveQuillasRankingController extends Controller
 
                 return [
                     'etapa' => $stage,
-                    'fecha' => $tournament?->end_date?->format('d/m/Y'),
+                    'fecha' => $tournament?->end_date?->format(config('cliente.formato_fecha')),
                     'end_date' => $tournament?->end_date?->toDateString(),
                     'sede' => $tournament?->venueName() ?? 'SIN ASIGNAR',
                     'penalizacion' => $row["pen_{$stage}"] === null ? null : (float) $row["pen_{$stage}"],

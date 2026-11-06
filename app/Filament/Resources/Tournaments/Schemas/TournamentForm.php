@@ -427,7 +427,7 @@ class TournamentForm
                                                     ->mapWithKeys(fn (Tournament $tournament): array => [
                                                         $tournament->id => implode(' · ', array_filter([
                                                             $tournament->name,
-                                                            $tournament->start_date?->format('d/m/Y'),
+                                                            $tournament->start_date?->format(config('cliente.formato_fecha')),
                                                             $tournament->venueName(),
                                                         ])),
                                                     ])

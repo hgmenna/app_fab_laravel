@@ -61,8 +61,8 @@ class MembershipPaymentResource extends Resource
         return $schema->components([
             Section::make('Movimiento')->columns(3)->schema([
                 Placeholder::make('player')->label('Jugador')->content(fn (?Payment $record) => $record?->membership?->player?->full_name ?? '—'),
-                Placeholder::make('amount_display')->label('Importe')->content(fn (?Payment $record) => '$ '.number_format((float)$record?->amount,2,',','.')),
-                Placeholder::make('date_display')->label('Fecha')->content(fn (?Payment $record) => ($record?->paid_at ?? $record?->created_at)?->format('d/m/Y H:i') ?? '—'),
+                Placeholder::make('amount_display')->label('Importe')->content(fn (?Payment $record) => \App\Helpers\Cliente::money((float)$record?->amount)),
+                Placeholder::make('date_display')->label('Fecha')->content(fn (?Payment $record) => ($record?->paid_at ?? $record?->created_at)?->format(config('cliente.formato_fecha').' H:i') ?? '—'),
                 Textarea::make('notes')->label('Observación')->placeholder('Ej.: efectivo entregado a Juan Pérez')->columnSpanFull(),
             ]),
         ]);
@@ -71,13 +71,13 @@ class MembershipPaymentResource extends Resource
     public static function table(Table $table): Table
     {
         return $table->defaultSort('created_at', 'desc')->columns([
-            TextColumn::make('created_at')->label('Fecha')->dateTime('d/m/Y H:i')->sortable(),
+            TextColumn::make('created_at')->label('Fecha')->dateTime(config('cliente.formato_fecha').' H:i')->sortable(),
             TextColumn::make('membership.player.full_name')->label('Jugador')->searchable(['first_name','last_name']),
             TextColumn::make('membership.membership.discipline.name')->label('Disciplina'),
             TextColumn::make('payer_name')->label('Pagador')->state(fn (Payment $record): string => $record->payer?->name ?? $record->payer?->full_name ?? 'Jugador'),
             TextColumn::make('manual_method')->label('Medio')->formatStateUsing(fn ($state, Payment $record): string => match($state){'cash'=>'Efectivo','bank_transfer'=>'Transferencia','other'=>'Otro medio',default=>ucfirst($record->method)}),
             TextColumn::make('external_reference')->label('Referencia')->placeholder('—'),
-            TextColumn::make('amount')->label('Importe')->money('ARS')->alignEnd(),
+            TextColumn::make('amount')->label('Importe')->formatStateUsing(fn ($state): string => \App\Helpers\Cliente::money($state))->alignEnd(),
             TextColumn::make('notes')->label('Observación')->limit(45)->placeholder('—')->wrap(),
         ])->filters([
             SelectFilter::make('method')->label('Tipo')->options(['manual'=>'Manual','pluspagos'=>'PlusPagos','mercadopago'=>'Mercado Pago']),
@@ -88,7 +88,7 @@ class MembershipPaymentResource extends Resource
             Action::make('share')->label('Compartir')->icon('heroicon-o-share')->iconButton()->color('success')->tooltip('Compartir por WhatsApp')->openUrlInNewTab()
                 ->url(function (Payment $record): string {
                     $url = URL::temporarySignedRoute('membership-payments.pdf', now()->addDays(7), ['payment'=>$record]);
-                    $message = "Comprobante de pago de membresía\n{$record->membership?->player?->full_name}\nImporte: $ ".number_format((float)$record->amount,2,',','.')."\n{$url}";
+                    $message = "Comprobante de pago de membresía\n{$record->membership?->player?->full_name}\nImporte: ".\App\Helpers\Cliente::money((float)$record->amount)."\n{$url}";
                     return 'https://wa.me/?text='.rawurlencode($message);
                 }),
         ]);

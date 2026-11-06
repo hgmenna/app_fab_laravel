@@ -51,7 +51,7 @@ class CategoryChangesReport extends Page implements HasTable
                         'pdf.category-changes-report',
                         [
                             'records' => $records,
-                            'date' => now()->format('d/m/Y H:i'),
+                            'date' => now()->format(config('cliente.formato_fecha').' H:i'),
                             'logo' => FabPath::logo(),
                             'footer_image' => FabPath::footer(),
                         ]
@@ -132,13 +132,13 @@ class CategoryChangesReport extends Page implements HasTable
 
                 TextColumn::make('effective_date')
                     ->label('Fecha efectiva')
-                    ->date('d/m/Y')
+                    ->date(config('cliente.formato_fecha'))
                     ->sortable()
                     ->width('125px'),
 
                 TextColumn::make('created_at')
                     ->label('Fecha de carga')
-                    ->dateTime('d/m/Y H:i')
+                    ->dateTime(config('cliente.formato_fecha').' H:i')
                     ->sortable()
                     ->width('145px'),
 

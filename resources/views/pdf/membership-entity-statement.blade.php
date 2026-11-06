@@ -47,7 +47,7 @@
             <h1>ESTADO DE CUENTA DE MEMBRESÍAS</h1>
             <div class="subtitle">{{ $entity->name }} · {{ $discipline->name }} · {{ $year }}</div>
         </td>
-        <td style="width: 14%; text-align: right">{{ now()->format('d/m/Y') }}</td>
+        <td style="width: 14%; text-align: right">{{ now()->format(config('cliente.formato_fecha')) }}</td>
     </tr>
 </table>
 
@@ -63,9 +63,9 @@
 <table class="summary">
     <tr>
         <td>Jugadores<strong>{{ $accounts->count() }}</strong></td>
-        <td>Membresías<strong>$ {{ number_format($totalDue, 2, ',', '.') }}</strong></td>
-        <td>Total abonado<strong>$ {{ number_format($totalPaid, 2, ',', '.') }}</strong></td>
-        <td>Saldo pendiente<strong>$ {{ number_format($totalBalance, 2, ',', '.') }}</strong></td>
+        <td>Membresías<strong>{{ \App\Helpers\Cliente::money($totalDue) }}</strong></td>
+        <td>Total abonado<strong>{{ \App\Helpers\Cliente::money($totalPaid) }}</strong></td>
+        <td>Saldo pendiente<strong>{{ \App\Helpers\Cliente::money($totalBalance) }}</strong></td>
         <td>Pagadas / parciales / pendientes<strong>{{ $accounts->where('status', 'paid')->count() }} / {{ $accounts->where('status', 'partial')->count() }} / {{ $accounts->whereIn('status', ['pending', 'expired'])->count() }}</strong></td>
     </tr>
 </table>
@@ -79,9 +79,9 @@
         <tr>
             <td><strong>{{ $account->player?->full_name }}</strong></td>
             <td>{{ $account->club?->name ?? 'INDEPENDIENTE' }}</td>
-            <td class="right">$ {{ number_format((float) $account->amount_due, 2, ',', '.') }}</td>
-            <td class="right">$ {{ number_format((float) $account->amount_paid, 2, ',', '.') }}</td>
-            <td class="right"><strong>$ {{ number_format($account->balance, 2, ',', '.') }}</strong></td>
+            <td class="right">{{ \App\Helpers\Cliente::money((float) $account->amount_due) }}</td>
+            <td class="right">{{ \App\Helpers\Cliente::money((float) $account->amount_paid) }}</td>
+            <td class="right"><strong>{{ \App\Helpers\Cliente::money($account->balance) }}</strong></td>
             <td class="status {{ $account->status }}">{{ match($account->status) {'paid' => 'PAGADA', 'partial' => 'PAGO PARCIAL', 'expired' => 'VENCIDA', default => 'PENDIENTE'} }}</td>
         </tr>
         @if($account->payments->isNotEmpty())
@@ -92,12 +92,12 @@
                     <tbody>
                     @foreach($account->payments->sortBy('created_at') as $payment)
                         <tr>
-                            <td>{{ ($payment->paid_at ?? $payment->created_at)?->format('d/m/Y H:i') }}</td>
+                            <td>{{ ($payment->paid_at ?? $payment->created_at)?->format(config('cliente.formato_fecha').' H:i') }}</td>
                             <td>{{ $payment->payer?->name ?? $payment->payer?->full_name ?? 'Jugador' }}</td>
                             <td>{{ match($payment->manual_method) {'cash' => 'Efectivo', 'bank_transfer' => 'Transferencia', 'other' => 'Otro medio', default => ucfirst($payment->method)} }}</td>
                             <td>{{ $payment->external_reference ?: '—' }}</td>
                             <td>{{ $payment->notes ?: '—' }}</td>
-                            <td class="right">$ {{ number_format((float) $payment->amount, 2, ',', '.') }}</td>
+                            <td class="right">{{ \App\Helpers\Cliente::money((float) $payment->amount) }}</td>
                         </tr>
                     @endforeach
                     </tbody>
@@ -113,7 +113,7 @@
 
 <div class="footer">
     @if($footerImage)<img src="{{ $footerImage }}">@endif
-    <div class="small">Sistema Administrativo Federación Argentina de Billar · Versión {{ config('app.version') }}</div>
+    <div class="small">{{ config('cliente.sistema') }} · Versión {{ config('app.version') }}</div>
 </div>
 </body>
 </html>

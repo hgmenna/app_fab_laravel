@@ -28,7 +28,7 @@ class CityForm
                 ->live()
                 ->options(Country::pluck('name', 'id')->toArray())
                 ->default(function () {
-                    return \App\Models\Country::where('name', 'Argentina')->value('id');
+                    return \App\Models\Country::where('name', config('cliente.pais_nombre'))->value('id');
                 })
                 ->afterStateUpdated(function ($state, callable $set) {
                     $set('state_id', null);

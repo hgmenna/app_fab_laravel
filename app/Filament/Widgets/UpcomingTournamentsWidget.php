@@ -40,8 +40,8 @@ class UpcomingTournamentsWidget extends TableWidget
                 TextColumn::make('date_range')
                     ->label('Fechas')
                     ->state(fn (Tournament $record): string => $record->start_date?->isSameDay($record->end_date)
-                        ? $record->start_date->format('d/m/Y')
-                        : $record->start_date?->format('d/m').' – '.$record->end_date?->format('d/m/Y'))
+                        ? $record->start_date->format(config('cliente.formato_fecha'))
+                        : $record->start_date?->format('d/m').' – '.$record->end_date?->format(config('cliente.formato_fecha')))
                     ->icon('heroicon-m-calendar-days')
                     ->weight('bold'),
                 TextColumn::make('name')

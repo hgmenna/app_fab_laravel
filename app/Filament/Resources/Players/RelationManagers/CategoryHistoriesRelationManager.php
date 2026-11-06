@@ -76,12 +76,12 @@ class CategoryHistoriesRelationManager extends RelationManager
             ->columns([
                 TextColumn::make('created_at')
                     ->label('Fecha carga')
-                    ->dateTime('d/m/Y H:i')
+                    ->dateTime(config('cliente.formato_fecha').' H:i')
                     ->sortable(),
 
                 TextColumn::make('effective_date')
                     ->label('Fecha efectiva')
-                    ->date('d/m/Y')
+                    ->date(config('cliente.formato_fecha'))
                     ->sortable(),
 
                 TextColumn::make('previousCategory.name')

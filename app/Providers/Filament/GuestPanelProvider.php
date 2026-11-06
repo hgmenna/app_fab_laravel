@@ -29,10 +29,10 @@ class GuestPanelProvider extends PanelProvider
         return $panel
             ->id('guest')
             ->path('invitado')
-            ->brandName('Federacion Argentina de Billar')
+            ->brandName(config('cliente.nombre'))
             ->brandLogo(fn () => view('filament.brand'))
             ->brandLogoHeight('3rem')
-            ->favicon(asset('images/logo.png'))
+            ->favicon(asset(config('cliente.favicon')))
             ->globalSearch(false)
             ->colors([
                 'primary' => Color::Blue,

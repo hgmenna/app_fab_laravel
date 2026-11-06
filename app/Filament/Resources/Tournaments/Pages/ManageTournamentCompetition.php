@@ -1948,8 +1948,8 @@ class ManageTournamentCompetition extends Page
                 'venue' => $this->record->venueName(),
                 'date' => $start
                     ? ($end && ! $end->isSameDay($start)
-                        ? $start->format('d/m/Y').' al '.$end->format('d/m/Y')
-                        : $start->format('d/m/Y'))
+                        ? $start->format(config('cliente.formato_fecha')).' al '.$end->format(config('cliente.formato_fecha'))
+                        : $start->format(config('cliente.formato_fecha')))
                     : 'Sin fecha',
                 'type' => $this->record->type?->name ?? 'Sin tipo',
                 'official' => $this->record->type?->is_official ? 'Oficial' : 'No oficial',

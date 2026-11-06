@@ -104,13 +104,13 @@ class ClubResource extends Resource
         $pdf = Pdf::loadView('pdf.generic', [
             'title'        => $title,
             'subtitle'     => '',
-            'date'         => now()->format('d/m/Y'),
+            'date'         => now()->format(config('cliente.formato_fecha')),
             'columns'      => $columns,
             'groups'       => $grouped, // Enviamos como grupos para repetir el TH [3]
             'totalGeneral' => $totalClubes,
             'labelTotalGeneral' => 'Clubes',
-            'logo'         => public_path('images/logo.png'),
-            'footer_image' => public_path('images/pie-pagina.png'),
+            'logo'         => \App\Helpers\FabPath::logo(),
+            'footer_image' => \App\Helpers\FabPath::footer(),
         ])->setPaper('a4', 'portrait'); // Orientación vertical 
 
         // 6. DESCARGA MEDIANTE STREAM [6]

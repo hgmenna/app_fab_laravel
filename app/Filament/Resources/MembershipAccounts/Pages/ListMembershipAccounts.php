@@ -39,7 +39,7 @@ class ListMembershipAccounts extends ListRecords
                 ->modalDescription('El pago se aplica al saldo global. Puede repetir esta operación hasta cancelar la deuda.')
                 ->schema([
                     ...$this->entityStatementSchema(),
-                    TextInput::make('amount')->label('Importe recibido')->numeric()->prefix('$')->minValue(0.01)->required(),
+                    TextInput::make('amount')->label('Importe recibido')->numeric()->prefix(config('cliente.simbolo_moneda'))->minValue(0.01)->required(),
                     Select::make('manual_method')->label('Medio de pago')->options([
                         'bank_transfer' => 'Transferencia bancaria', 'cash' => 'Efectivo', 'other' => 'Otro medio',
                     ])->required(),
@@ -55,7 +55,7 @@ class ListMembershipAccounts extends ListRecords
                         throw ValidationException::withMessages(['amount' => 'La entidad no tiene saldo pendiente para los filtros seleccionados.']);
                     }
                     if ($amount > $balance) {
-                        throw ValidationException::withMessages(['amount' => 'El importe supera el saldo pendiente de $ '.number_format($balance, 2, ',', '.')]);
+                        throw ValidationException::withMessages(['amount' => 'El importe supera el saldo pendiente de '.\App\Helpers\Cliente::money($balance)]);
                     }
                     $payerType = $data['entity_type'];
                     $payerId = (int) $data['entity_id'];
@@ -81,7 +81,7 @@ class ListMembershipAccounts extends ListRecords
                         }
                     });
                     Notification::make()->success()->title('Pago institucional registrado')
-                        ->body('Importe acreditado: $ '.number_format($amount, 2, ',', '.').'. Saldo restante: $ '.number_format($balance - $amount, 2, ',', '.'))->send();
+                        ->body('Importe acreditado: '.\App\Helpers\Cliente::money($amount).'. Saldo restante: '.\App\Helpers\Cliente::money($balance - $amount))->send();
                 }),
             Action::make('printEntityStatement')
                 ->label('Imprimir estado consolidado')

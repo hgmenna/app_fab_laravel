@@ -140,8 +140,8 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
                 'venue' => $tournament->venueName(),
                 'date' => $tournament->start_date
                     ? ($tournament->end_date && ! $tournament->end_date->isSameDay($tournament->start_date)
-                        ? $tournament->start_date->format('d/m/Y').' al '.$tournament->end_date->format('d/m/Y')
-                        : $tournament->start_date->format('d/m/Y')) : 'Sin fecha',
+                        ? $tournament->start_date->format(config('cliente.formato_fecha')).' al '.$tournament->end_date->format(config('cliente.formato_fecha'))
+                        : $tournament->start_date->format(config('cliente.formato_fecha'))) : 'Sin fecha',
                 'type' => $tournament->type?->name ?? 'Sin tipo',
                 'official' => $tournament->type?->is_official ? 'Oficial' : 'No oficial',
                 'modality' => $tournament->tournamentModalities->pluck('modality.name')->filter()->implode(', ') ?: 'Sin modalidad',

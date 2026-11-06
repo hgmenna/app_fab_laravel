@@ -16,8 +16,8 @@ class MembershipsTable
             ->columns([
                 TextColumn::make('year')->label('Año')->sortable(),
                 TextColumn::make('discipline.name')->label('Disciplina')->searchable()->sortable(),
-                TextColumn::make('amount')->label('Importe')->money('ARS')->sortable(),
-                TextColumn::make('due_date')->label('Fecha de cierre')->date('d/m/Y')->sortable(),
+                TextColumn::make('amount')->label('Importe')->formatStateUsing(fn ($state): string => \App\Helpers\Cliente::money($state))->sortable(),
+                TextColumn::make('due_date')->label('Fecha de cierre')->date(config('cliente.formato_fecha'))->sortable(),
                 TextColumn::make('player_memberships_count')->label('Renovadas')->counts('playerMemberships')->alignCenter(),
                 IconColumn::make('active')->label('Activa')->boolean(),
             ])

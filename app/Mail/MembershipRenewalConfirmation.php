@@ -67,7 +67,7 @@ class MembershipRenewalConfirmation extends Mailable
             'generatedAt' => now(),
             'logo' => is_file(FabPath::logo()) ? FabPath::logo() : null,
             'footerImage' => is_file(FabPath::footer()) ? FabPath::footer() : null,
-            'systemName' => 'Sistema Administrativo Federación Argentina de Billar',
+            'systemName' => config('cliente.sistema'),
             'systemVersion' => config('app.version'),
         ];
     }

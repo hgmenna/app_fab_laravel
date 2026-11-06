@@ -117,7 +117,7 @@
                     <div class="subtitle">Calendario {{ now()->year }}</div>
                 </td>
                 <td style="width: 20%;" class="date-text">
-                    Fecha: {{ now()->format('d/m/Y') }}
+                    Fecha: {{ now()->format(config('cliente.formato_fecha')) }}
                 </td>
             </tr>
         </table>

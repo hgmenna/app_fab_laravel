@@ -44,7 +44,7 @@ class UpcomingTournamentsController extends Controller
             ->get(['id', 'discipline_id', 'name'])
             ->groupBy('discipline_id');
 
-        $today = today('America/Argentina/Buenos_Aires');
+        $today = today(config('cliente.zona_horaria'));
         $view = strtolower((string) ($filters['estado'] ?? 'vigentes'));
 
         $query = Tournament::query()
@@ -208,10 +208,10 @@ class UpcomingTournamentsController extends Controller
                     'unidad_inscripcion' => 'Inscripciones por modalidad',
                     'estado_inscripcion' => $registrationIsOpen ? 'Abierta' : 'Cerrada',
                     'apertura_inscripcion' => $tournament->registration_enabled
-                        ? $tournament->registration_open_at?->format('d/m/Y') ?? ''
+                        ? $tournament->registration_open_at?->format(config('cliente.formato_fecha')) ?? ''
                         : '',
                     'cierre_inscripcion' => $tournament->registration_enabled
-                        ? $tournament->registration_close_at?->format('d/m/Y') ?? ''
+                        ? $tournament->registration_close_at?->format(config('cliente.formato_fecha')) ?? ''
                         : '',
                     'inscripcion' => $registrationIsOpen
                         ? $registrationUrl.'||Anotarse'

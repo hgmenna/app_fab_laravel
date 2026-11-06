@@ -22,7 +22,7 @@ class GeneratePlayerPerformancePdf
             $report = $page->reportData();
             $pdf = Pdf::loadView('pdf.filtered-player-performance', [
                 'players' => $report['players'], 'totals' => $report['totals'],
-                'generatedAt' => now()->format('d/m/Y H:i'),
+                'generatedAt' => now()->format(config('cliente.formato_fecha').' H:i'),
                 'logo' => is_file(FabPath::logo()) ? FabPath::logo() : public_path(config('fab.paths.logo')),
                 'footer_image' => is_file(FabPath::footer()) ? FabPath::footer() : public_path(config('fab.paths.footer')),
             ])->setPaper('a4', 'landscape');

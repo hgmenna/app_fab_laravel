@@ -1,8 +1,8 @@
 <div class="space-y-4">
     <div class="grid grid-cols-3 gap-3">
-        <div class="rounded-lg bg-gray-100 p-3 dark:bg-gray-800"><div class="text-xs text-gray-500">Membresía</div><strong>$ {{ number_format((float) $record->amount_due, 2, ',', '.') }}</strong></div>
-        <div class="rounded-lg bg-gray-100 p-3 dark:bg-gray-800"><div class="text-xs text-gray-500">Abonado</div><strong>$ {{ number_format((float) $record->amount_paid, 2, ',', '.') }}</strong></div>
-        <div class="rounded-lg bg-gray-100 p-3 dark:bg-gray-800"><div class="text-xs text-gray-500">Saldo</div><strong>$ {{ number_format($record->balance, 2, ',', '.') }}</strong></div>
+        <div class="rounded-lg bg-gray-100 p-3 dark:bg-gray-800"><div class="text-xs text-gray-500">Membresía</div><strong>{{ \App\Helpers\Cliente::money((float) $record->amount_due) }}</strong></div>
+        <div class="rounded-lg bg-gray-100 p-3 dark:bg-gray-800"><div class="text-xs text-gray-500">Abonado</div><strong>{{ \App\Helpers\Cliente::money((float) $record->amount_paid) }}</strong></div>
+        <div class="rounded-lg bg-gray-100 p-3 dark:bg-gray-800"><div class="text-xs text-gray-500">Saldo</div><strong>{{ \App\Helpers\Cliente::money($record->balance) }}</strong></div>
     </div>
     <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
         <table class="w-full text-sm">
@@ -10,15 +10,15 @@
             <tbody>
             @forelse($record->payments->sortByDesc('created_at') as $payment)
                 <tr class="border-t border-gray-200 dark:border-gray-700">
-                    <td class="p-2">{{ ($payment->paid_at ?? $payment->created_at)?->format('d/m/Y H:i') }}</td>
+                    <td class="p-2">{{ ($payment->paid_at ?? $payment->created_at)?->format(config('cliente.formato_fecha').' H:i') }}</td>
                     <td class="p-2">{{ $payment->payer?->name ?? $payment->payer?->full_name ?? 'Jugador' }}</td>
                     <td class="p-2">{{ match($payment->manual_method) { 'cash' => 'Efectivo', 'bank_transfer' => 'Transferencia', 'other' => 'Otro medio', default => ucfirst($payment->method) } }}</td>
                     <td class="p-2">{{ $payment->external_reference ?: '—' }}</td>
                     <td class="p-2">{{ $payment->recorder?->name ?: 'Sistema' }}</td>
-                    <td class="p-2 text-right font-semibold">$ {{ number_format((float) $payment->amount, 2, ',', '.') }}</td>
+                    <td class="p-2 text-right font-semibold">{{ \App\Helpers\Cliente::money((float) $payment->amount) }}</td>
                     @php
                         $pdfUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute('membership-payments.pdf', now()->addDays(7), ['payment' => $payment]);
-                        $shareText = rawurlencode("Comprobante de pago de membresía\n{$record->player->full_name}\nImporte: $ ".number_format((float)$payment->amount,2,',','.')."\n{$pdfUrl}");
+                        $shareText = rawurlencode("Comprobante de pago de membresía\n{$record->player->full_name}\nImporte: ".\App\Helpers\Cliente::money((float)$payment->amount)."\n{$pdfUrl}");
                     @endphp
                     <td class="p-2 text-center whitespace-nowrap">
                         <span class="inline-flex items-center gap-1">

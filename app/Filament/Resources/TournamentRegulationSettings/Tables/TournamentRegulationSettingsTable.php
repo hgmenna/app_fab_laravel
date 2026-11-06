@@ -22,8 +22,8 @@ class TournamentRegulationSettingsTable
             TextColumn::make('max_non_official_tournaments_per_category')->label('Máximo')->placeholder('—'),
             TextColumn::make('club_category_period_months')->label('Período')->suffix(' meses')->placeholder('—'),
             IconColumn::make('enabled')->label('Activo')->boolean(),
-            TextColumn::make('effective_from')->label('Desde')->date('d/m/Y'),
-            TextColumn::make('effective_until')->label('Hasta')->date('d/m/Y'),
+            TextColumn::make('effective_from')->label('Desde')->date(config('cliente.formato_fecha')),
+            TextColumn::make('effective_until')->label('Hasta')->date(config('cliente.formato_fecha')),
         ])->recordActions([
             EditAction::make(),
             AdminNotifier::notifyAction(

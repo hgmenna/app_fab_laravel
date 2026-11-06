@@ -26,7 +26,7 @@
     <div class="header">
         <span class="code">{{ $order->code }}</span>
         <h1>Orden de transferencia bancaria</h1>
-        <div>Destinatario: {{ $order->beneficiary_name ?: 'Federación Argentina de Billar' }}</div>
+        <div>Destinatario: {{ $order->beneficiary_name ?: config('cliente.nombre') }}</div>
     </div>
 
     <div class="box">
@@ -54,7 +54,7 @@
             </tr>
             <tr>
                 <td><div class="label">Disciplina</div><div class="value">{{ $order->discipline?->name ?? '—' }}</div></td>
-                <td><div class="label">Vencimiento</div><div class="value">{{ $order->expires_at?->format('d/m/Y') ?? '—' }}</div></td>
+                <td><div class="label">Vencimiento</div><div class="value">{{ $order->expires_at?->format(config('cliente.formato_fecha')) ?? '—' }}</div></td>
             </tr>
         </table>
     </div>
@@ -63,9 +63,9 @@
         <thead><tr><th>Concepto</th><th class="right">Importe</th></tr></thead>
         <tbody>
         @foreach($order->items as $item)
-            <tr><td>{{ $item->description }}</td><td class="right">$ {{ number_format((float) $item->amount, 2, ',', '.') }}</td></tr>
+            <tr><td>{{ $item->description }}</td><td class="right">{{ \App\Helpers\Cliente::money((float) $item->amount) }}</td></tr>
         @endforeach
-        <tr><td class="right"><strong>Total a transferir</strong></td><td class="right total">$ {{ number_format((float) $order->amount, 2, ',', '.') }}</td></tr>
+        <tr><td class="right"><strong>Total a transferir</strong></td><td class="right total">{{ \App\Helpers\Cliente::money((float) $order->amount) }}</td></tr>
         </tbody>
     </table>
 
@@ -82,6 +82,6 @@
         </div>
     @endif
 
-    <div class="footer">Sistema Administrativo Federación Argentina de Billar · Orden emitida el {{ $order->created_at?->format('d/m/Y H:i') }}</div>
+    <div class="footer">{{ config('cliente.sistema') }} · Orden emitida el {{ $order->created_at?->format(config('cliente.formato_fecha').' H:i') }}</div>
 </body>
 </html>

@@ -173,7 +173,7 @@ class PlayerResource extends Resource
         $pdf = Pdf::loadView('pdf.generic', [
             'title' => $title,
             'subtitle' => '',
-            'date' => now()->format('d/m/Y'),
+            'date' => now()->format(config('cliente.formato_fecha')),
             'columns' => $columns,
             'groups' => $grouped, // Enviamos como grupos para repetir el TH [3]
             'totalGeneral' => $totalPlayers,
@@ -281,7 +281,7 @@ class PlayerResource extends Resource
                             $history->applied_at
                                 ? 'El cambio de categoría fue aplicado correctamente.'
                                 : 'El cambio quedó pendiente hasta '
-                                    .$history->effective_date->format('d/m/Y').'.'
+                                    .$history->effective_date->format(config('cliente.formato_fecha')).'.'
                         )
                         ->success()
                         ->send();
@@ -688,7 +688,7 @@ class PlayerResource extends Resource
                     ->label('Disciplina')
                     ->options(fn (): array => Discipline::query()->where('active', true)->orderBy('name')->pluck('name', 'id')->all())
                     ->searchable()->preload()->required(),
-                TextInput::make('amount')->label('Importe anual')->numeric()->prefix('$')->minValue(0)->required(),
+                TextInput::make('amount')->label('Importe anual')->numeric()->prefix(config('cliente.simbolo_moneda'))->minValue(0)->required(),
                 DatePicker::make('due_date')
                     ->label('Fecha de cierre')
                     ->helperText('A partir de esta fecha se inhabilitan los jugadores que no renovaron.')
@@ -801,7 +801,7 @@ class PlayerResource extends Resource
                 TextInput::make('payment_amount')
                     ->label('Importe a acreditar por jugador')
                     ->helperText('Puede ser el total de la membresía o un pago parcial. El sistema calculará el saldo restante.')
-                    ->numeric()->prefix('$')->minValue(0.01)
+                    ->numeric()->prefix(config('cliente.simbolo_moneda'))->minValue(0.01)
                     ->visible(fn ($get): bool => $get('payment_mode') !== 'debt')
                     ->required(fn ($get): bool => $get('payment_mode') !== 'debt'),
                 TextInput::make('payment_reference')

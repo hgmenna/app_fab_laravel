@@ -23,9 +23,9 @@ class SystemActivityEmailNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject($this->title.' | Federación Argentina de Billar')
+            ->subject($this->title.' | '.config('cliente.nombre'))
             ->greeting('Hola '.$notifiable->name)
             ->line($this->message)
-            ->line('Este correo fue generado automáticamente por el sistema administrativo de la Federación Argentina de Billar.');
+            ->line('Este correo fue generado automáticamente por '.config('cliente.sistema').'.');
     }
 }

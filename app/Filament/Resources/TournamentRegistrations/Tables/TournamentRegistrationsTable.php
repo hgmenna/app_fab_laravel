@@ -912,7 +912,7 @@ class TournamentRegistrationsTable
             ->get()
             ->mapWithKeys(function ($slot): array {
                 $modality = $slot->tournamentModality?->modality?->name;
-                $date = $slot->starts_at?->format('d/m/Y H:i');
+                $date = $slot->starts_at?->format(config('cliente.formato_fecha').' H:i');
                 $description = implode(' · ', array_filter([$modality, $date]));
                 $name = $slot->name ?: 'Horario #'.$slot->getKey();
 
@@ -935,7 +935,7 @@ class TournamentRegistrationsTable
             ->reject(fn (TournamentSlot $slot): bool => self::isUnassignedSlotName($slot->name))
             ->mapWithKeys(function (TournamentSlot $slot): array {
                 $modality = $slot->tournamentModality?->modality?->name;
-                $date = $slot->starts_at?->format('d/m/Y H:i');
+                $date = $slot->starts_at?->format(config('cliente.formato_fecha').' H:i');
                 $capacity = $slot->max_players === null
                     ? 'Sin límite de cupos'
                     : max(0, $slot->max_players - $slot->occupiedPlaces()).' cupos disponibles';

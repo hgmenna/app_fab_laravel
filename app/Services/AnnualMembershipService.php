@@ -152,7 +152,7 @@ class AnnualMembershipService
                 $balance = max(0, (float) $membership->amount - $currentPaid);
                 if ($amountPerPlayer > $balance) {
                     throw ValidationException::withMessages([
-                        'payment_amount' => 'El pago de '.number_format($amountPerPlayer, 2, ',', '.')." supera el saldo de {$player->full_name}: ".number_format($balance, 2, ',', '.'),
+                        'payment_amount' => 'El pago de '.\App\Helpers\Cliente::money($amountPerPlayer)." supera el saldo de {$player->full_name}: ".\App\Helpers\Cliente::money($balance),
                     ]);
                 }
                 $newPaid = $currentPaid + $amountPerPlayer;

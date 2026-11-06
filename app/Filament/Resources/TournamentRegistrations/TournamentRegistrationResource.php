@@ -113,7 +113,7 @@ class TournamentRegistrationResource extends Resource
             ?->map(fn ($contact) => "{$contact->name}: {$contact->phone}")
             ->implode("\n");
         $message = implode("\n", array_filter([
-            'Federación Argentina de Billar',
+            config('cliente.nombre'),
             '',
             "Inscripción {$status}",
             'Torneo: '.($registration->tournament?->name ?? 'Sin informar'),
@@ -272,10 +272,10 @@ class TournamentRegistrationResource extends Resource
 
         if (! $logo || ! is_file($logo)) {
             $institutionalLogo = FabPath::logo();
-            $logo = is_file($institutionalLogo) ? $institutionalLogo : public_path('images/logo.png');
+            $logo = is_file($institutionalLogo) ? $institutionalLogo : \App\Helpers\FabPath::logo();
         }
 
-        $footerImage = is_file(FabPath::footer()) ? FabPath::footer() : public_path('images/pie-pagina.png');
+        $footerImage = is_file(FabPath::footer()) ? FabPath::footer() : \App\Helpers\FabPath::footer();
 
         // 2. Procesar datos y Ranking (basado en fuentes [4-6])
         $processed = $registrations->flatMap(function ($registration) {
@@ -317,18 +317,18 @@ class TournamentRegistrationResource extends Resource
         $pdf = Pdf::loadView('pdf.generic', [
             'title' => $tournament->name,
             'subtitle' => $slotId ? 'Nomina de Jugadores por Horario' : 'Nomina de Jugadores Inscriptos',
-            'date' => now()->format('d/m/Y'),
+            'date' => now()->format(config('cliente.formato_fecha')),
             'columns' => $columns,
             'groups' => $grouped,
             'totalGeneral' => $totalGeneral, // Pasamos el total de inscriptos
             'labelTotalGeneral' => 'Inscripciones',
             'logo' => $logo,
             'footer_image' => $footerImage,
-            'system_name' => 'Sistema Administrativo Federación Argentina de Billar',
+            'system_name' => config('cliente.sistema'),
             'system_version' => config('app.version'),
-            'developer_name' => 'Hernán Gabriel Menna',
-            'developer_phone' => '+54 9 341 598 8191',
-            'developer_email' => 'hgmenna@hotmail.com',
+            'developer_name' => config('cliente.proveedor.nombre'),
+            'developer_phone' => config('cliente.proveedor.telefono'),
+            'developer_email' => config('cliente.proveedor.email'),
         ])->setPaper('a4', 'portrait');
 
         // Nombre dinamico para el pdf

@@ -175,7 +175,7 @@ class Tournament extends Model
                 trim((string) $this->external_venue_address),
                 trim((string) $this->external_venue_city),
                 $this->externalVenueState?->name,
-                $this->externalVenueState?->country?->name ?: 'Argentina',
+                $this->externalVenueState?->country?->name ?: config('cliente.pais_nombre'),
             ]));
         }
 
@@ -183,7 +183,7 @@ class Tournament extends Model
             trim((string) $this->venue?->address),
             $this->venue?->city?->name,
             $this->venue?->city?->state?->name,
-            $this->venue?->city?->state?->country?->name ?: 'Argentina',
+            $this->venue?->city?->state?->country?->name ?: config('cliente.pais_nombre'),
         ]));
     }
 
@@ -271,7 +271,7 @@ class Tournament extends Model
     public function calendarStatus(?\Carbon\CarbonInterface $reference = null): string
     {
         // Las fechas del calendario son días civiles, no instantes UTC.
-        $today = ($reference ?? today('America/Argentina/Buenos_Aires'))->toDateString();
+        $today = ($reference ?? today(config('cliente.zona_horaria')))->toDateString();
         $start = $this->start_date?->toDateString();
         $end = ($this->end_date ?? $this->start_date)?->toDateString();
 
@@ -286,8 +286,8 @@ class Tournament extends Model
     {
         return $query
             ->where('registration_enabled', true)
-            ->whereDate('registration_open_at', '<=', today('America/Argentina/Buenos_Aires'))
-            ->whereDate('registration_close_at', '>=', today('America/Argentina/Buenos_Aires'))
+            ->whereDate('registration_open_at', '<=', today(config('cliente.zona_horaria')))
+            ->whereDate('registration_close_at', '>=', today(config('cliente.zona_horaria')))
             ->where('start_date', '>', now());
     }
 
@@ -297,7 +297,7 @@ class Tournament extends Model
             return false;
         }
 
-        $today = now('America/Argentina/Buenos_Aires')->toDateString();
+        $today = now(config('cliente.zona_horaria'))->toDateString();
 
         return $this->registration_open_at->toDateString() <= $today
             && $this->registration_close_at->toDateString() >= $today;

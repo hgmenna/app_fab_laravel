@@ -188,7 +188,7 @@ class TournamentResource extends Resource
                     'categorias' => $categorias,
                     'tabla' => $tabla,
                     'totales' => $totales,
-                    'fecha' => now()->format('d/m/Y'),
+                    'fecha' => now()->format(config('cliente.formato_fecha')),
                 ])->setPaper('a4', 'landscape');
 
                 return response()->streamDownload(

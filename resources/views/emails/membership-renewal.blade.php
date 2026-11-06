@@ -10,8 +10,8 @@
         <p>La operación fue registrada correctamente.</p>
         <table style="width:100%;border-collapse:collapse;margin:18px 0">
             <tr><td style="padding:7px;border-bottom:1px solid #e5e7eb"><strong>Usuario</strong></td><td style="padding:7px;border-bottom:1px solid #e5e7eb">{{ $generatedBy->name }}</td></tr>
-            <tr><td style="padding:7px;border-bottom:1px solid #e5e7eb"><strong>Fecha</strong></td><td style="padding:7px;border-bottom:1px solid #e5e7eb">{{ $generatedAt->format('d/m/Y H:i') }}</td></tr>
-            <tr><td style="padding:7px;border-bottom:1px solid #e5e7eb"><strong>Vencimiento</strong></td><td style="padding:7px;border-bottom:1px solid #e5e7eb">{{ $membership->due_date?->format('d/m/Y') }}</td></tr>
+            <tr><td style="padding:7px;border-bottom:1px solid #e5e7eb"><strong>Fecha</strong></td><td style="padding:7px;border-bottom:1px solid #e5e7eb">{{ $generatedAt->format(config('cliente.formato_fecha').' H:i') }}</td></tr>
+            <tr><td style="padding:7px;border-bottom:1px solid #e5e7eb"><strong>Vencimiento</strong></td><td style="padding:7px;border-bottom:1px solid #e5e7eb">{{ $membership->due_date?->format(config('cliente.formato_fecha')) }}</td></tr>
             <tr><td style="padding:7px"><strong>Jugadores procesados</strong></td><td style="padding:7px">{{ $renewals->count() }}</td></tr>
         </table>
         <p>Se adjunta el comprobante PDF con el detalle completo.</p>

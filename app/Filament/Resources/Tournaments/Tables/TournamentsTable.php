@@ -239,7 +239,7 @@ class TournamentsTable
                     ->schema([
                         DatePicker::make('from')
                             ->label('Desde fecha')
-                            ->default(today('America/Argentina/Buenos_Aires')->toDateString())
+                            ->default(today(config('cliente.zona_horaria'))->toDateString())
                             ->displayFormat('d/m/Y'),
                         DatePicker::make('until')
                             ->label('Hasta fecha')

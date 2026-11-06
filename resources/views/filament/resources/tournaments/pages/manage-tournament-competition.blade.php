@@ -302,7 +302,7 @@
                             @foreach($phaseSchedules as $scheduleIndex => $schedule)
                                 <button type="button" class="fq-slot-tab" :class="activeSchedule === {{ $scheduleIndex }} && 'is-active'" @click="activeSchedule = {{ $scheduleIndex }}">
                                     {{ $schedule['name'] ?? 'Horario '.($scheduleIndex + 1) }}
-                                    @if(filled($schedule['starts_at'] ?? null)) · {{ \Illuminate\Support\Carbon::parse($schedule['starts_at'])->format('d/m/Y H:i') }}@endif
+                                    @if(filled($schedule['starts_at'] ?? null)) · {{ \Illuminate\Support\Carbon::parse($schedule['starts_at'])->format(config('cliente.formato_fecha').' H:i') }}@endif
                                 </button>
                             @endforeach
                         </div>
@@ -389,7 +389,7 @@
             const footer = popup.document.createElement('footer');
             footer.className = 'print-footer';
             const federation = popup.document.createElement('strong');
-            federation.textContent = 'Federación Argentina de Billar';
+            federation.textContent = @json(config('cliente.nombre'));
             const official = popup.document.createElement('span');
             official.textContent = 'Información oficial del torneo';
             footer.append(federation, official);

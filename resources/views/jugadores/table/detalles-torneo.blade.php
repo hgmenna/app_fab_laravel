@@ -127,7 +127,7 @@
                     <tr>
                         <td>{{ $registro->tournament->name ?? 'N/A' }}</td>
                         <td>{{ $registro->tournament->type->code ?? 'N/A' }}
-                        <td>{{ $registro->tournament->end_date->format('d/m/Y') }}</td>
+                        <td>{{ $registro->tournament->end_date->format(config('cliente.formato_fecha')) }}</td>
                         <td class="text-right points-highlight">{{ $registro->points }}</td>
                     </tr>
                 @empty

@@ -5,11 +5,11 @@ return [
     'paths' => [
 
         // Raíz pública absoluta del hosting
-        'public_root' => '/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html',
+        'public_root' => config('cliente.raiz_publica'),
 
         // Rutas relativas institucionales
-        'logo'   => 'images/logo.png',
-        'footer' => 'images/pie-pagina.png',
+        'logo'   => config('cliente.logo'),
+        'footer' => config('cliente.pie_documentos'),
 
         // Carpetas reales
         'pagos'         => 'pagos',

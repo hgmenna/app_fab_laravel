@@ -17,7 +17,7 @@ class DashboardHeaderWidget extends Widget
     protected function getViewData(): array
     {
         return [
-            'today' => now()->locale('es')->translatedFormat('l d \d\e F \d\e Y'),
+            'today' => now(config('cliente.zona_horaria'))->locale(config('cliente.idioma'))->translatedFormat('l d \d\e F \d\e Y'),
         ];
     }
 }

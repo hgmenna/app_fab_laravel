@@ -126,7 +126,7 @@
             </td>
 
             <td class="date">
-                {{ now()->format('d/m/Y') }}
+                {{ now()->format(config('cliente.formato_fecha')) }}
             </td>
         </tr>
     </table>

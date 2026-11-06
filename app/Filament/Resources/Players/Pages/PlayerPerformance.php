@@ -58,7 +58,7 @@ class PlayerPerformance extends Page implements HasTable
                         'player' => $this->record,
                         'rows' => $rows,
                         'points' => $rows->sum(fn ($row) => (float) $row->points),
-                        'generatedAt' => now()->format('d/m/Y H:i'),
+                        'generatedAt' => now()->format(config('cliente.formato_fecha').' H:i'),
                         'logo' => is_file(FabPath::logo()) ? FabPath::logo() : public_path(config('fab.paths.logo')),
                         'footer_image' => is_file(FabPath::footer()) ? FabPath::footer() : public_path(config('fab.paths.footer')),
                     ])->setPaper('a4', 'landscape');
@@ -92,7 +92,7 @@ class PlayerPerformance extends Page implements HasTable
             ->columns([
                 TextColumn::make('tournament.name')->label('Torneo')->wrap(),
                 TextColumn::make('tournament.type.name')->label('Tipo')->wrap(),
-                TextColumn::make('tournament.end_date')->label('Fecha')->date('d/m/Y'),
+                TextColumn::make('tournament.end_date')->label('Fecha')->date(config('cliente.formato_fecha')),
                 TextColumn::make('participant_count')->label('Inscriptos')->numeric(),
                 TextColumn::make('position')
                     ->label('Posición / resultado')

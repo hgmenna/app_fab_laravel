@@ -201,8 +201,8 @@ class FiveQuillasCompetitionPublicController extends Controller
         }
 
         return $end && ! $end->isSameDay($start)
-            ? $start->format('d/m/Y').' al '.$end->format('d/m/Y')
-            : $start->format('d/m/Y');
+            ? $start->format(config('cliente.formato_fecha')).' al '.$end->format(config('cliente.formato_fecha'))
+            : $start->format(config('cliente.formato_fecha'));
     }
 
     private function bracketSlotPlaceholder($phase, $match, int $side): string

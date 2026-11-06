@@ -31,7 +31,7 @@ class MembershipForm
             TextInput::make('amount')
                 ->label('Importe anual')
                 ->numeric()
-                ->prefix('$')
+                ->prefix(config('cliente.simbolo_moneda'))
                 ->minValue(0)
                 ->required(),
             DatePicker::make('due_date')

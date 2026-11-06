@@ -60,9 +60,9 @@ class MembershipAccountResource extends Resource
                 TextColumn::make('membership.discipline.name')->label('Disciplina')->searchable(),
                 TextColumn::make('player.full_name')->label('Apellido y nombre')->searchable(['first_name', 'last_name']),
                 TextColumn::make('club.name')->label('Club / sala')->placeholder('INDEPENDIENTE')->searchable(),
-                TextColumn::make('amount_due')->label('Membresía')->money('ARS')->alignEnd(),
-                TextColumn::make('amount_paid')->label('Abonado')->money('ARS')->alignEnd(),
-                TextColumn::make('balance')->label('Saldo')->money('ARS')->alignEnd()
+                TextColumn::make('amount_due')->label('Membresía')->formatStateUsing(fn ($state): string => \App\Helpers\Cliente::money($state))->alignEnd(),
+                TextColumn::make('amount_paid')->label('Abonado')->formatStateUsing(fn ($state): string => \App\Helpers\Cliente::money($state))->alignEnd(),
+                TextColumn::make('balance')->label('Saldo')->formatStateUsing(fn ($state): string => \App\Helpers\Cliente::money($state))->alignEnd()
                     ->color(fn (PlayerMembership $record): string => $record->balance > 0 ? 'danger' : 'success'),
                 TextColumn::make('status')->label('Estado')->badge()
                     ->formatStateUsing(fn (string $state): string => match ($state) {
@@ -72,7 +72,7 @@ class MembershipAccountResource extends Resource
                         'paid' => 'success', 'partial' => 'warning', 'expired' => 'danger', default => 'gray',
                     }),
                 TextColumn::make('payments_count')->label('Movimientos')->counts('payments')->alignCenter(),
-                TextColumn::make('paid_at')->label('Cancelada el')->dateTime('d/m/Y H:i')->placeholder('—'),
+                TextColumn::make('paid_at')->label('Cancelada el')->dateTime(config('cliente.formato_fecha').' H:i')->placeholder('—'),
             ])
             ->filters([
                 SelectFilter::make('year')->label('Año')
@@ -109,7 +109,7 @@ class MembershipAccountResource extends Resource
                     ->tooltip('Compartir cuenta corriente por WhatsApp')->openUrlInNewTab()
                     ->url(function (PlayerMembership $record): string {
                         $url = URL::temporarySignedRoute('membership-accounts.pdf', now()->addDays(7), ['account' => $record]);
-                        $message = "Cuenta corriente de membresía\n{$record->player->full_name}\nSaldo: $ ".number_format($record->balance, 2, ',', '.')."\n{$url}";
+                        $message = "Cuenta corriente de membresía\n{$record->player->full_name}\nSaldo: ".\App\Helpers\Cliente::money($record->balance)."\n{$url}";
                         return 'https://wa.me/?text='.rawurlencode($message);
                     }),
             ]);

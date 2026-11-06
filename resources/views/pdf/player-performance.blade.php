@@ -30,7 +30,7 @@
                 <tr>
                     <td>{{ $row->tournament?->name }}</td>
                     <td>{{ $row->tournament?->type?->name ?? '-' }}</td>
-                    <td>{{ $row->tournament?->end_date?->format('d/m/Y') }}</td>
+                    <td>{{ $row->tournament?->end_date?->format(config('cliente.formato_fecha')) }}</td>
                     <td class="number">{{ $row->participant_count ?? 0 }}</td>
                     <td>{{ $row->result_description ?? $row->tournamentInstance?->description ?? 'Sin resultado' }}</td>
                     <td class="number">{{ number_format((float) $row->points, 2, ',', '.') }}</td>

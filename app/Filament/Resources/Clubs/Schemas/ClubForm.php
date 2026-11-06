@@ -96,7 +96,7 @@ class ClubForm
                         ->columnSpan(2)
                         ->options(Country::pluck('name', 'id'))
                         ->default(function () {
-                            return Country::where('name', 'Argentina')->value('id');
+                            return Country::where('name', config('cliente.pais_nombre'))->value('id');
                         })
                         ->getOptionLabelUsing(fn ($value) => \App\Models\Country::find($value)?->name)
                         ->searchable()

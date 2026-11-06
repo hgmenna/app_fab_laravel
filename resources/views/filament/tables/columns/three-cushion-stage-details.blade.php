@@ -24,7 +24,7 @@
                     <tr class="border-t border-gray-200 dark:border-white/10">
                         <td class="p-2">
                             <strong>{{ $stage->registration?->tournament?->name }}</strong><br>
-                            <span class="text-gray-500">{{ $stage->registration?->tournament?->end_date?->format('d/m/Y') }}</span>
+                            <span class="text-gray-500">{{ $stage->registration?->tournament?->end_date?->format(config('cliente.formato_fecha')) }}</span>
                         </td>
                         <td class="p-2 text-center">{{ $stage->registration?->result_description ?? $stage->registration?->tournamentInstance?->description }}</td>
                         <td class="p-2 text-right">{{ $stage->caroms }}</td>

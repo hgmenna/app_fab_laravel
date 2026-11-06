@@ -14,7 +14,7 @@ class TournamentRegulationAuditsTable
     public static function configure(Table $table): Table
     {
         return $table->defaultSort('created_at', 'desc')->columns([
-            TextColumn::make('created_at')->label('Fecha')->dateTime('d/m/Y H:i')->sortable(),
+            TextColumn::make('created_at')->label('Fecha')->dateTime(config('cliente.formato_fecha').' H:i')->sortable(),
             TextColumn::make('tournament_name')->label('Torneo')
                 ->state(fn ($record): string => $record->tournament?->name
                     ?? data_get($record->tournament_snapshot, 'name', 'Intento bloqueado')),

@@ -47,7 +47,7 @@ class DisciplineForm
                 Select::make('direct_federation_id')
                     ->relationship('directFederation', 'name')
                     ->label('Federación de afiliación directa')
-                    ->helperText('Seleccioná Federación Argentina para las disciplinas con afiliación nacional directa.')
+                    ->helperText('Seleccioná la federación nacional para las disciplinas con afiliación directa.')
                     ->searchable()
                     ->preload()
                     ->visible(fn (Get $get): bool => $get('affiliation_mode') === 'direct')

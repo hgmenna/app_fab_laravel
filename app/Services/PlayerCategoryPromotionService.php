@@ -225,7 +225,7 @@ class PlayerCategoryPromotionService
                     notes: sprintf(
                         'Promoción determinada al cierre de la temporada %d. Aplicación efectiva: %s.',
                         $season,
-                        $effectiveDate->format('d/m/Y')
+                        $effectiveDate->format(config('cliente.formato_fecha'))
                     )
                 );
 
@@ -344,7 +344,7 @@ class PlayerCategoryPromotionService
                     notes: sprintf(
                         'Promoción determinada al cierre de la temporada %d. Aplicación efectiva: %s.',
                         $promotion->season,
-                        $promotion->effective_date->format('d/m/Y')
+                        $promotion->effective_date->format(config('cliente.formato_fecha'))
                     )
                 );
 

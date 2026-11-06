@@ -71,7 +71,7 @@ class TournamentRegulationAuditPdfService
             'evidence' => $evidence,
             'logo' => is_file(FabPath::logo()) ? FabPath::logo() : null,
             'footer_image' => is_file(FabPath::footer()) ? FabPath::footer() : null,
-            'generatedAt' => now()->format('d/m/Y H:i'),
+            'generatedAt' => now()->format(config('cliente.formato_fecha').' H:i'),
         ])->setPaper('a4');
 
         $fileName = 'auditoria-reglamentaria-'.$audit->id.'.pdf';

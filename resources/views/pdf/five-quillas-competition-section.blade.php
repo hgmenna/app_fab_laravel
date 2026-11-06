@@ -100,5 +100,5 @@
     </table>
     @endif
 @endif
-<footer>Federación Argentina de Billar · Información oficial del torneo</footer>
+<footer>{{ config('cliente.nombre') }} · Información oficial del torneo</footer>
 </body></html>

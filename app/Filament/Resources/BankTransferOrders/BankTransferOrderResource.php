@@ -83,13 +83,13 @@ class BankTransferOrderResource extends Resource
         return $schema->components([
             Section::make('Orden de pago')->schema([
                 Placeholder::make('code_display')->label('Orden')->content(fn (?BankTransferOrder $record): string => $record?->code ?? '—'),
-                Placeholder::make('amount_display')->label('Importe exacto')->content(fn (?BankTransferOrder $record): string => '$ '.number_format((float) $record?->amount, 2, ',', '.')),
-                Placeholder::make('expires_display')->label('Vencimiento')->content(fn (?BankTransferOrder $record): string => $record?->expires_at?->format('d/m/Y') ?? '—'),
+                Placeholder::make('amount_display')->label('Importe exacto')->content(fn (?BankTransferOrder $record): string => \App\Helpers\Cliente::money((float) $record?->amount)),
+                Placeholder::make('expires_display')->label('Vencimiento')->content(fn (?BankTransferOrder $record): string => $record?->expires_at?->format(config('cliente.formato_fecha')) ?? '—'),
                 Placeholder::make('status_display')->label('Estado')->content(fn (?BankTransferOrder $record): string => self::statusLabels()[$record?->status] ?? '—'),
                 Placeholder::make('payer_display')->label('Pagador')->content(fn (?BankTransferOrder $record): string => $record?->payer_name ?: ($record?->club?->name ?? 'Jugador')),
             ])->columns(4),
             Section::make('Cuenta de destino')->schema([
-                Placeholder::make('beneficiary')->label('Destinatario')->content(fn (?BankTransferOrder $record) => $record?->beneficiary_name ?? 'Federación Argentina de Billar'),
+                Placeholder::make('beneficiary')->label('Destinatario')->content(fn (?BankTransferOrder $record) => $record?->beneficiary_name ?? config('cliente.nombre')),
                 Placeholder::make('holder')->label('Titular')->content(fn (?BankTransferOrder $record) => $record?->destination_account_holder ?? 'Sin configurar'),
                 Placeholder::make('tax')->label('CUIT')->content(fn (?BankTransferOrder $record) => $record?->destination_tax_id ?? '—'),
                 Placeholder::make('bank')->label('Banco')->content(fn (?BankTransferOrder $record) => $record?->destination_bank_name ?? '—'),
@@ -114,14 +114,14 @@ class BankTransferOrderResource extends Resource
             Section::make('Conceptos incluidos')->schema([
                 Repeater::make('items')->relationship()->hiddenLabel()->schema([
                     TextInput::make('description')->label('Concepto')->disabled()->dehydrated(false),
-                    TextInput::make('amount')->label('Importe')->prefix('$')->disabled()->dehydrated(false),
+                    TextInput::make('amount')->label('Importe')->prefix(config('cliente.simbolo_moneda'))->disabled()->dehydrated(false),
                 ])->columns(2)->addable(false)->deletable(false)->reorderable(false)->dehydrated(false),
             ]),
             Section::make('Comprobante')->schema([
                 FileUpload::make('receipt_path')->label('Comprobante')->disk('public_path')->directory('pagos/transferencias')
                     ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png'])->openable()->downloadable()->required(),
                 DatePicker::make('transferred_at')->label('Fecha de transferencia')->required(),
-                TextInput::make('transferred_amount')->label('Importe transferido')->numeric()->prefix('$')->required(),
+                TextInput::make('transferred_amount')->label('Importe transferido')->numeric()->prefix(config('cliente.simbolo_moneda'))->required(),
                 TextInput::make('origin_bank')->label('Banco de origen')->required(),
                 TextInput::make('origin_holder')->label('Titular de origen')->required(),
                 TextInput::make('transaction_number')->label('Número de operación'),
@@ -139,8 +139,8 @@ class BankTransferOrderResource extends Resource
             TextColumn::make('payer_name')->label('Pagador')->placeholder('Usuario solicitante')->searchable(),
             TextColumn::make('club.name')->label('Club')->placeholder('Independiente')->searchable(),
             TextColumn::make('discipline.name')->label('Disciplina'),
-            TextColumn::make('amount')->label('Total')->money('ARS'),
-            TextColumn::make('expires_at')->label('Vence')->date('d/m/Y'),
+            TextColumn::make('amount')->label('Total')->formatStateUsing(fn ($state): string => \App\Helpers\Cliente::money($state)),
+            TextColumn::make('expires_at')->label('Vence')->date(config('cliente.formato_fecha')),
             IconColumn::make('status')->label('Estado')
                 ->icon(fn (string $state): string => match ($state) {
                     'approved' => 'heroicon-o-check-circle',
@@ -266,12 +266,12 @@ class BankTransferOrderResource extends Resource
             ->map(fn ($contact) => "{$contact->name}: {$contact->phone}")
             ->implode("\n");
         $message = implode("\n", array_filter([
-            'Federación Argentina de Billar',
+            config('cliente.nombre'),
             '',
             "Orden: {$order->code}",
             "Concepto: {$concept}",
-            'Importe: $ '.number_format((float) $order->amount, 2, ',', '.'),
-            'Vencimiento: '.($order->expires_at?->format('d/m/Y') ?? 'Sin vencimiento'),
+            'Importe: '.\App\Helpers\Cliente::money((float) $order->amount),
+            'Vencimiento: '.($order->expires_at?->format(config('cliente.formato_fecha')) ?? 'Sin vencimiento'),
             '',
             'Descargar orden de pago:',
             $pdfUrl,

@@ -37,16 +37,16 @@
                 <h1>Ranking Carambola 3 Bandas</h1>
                 <div class="subtitle">Categoría: {{ $category }} · Temporada {{ $season }}</div>
             </td>
-            <td class="date" style="width:20%;">Emisión<br><strong>{{ $generatedAt->format('d/m/Y H:i') }}</strong></td>
+            <td class="date" style="width:20%;">Emisión<br><strong>{{ $generatedAt->format(config('cliente.formato_fecha').' H:i') }}</strong></td>
         </tr>
     </table>
 </header>
 
 <footer>
     @if (is_file($footer))
-        <img src="{{ $footer }}" alt="Federación Argentina de Billar">
+        <img src="{{ $footer }}" alt="{{ config('cliente.nombre') }}">
     @else
-        Federación Argentina de Billar
+        {{ config('cliente.nombre') }}
     @endif
 </footer>
 

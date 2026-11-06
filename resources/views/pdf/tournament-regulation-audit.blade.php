@@ -30,7 +30,7 @@
             <img src="{{ $logo }}" class="logo" alt="FAB">
         @endif
         <h1>INFORME DE AUDITORÍA REGLAMENTARIA</h1>
-        <div class="subtitle">Federación Argentina de Billar · Auditoría N.º {{ $audit->id }}</div>
+        <div class="subtitle">{{ config('cliente.nombre') }} · Auditoría N.º {{ $audit->id }}</div>
         <div style="clear: both;"></div>
     </div>
 
@@ -58,8 +58,8 @@
         <tr><th>Disciplina</th><td>{{ $discipline?->name ?? 'Sin informar' }}</td></tr>
         <tr><th>Tipo de torneo</th><td>{{ $type?->name ?? 'Sin informar' }}</td></tr>
         <tr><th>Club organizador</th><td>{{ $club?->name ?? 'Sin informar' }}</td></tr>
-        <tr><th>Fecha de inicio</th><td>{{ data_get($snapshot, 'start_date', $audit->tournament?->start_date?->format('d/m/Y')) }}</td></tr>
-        <tr><th>Fecha de finalización</th><td>{{ data_get($snapshot, 'end_date', $audit->tournament?->end_date?->format('d/m/Y')) }}</td></tr>
+        <tr><th>Fecha de inicio</th><td>{{ data_get($snapshot, 'start_date', $audit->tournament?->start_date?->format(config('cliente.formato_fecha'))) }}</td></tr>
+        <tr><th>Fecha de finalización</th><td>{{ data_get($snapshot, 'end_date', $audit->tournament?->end_date?->format(config('cliente.formato_fecha'))) }}</td></tr>
         <tr><th>Categorías</th><td>{{ implode(', ', $categoryNames) ?: 'Sin informar' }}</td></tr>
     </table>
 

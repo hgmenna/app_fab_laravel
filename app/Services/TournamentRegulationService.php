@@ -236,10 +236,10 @@ class TournamentRegulationService
             ->where('status', '!=', 'cancelled')
             ->whereHas('type', fn (Builder $query) => $query->where('is_official', false))
             ->where(function (Builder $query): void {
-                $query->whereDate('end_date', '>=', today('America/Argentina/Buenos_Aires'))
+                $query->whereDate('end_date', '>=', today(config('cliente.zona_horaria')))
                     ->orWhere(function (Builder $withoutEnd): void {
                         $withoutEnd->whereNull('end_date')
-                            ->whereDate('start_date', '>=', today('America/Argentina/Buenos_Aires'));
+                            ->whereDate('start_date', '>=', today(config('cliente.zona_horaria')));
                     });
             })
             ->whereBetween('start_date', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
@@ -302,7 +302,7 @@ class TournamentRegulationService
                 ->map(fn (Tournament $tournament): array => [
                     'id' => $tournament->id,
                     'name' => $tournament->name,
-                    'start_date' => $tournament->start_date?->format('d/m/Y'),
+                    'start_date' => $tournament->start_date?->format(config('cliente.formato_fecha')),
                 ])
                 ->all();
             $check = [
@@ -310,8 +310,8 @@ class TournamentRegulationService
                 'category' => $categoryName,
                 'maximum_allowed' => $maximum,
                 'period_months' => $periodMonths,
-                'period_start' => $worstWindow['start']->format('d/m/Y'),
-                'period_end' => $worstWindow['end']->format('d/m/Y'),
+                'period_start' => $worstWindow['start']->format(config('cliente.formato_fecha')),
+                'period_end' => $worstWindow['end']->format(config('cliente.formato_fecha')),
                 'active_tournaments' => count($relatedTournaments),
                 'total_with_candidate' => $worstWindow['total_with_candidate'],
                 'related_tournaments' => $relatedTournaments,
@@ -328,8 +328,8 @@ class TournamentRegulationService
                 'conflicting_tournament' => 'Cupo del club para '.$categoryName,
                 'club' => $candidate->venue?->name,
                 'province' => $candidate->venue?->city?->state?->name,
-                'start_date' => $worstWindow['start']->format('d/m/Y'),
-                'end_date' => $worstWindow['end']->format('d/m/Y'),
+                'start_date' => $worstWindow['start']->format(config('cliente.formato_fecha')),
+                'end_date' => $worstWindow['end']->format(config('cliente.formato_fecha')),
                 'shared_categories' => [$categoryName],
                 'route' => [],
                 'quota' => $check,
@@ -409,7 +409,7 @@ class TournamentRegulationService
             trim((string) $club?->address),
             $club?->city?->name,
             $club?->city?->state?->name,
-            $club?->city?->state?->country?->name ?: 'Argentina',
+            $club?->city?->state?->country?->name ?: config('cliente.pais_nombre'),
         ]));
     }
 
@@ -466,8 +466,8 @@ class TournamentRegulationService
             'conflicting_tournament' => $existing->name,
             'club' => $existing->venueName(),
             'province' => $existing->venueStateName(),
-            'start_date' => $existing->start_date?->format('d/m/Y'),
-            'end_date' => ($existing->end_date ?: $existing->start_date)?->format('d/m/Y'),
+            'start_date' => $existing->start_date?->format(config('cliente.formato_fecha')),
+            'end_date' => ($existing->end_date ?: $existing->start_date)?->format(config('cliente.formato_fecha')),
             'shared_categories' => $categories,
             'route' => $route,
             'message' => "Conflicto con «{$existing->name}» ({$categoryText}): {$reason}",

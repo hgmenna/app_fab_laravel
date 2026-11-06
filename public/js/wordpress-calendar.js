@@ -28,8 +28,11 @@
     if (root.fabCalendarInitialized) return;
     root.fabCalendarInitialized = true;
 
-    const selector = 'table.wpDataTableID-64';
-    const endpoint = 'https://sistem.federacionargentinadebillar.org/torneos.json?estado=todos';
+    const calendarScript = document.currentScript;
+    const selector = root.fabCalendarConfig?.selector || 'table.wpDataTableID-64';
+    // El script externo identifica el sistema que lo sirve, aunque WordPress esté en otro dominio.
+    const endpoint = root.fabCalendarConfig?.endpoint || new URL('/torneos.json?estado=todos',
+        calendarScript?.dataset.systemUrl || calendarScript?.src || root.location.origin).href;
     const filters = { estado: 'proximos', desde: '', hasta: '', buscar: '' };
     let rows = new Map(), ready = false, api, controls, status, timer;
 

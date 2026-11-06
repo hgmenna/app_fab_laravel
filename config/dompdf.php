@@ -78,7 +78,7 @@ return [
          * direct class use like:
          * $dompdf = new DOMPDF();  $dompdf->load_html($htmldata); $dompdf->render(); $pdfdata = $dompdf->output();
          */
-        'chroot' => '/home/u812683595/domains/sistem.federacionargentinadebillar.org/public_html',
+        'chroot' => [base_path(), config('cliente.raiz_publica')],
 
         /**
          * Protocol whitelist
@@ -282,7 +282,7 @@ return [
          * @var array|null
          */
         'allowed_remote_hosts' => [
-            'sistem.federacionargentinadebillar.org',
+            parse_url(config('cliente.sistema_url'), PHP_URL_HOST),
         ],
 
         /**

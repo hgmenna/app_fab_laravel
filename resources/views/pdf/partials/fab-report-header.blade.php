@@ -16,6 +16,6 @@
 </header>
 <footer class="fab-report-footer">
     @if (!empty($footer_image))
-        <img src="{{ $footer_image }}" alt="Federación Argentina de Billar">
+        <img src="{{ $footer_image }}" alt="{{ config('cliente.nombre') }}">
     @endif
 </footer>

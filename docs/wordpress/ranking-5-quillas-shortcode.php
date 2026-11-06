@@ -4,17 +4,26 @@
  * Shortcode: [ranking_5_quillas]
  * Consume el ranking en tiempo real desde la aplicación administrativa.
  */
-add_shortcode('ranking_5_quillas', function (): string {
+add_shortcode('ranking_5_quillas', function ($attributes = []): string {
+    $settings = shortcode_atts([
+        'sistema_url' => defined('HGM_SISTEMA_URL') ? HGM_SISTEMA_URL : '',
+        'federacion' => get_bloginfo('name'),
+        'titulo' => 'Ranking de 5 Quillas',
+    ], $attributes, 'ranking_5_quillas');
+    $systemUrl = esc_url_raw(rtrim($settings['sistema_url'], '/'));
+    if ($systemUrl === '') {
+        return '<p>Configurá la dirección del sistema de esta federación en el shortcode de ranking.</p>';
+    }
     $id = wp_unique_id('fab-ranking-5q-');
-    $endpoint = 'https://sistem.federacionargentinadebillar.org/ranking-5-quillas.json';
+    $endpoint = $systemUrl.'/ranking-5-quillas.json';
 
     ob_start();
     ?>
     <section id="<?php echo esc_attr($id); ?>" class="fab-ranking-5q" aria-live="polite">
         <div class="fab-ranking-5q__header">
             <div>
-                <p class="fab-ranking-5q__eyebrow">FEDERACIÓN ARGENTINA DE BILLAR</p>
-                <h2>Ranking Circuito Argentino de 5 Quillas</h2>
+                <p class="fab-ranking-5q__eyebrow"><?php echo esc_html($settings['federacion']); ?></p>
+                <h2><?php echo esc_html($settings['titulo']); ?></h2>
                 <p class="fab-ranking-5q__season"></p>
             </div>
             <label class="fab-ranking-5q__search">

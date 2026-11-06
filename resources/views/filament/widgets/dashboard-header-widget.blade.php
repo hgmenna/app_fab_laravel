@@ -42,7 +42,7 @@
 
         <div class="fab-dashboard-heading-row" style="position:relative; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem;">
             <div>
-                <p style="margin:0 0 .25rem; font-size:.68rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:#fde68a;">Federación Argentina de Billar</p>
+                <p style="margin:0 0 .25rem; font-size:.68rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:#fde68a;">{{ config('cliente.nombre') }}</p>
                 <h1 style="margin:0; font-size:clamp(1.08rem,1.7vw,1.4rem); line-height:1.1; font-weight:800;">Panel deportivo institucional</h1>
             </div>
 

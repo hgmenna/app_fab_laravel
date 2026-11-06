@@ -134,17 +134,17 @@
 
     <footer>
         @if(!empty($footer_image))
-            <img src="{{ $footer_image }}" class="footer-image" alt="Federación Argentina de Billar">
+            <img src="{{ $footer_image }}" class="footer-image" alt="{{ config('cliente.nombre') }}">
         @endif
         <table class="developer-footer">
             <tr>
                 <td class="developer-left">
-                    Desarrollo y Arquitectura de Software:
-                    <span class="developer-name">{{ $developer_name ?? 'Hernán Gabriel Menna' }}</span><br>
+                    {{ config('cliente.proveedor.actividad') }}:
+                    <span class="developer-name">{{ $developer_name ?? config('cliente.proveedor.nombre') }}</span><br>
                     {{ $developer_phone ?? '' }}@if(!empty($developer_phone) && !empty($developer_email)) · @endif{{ $developer_email ?? '' }}
                 </td>
                 <td class="developer-right">
-                    <span class="system-name">{{ $system_name ?? 'Sistema Administrativo Federación Argentina de Billar' }}</span><br>
+                    <span class="system-name">{{ $system_name ?? config('cliente.sistema') }}</span><br>
                     Versión {{ $system_version ?? config('app.version') }}
                 </td>
             </tr>

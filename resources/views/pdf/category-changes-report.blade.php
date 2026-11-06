@@ -325,11 +325,11 @@
                         </td>
 
                         <td class="center">
-                            {{ $record->effective_date?->format('d/m/Y') ?? '-' }}
+                            {{ $record->effective_date?->format(config('cliente.formato_fecha')) ?? '-' }}
                         </td>
 
                         <td class="center">
-                            {{ $record->created_at?->format('d/m/Y') ?? '-' }}
+                            {{ $record->created_at?->format(config('cliente.formato_fecha')) ?? '-' }}
 
                             @if($record->created_at)
                                 <div class="secondary">

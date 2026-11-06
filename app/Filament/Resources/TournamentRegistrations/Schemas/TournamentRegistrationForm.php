@@ -58,7 +58,7 @@ class TournamentRegistrationForm
             Select::make('tournament_slot_id')->label('Horario')->options(function (Get $get): array {
                 return TournamentSlot::query()->where('tournament_modality_id', $get('tournament_modality_id'))
                     ->where('is_active', true)->orderBy('starts_at')->get()->mapWithKeys(fn (TournamentSlot $slot): array => [
-                        $slot->id => $slot->name.' — '.$slot->starts_at?->format('d/m/Y H:i').' ('.($slot->max_players - $slot->occupiedPlaces()).' cupos)',
+                        $slot->id => $slot->name.' — '.$slot->starts_at?->format(config('cliente.formato_fecha').' H:i').' ('.($slot->max_players - $slot->occupiedPlaces()).' cupos)',
                     ])->all();
             })->native(false),
             Select::make('status')->options(['pendiente' => 'Pendiente', 'aprobado' => 'Aprobado', 'ausente' => 'Ausente', 'rechazado' => 'Rechazado'])

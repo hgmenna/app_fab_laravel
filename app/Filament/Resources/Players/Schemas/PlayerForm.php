@@ -73,7 +73,7 @@ class PlayerForm
                         Select::make('discipline_id')
                             ->relationship('discipline', 'name', fn ($query) => Auth::user()?->scopeDisciplineQuery($query->where('active', true), 'Create:Player'))
                             ->label('Disciplina')
-                            ->helperText('La disciplina determina si la afiliación es provincial o directa a Federación Argentina.')
+                            ->helperText('La disciplina determina si la afiliación es territorial o directa a la federación nacional.')
                             ->preload()
                             ->searchable()
                             ->default(fn () => Auth::user()?->defaultDisciplineId('Create:Player'))

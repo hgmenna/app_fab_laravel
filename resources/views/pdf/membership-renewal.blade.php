@@ -29,14 +29,14 @@
     <tr>
         <td style="width:15%">@if($logo)<img src="{{ $logo }}" class="logo">@endif</td>
         <td style="width:70%"><h1>COMPROBANTE DE MEMBRESÍAS</h1><h2>{{ $membership->discipline?->name }} · Año {{ $membership->year }}</h2></td>
-        <td style="width:15%;text-align:right">{{ $generatedAt->format('d/m/Y') }}</td>
+        <td style="width:15%;text-align:right">{{ $generatedAt->format(config('cliente.formato_fecha')) }}</td>
     </tr>
 </table>
 
 <table class="meta">
-    <tr><td class="label">Generado por</td><td>{{ $generatedBy->name }} · {{ $generatedBy->email }}</td><td class="label">Fecha y hora</td><td>{{ $generatedAt->format('d/m/Y H:i') }}</td></tr>
-    <tr><td class="label">Disciplina</td><td>{{ $membership->discipline?->name }}</td><td class="label">Cierre</td><td>{{ $membership->due_date?->format('d/m/Y') }}</td></tr>
-    <tr><td class="label">Importe individual</td><td>$ {{ number_format((float)$membership->amount, 2, ',', '.') }}</td><td class="label">Total</td><td>$ {{ number_format((float)$membership->amount * $renewals->count(), 2, ',', '.') }}</td></tr>
+    <tr><td class="label">Generado por</td><td>{{ $generatedBy->name }} · {{ $generatedBy->email }}</td><td class="label">Fecha y hora</td><td>{{ $generatedAt->format(config('cliente.formato_fecha').' H:i') }}</td></tr>
+    <tr><td class="label">Disciplina</td><td>{{ $membership->discipline?->name }}</td><td class="label">Cierre</td><td>{{ $membership->due_date?->format(config('cliente.formato_fecha')) }}</td></tr>
+    <tr><td class="label">Importe individual</td><td>{{ \App\Helpers\Cliente::money((float)$membership->amount) }}</td><td class="label">Total</td><td>{{ \App\Helpers\Cliente::money((float)$membership->amount * $renewals->count()) }}</td></tr>
 </table>
 
 <table class="detail">
@@ -49,7 +49,7 @@
             <td>{{ $renewal->club?->name ?? 'INDEPENDIENTE' }}</td>
             <td class="center">{{ $renewal->operation_label ?? 'Renovación' }}</td>
             <td class="center">{{ $renewal->enabled_to_compete ? 'HABILITADO' : 'SALDO PENDIENTE' }}</td>
-            <td class="right">$ {{ number_format((float)$renewal->amount_paid, 2, ',', '.') }}</td>
+            <td class="right">{{ \App\Helpers\Cliente::money((float)$renewal->amount_paid) }}</td>
         </tr>
     @endforeach
     </tbody>

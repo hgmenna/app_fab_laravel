@@ -62,7 +62,7 @@ class BankTransferService
                 $paymentAmount = $amountPerPlayer ?? $balance;
                 if ($paymentAmount <= 0 || $paymentAmount > $balance) {
                     throw ValidationException::withMessages([
-                        'payment_amount' => "El importe indicado no es válido para {$player->full_name}. Saldo: $ ".number_format($balance, 2, ',', '.'),
+                        'payment_amount' => "El importe indicado no es válido para {$player->full_name}. Saldo: ".\App\Helpers\Cliente::money($balance),
                     ]);
                 }
 
@@ -93,7 +93,7 @@ class BankTransferService
                 'payer_type' => $payerType,
                 'payer_id' => $payerId,
                 'payer_name' => $payerName ?: ($payerType === 'club' ? ($club?->name ?? 'Club') : 'Jugadores seleccionados'),
-                ...$this->destinationSnapshot($setting, 'federation', 'Federación Argentina de Billar'),
+                ...$this->destinationSnapshot($setting, 'federation', config('cliente.nombre')),
             ]);
 
             foreach ($renewals as $renewal) {
@@ -193,7 +193,7 @@ class BankTransferService
                 ...$this->destinationSnapshot(
                     $destination,
                     $organizer ? 'club' : 'federation',
-                    $organizer?->name ?: 'Federación Argentina de Billar',
+                    $organizer?->name ?: config('cliente.nombre'),
                 ),
             ]);
             $order->items()->create([
