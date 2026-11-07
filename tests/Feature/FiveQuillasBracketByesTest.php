@@ -201,6 +201,47 @@ it('does not automatically recalculate a bracket with a played match', function 
     expect($this->phase->matches()->get()->toArray())->toBe($before);
 });
 
+it('counts zone qualifiers before assigning times and excludes projected byes', function () {
+    configureResultsOrderFixture();
+    $zones = $this->competition->phases()->where('phase_type', 'zones')->firstOrFail();
+    $zones->update(['status' => 'in_progress']);
+    \App\Models\FiveQuillasGroup::create(['phase_id' => $zones->id, 'status' => 'in_progress']);
+    $this->phase->matches()->delete();
+    $this->phase->update(['settings' => [
+        'bracket_size' => 4,
+        'expected_participant_count' => 0,
+        'schedules' => [['starts_at' => '2026-11-01 09:30:00', 'tables' => 1, 'estimated_minutes' => 45]],
+    ]]);
+    foreach ([1, 2] as $order) {
+        $this->phase->matches()->create(['round_number' => 1, 'bracket_order' => $order]);
+    }
+
+    $service = app(FiveQuillasCompetitionService::class);
+    expect($service->scheduleConfiguredMatches($this->phase, 0))->toBe(2);
+
+    $phase = $this->phase->fresh();
+    $first = $phase->matches()->where('round_number', 1)->orderBy('bracket_order')->get();
+    expect($phase->settings['expected_participant_count'])->toBe(6)
+        ->and($first)->toHaveCount(4)
+        ->and($first->whereNotNull('scheduled_at')->map(fn ($match) => $match->scheduled_at->format('H:i'))->values()->all())
+        ->toBe(['09:30', '10:15'])
+        ->and($first->whereNotNull('player_one_entry_id'))->toBeEmpty()
+        ->and($first->where('is_bye', true))->toBeEmpty();
+});
+
+it('populates an undersized empty bracket when the zones finish', function () {
+    $entries = configureResultsOrderFixture();
+    $this->phase->matches()->delete();
+    $this->phase->update(['settings' => ['bracket_size' => 2, 'bracket_pairs' => [[1, 2]], 'results_order_version' => 1]]);
+    $this->phase->matches()->create(['round_number' => 1, 'bracket_order' => 1]);
+
+    app(FiveQuillasCompetitionService::class)->repairPreviousResultsBracket($this->phase);
+
+    $first = $this->phase->matches()->where('round_number', 1)->orderBy('bracket_order')->get();
+    expect($first->pluck('player_one_entry_id')->all())->toBe([$entries[2]->id, $entries[0]->id])
+        ->and($first->pluck('player_two_entry_id')->all())->toBe([$entries[3]->id, $entries[1]->id]);
+});
+
 function configureProgressiveDrawFixture(): array
 {
     $context = test();

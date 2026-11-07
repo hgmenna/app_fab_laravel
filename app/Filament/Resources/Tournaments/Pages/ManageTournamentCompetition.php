@@ -1895,6 +1895,8 @@ class ManageTournamentCompetition extends Page
                     } catch (\Throwable $exception) {
                         report($exception);
                     }
+                } else {
+                    $service->refreshEmptyZoneBracket($phase);
                 }
                 $service->repairPreviousResultsBracket($phase);
                 try {

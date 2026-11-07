@@ -479,6 +479,16 @@ class FiveQuillasCompetitionService
     public function scheduleConfiguredMatches(FiveQuillasPhase $phase, int $scheduleIndex, array $overrides = []): int
     {
         return DB::transaction(function () use ($phase, $scheduleIndex, $overrides): int {
+            $phase = FiveQuillasPhase::query()->lockForUpdate()->findOrFail($phase->id);
+            if ($phase->phase_type === 'bracket') {
+                if ($phase->matches()->exists()) {
+                    $this->refreshEmptyZoneBracket($phase);
+                } else {
+                    $this->ensureBracketSkeleton($phase);
+                }
+                $phase->refresh();
+            }
+
             $schedule = data_get($phase->settings, "schedules.{$scheduleIndex}");
             if (! is_array($schedule)) {
                 throw ValidationException::withMessages(['schedule' => 'El horario seleccionado no existe.']);
@@ -496,11 +506,6 @@ class FiveQuillasCompetitionService
             }
 
             $round = max(1, (int) ($schedule['round_number'] ?? 1));
-            // Crear posiciones sólo si aún no hay grilla. Programar una grilla
-            // existente nunca vuelve a sembrar jugadores ni reconstruye cruces.
-            if ($phase->phase_type === 'bracket' && $phase->matches()->doesntExist()) {
-                $this->ensureBracketSkeleton($phase);
-            }
             $matches = $phase->matches()->where('round_number', $round)
                 ->with(['playerOne', 'playerTwo'])->orderBy('bracket_order')->get();
             // Los rangos Desde/Hasta se definen sobre bracket_order, que es el
@@ -578,16 +583,7 @@ class FiveQuillasCompetitionService
             // clasificados en la fase de zonas. En ese caso se obtiene de su
             // estructura: cantidad de zonas por plazas que entrega cada zona.
             if ($previous?->phase_type === 'zones') {
-                $configuredPerGroup = data_get($previous->settings, 'qualifiers_per_group');
-                $configuredQualifiers = (int) data_get($previous->settings, 'qualifiers', 0);
-                // En zonas, valores pequeños (habitualmente 1 o 2) representan
-                // los clasificados de cada zona, no el total de la fase.
-                $qualifiersPerGroup = filled($configuredPerGroup)
-                    ? max(1, (int) $configuredPerGroup)
-                    : ($configuredQualifiers >= 1 && $configuredQualifiers <= 4 ? $configuredQualifiers : 2);
-                $expectedPrevious = $configuredQualifiers > 4
-                    ? $configuredQualifiers
-                    : $previous->groups()->count() * $qualifiersPerGroup;
+                $expectedPrevious = $this->expectedZoneQualifiers($previous);
             }
             $expectedTotal = $directCapacity + $expectedPrevious;
             $configuredSize = (int) data_get($phase->settings, 'bracket_size', 0);
@@ -693,6 +689,63 @@ class FiveQuillasCompetitionService
         });
     }
 
+    private function expectedZoneQualifiers(FiveQuillasPhase $zones): int
+    {
+        $configured = (int) data_get($zones->settings, 'qualifiers', 0);
+        if ($configured > 4) {
+            return $configured;
+        }
+
+        $perGroup = data_get($zones->settings, 'qualifiers_per_group');
+        $perGroup = filled($perGroup) ? (int) $perGroup : ($configured >= 1 ? $configured : 2);
+
+        return $zones->groups()->count() * max(1, $perGroup);
+    }
+
+    /** Actualiza la previsión de una grilla vacía creada antes de cargar las zonas. */
+    public function refreshEmptyZoneBracket(FiveQuillasPhase $phase): void
+    {
+        DB::transaction(function () use ($phase): void {
+            $phase = FiveQuillasPhase::query()->lockForUpdate()->findOrFail($phase->id);
+            if ($phase->phase_type !== 'bracket' || ! $phase->is_enabled) {
+                return;
+            }
+
+            $previous = $this->previousPhase($phase);
+            if ($previous?->phase_type !== 'zones') {
+                return;
+            }
+
+            $expected = $this->expectedZoneQualifiers($previous);
+            if ($previous->status !== 'completed'
+                && ($expected < 1 || $expected === (int) data_get($phase->settings, 'expected_participant_count', 0))) {
+                return;
+            }
+            $matches = $phase->matches()->lockForUpdate()->get();
+            if ($matches->isEmpty() || $matches->contains(fn ($match): bool =>
+                $match->player_one_entry_id || $match->player_two_entry_id
+                || ! in_array($match->status, ['pending', 'scheduled'], true))) {
+                return;
+            }
+
+            if ($previous->status === 'completed') {
+                $this->repairPreviousResultsBracket($phase);
+
+                return;
+            }
+
+            if ($matches->where('round_number', 1)->count() * 2 < $expected) {
+                $this->ensureBracketSkeleton($phase);
+
+                return;
+            }
+
+            $phase->update(['settings' => array_merge($phase->settings ?? [], [
+                'expected_participant_count' => $expected,
+            ])]);
+        });
+    }
+
     /** Ajusta una grilla existente al número de clasificados configurado. */
     public function reconcileBracketRounds(FiveQuillasPhase $phase): void
     {
@@ -730,25 +783,40 @@ class FiveQuillasCompetitionService
     {
         DB::transaction(function () use ($phase): void {
             $phase = FiveQuillasPhase::query()->lockForUpdate()->findOrFail($phase->id);
+            $previous = $this->previousPhase($phase);
             if ($phase->phase_type !== 'bracket' || $phase->seeding_method !== 'previous_results'
-                || (int) data_get($phase->settings, 'results_order_version', 0) >= 1
-                || $this->previousPhase($phase)?->status !== 'completed') {
+                || $previous?->status !== 'completed') {
                 return;
             }
             $matches = $phase->matches()->lockForUpdate()->get();
             if ($matches->isEmpty() || $matches->contains(fn ($match): bool =>
-                in_array($match->status, ['called', 'in_progress'], true)
+                in_array($match->status, ['called', 'in_progress', 'suspended'], true)
                 || ($match->status === 'completed' && ! $match->is_bye))) {
+                return;
+            }
+            $first = $matches->where('round_number', 1)->sortBy('bracket_order')->values();
+            $emptyZoneBracket = $previous->phase_type === 'zones' && $first->isNotEmpty()
+                && $first->every(fn ($match): bool => ! $match->player_one_entry_id && ! $match->player_two_entry_id);
+            if (! $emptyZoneBracket && (int) data_get($phase->settings, 'results_order_version', 0) >= 1) {
                 return;
             }
             $rows = collect($this->bracketParticipantRows($phase));
             $phase->refresh();
             $pairs = collect(data_get($phase->settings, 'bracket_pairs', []))->values();
-            $first = $matches->where('round_number', 1)->sortBy('bracket_order')->values();
-            if ($rows->isEmpty() || $pairs->count() !== $first->count()) {
+            if ($rows->isEmpty()) {
                 return;
             }
             $seeds = $rows->pluck('entry_id', 'seed_position');
+            if ($pairs->count() !== $first->count()) {
+                if (! $emptyZoneBracket) {
+                    return;
+                }
+
+                $phase->matches()->delete();
+                $this->createEliminationBracket($phase, [], false);
+                $first = $phase->matches()->where('round_number', 1)->orderBy('bracket_order')->get();
+                $matches = collect();
+            }
             foreach ($matches as $match) {
                 // Conserva identidad del partido, conexiones, fecha, hora y mesa.
                 $match->update([
@@ -770,7 +838,10 @@ class FiveQuillasCompetitionService
             foreach ($rows as $row) {
                 FiveQuillasEntry::query()->whereKey($row['entry_id'])->update(['seed' => $row['seed_position']]);
             }
-            $phase->update(['settings' => array_merge($phase->settings ?? [], ['results_order_version' => 1])]);
+            $phase->update(['settings' => array_merge($phase->settings ?? [], [
+                'expected_participant_count' => $rows->count(),
+                'results_order_version' => 1,
+            ])]);
             $this->resolveBracketByes($phase);
         });
     }
