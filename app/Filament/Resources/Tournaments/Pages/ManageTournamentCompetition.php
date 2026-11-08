@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Tournaments\Pages;
 
 use App\Filament\Resources\Tournaments\TournamentResource;
+use App\Helpers\CompetitionViewVersion;
 use App\Livewire\CompetitionOrganizationUpdates;
 use App\Models\Category;
 use App\Models\FiveQuillasCompetition;
@@ -36,6 +37,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 
 /**
@@ -50,6 +52,9 @@ class ManageTournamentCompetition extends Page
     protected string $view = 'filament.resources.tournaments.pages.manage-tournament-competition';
 
     protected static ?string $navigationLabel = 'Competencia';
+
+    #[Locked]
+    public ?string $competitionLayoutVersion = null;
 
     private function competitionViewRevisionKey(): string
     {
@@ -2009,6 +2014,7 @@ class ManageTournamentCompetition extends Page
         return [
             'competition' => $competition,
             'competitionViewRevision' => $competitionViewRevision,
+            'competitionLayoutVersion' => $this->competitionLayoutVersion ??= CompetitionViewVersion::current(organization: true),
             'entriesBySlot' => $entries->groupBy(fn ($entry): string => $entry->sourceSlot?->name ?? 'SIN HORARIO ASIGNADO'),
             'entriesByPhase' => $pendingEntries
                 ->groupBy(fn ($entry): string => $entry->entryPhase?->name ?? 'PRIMERA FASE'),

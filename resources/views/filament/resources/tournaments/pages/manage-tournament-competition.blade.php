@@ -3,6 +3,7 @@
         <livewire:competition-organization-updates
             :tournament-id="(int) $this->record->getKey()"
             :revision="$competitionViewRevision"
+            :view-version="$competitionLayoutVersion"
         />
     @endif
     <style>
@@ -66,13 +67,13 @@
         <div wire:key="competition-phases-{{ $competition->id }}-{{ $enabledPhases->pluck('id')->implode('-') }}" x-data="{ activePhase: @js((string) optional($enabledPhases->first())->id) }">
         <div class="fq-phases" role="tablist" aria-label="Fases del torneo">
             @foreach($competition->phases as $phase)
-                <button type="button" class="fq-phase fq-phase-tab" :class="activePhase === @js((string)$phase->id) && 'is-active'" @click="activePhase = @js((string)$phase->id)" style="{{ $phase->is_enabled ? '' : 'opacity:.48;pointer-events:none' }}">
+                <button type="button" class="fq-phase fq-phase-tab" data-fq-phase="{{ $phase->id }}" :class="activePhase === @js((string)$phase->id) && 'is-active'" @click="activePhase = @js((string)$phase->id)" style="{{ $phase->is_enabled ? '' : 'opacity:.48;pointer-events:none' }}">
                     <span class="fq-label">Fase {{ $phase->sort_order }}{{ $phase->is_enabled ? '' : ' · Deshabilitada' }}</span>
                     <strong>{{ $phase->name }}</strong>
                     <small>{{ match($phase->displayStatus()){'ready'=>'Preparada','in_progress'=>'En curso','completed'=>'Finalizada',default=>'Pendiente'} }}</small>
                 </button>
             @endforeach
-            <button type="button" class="fq-phase fq-phase-tab" :class="activePhase === 'positions' && 'is-active'" @click="activePhase = 'positions'">
+            <button type="button" class="fq-phase fq-phase-tab" data-fq-phase="positions" :class="activePhase === 'positions' && 'is-active'" @click="activePhase = 'positions'">
                 <span class="fq-label">Clasificación</span><strong>Posiciones finales</strong><small>Puntuación del torneo</small>
             </button>
         </div>
@@ -126,7 +127,7 @@
             <div>
                 <div class="fq-slot-tabs">
                     @foreach($groupsBySlot as $slotKey => $slotGroups)
-                        <button type="button" class="fq-slot-tab" :class="activeSlot === @js((string)$slotKey) && 'is-active'" @click="activeSlot = @js((string)$slotKey)">
+                        <button type="button" class="fq-slot-tab" data-fq-slot="{{ $slotKey }}" :class="activeSlot === @js((string)$slotKey) && 'is-active'" @click="activeSlot = @js((string)$slotKey)">
                             {{ $slotGroups->first()?->slot?->name ?? 'SIN HORARIO' }}
                         </button>
                     @endforeach
@@ -312,7 +313,7 @@
                     <div x-data="{ activeSchedule: 0 }">
                         <div class="fq-slot-tabs" role="tablist" aria-label="Horarios de {{ $phase->name }}">
                             @foreach($phaseSchedules as $scheduleIndex => $schedule)
-                                <button type="button" class="fq-slot-tab" :class="activeSchedule === {{ $scheduleIndex }} && 'is-active'" @click="activeSchedule = {{ $scheduleIndex }}">
+                                <button type="button" class="fq-slot-tab" data-fq-slot="{{ $scheduleIndex }}" :class="activeSchedule === {{ $scheduleIndex }} && 'is-active'" @click="activeSchedule = {{ $scheduleIndex }}">
                                     {{ $schedule['name'] ?? 'Horario '.($scheduleIndex + 1) }}
                                     @if(filled($schedule['starts_at'] ?? null)) · {{ \Illuminate\Support\Carbon::parse($schedule['starts_at'])->format(config('cliente.formato_fecha').' H:i') }}@endif
                                 </button>
@@ -374,6 +375,28 @@
     @script
     <script>
         @include('partials.competition-pdf-script')
+        const loadedCompetitionViewVersion = @js($competitionLayoutVersion);
+        @include('partials.competition-view-refresh')
+
+        const root = $wire.$el;
+        const panelFor = phase => [...root.querySelectorAll('.fq-phase-panel')].find(panel => panel.id === 'fq-section-' + phase);
+        $wire.on('competition-organization-view-changed', ({ version }) => {
+            if ($wire.mountedActions?.length || document.querySelector('dialog[open]')) return;
+
+            const phase = root.querySelector('[data-fq-phase].is-active')?.dataset.fqPhase;
+            const slot = panelFor(phase)?.querySelector('[data-fq-slot].is-active')?.dataset.fqSlot;
+            reloadCompetitionViewIfChanged(version, { phase, slot });
+        });
+
+        const restored = restoreCompetitionViewState();
+        if (restored?.phase) {
+            requestAnimationFrame(() => {
+                const phaseButton = [...root.querySelectorAll('[data-fq-phase]')].find(button => button.dataset.fqPhase === restored.phase);
+                phaseButton?.click();
+                const slotButton = [...(panelFor(restored.phase)?.querySelectorAll('[data-fq-slot]') ?? [])].find(button => button.dataset.fqSlot === restored.slot);
+                slotButton?.click();
+            });
+        }
     </script>
     @endscript
 </x-filament-panels::page>

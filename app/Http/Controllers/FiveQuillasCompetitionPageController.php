@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\CompetitionViewVersion;
 use App\Models\FiveQuillasCompetition;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\View\View;
 
 /**
  * Renderiza la página pública de una competencia de cinco quillas.
@@ -15,7 +15,7 @@ class FiveQuillasCompetitionPageController extends Controller
     /**
      * Atiende la solicitud después de resolver autorización y datos publicados.
      */
-    public function __invoke(string $slug): View|Response
+    public function __invoke(string $slug): Response
     {
         $competition = FiveQuillasCompetition::query()
             ->where('public_slug', $slug)
@@ -29,14 +29,15 @@ class FiveQuillasCompetitionPageController extends Controller
         if (! $competition->is_public) {
             return response()->view('public.five-quillas-competition-unavailable', [
                 'competition' => $competition,
-            ], 200);
+            ])->header('Cache-Control', 'no-store');
         }
 
         $tournament = $competition->tournament;
         $logoPath = $tournament->publicationLogoPath();
 
-        return view('public.five-quillas-competition', [
+        return response()->view('public.five-quillas-competition', [
             'competition' => $competition,
+            'viewVersion' => CompetitionViewVersion::current(),
             'jsonUrl' => route('five-quillas-competition.public', ['slug' => $slug]),
             'pdfBaseUrl' => url('/torneos/5-quillas/'.$slug.'/secciones'),
             'tournamentInfo' => [
@@ -52,6 +53,6 @@ class FiveQuillasCompetitionPageController extends Controller
                 'modality' => $tournament->tournamentModalities->pluck('modality.name')->filter()->implode(', ') ?: 'Sin modalidad',
                 'logo' => $logoPath ? Storage::disk('public_path')->url($logoPath) : null,
             ],
-        ]);
+        ])->header('Cache-Control', 'no-store');
     }
 }

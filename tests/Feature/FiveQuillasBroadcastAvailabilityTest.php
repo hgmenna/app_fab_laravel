@@ -1,5 +1,6 @@
 <?php
 
+use App\Helpers\CompetitionViewVersion;
 use App\Http\Controllers\FiveQuillasCompetitionBroadcastController;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Schema\Blueprint;
@@ -23,10 +24,12 @@ it('renders the tournament waiting screen when results or broadcasting are disab
         'public_slug' => 'torneo-prueba', 'is_public' => $public,
         'settings' => json_encode(['broadcast' => ['enabled' => $enabled]]),
     ]);
-    $view = (new FiveQuillasCompetitionBroadcastController)('torneo-prueba');
+    $response = (new FiveQuillasCompetitionBroadcastController)('torneo-prueba');
+    $view = $response->getOriginalContent();
     expect($view->name())->toBe('public.five-quillas-competition-unavailable')
         ->and($view->getData())->toHaveKey('competition')
-        ->and($view->getData())->not->toHaveKey('jsonUrl');
+        ->and($view->getData())->not->toHaveKey('jsonUrl')
+        ->and($response->headers->hasCacheControlDirective('no-store'))->toBeTrue();
 })->with([[false, false], [false, true], [true, false]]);
 
 it('renders the broadcasting screen when publication and broadcasting are enabled', function () {
@@ -34,9 +37,12 @@ it('renders the broadcasting screen when publication and broadcasting are enable
         'public_slug' => 'torneo-prueba', 'is_public' => true,
         'settings' => json_encode(['broadcast' => ['enabled' => true]]),
     ]);
-    $view = (new FiveQuillasCompetitionBroadcastController)('torneo-prueba');
+    $response = (new FiveQuillasCompetitionBroadcastController)('torneo-prueba');
+    $view = $response->getOriginalContent();
     expect($view->name())->toBe('public.five-quillas-competition-broadcast')
-        ->and($view->getData()['broadcastConfig']['enabled'])->toBeTrue();
+        ->and($view->getData()['broadcastConfig']['enabled'])->toBeTrue()
+        ->and($view->getData()['viewVersion'])->toBe(CompetitionViewVersion::current())
+        ->and($response->headers->hasCacheControlDirective('no-store'))->toBeTrue();
 });
 
 it('keeps missing tournament URLs as not found', function () {

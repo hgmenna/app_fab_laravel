@@ -1,5 +1,6 @@
 <?php
 
+use App\Helpers\CompetitionViewVersion;
 use App\Livewire\CompetitionOrganizationUpdates;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
@@ -46,6 +47,7 @@ it('detects saved scores even when no cache notification is published', function
     $operator = Livewire::test(CompetitionOrganizationUpdates::class, [
         'tournamentId' => 21,
         'revision' => CompetitionOrganizationUpdates::revisionFor(21),
+        'viewVersion' => CompetitionViewVersion::current(organization: true),
     ]);
 
     Cache::put(CompetitionOrganizationUpdates::revisionKey(22), 'other-tournament');
@@ -65,4 +67,16 @@ it('detects saved scores even when no cache notification is published', function
         'set_scores' => json_encode(['sets' => [['player_one_points' => 60, 'player_two_points' => 45]]]),
     ]);
     $operator->call('checkForChanges')->assertDispatched('competition-organization-changed');
+});
+
+it('signals an organization layout change even when the results did not change', function () {
+    $operator = Livewire::test(CompetitionOrganizationUpdates::class, [
+        'tournamentId' => 21,
+        'revision' => CompetitionOrganizationUpdates::revisionFor(21),
+        'viewVersion' => 'previous-layout',
+    ]);
+
+    $operator->call('checkForChanges')
+        ->assertDispatched('competition-organization-view-changed', version: CompetitionViewVersion::current(organization: true))
+        ->assertNotDispatched('competition-organization-changed');
 });

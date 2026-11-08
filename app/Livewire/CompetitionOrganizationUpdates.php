@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Helpers\CompetitionViewVersion;
 use App\Models\FiveQuillasCompetition;
 use App\Models\FiveQuillasMatch;
 use App\Models\FiveQuillasPhase;
@@ -19,6 +20,9 @@ class CompetitionOrganizationUpdates extends Component
 
     #[Locked]
     public ?string $revision = null;
+
+    #[Locked]
+    public ?string $viewVersion = null;
 
     public static function revisionKey(int $tournamentId): string
     {
@@ -41,13 +45,19 @@ class CompetitionOrganizationUpdates extends Component
 
     public function checkForChanges(): void
     {
+        $this->skipRender();
+        $viewVersion = CompetitionViewVersion::current(organization: true);
+        if ($this->viewVersion !== null && $this->viewVersion !== $viewVersion) {
+            $this->dispatch('competition-organization-view-changed', version: $viewVersion);
+
+            return;
+        }
+
         $revision = self::revisionFor($this->tournamentId);
         if ($revision !== $this->revision) {
             $this->revision = $revision;
             $this->dispatch('competition-organization-changed');
         }
-
-        $this->skipRender();
     }
 
     public function render(): string

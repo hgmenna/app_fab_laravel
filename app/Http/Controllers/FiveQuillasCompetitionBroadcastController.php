@@ -2,15 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\CompetitionViewVersion;
 use App\Models\FiveQuillasCompetition;
-use Illuminate\View\View;
+use Illuminate\Http\Response;
 
 /**
  * Renderiza la fuente animada de resultados que OBS incorpora como navegador.
  */
 class FiveQuillasCompetitionBroadcastController extends Controller
 {
-    public function __invoke(string $slug): View
+    public function __invoke(string $slug): Response
     {
         $competition = FiveQuillasCompetition::query()
             ->where('public_slug', $slug)
@@ -20,11 +21,13 @@ class FiveQuillasCompetitionBroadcastController extends Controller
 
         $settings = (array) data_get($competition->settings, 'broadcast', []);
         if (! $competition->is_public || ! (bool) ($settings['enabled'] ?? false)) {
-            return view('public.five-quillas-competition-unavailable', ['competition' => $competition]);
+            return response()->view('public.five-quillas-competition-unavailable', ['competition' => $competition])
+                ->header('Cache-Control', 'no-store');
         }
 
-        return view('public.five-quillas-competition-broadcast', [
+        return response()->view('public.five-quillas-competition-broadcast', [
             'competition' => $competition,
+            'viewVersion' => CompetitionViewVersion::current(),
             'jsonUrl' => route('five-quillas-competition.public', ['slug' => $slug]),
             'broadcastConfig' => [
                 'enabled' => true,
@@ -34,6 +37,6 @@ class FiveQuillasCompetitionBroadcastController extends Controller
                 'zoneSlotKeys' => collect($settings['zone_slot_keys'] ?? [])->map(fn ($key): string => (string) $key)->values()->all(),
                 'rotationSeconds' => max(4, min(60, (int) ($settings['rotation_seconds'] ?? 8))),
             ],
-        ]);
+        ])->header('Cache-Control', 'no-store');
     }
 }

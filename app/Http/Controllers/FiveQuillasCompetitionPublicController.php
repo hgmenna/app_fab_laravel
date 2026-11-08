@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\CompetitionViewVersion;
 use App\Models\FiveQuillasCompetition;
 use App\Services\FiveQuillasCompetitionService;
 use Illuminate\Http\JsonResponse;
@@ -73,6 +74,7 @@ class FiveQuillasCompetitionPublicController extends Controller
         $championPhoto = $championEntry?->player?->photo_path;
 
         return response()->json([
+            'view_version' => CompetitionViewVersion::current(),
             'data' => [
                 'slug' => $competition->public_slug,
                 'status' => $competition->status,
