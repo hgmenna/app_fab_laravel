@@ -368,4 +368,9 @@
             </div>
         @endif
     @endif
+    @script
+    <script>
+        @include('partials.competition-pdf-script')
+    </script>
+    @endscript
 </x-filament-panels::page>
