@@ -148,10 +148,6 @@ class FilteredPlayerPerformance extends Page
                     $tournament->whereDate('end_date', '<=', $this->untilDate);
                 }
             })
-            ->when($this->minPoints !== '' && is_numeric($this->minPoints),
-                fn (Builder $query) => $query->where('points', '>=', (float) $this->minPoints))
-            ->when($this->maxPoints !== '' && is_numeric($this->maxPoints),
-                fn (Builder $query) => $query->where('points', '<=', (float) $this->maxPoints))
             ->with(['tournament.type', 'tournamentInstance', 'participants'])
             ->orderByDesc(Tournament::query()
                 ->select('end_date')
@@ -159,6 +155,18 @@ class FilteredPlayerPerformance extends Page
                 ->limit(1))
             ->orderByDesc('id')
             ->get();
+
+        $minimum = is_numeric($this->minPoints) ? (float) $this->minPoints : null;
+        $maximum = is_numeric($this->maxPoints) ? (float) $this->maxPoints : null;
+        if ($minimum !== null || $maximum !== null) {
+            $rows = $rows->filter(function (TournamentRegistration $registration) use ($minimum, $maximum): bool {
+                $points = $registration->performance_score['points'];
+
+                return $points !== null
+                    && ($minimum === null || $points >= $minimum)
+                    && ($maximum === null || $points <= $maximum);
+            });
+        }
 
         $counts = DB::table('tournament_registrations')->whereIn('tournament_id', $rows->pluck('tournament_id')->unique())
             ->groupBy('tournament_id')->selectRaw('tournament_id, COUNT(*) as total')->pluck('total', 'tournament_id');
@@ -178,7 +186,7 @@ class FilteredPlayerPerformance extends Page
                 'name' => $player->full_name,
                 'tournaments' => $playerRows->count(),
                 'results' => $playerRows->filter(fn (TournamentRegistration $row): bool => $row->result_code !== null || $row->tournament_instance_id !== null)->count(),
-                'points' => $playerRows->sum(fn (TournamentRegistration $row): float => (float) $row->points),
+                'points' => $playerRows->sum(fn (TournamentRegistration $row): float => (float) $row->performance_score['points']),
                 'rows' => $playerRows,
             ];
         })->when(

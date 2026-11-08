@@ -838,7 +838,7 @@ it('reconciles already assigned points with configured final positions and remai
             ->and($this->entries[0]->fresh()->final_position)->toBe(1);
 
         $db::table('tournament_registrations')->where('id', 1)->update(['points' => 1]);
-        $this->artisan('torneos:sincronizar-puntuacion', ['tipo' => '1'])->assertSuccessful();
+        $this->artisan('torneos:sincronizar-puntuacion')->assertSuccessful();
         expect((float) $winner->fresh()->points)->toBe(125.0);
 
         $this->competition->update(['settings' => []]);

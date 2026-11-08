@@ -168,6 +168,36 @@ class TournamentScoringService
             && (! $tournament->discipline || $tournament->discipline->code === 'five_quillas');
     }
 
+    /** Devuelve el resultado vigente de la posición vinculada a la inscripción. */
+    public function performanceScore(TournamentRegistration $registration): array
+    {
+        $tournament = $registration->tournament;
+        $instance = $registration->tournamentInstance;
+        $fallbackDescription = $registration->result_description ?? $instance?->description ?? 'Sin resultado';
+        if ($registration->disqualified) {
+            return ['points' => 0.0, 'description' => $fallbackDescription];
+        }
+
+        $code = trim((string) $registration->result_code);
+        if (! $tournament || (! $registration->tournament_instance_id && $code === '')) {
+            return ['points' => $registration->points, 'description' => $fallbackDescription];
+        }
+
+        $rule = $instance
+            ? $this->findRuleByTournamentInstance($tournament, $instance)
+            : ($code !== '' ? $this->findRuleByCode($tournament, $code) : null);
+        if (! $rule) {
+            return ['points' => null, 'description' => $fallbackDescription];
+        }
+
+        $absent = $registration->status === 'ausente';
+
+        return [
+            'points' => $absent ? 0.0 : (float) $rule['points'],
+            'description' => ($absent ? 'Ausente · ' : '').(string) $rule['description'],
+        ];
+    }
+
     public function synchronizeTypeAssignments(TournamentType $type): void
     {
         $type->loadMissing('discipline');
@@ -310,6 +340,7 @@ class TournamentScoringService
         Tournament $tournament,
         TournamentInstance $instance
     ): ?array {
+        $legacyRule = null;
         foreach ($this->getRules($tournament) as $rule) {
             $ruleInstanceId = $rule['tournament_instance_id'] ?? null;
 
@@ -321,14 +352,14 @@ class TournamentScoringService
             }
 
             if (
-                (string) ($rule['code'] ?? '')
-                === (string) $instance->code
+                empty($ruleInstanceId)
+                && (string) ($rule['code'] ?? '') === (string) $instance->code
             ) {
-                return $rule;
+                $legacyRule ??= $rule;
             }
         }
 
-        return null;
+        return $legacyRule;
     }
 
     /**
@@ -512,12 +543,10 @@ class TournamentScoringService
          * Los torneos de ranking conservan la relación con
          * tournament_instances.
          */
-            if ($instance) {
-                $registration->tournament_instance_id =
-                    $instance->id;
-            } elseif (! $this->usesOfficialInstances($registration->tournament)) {
-                $registration->tournament_instance_id = null;
-            }
+            $registration->tournament_instance_id = $instance?->id
+                ?? ($this->usesOfficialInstances($registration->tournament)
+                    ? ($rule['tournament_instance_id'] ?? null)
+                    : null);
 
             $registration->save();
 

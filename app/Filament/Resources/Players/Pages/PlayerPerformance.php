@@ -57,7 +57,7 @@ class PlayerPerformance extends Page implements HasTable
                     $pdf = Pdf::loadView('pdf.player-performance', [
                         'player' => $this->record,
                         'rows' => $rows,
-                        'points' => $rows->sum(fn ($row) => (float) $row->points),
+                        'points' => $rows->sum(fn ($row) => (float) $row->performance_score['points']),
                         'generatedAt' => now()->format(config('cliente.formato_fecha').' H:i'),
                         'logo' => is_file(FabPath::logo()) ? FabPath::logo() : public_path(config('fab.paths.logo')),
                         'footer_image' => is_file(FabPath::footer()) ? FabPath::footer() : public_path(config('fab.paths.footer')),
@@ -96,10 +96,10 @@ class PlayerPerformance extends Page implements HasTable
                 TextColumn::make('participant_count')->label('Inscriptos')->numeric(),
                 TextColumn::make('position')
                     ->label('Posición / resultado')
-                    ->state(fn (TournamentRegistration $record): string => $record->result_description
-                        ?? $record->tournamentInstance?->description
-                        ?? 'Sin resultado'),
-                TextColumn::make('points')->label('Puntos')->numeric(decimalPlaces: 2),
+                    ->state(fn (TournamentRegistration $record): string => $record->performance_score['description']),
+                TextColumn::make('points')->label('Puntos')
+                    ->state(fn (TournamentRegistration $record) => $record->performance_score['points'])
+                    ->numeric(decimalPlaces: 2),
             ])
             ->filters([
                 SelectFilter::make('discipline')
@@ -140,13 +140,12 @@ class PlayerPerformance extends Page implements HasTable
     public function totals(): array
     {
         $query = $this->getFilteredTableQuery();
+        $rows = $query->get();
 
         return [
-            'tournaments' => (clone $query)->count(),
-            'points' => (clone $query)->sum('points'),
-            'results' => (clone $query)->where(function (Builder $query) {
-                $query->whereNotNull('result_code')->orWhereNotNull('tournament_instance_id');
-            })->count(),
+            'tournaments' => $rows->count(),
+            'points' => $rows->sum(fn (TournamentRegistration $row): float => (float) $row->performance_score['points']),
+            'results' => $rows->filter(fn (TournamentRegistration $row): bool => $row->result_code !== null || $row->tournament_instance_id !== null)->count(),
         ];
     }
 }

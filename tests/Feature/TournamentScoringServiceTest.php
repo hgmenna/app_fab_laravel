@@ -141,6 +141,18 @@ test('CAB asigna los puntos de su regla y conserva la posición oficial', functi
     expect($rules)->toHaveCount(1)
         ->and($rules[0]['code'])->toBe('92')
         ->and((float) $rules[0]['points'])->toBe(75.0);
+
+    $registration->forceFill(['tournament_instance_id' => null])->saveQuietly();
+    $registration = app(TournamentScoringService::class)->assignByCode($registration, '92');
+    expect($registration->tournament_instance_id)->toBe($instanceId);
+
+    $newRule = array_replace($rules[0], ['code' => 'CAMPEON', 'description' => 'Campeón', 'points' => 120]);
+    DB::table('tournament_types')->where('id', $typeId)->update(['scoring_rules' => json_encode([$newRule])]);
+
+    $row = TournamentRegistration::query()->with(['tournament.type', 'tournamentInstance'])->findOrFail($registrationId);
+    expect($row->performance_score)->toBe(['points' => 120.0, 'description' => 'Campeón'])
+        ->and((float) $row->points)->toBe(75.0)
+        ->and($row->result_code)->toBe('92');
 });
 
 test('un torneo estadístico guarda su resultado sin posición oficial', function () {

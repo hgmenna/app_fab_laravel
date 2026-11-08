@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\TournamentScoringService;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
@@ -123,6 +124,12 @@ class TournamentRegistration extends Model
     public function tournamentInstance()
     {
         return $this->belongsTo(TournamentInstance::class, 'tournament_instance_id');
+    }
+
+    protected function performanceScore(): Attribute
+    {
+        return Attribute::get(fn (): array => app(TournamentScoringService::class)->performanceScore($this))
+            ->shouldCache();
     }
 
     protected static function booted()
