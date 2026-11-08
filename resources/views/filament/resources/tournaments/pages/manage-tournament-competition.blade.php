@@ -27,7 +27,7 @@
         .fq-club-short{display:none}@media screen and (max-width:767px){.fq-club-full{display:none}.fq-club-short{display:inline}}
     @include('partials.competition-finalists-style')
         .fq-bracket:has(.finalist-anchor){min-height:340px}
-        .fq-bracket .semifinal-portraits{margin-block:116px;--finalist-photo-size:72px}
+        .fq-bracket .semifinal-portraits{margin-block:96px;--finalist-photo-size:72px}
     </style>
 
     @if(!$competition)

@@ -24,7 +24,7 @@
         .match-meta>*+*{padding-left:6px!important;border-left:1px solid var(--line)}
     @include('partials.competition-finalists-style')
         .bracket:has(.finalist-anchor){min-height:340px}.bracket .match.finalist-anchor{overflow:visible}
-        .bracket .semifinal-portraits{margin-block:116px;--finalist-photo-size:72px}
+        .bracket .semifinal-portraits{margin-block:96px;--finalist-photo-size:72px}
     </style>
 </head>
 <body>

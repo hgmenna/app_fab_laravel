@@ -99,14 +99,13 @@
                             </article>
                             @if($portraitRound)
                                     @foreach([$match->playerOne?->player, $match->playerTwo?->player] as $finalist)
-                                        <figure class="finalist-card {{ $loop->first ? 'is-top' : 'is-bottom' }}">
-                                            <div class="finalist-portrait" aria-hidden="true">
-                                                {{ $finalist ? mb_substr($finalist->last_name, 0, 1).mb_substr($finalist->first_name, 0, 1) : '—' }}
+                                        <figure class="finalist-card {{ $loop->first ? 'is-top' : 'is-bottom' }}" aria-hidden="true">
+                                            <div class="finalist-portrait">
+                                                <span>{{ $finalist ? mb_substr($finalist->last_name, 0, 1).mb_substr($finalist->first_name, 0, 1) : '—' }}</span>
                                                 @if($photoUrl = $finalist?->photoUrl())
                                                     <img src="{{ $photoUrl }}" alt="" onerror="this.hidden=true">
                                                 @endif
                                             </div>
-                                            <figcaption>{{ $finalist?->full_name ?? 'A designar' }}</figcaption>
                                         </figure>
                                     @endforeach
                             @endif

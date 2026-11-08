@@ -7,7 +7,7 @@
         .zone-players{width:100%;border-collapse:collapse;table-layout:fixed}.matches .zone-players td{border:0;height:auto;padding:0;vertical-align:middle;line-height:12px}.matches .zone-players td.zone-score{width:85px;text-align:right;white-space:nowrap}.zone-score span{background:#e8eef7;padding:0 2px}
         .zone .matches>tbody>tr>td{height:auto;padding:3px 4px;line-height:10px}.zone .zone-players td{line-height:10px}.zone .zone-title{padding:4px 8px}.zone .columns>tbody>tr>td{padding:5px}
         .finalist-print{text-align:center;color:#173d7c;font-size:9px;font-weight:bold;margin:8px 0}
-        .finalist-print-frame{width:80px;height:80px;line-height:80px;margin:0 auto 4px;border:1px solid #9db7cc;border-radius:8px;background:#e4ecf4;font-size:13px}
+        .finalist-print-frame{width:80px;height:80px;line-height:80px;margin:0 auto;border:1px solid #9db7cc;border-radius:8px;background:transparent;font-size:13px}
         .finalist-print-frame img{vertical-align:middle}
     </style>
 </head>

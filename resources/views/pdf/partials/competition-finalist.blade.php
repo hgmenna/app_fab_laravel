@@ -13,5 +13,4 @@
             {{ $finalist ? mb_substr($finalist->last_name, 0, 1).mb_substr($finalist->first_name, 0, 1) : '—' }}
         @endif
     </div>
-    {{ $finalist?->full_name ?? 'A designar' }}
 </div>
