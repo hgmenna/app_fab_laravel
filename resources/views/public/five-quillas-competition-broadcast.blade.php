@@ -61,7 +61,7 @@
         .knockout-bracket.dense .grid-position{top:calc(50% + 7px)}
         .knockout-bracket.dense .grid-position.top{margin-top:-9px}.knockout-bracket.dense .grid-position.bottom{margin-top:9px}
     @include('partials.competition-finalists-style')
-        .knockout-column .match.finalist-anchor{overflow:visible;--finalist-photo-size:92px;--finalist-top-gap:34px}.knockout-column .finalist-portrait{color:#e6f4ff;border-color:#accbe2}
+        .knockout-column .match.finalist-anchor{overflow:visible;--finalist-photo-size:92px;--finalist-top-gap:34px}.knockout-column .finalist-portrait{color:#e6f4ff}
         .knockout-column .match.semifinal-portraits{--finalist-photo-size:82px;--finalist-top-gap:10px}
     </style>
 </head>
