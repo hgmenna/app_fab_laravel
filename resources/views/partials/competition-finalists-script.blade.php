@@ -1,5 +1,5 @@
 function finalistPortraits(match, photoUrl = value => value) {
-    if (!match.final_del_torneo || (!match.jugador_1 && !match.jugador_2)) return '';
+    if ((!match.final_del_torneo && !match.semifinal_del_torneo) || (!match.jugador_1 && !match.jugador_2)) return '';
 
     const portraits = [
         [match.jugador_1, match.foto_1],

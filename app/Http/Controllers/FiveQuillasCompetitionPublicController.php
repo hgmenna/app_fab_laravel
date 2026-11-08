@@ -166,16 +166,17 @@ class FiveQuillasCompetitionPublicController extends Controller
                         ])->values(),
                     ])->values(),
                     'partidos' => $phase->matches->map(function ($match) use ($phase): array {
-                        $isFinal = $phase->isTournamentFinal($match);
+                        $portraitRound = $phase->portraitRound($match);
 
                         return [
                             'id' => $match->id, 'zona_id' => $match->group_id,
                             'puntos_por_set' => (int) $phase->points_per_set,
                             'ronda' => $match->round_number, 'orden' => $match->bracket_order,
                             'etiqueta' => $match->label === 'Partido de recuperación' ? 'Perdedores' : $match->label,
-                            'final_del_torneo' => $isFinal,
-                            'foto_1' => $isFinal ? $match->playerOne?->player?->photoUrl() : null,
-                            'foto_2' => $isFinal ? $match->playerTwo?->player?->photoUrl() : null,
+                            'final_del_torneo' => $portraitRound === 'final',
+                            'semifinal_del_torneo' => $portraitRound === 'semifinal',
+                            'foto_1' => $portraitRound ? $match->playerOne?->player?->photoUrl() : null,
+                            'foto_2' => $portraitRound ? $match->playerTwo?->player?->photoUrl() : null,
                             'jugador_1' => $match->playerOne?->player?->full_name,
                             'placeholder_1' => $this->bracketSlotPlaceholder($phase, $match, 0),
                             'numero_1' => $match->round_number === 1

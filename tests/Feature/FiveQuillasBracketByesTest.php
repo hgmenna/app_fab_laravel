@@ -265,19 +265,22 @@ it('shows a legacy prepared phase as in progress when a match is already called'
     expect($this->phase->fresh('matches')->displayStatus())->toBe('completed');
 });
 
-it('distinguishes the tournament final from a semifinal and a qualifying phase', function () {
+it('shows portraits only for the final and semifinals that lead to the title', function () {
     $this->final->update(['label' => 'Final 1']);
     $this->played->update(['label' => 'Semifinal 2']);
 
-    expect($this->phase->fresh()->isTournamentFinal($this->final))->toBeTrue()
-        ->and($this->phase->fresh()->isTournamentFinal($this->played))->toBeFalse();
+    expect($this->phase->fresh()->portraitRound($this->final))->toBe('final')
+        ->and($this->phase->fresh()->portraitRound($this->played))->toBe('semifinal')
+        ->and($this->phase->fresh()->portraitRound($this->bye))->toBeNull();
 
     $this->phase->update(['settings' => ['qualifiers' => 16]]);
-    expect($this->phase->fresh()->isTournamentFinal($this->final))->toBeFalse();
+    expect($this->phase->fresh()->portraitRound($this->final))->toBeNull()
+        ->and($this->phase->fresh()->portraitRound($this->played))->toBeNull();
 
     $this->phase->update(['settings' => []]);
     $this->competition->phases()->create(['sort_order' => 2, 'is_enabled' => true]);
-    expect($this->phase->fresh()->isTournamentFinal($this->final))->toBeFalse();
+    expect($this->phase->fresh()->portraitRound($this->final))->toBeNull()
+        ->and($this->phase->fresh()->portraitRound($this->played))->toBeNull();
 });
 
 it('rejects a stale zone form for the modified time slot', function () {

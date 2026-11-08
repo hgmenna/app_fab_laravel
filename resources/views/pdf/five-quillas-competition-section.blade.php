@@ -122,11 +122,11 @@
                     @php
                         $pair = $match->round_number === 1 ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1), []) : [];
                         $sets = collect(data_get($match->set_scores, 'sets', []));
-                        $showFinalists = ($match->playerOne?->player || $match->playerTwo?->player)
-                            && $phase->isTournamentFinal($match);
+                        $showPortraits = ($match->playerOne?->player || $match->playerTwo?->player)
+                            && $phase->portraitRound($match) !== null;
                     @endphp
                     <td class="round-slot" rowspan="{{ $rowSpan }}">
-                    @if($showFinalists)
+                    @if($showPortraits)
                         @include('pdf.partials.competition-finalist', ['finalist' => $match->playerOne?->player])
                     @endif
                     <div class="match">
@@ -138,7 +138,7 @@
                             @if(!$match->scheduled_at && !$match->table_number)&nbsp;@endif
                         </div>
                     </div>
-                    @if($showFinalists)
+                    @if($showPortraits)
                         @include('pdf.partials.competition-finalist', ['finalist' => $match->playerTwo?->player])
                     @endif
                     </td>

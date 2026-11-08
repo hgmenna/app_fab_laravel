@@ -37,15 +37,23 @@ class FiveQuillasPhase extends Model
         return $hasActiveMatch ? 'in_progress' : $this->status;
     }
 
-    /** Identifica la final por el partido y por su lugar en el formato del torneo. */
-    public function isTournamentFinal(FiveQuillasMatch $match): bool
+    /** Identifica los partidos con retratos en la llave que define al campeón. */
+    public function portraitRound(FiveQuillasMatch $match): ?string
     {
-        return $this->phase_type === 'bracket'
-            && (int) data_get($this->settings, 'qualifiers', 0) <= 1
-            && $match->next_match_id === null
-            && preg_match('/^final(?:\s+\d+)?$/i', trim((string) $match->label)) === 1
-            && self::query()->where('competition_id', $this->competition_id)
-                ->where('is_enabled', true)->where('sort_order', '>', $this->sort_order)->doesntExist();
+        if ($this->phase_type !== 'bracket' || (int) data_get($this->settings, 'qualifiers', 0) > 1
+            || ! preg_match('/^(final|semifinal)(?:\s+\d+)?$/i', trim((string) $match->label), $parts)) {
+            return null;
+        }
+
+        $round = strtolower($parts[1]);
+        if (($round === 'final') !== ($match->next_match_id === null)) {
+            return null;
+        }
+
+        $hasLaterPhase = self::query()->where('competition_id', $this->competition_id)
+            ->where('is_enabled', true)->where('sort_order', '>', $this->sort_order)->exists();
+
+        return $hasLaterPhase ? null : $round;
     }
 
     public function competition() { return $this->belongsTo(FiveQuillasCompetition::class, 'competition_id'); }
