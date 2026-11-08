@@ -36,6 +36,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\On;
 
 /**
  * Página operativa para organizar una competencia de cinco quillas y ejecutar sus acciones autorizadas.
@@ -66,6 +67,12 @@ class ManageTournamentCompetition extends Page
         } else {
             $notify();
         }
+    }
+
+    #[On('competition-organization-changed')]
+    public function refreshCompetitionView(): void
+    {
+        // Livewire vuelve a renderizar esta página con los datos persistidos.
     }
 
     /**
@@ -1931,7 +1938,7 @@ class ManageTournamentCompetition extends Page
      */
     protected function getViewData(): array
     {
-        $competitionViewRevision = Cache::get($this->competitionViewRevisionKey());
+        $competitionViewRevision = CompetitionOrganizationUpdates::revisionFor((int) $this->record->getKey());
         $competition = $this->competition();
         if ($competition) {
             $service = app(FiveQuillasCompetitionService::class);

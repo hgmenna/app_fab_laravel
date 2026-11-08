@@ -3,7 +3,6 @@
         <livewire:competition-organization-updates
             :tournament-id="(int) $this->record->getKey()"
             :revision="$competitionViewRevision"
-            @competition-organization-changed="$refresh"
         />
     @endif
     <style>
