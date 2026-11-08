@@ -165,30 +165,37 @@ class FiveQuillasCompetitionPublicController extends Controller
                             'clasificacion' => $row->final_place,
                         ])->values(),
                     ])->values(),
-                    'partidos' => $phase->matches->map(fn ($match): array => [
-                        'id' => $match->id, 'zona_id' => $match->group_id,
-                        'puntos_por_set' => (int) $phase->points_per_set,
-                        'ronda' => $match->round_number, 'orden' => $match->bracket_order,
-                        'etiqueta' => $match->label === 'Partido de recuperación' ? 'Perdedores' : $match->label,
-                        'jugador_1' => $match->playerOne?->player?->full_name,
-                        'placeholder_1' => $this->bracketSlotPlaceholder($phase, $match, 0),
-                        'numero_1' => $match->round_number === 1
-                            ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1).'.0')
-                            : $match->playerOne?->seed,
-                        'jugador_2' => $match->playerTwo?->player?->full_name,
-                        'placeholder_2' => $this->bracketSlotPlaceholder($phase, $match, 1),
-                        'numero_2' => $match->round_number === 1
-                            ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1).'.1')
-                            : $match->playerTwo?->seed, 'sets' => $match->set_scores,
-                        'sets_reales' => [$match->player_one_actual_sets, $match->player_two_actual_sets],
-                        'sets_computables' => [$match->player_one_computed_sets, $match->player_two_computed_sets],
-                        'puntos' => [$match->player_one_points, $match->player_two_points],
-                        'ganador' => $match->winner?->player?->full_name, 'mesa' => $match->table_number,
-                        'horario' => $this->dateTimeLabel($match->scheduled_at), 'pase_automatico' => $match->is_bye,
-                        'siguiente_partido_id' => $match->next_match_id,
-                        'siguiente_posicion' => $match->next_match_position,
-                        'estado' => $match->status,
-                    ])->values(),
+                    'partidos' => $phase->matches->map(function ($match) use ($phase): array {
+                        $isFinal = $phase->isTournamentFinal($match);
+
+                        return [
+                            'id' => $match->id, 'zona_id' => $match->group_id,
+                            'puntos_por_set' => (int) $phase->points_per_set,
+                            'ronda' => $match->round_number, 'orden' => $match->bracket_order,
+                            'etiqueta' => $match->label === 'Partido de recuperación' ? 'Perdedores' : $match->label,
+                            'final_del_torneo' => $isFinal,
+                            'foto_1' => $isFinal ? $match->playerOne?->player?->photoUrl() : null,
+                            'foto_2' => $isFinal ? $match->playerTwo?->player?->photoUrl() : null,
+                            'jugador_1' => $match->playerOne?->player?->full_name,
+                            'placeholder_1' => $this->bracketSlotPlaceholder($phase, $match, 0),
+                            'numero_1' => $match->round_number === 1
+                                ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1).'.0')
+                                : $match->playerOne?->seed,
+                            'jugador_2' => $match->playerTwo?->player?->full_name,
+                            'placeholder_2' => $this->bracketSlotPlaceholder($phase, $match, 1),
+                            'numero_2' => $match->round_number === 1
+                                ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1).'.1')
+                                : $match->playerTwo?->seed, 'sets' => $match->set_scores,
+                            'sets_reales' => [$match->player_one_actual_sets, $match->player_two_actual_sets],
+                            'sets_computables' => [$match->player_one_computed_sets, $match->player_two_computed_sets],
+                            'puntos' => [$match->player_one_points, $match->player_two_points],
+                            'ganador' => $match->winner?->player?->full_name, 'mesa' => $match->table_number,
+                            'horario' => $this->dateTimeLabel($match->scheduled_at), 'pase_automatico' => $match->is_bye,
+                            'siguiente_partido_id' => $match->next_match_id,
+                            'siguiente_posicion' => $match->next_match_position,
+                            'estado' => $match->status,
+                        ];
+                    })->values(),
                 ])->values(),
             ],
         ])->withHeaders(['Cache-Control' => 'no-store', 'Access-Control-Allow-Origin' => '*']);

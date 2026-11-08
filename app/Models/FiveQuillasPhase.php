@@ -37,6 +37,17 @@ class FiveQuillasPhase extends Model
         return $hasActiveMatch ? 'in_progress' : $this->status;
     }
 
+    /** Identifica la final por el partido y por su lugar en el formato del torneo. */
+    public function isTournamentFinal(FiveQuillasMatch $match): bool
+    {
+        return $this->phase_type === 'bracket'
+            && (int) data_get($this->settings, 'qualifiers', 0) <= 1
+            && $match->next_match_id === null
+            && preg_match('/^final(?:\s+\d+)?$/i', trim((string) $match->label)) === 1
+            && self::query()->where('competition_id', $this->competition_id)
+                ->where('is_enabled', true)->where('sort_order', '>', $this->sort_order)->doesntExist();
+    }
+
     public function competition() { return $this->belongsTo(FiveQuillasCompetition::class, 'competition_id'); }
     public function groups() { return $this->hasMany(FiveQuillasGroup::class, 'phase_id')->orderBy('sort_order'); }
     public function matches() { return $this->hasMany(FiveQuillasMatch::class, 'phase_id')->orderBy('round_number')->orderBy('bracket_order'); }

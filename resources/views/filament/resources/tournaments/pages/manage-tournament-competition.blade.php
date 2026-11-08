@@ -25,6 +25,8 @@
         .fq-match-actions.fq-schedule-action{opacity:1;visibility:visible;transform:none}
         .fq-match-actions.fq-result-actions{position:static;opacity:1;visibility:visible;transform:none;justify-content:flex-end;margin-top:.3rem;box-shadow:none;background:transparent;border:0}
         .fq-club-short{display:none}@media screen and (max-width:767px){.fq-club-full{display:none}.fq-club-short{display:inline}}
+    @include('partials.competition-finalists-style')
+        .fq-bracket:has(.finalist-anchor){min-height:340px}
     </style>
 
     @if(!$competition)

@@ -29,6 +29,8 @@
                             $expectedParticipants = (int) data_get($match->phase?->settings, 'expected_participant_count', 0);
                             $matchSets = collect(data_get($match->set_scores, 'sets', []));
                             $pointsPerSet = (int) $match->phase?->points_per_set;
+                            $showFinalists = ($match->playerOne?->player || $match->playerTwo?->player)
+                                && $match->phase?->isTournamentFinal($match);
                             $emptyLabel = function ($entry, $number) use ($match, $expectedParticipants): string {
                                 if ($entry?->player) {
                                     return $entry->player->full_name.($entry->registration?->status === 'ausente' ? ' · AUSENTE' : '');
@@ -42,7 +44,7 @@
                                     : 'LIBRE';
                             };
                         @endphp
-                        <div class="fq-match-shell">
+                        <div class="fq-match-shell{{ $showFinalists ? ' finalist-anchor' : '' }}">
                             <article class="fq-match {{ $match->status === 'called' ? 'is-called' : ($match->status === 'in_progress' ? 'is-in-progress' : '') }}">
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_one_entry_id ? 'is-winner' : '' }}">
                                     <span><b>{{ $numberOne }}</b> · {{ $emptyLabel($match->playerOne, $numberOne) }}</span>
@@ -95,6 +97,19 @@
                                     </div>
                                 @endif
                             </article>
+                            @if($showFinalists)
+                                    @foreach([$match->playerOne?->player, $match->playerTwo?->player] as $finalist)
+                                        <figure class="finalist-card {{ $loop->first ? 'is-top' : 'is-bottom' }}">
+                                            <div class="finalist-portrait" aria-hidden="true">
+                                                {{ $finalist ? mb_substr($finalist->last_name, 0, 1).mb_substr($finalist->first_name, 0, 1) : '—' }}
+                                                @if($photoUrl = $finalist?->photoUrl())
+                                                    <img src="{{ $photoUrl }}" alt="" onerror="this.hidden=true">
+                                                @endif
+                                            </div>
+                                            <figcaption>{{ $finalist?->full_name ?? 'A designar' }}</figcaption>
+                                        </figure>
+                                    @endforeach
+                            @endif
                         </div>
                     @endforeach
                 </section>

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class Player extends Model
@@ -58,6 +59,11 @@ class Player extends Model
     public function club()
     {
         return $this->belongsTo(Club::class);
+    }
+
+    public function photoUrl(): ?string
+    {
+        return filled($this->photo_path) ? Storage::disk('public_path')->url($this->photo_path) : null;
     }
 
     public function category()

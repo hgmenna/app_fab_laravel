@@ -265,6 +265,21 @@ it('shows a legacy prepared phase as in progress when a match is already called'
     expect($this->phase->fresh('matches')->displayStatus())->toBe('completed');
 });
 
+it('distinguishes the tournament final from a semifinal and a qualifying phase', function () {
+    $this->final->update(['label' => 'Final 1']);
+    $this->played->update(['label' => 'Semifinal 2']);
+
+    expect($this->phase->fresh()->isTournamentFinal($this->final))->toBeTrue()
+        ->and($this->phase->fresh()->isTournamentFinal($this->played))->toBeFalse();
+
+    $this->phase->update(['settings' => ['qualifiers' => 16]]);
+    expect($this->phase->fresh()->isTournamentFinal($this->final))->toBeFalse();
+
+    $this->phase->update(['settings' => []]);
+    $this->competition->phases()->create(['sort_order' => 2, 'is_enabled' => true]);
+    expect($this->phase->fresh()->isTournamentFinal($this->final))->toBeFalse();
+});
+
 it('rejects a stale zone form for the modified time slot', function () {
     $zones = $this->competition->phases()->create(['phase_type' => 'zones']);
     $service = app(FiveQuillasCompetitionService::class);

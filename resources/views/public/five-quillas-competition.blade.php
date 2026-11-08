@@ -22,6 +22,8 @@
         .match-meta{display:flex;align-items:center;gap:6px;min-height:12px;margin-top:auto;overflow:hidden;white-space:nowrap;color:var(--muted);font-size:9px;line-height:1}
         .match-meta small,.match-meta .table-active{display:inline-flex;width:auto;margin:0;padding:0;border-radius:0;background:transparent;color:inherit;font-size:inherit;line-height:1;text-transform:none;letter-spacing:0}
         .match-meta>*+*{padding-left:6px!important;border-left:1px solid var(--line)}
+    @include('partials.competition-finalists-style')
+        .bracket:has(.finalist-anchor){min-height:340px}.bracket .match.finalist-anchor{overflow:visible}
     </style>
 </head>
 <body>
@@ -61,7 +63,8 @@ function score(m,i){return Array.isArray(m.sets_computables)?m.sets_computables[
 function activeMatchClass(m){return m.estado==='called'?' is-called':(m.estado==='in_progress'?' is-in-progress':'')}
 function tableStatus(m){if(!m.mesa)return '';if(m.estado==='called'||m.estado==='in_progress')return `<small class="table-active">Mesa ${esc(m.mesa)}</small>`;return `<small>Mesa ${esc(m.mesa)}</small>`}
 function matchMeta(m){return `<div class="match-meta">${m.horario?`<small>${esc(m.horario)}</small>`:''}${tableStatus(m)}</div>`}
-function matchCard(m){return `<article class="match${activeMatchClass(m)}"><div class="line ${m.ganador===m.jugador_1?'winner':''}"><span><strong>${esc(m.numero_1)}</strong> · ${esc(m.jugador_1||m.placeholder_1||'A designar')}</span>${setPoints(m,'player_one_points')}</div><div class="line ${m.ganador===m.jugador_2?'winner':''}"><span><strong>${esc(m.numero_2)}</strong> · ${esc(m.jugador_2||m.placeholder_2||'A designar')}</span>${setPoints(m,'player_two_points')}</div>${matchMeta(m)}</article>`}
+@include('partials.competition-finalists-script')
+function matchCard(m){const portraits=finalistPortraits(m);return `<article class="match${activeMatchClass(m)}${portraits?' finalist-anchor':''}"><div class="line ${m.ganador===m.jugador_1?'winner':''}"><span><strong>${esc(m.numero_1)}</strong> · ${esc(m.jugador_1||m.placeholder_1||'A designar')}</span>${setPoints(m,'player_one_points')}</div><div class="line ${m.ganador===m.jugador_2?'winner':''}"><span><strong>${esc(m.numero_2)}</strong> · ${esc(m.jugador_2||m.placeholder_2||'A designar')}</span>${setPoints(m,'player_two_points')}</div>${matchMeta(m)}${portraits}</article>`}
 function zoneClass(m){return {'Partido 1':'z-m1','Partido 2':'z-m2','Definición del primer puesto':'z-win','Perdedores':'z-loss','Partido de recuperación':'z-loss','Definición del segundo puesto':'z-second'}[m.etiqueta]||''}
 function setPoints(m,key){const sets=Array.isArray(m.sets?.sets)?m.sets.sets:[],target=Number(m.puntos_por_set||0);return `<span class="set-points">${sets.length?sets.map(s=>{const value=s[key];return `<span class="set-point${target>0&&Number(value)===target?' is-set-winner':''}">${esc(value)}</span>`}).join(''):'<span class="set-point">—</span>'}</span>`}
 function zoneMatchCard(m){const label=m.etiqueta==='Partido de recuperación'?'Perdedores':m.etiqueta;return `<article class="match ${zoneClass(m)}${activeMatchClass(m)}"><b>${esc(label)}</b><div class="line ${m.ganador===m.jugador_1?'winner':''}"><span>${esc(m.jugador_1)}</span>${setPoints(m,'player_one_points')}</div><div class="line ${m.ganador===m.jugador_2?'winner':''}"><span>${esc(m.jugador_2)}</span>${setPoints(m,'player_two_points')}</div>${matchMeta(m)}</article>`}
