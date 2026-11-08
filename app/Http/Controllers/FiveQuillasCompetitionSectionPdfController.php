@@ -66,15 +66,11 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
             ]);
         }
 
-        app(FiveQuillasCompetitionService::class)->ensureFinalStandingsOrder($competition);
-        $competition->unsetRelation('entries')->load([
-            'entries.player.club', 'entries.player.category', 'entries.registration',
-        ]);
-
+        $isQualified = str_starts_with($section, 'qualified-');
         $phase = null;
         if ($section !== 'positions') {
-            abort_unless(str_starts_with($section, 'phase-'), 404);
-            $phaseId = (int) substr($section, 6);
+            abort_unless(preg_match('/^(?:phase|qualified)-([0-9]+)$/D', $section, $matches), 404);
+            $phaseId = (int) $matches[1];
             $phase = $competition->phases->firstWhere('id', $phaseId);
 
             if (! $phase && ! $canManageCompetition && $competition->phases()->whereKey($phaseId)->exists()) {
@@ -86,7 +82,7 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
             abort_unless($phase, 404);
         }
 
-        if ($phase?->phase_type === 'zones' && $request->has('slot')) {
+        if (! $isQualified && $phase?->phase_type === 'zones' && $request->has('slot')) {
             $validated = $request->validate(['slot' => ['required', 'integer', 'min:0']]);
             $groups = $phase->groups->filter(
                 fn ($group) => (int) ($group->tournament_slot_id ?? 0) === (int) $validated['slot']
@@ -98,25 +94,35 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
         $tournament = $competition->tournament;
         $logoPath = $tournament->publicationLogoPath();
         $logoFile = $logoPath ? Storage::disk('public_path')->path($logoPath) : null;
-        $finalRows = $competition->entries->whereNotNull('final_position')->sortBy('final_position')
-            ->map(function ($entry) use ($competition): array {
-                $performance = app(FiveQuillasCompetitionService::class)
-                    ->finalStandingPerformance($competition, (int) $entry->id);
+        $service = app(FiveQuillasCompetitionService::class);
+        $qualifiedRows = $isQualified ? collect($service->qualifiedParticipantRows($phase)) : collect();
+        $finalRows = collect();
+        if (! $isQualified) {
+            $service->ensureFinalStandingsOrder($competition);
+        }
+        if ($section === 'positions') {
+            $competition->unsetRelation('entries')->load([
+                'entries.player.club', 'entries.player.category', 'entries.registration',
+            ]);
+            $finalRows = $competition->entries->whereNotNull('final_position')->sortBy('final_position')
+                ->map(function ($entry) use ($competition, $service): array {
+                    $performance = $service->finalStandingPerformance($competition, (int) $entry->id);
 
-                return [
-                    'position' => $entry->final_position,
-                    'player' => $entry->player?->full_name,
-                    'club' => $entry->player?->club?->name,
-                    'category' => $entry->player?->category?->code ?: $entry->player?->category?->name,
-                    'instance' => $this->finalInstance($competition, $entry),
-                    'sets_difference' => $performance['sets_difference'],
-                    'average' => number_format($performance['average'], 3, ',', '.'),
-                    'penalty' => $entry->registration?->penalty_points ?? 0,
-                    'points' => $entry->registration?->points,
-                ];
-            });
+                    return [
+                        'position' => $entry->final_position,
+                        'player' => $entry->player?->full_name,
+                        'club' => $entry->player?->club?->name,
+                        'category' => $entry->player?->category?->code ?: $entry->player?->category?->name,
+                        'instance' => $this->finalInstance($competition, $entry),
+                        'sets_difference' => $performance['sets_difference'],
+                        'average' => number_format($performance['average'], 3, ',', '.'),
+                        'penalty' => $entry->registration?->penalty_points ?? 0,
+                        'points' => $entry->registration?->points,
+                    ];
+                });
+        }
 
-        $isBracket = $phase?->phase_type === 'bracket';
+        $isBracket = ! $isQualified && $phase?->phase_type === 'bracket';
         $maxRoundMatches = $isBracket
             ? max(1, (int) $phase->matches->groupBy('round_number')->max(fn ($roundMatches) => $roundMatches->count()))
             : 1;
@@ -131,6 +137,8 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
             'competition' => $competition,
             'phase' => $phase,
             'section' => $section,
+            'isQualified' => $isQualified,
+            'qualifiedRows' => $qualifiedRows,
             'logoFile' => $logoFile && is_file($logoFile) ? $logoFile : null,
             'finalRows' => $finalRows,
             'maxRoundMatches' => $maxRoundMatches,
@@ -147,7 +155,7 @@ class FiveQuillasCompetitionSectionPdfController extends Controller
                 'modality' => $tournament->tournamentModalities->pluck('modality.name')->filter()->implode(', ') ?: 'Sin modalidad',
             ],
         ])->setPaper($isBracket ? 'a3' : 'a4', 'landscape')->stream(
-            str($tournament->name.'-'.($phase?->name ?? 'posiciones-finales'))->slug().'.pdf',
+            str($tournament->name.'-'.($isQualified ? 'clasificados-'.$phase->name : ($phase?->name ?? 'posiciones-finales')))->slug().'.pdf',
             ['Attachment' => false]
         );
     }

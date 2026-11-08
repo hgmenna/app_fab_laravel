@@ -5,6 +5,12 @@
     $shareTitle = 'Clasificados de '.$phase->name.' · '.($phase->competition?->tournament?->name ?? 'Torneo');
 @endphp
 @if($qualifiedRows->isNotEmpty())
+    @php
+        $qualifiedPdfUrl = route('five-quillas-competition.section-pdf', [
+            'slug' => $competition->public_slug,
+            'section' => 'qualified-'.$phase->id,
+        ]);
+    @endphp
     <button type="button" class="fq-qualified-button" onclick="document.getElementById('{{ $dialogId }}').showModal()">
         Ver clasificados <span>{{ $qualifiedRows->count() }}</span>
     </button>
@@ -12,10 +18,10 @@
         <div class="fq-qualified-dialog-head">
             <div><small>Clasificados de {{ $phase->name }}</small><h3>Jugadores que disputan {{ $qualifiedRows->first()['next_phase'] }}</h3></div>
             <div class="fq-qualified-dialog-actions">
-                <button type="button" title="Compartir" aria-label="Compartir clasificados" data-share-title="{{ $shareTitle }}" onclick="fqShareQualified('{{ $dialogId }}', this.dataset.shareTitle)">
+                <button type="button" title="Compartir" aria-label="Compartir clasificados" data-pdf-url="{{ $qualifiedPdfUrl }}" data-share-title="{{ $shareTitle }}" onclick="window.fqSharePdf(this.dataset.pdfUrl, this.dataset.shareTitle)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.6 6.8-4.2M8.6 13.4l6.8 4.2"/></svg>
                 </button>
-                <button type="button" title="Imprimir" aria-label="Imprimir clasificados" data-share-title="{{ $shareTitle }}" onclick="fqPrintQualified('{{ $dialogId }}', this.dataset.shareTitle)">
+                <button type="button" title="Imprimir" aria-label="Imprimir clasificados" data-pdf-url="{{ $qualifiedPdfUrl }}" onclick="window.open(this.dataset.pdfUrl, '_blank', 'noopener')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8V3h10v5M7 17h10v4H7z"/><path d="M6 17H4V9h16v8h-2M16 12h1"/></svg>
                 </button>
                 <button class="fq-dialog-close" type="button" onclick="this.closest('dialog').close()" aria-label="Cerrar">×</button>

@@ -12,7 +12,7 @@
 <header>
     <table class="head"><tr>
         <td style="width:80px">@if($logoFile)<img class="logo" src="{{ $logoFile }}" alt="Logo">@endif</td>
-        <td><div class="title">{{ $tournamentInfo['name'] }}</div><div class="subtitle">{{ $phase?->name ?? 'Posiciones finales' }}</div></td>
+        <td><div class="title">{{ $tournamentInfo['name'] }}</div><div class="subtitle">{{ $isQualified ? 'Clasificados de '.$phase->name : ($phase?->name ?? 'Posiciones finales') }}</div></td>
         <td style="width:80px"></td>
     </tr></table>
     <table class="meta"><tr>
@@ -23,7 +23,44 @@
     </tr></table>
 </header>
 
-@if($section === 'positions')
+@if($isQualified)
+    @php
+        $method = $qualifiedRows->first()['classification_method'] ?? 'manual';
+    @endphp
+    <h2 class="section-title">{{ $qualifiedRows->isEmpty() ? 'Clasificados' : 'Jugadores que disputan '.$qualifiedRows->first()['next_phase'] }}</h2>
+    @if($qualifiedRows->isEmpty())
+        <p>Todavía no hay jugadores clasificados.</p>
+    @else
+        <table class="positions">
+            <thead><tr>
+                <th>Posición</th><th>Jugador</th><th>Club</th>
+                @if($method === 'previous_results')
+                    <th>Pos. zona</th><th>DS</th><th>Promedio</th>
+                @elseif($method === 'national_ranking')
+                    <th>Ranking</th>
+                @elseif(in_array($method, ['number_draw', 'automatic_draw'], true))
+                    <th>N.º sorteo</th>
+                @endif
+            </tr></thead>
+            <tbody>
+                @foreach($qualifiedRows as $row)
+                    <tr>
+                        <td>{{ $row['position'] }}</td><td>{{ $row['player'] }}</td><td>{{ $row['club'] ?: '—' }}</td>
+                        @if($method === 'previous_results')
+                            <td>{{ $row['zone_position'] ?: '—' }}</td>
+                            <td>{{ $row['sets_difference'] ?? '—' }}</td>
+                            <td>{{ $row['average'] !== null ? number_format((float) $row['average'], 3, ',', '.') : '—' }}</td>
+                        @elseif($method === 'national_ranking')
+                            <td>{{ $row['ranking'] ?: 'Sin ranking' }}</td>
+                        @elseif(in_array($method, ['number_draw', 'automatic_draw'], true))
+                            <td>{{ $row['draw_number'] ?: '—' }}</td>
+                        @endif
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+@elseif($section === 'positions')
     <h2 class="section-title">Posiciones finales</h2>
     <table class="positions"><thead><tr><th>Pos</th><th>Jugador</th><th>Club</th><th>Cat</th><th>Instancia</th><th>DS</th><th>Prom</th><th>Pen</th><th>Puntos</th></tr></thead><tbody>
     @forelse($finalRows as $row)
