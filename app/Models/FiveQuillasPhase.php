@@ -22,6 +22,21 @@ class FiveQuillasPhase extends Model
         ]));
     }
 
+    /** Reconoce fases que ya tienen actividad pero conservan un estado anterior. */
+    public function displayStatus(): string
+    {
+        if (! in_array($this->status, ['ready', 'pending', 'draft'], true)) {
+            return $this->status;
+        }
+
+        $activeStatuses = ['called', 'in_progress'];
+        $hasActiveMatch = $this->relationLoaded('matches')
+            ? $this->matches->whereIn('status', $activeStatuses)->contains(fn (FiveQuillasMatch $match): bool => ! $match->is_bye)
+            : $this->matches()->whereIn('status', $activeStatuses)->where('is_bye', false)->exists();
+
+        return $hasActiveMatch ? 'in_progress' : $this->status;
+    }
+
     public function competition() { return $this->belongsTo(FiveQuillasCompetition::class, 'competition_id'); }
     public function groups() { return $this->hasMany(FiveQuillasGroup::class, 'phase_id')->orderBy('sort_order'); }
     public function matches() { return $this->hasMany(FiveQuillasMatch::class, 'phase_id')->orderBy('round_number')->orderBy('bracket_order'); }

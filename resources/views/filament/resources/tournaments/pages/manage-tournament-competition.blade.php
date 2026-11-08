@@ -66,7 +66,7 @@
                 <button type="button" class="fq-phase fq-phase-tab" :class="activePhase === @js((string)$phase->id) && 'is-active'" @click="activePhase = @js((string)$phase->id)" style="{{ $phase->is_enabled ? '' : 'opacity:.48;pointer-events:none' }}">
                     <span class="fq-label">Fase {{ $phase->sort_order }}{{ $phase->is_enabled ? '' : ' · Deshabilitada' }}</span>
                     <strong>{{ $phase->name }}</strong>
-                    <small>{{ match($phase->status){'ready'=>'Preparada','in_progress'=>'En curso','completed'=>'Finalizada',default=>'Pendiente'} }}</small>
+                    <small>{{ match($phase->displayStatus()){'ready'=>'Preparada','in_progress'=>'En curso','completed'=>'Finalizada',default=>'Pendiente'} }}</small>
                 </button>
             @endforeach
             <button type="button" class="fq-phase fq-phase-tab" :class="activePhase === 'positions' && 'is-active'" @click="activePhase = 'positions'">

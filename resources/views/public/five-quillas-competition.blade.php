@@ -86,8 +86,11 @@ function publicPhaseIndex(phases, selectedPhaseId) {
         : phases.findIndex(phase => Number(phase.id) === Number(selectedPhaseId));
     if (selected >= 0) return selected;
 
-    const inProgress = phases.findIndex(phase => phase.estado === 'in_progress');
-    return Math.max(0, inProgress);
+    for (let index = phases.length - 1; index >= 0; index--) {
+        if (phases[index].estado === 'in_progress') return index;
+    }
+
+    return 0;
 }
 function renderNavigation(state={}){const champion=document.querySelector('#champion');champion.classList.toggle('visible',Boolean(data.campeon));champion.innerHTML=data.campeon?`${data.campeon.foto?`<img class="champion-photo" src="${esc(data.campeon.foto)}" alt="${esc(data.campeon.nombre)}">`:''}<div><div class="champion-label">Campeón del torneo</div><div class="champion-name">${esc(data.campeon.nombre)}</div></div>`:'';const phaseTabs=data.fases.map((p,i)=>`<button class="tab" data-i="${i}">${esc(p.nombre)}</button>`).join(''),finalTab=data.mostrar_posiciones_finales?'<button class="tab" data-final="1">Posiciones finales</button>':'';document.querySelector('#tabs').innerHTML=phaseTabs+finalTab;document.querySelector('#tabs').style.display='flex';if(!data.fases.length&&!data.mostrar_posiciones_finales){document.querySelector('#tabs').style.display='none';document.querySelector('#content').innerHTML='<div class="empty">Información no disponible en este momento</div>';return}document.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>render(Number(b.dataset.i)));document.querySelector('[data-final="1"]')?.addEventListener('click',renderFinal);if(state.final&&data.mostrar_posiciones_finales){renderFinal();return}const phaseIndex=publicPhaseIndex(data.fases,state.phaseId);if(data.fases.length){render(phaseIndex);if(state.slot){const slotButton=[...document.querySelectorAll('[data-slot]')].find(b=>b.dataset.slot===state.slot);slotButton?.click()}}else{renderFinal()}}
 async function refreshPublicResults(initial=false){if(refreshRunning)return;refreshRunning=true;const state=currentViewState();try{const separator=endpoint.includes('?')?'&':'?',response=await fetch(`${endpoint}${separator}_=${Date.now()}`,{cache:'no-store',headers:{Accept:'application/json'}});if(!response.ok)throw new Error('No fue posible obtener los resultados');const payload=await response.json(),signature=JSON.stringify(payload.data);if(signature!==lastPayload){lastPayload=signature;data=payload.data;renderNavigation(state)}}catch(error){if(initial)document.querySelector('#content').innerHTML=`<div class="empty error">${esc(error.message)}</div>`}finally{refreshRunning=false}}

@@ -127,7 +127,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                     'codigo' => $phase->code,
                     'nombre' => $phase->name,
                     'tipo' => $phase->phase_type,
-                    'estado' => $phase->status,
+                    'estado' => $phase->displayStatus(),
                     'sets' => $phase->sets_to_play,
                     'puntos_por_set' => $phase->points_per_set,
                     'dividida_por_horario' => $phase->split_by_slot,

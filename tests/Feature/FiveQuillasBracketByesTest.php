@@ -237,6 +237,34 @@ it('keeps a table reserved when a second match tries to claim it', function () {
         ->and($first->fresh()->table_number)->toBe(1);
 });
 
+it('starts a prepared phase when the first match is called', function () {
+    $this->competition->update(['status' => 'published']);
+    $this->phase->update(['status' => 'ready', 'settings' => ['tables' => 2]]);
+    $match = $this->played->fresh();
+    $service = app(FiveQuillasCompetitionService::class);
+
+    expect(fn () => $service->callMatch($match, 3))
+        ->toThrow(\Illuminate\Validation\ValidationException::class);
+    expect($this->phase->fresh()->status)->toBe('ready');
+
+    $called = $service->callMatch($match, 1);
+    expect($called->status)->toBe('called')
+        ->and($this->phase->fresh()->status)->toBe('in_progress')
+        ->and($this->competition->fresh()->status)->toBe('in_progress');
+});
+
+it('shows a legacy prepared phase as in progress when a match is already called', function () {
+    $this->played->update(['status' => 'scheduled']);
+    expect($this->phase->fresh('matches')->displayStatus())->toBe('ready');
+
+    $this->played->update(['status' => 'called']);
+    expect($this->phase->fresh('matches')->displayStatus())->toBe('in_progress')
+        ->and($this->phase->fresh()->displayStatus())->toBe('in_progress');
+
+    $this->phase->update(['status' => 'completed']);
+    expect($this->phase->fresh('matches')->displayStatus())->toBe('completed');
+});
+
 it('rejects a stale zone form for the modified time slot', function () {
     $zones = $this->competition->phases()->create(['phase_type' => 'zones']);
     $service = app(FiveQuillasCompetitionService::class);

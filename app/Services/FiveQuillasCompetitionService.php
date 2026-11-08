@@ -643,7 +643,7 @@ class FiveQuillasCompetitionService
                 $phase->update(['settings' => $settings]);
                 $phase->refresh();
             }
-            $hasStartedMatches = $phase->matches()->whereIn('status', ['in_progress', 'completed'])
+            $hasStartedMatches = $phase->matches()->whereIn('status', ['called', 'in_progress', 'completed'])
                 ->where('is_bye', false)->exists();
             if ($phase->matches()->exists()
                 && ! $hasStartedMatches
@@ -1048,6 +1048,11 @@ class FiveQuillasCompetitionService
                 'status' => $lockedMatch->status === 'in_progress' ? 'in_progress' : 'called',
             ]);
 
+            $lockedMatch->phase()->whereIn('status', ['ready', 'pending', 'draft'])
+                ->update(['status' => 'in_progress']);
+            $lockedMatch->phase->competition()->whereIn('status', ['ready', 'pending', 'draft', 'published'])
+                ->update(['status' => 'in_progress']);
+
             return $lockedMatch->fresh();
         });
     }
@@ -1092,7 +1097,7 @@ class FiveQuillasCompetitionService
             }
             $progressiveFill = (bool) data_get($phase->settings, 'progressive_fill', false);
             $preserveStartedMatches = $phase->matches()->where(function ($query): void {
-                $query->where('status', 'in_progress')
+                $query->whereIn('status', ['called', 'in_progress'])
                     ->orWhere(function ($completed): void {
                         $completed->where('status', 'completed')->where('is_bye', false);
                     });
@@ -1256,7 +1261,7 @@ class FiveQuillasCompetitionService
                 );
             }
             $phase->update([
-                'status' => 'ready',
+                'status' => $preserveStartedMatches && $phase->displayStatus() === 'in_progress' ? 'in_progress' : 'ready',
                 'settings' => array_merge($phase->settings ?? [], ['bracket_build_version' => 3]),
             ]);
 
@@ -2464,7 +2469,7 @@ class FiveQuillasCompetitionService
         $firstRound = $phase->matches()->where('round_number', 1)->orderBy('bracket_order')->get()->values();
         foreach ($pairs as $index => $pair) {
             $match = $firstRound->get($index);
-            if (! $match || in_array($match->status, ['in_progress', 'completed'], true)) {
+            if (! $match || in_array($match->status, ['called', 'in_progress', 'completed'], true)) {
                 continue;
             }
             $match->update([
