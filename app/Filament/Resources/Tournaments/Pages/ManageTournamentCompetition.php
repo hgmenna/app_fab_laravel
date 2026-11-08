@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Tournaments\Pages;
 
 use App\Filament\Resources\Tournaments\TournamentResource;
+use App\Livewire\CompetitionOrganizationUpdates;
 use App\Models\Category;
 use App\Models\FiveQuillasCompetition;
 use App\Models\FiveQuillasEntry;
@@ -29,8 +30,11 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -45,6 +49,24 @@ class ManageTournamentCompetition extends Page
     protected string $view = 'filament.resources.tournaments.pages.manage-tournament-competition';
 
     protected static ?string $navigationLabel = 'Competencia';
+
+    private function competitionViewRevisionKey(): string
+    {
+        return CompetitionOrganizationUpdates::revisionKey((int) $this->record->getKey());
+    }
+
+    protected function afterActionCalled(): void
+    {
+        $key = $this->competitionViewRevisionKey();
+        parent::afterActionCalled();
+
+        $notify = static fn () => Cache::put($key, (string) Str::uuid(), now()->addDay());
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit($notify);
+        } else {
+            $notify();
+        }
+    }
 
     /**
      * Carga el torneo solicitado, inicializa su competencia y verifica autorización.
@@ -814,14 +836,19 @@ class ManageTournamentCompetition extends Page
 
                 return [
                     'slot_id' => $slotId ?: null,
+                    'zone_revision' => $this->zoneConfigurationRevision($slotId),
                     'zones' => $this->zoneRowsForSlot($slotId),
                 ];
             })
             ->schema([
+                Hidden::make('zone_revision'),
                 Select::make('slot_id')->label('Horario')
                     ->options(fn (): array => $this->record->slots()->where('is_active', true)->orderBy('starts_at')->pluck('name', 'id')->all())
                     ->required()->searchable()->live()
-                    ->afterStateUpdated(fn ($state, Set $set) => $set('zones', $this->zoneRowsForSlot((int) $state))),
+                    ->afterStateUpdated(function ($state, Set $set): void {
+                        $set('zone_revision', $this->zoneConfigurationRevision((int) $state));
+                        $set('zones', $this->zoneRowsForSlot((int) $state));
+                    }),
                 Repeater::make('zones')->label('Zonas del horario')
                     ->visible(fn (Get $get): bool => filled($get('slot_id')))
                     ->table([
@@ -871,7 +898,7 @@ class ManageTournamentCompetition extends Page
                     $this->competition()->phases()->whereKey((int) $arguments['phaseId'])
                         ->where('phase_type', 'zones')->where('is_enabled', true)->firstOrFail();
                     $count = app(FiveQuillasCompetitionService::class)->createManualZones(
-                        $this->competition(), (int) $data['slot_id'], $data['zones'] ?? [],
+                        $this->competition(), (int) $data['slot_id'], $data['zones'] ?? [], (string) ($data['zone_revision'] ?? ''),
                     );
                 } catch (ValidationException $exception) {
                     Notification::make()->danger()->title('No se pudieron guardar las zonas')
@@ -884,6 +911,15 @@ class ManageTournamentCompetition extends Page
                 Notification::make()->success()->title('Zonas guardadas')
                     ->body($count.' zonas quedaron preparadas.')->send();
             });
+    }
+
+    private function zoneConfigurationRevision(int $slotId): ?string
+    {
+        $phase = $this->competition()?->phases()->where('phase_type', 'zones')->where('is_enabled', true)->first();
+
+        return $phase && $slotId > 0
+            ? app(FiveQuillasCompetitionService::class)->zoneConfigurationRevision($phase, $slotId)
+            : null;
     }
 
     /**
@@ -1275,6 +1311,7 @@ class ManageTournamentCompetition extends Page
                     ])->all();
 
                 return [
+                    Hidden::make('schedule_revision')->default($phase?->scheduleRevision()),
                     Select::make('schedule_index')->label('Horario a asignar')
                         ->options($options)->default(array_key_first($options))->required()->native(false)->live()
                         ->afterStateUpdated(function ($state, Set $set) use ($phase): void {
@@ -1301,7 +1338,7 @@ class ManageTournamentCompetition extends Page
                     $count = $service->scheduleConfiguredMatches($phase, (int) $data['schedule_index'], [
                         'starts_at' => $data['starts_at'], 'tables' => (int) $data['tables'],
                         'estimated_minutes' => (int) $data['estimated_minutes'],
-                    ]);
+                    ], (string) ($data['schedule_revision'] ?? ''));
                 } catch (ValidationException $exception) {
                     Notification::make()->danger()->title('No se pudieron asignar los horarios')
                         ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
@@ -1330,9 +1367,13 @@ class ManageTournamentCompetition extends Page
             ->fillForm(function (array $arguments): array {
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
 
-                return ['scheduled_at' => $match?->scheduled_at];
+                return [
+                    'scheduled_at' => $match?->scheduled_at,
+                    'match_revision' => $match?->editRevision(),
+                ];
             })
             ->schema([
+                Hidden::make('match_revision'),
                 DateTimePicker::make('scheduled_at')
                     ->label('Fecha y hora de la partida')
                     ->seconds(false)
@@ -1345,17 +1386,14 @@ class ManageTournamentCompetition extends Page
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
                 abort_unless($match, 404);
 
-                if ((int) $match->round_number <= 1 || $match->is_bye
-                    || ! in_array($match->status, ['pending', 'scheduled'], true)) {
-                    throw ValidationException::withMessages([
-                        'scheduled_at' => 'Esta programación individual corresponde únicamente a partidas de rondas posteriores que todavía no comenzaron.',
-                    ]);
-                }
+                try {
+                    app(FiveQuillasCompetitionService::class)->scheduleWaitingMatch($match, (string) $data['scheduled_at'], (string) ($data['match_revision'] ?? ''));
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('No se pudo actualizar el partido')
+                        ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
 
-                $match->update([
-                    'scheduled_at' => $data['scheduled_at'],
-                    'status' => 'scheduled',
-                ]);
+                    return;
+                }
 
                 Notification::make()->success()->title('Horario actualizado')
                     ->body('La partida quedó programada y conservará el horario cuando se definan los jugadores.')->send();
@@ -1497,6 +1535,7 @@ class ManageTournamentCompetition extends Page
                     ])->values()->all();
 
                 return [
+                    'match_revision' => $match?->editRevision(),
                     'players_label' => $this->matchPlayersLabel((int) ($arguments['matchId'] ?? 0)),
                     'player_one_name' => $match?->playerOne?->player?->full_name ?? 'Jugador 1',
                     'player_two_name' => $match?->playerTwo?->player?->full_name ?? 'Jugador 2',
@@ -1534,6 +1573,7 @@ class ManageTournamentCompetition extends Page
                 };
 
                 return [
+                    Hidden::make('match_revision'),
                     Hidden::make('players_label'),
                     Hidden::make('player_one_name'),
                     Hidden::make('player_two_name'),
@@ -1565,12 +1605,11 @@ class ManageTournamentCompetition extends Page
             ->action(function (array $data, array $arguments, Action $action): void {
                 $match = FiveQuillasMatch::query()
                     ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
-                    ->whereNotNull('player_one_entry_id')->whereNotNull('player_two_entry_id')->where('is_bye', false)
                     ->findOrFail((int) $arguments['matchId']);
                 if (filled($data['declared_winner_id'] ?? null)) {
                     try {
                         $updatedMatch = app(FiveQuillasCompetitionService::class)->declareMatchWinner(
-                            $match, (int) ($data['declared_winner_id'] ?? 0),
+                            $match, (int) ($data['declared_winner_id'] ?? 0), (string) ($data['match_revision'] ?? ''),
                         );
                     } catch (ValidationException $exception) {
                         Notification::make()->danger()->title('No se pudo proclamar al ganador')
@@ -1610,7 +1649,7 @@ class ManageTournamentCompetition extends Page
                     ->values()
                     ->all();
                 try {
-                    $updatedMatch = app(FiveQuillasCompetitionService::class)->recordMatchResult($match, $scores);
+                    $updatedMatch = app(FiveQuillasCompetitionService::class)->recordMatchResult($match, $scores, (string) ($data['match_revision'] ?? ''));
                 } catch (ValidationException $exception) {
                     Notification::make()->danger()
                         ->title('No se pudo guardar el resultado')
@@ -1667,17 +1706,20 @@ class ManageTournamentCompetition extends Page
             ->size('xs')
             ->iconButton()
             ->tooltip('Reiniciar partido')
+            ->fillForm(fn (array $arguments): array => [
+                'match_revision' => $this->competitionMatch((int) ($arguments['matchId'] ?? 0))?->editRevision(),
+            ])
+            ->schema([Hidden::make('match_revision')])
             ->requiresConfirmation()
             ->modalHeading('Reiniciar partido')
             ->modalDescription('Se eliminará el resultado y el partido volverá al estado No jugado. Esta acción también retira a los jugadores de los cruces posteriores que todavía no comenzaron.')
-            ->action(function (array $arguments): void {
+            ->action(function (array $data, array $arguments): void {
                 $match = FiveQuillasMatch::query()
                     ->whereHas('phase', fn ($query) => $query->where('competition_id', $this->competition()->id))
-                    ->whereIn('status', ['in_progress', 'completed'])
                     ->findOrFail((int) $arguments['matchId']);
 
                 try {
-                    $resetMatch = app(FiveQuillasCompetitionService::class)->resetMatchResult($match);
+                    $resetMatch = app(FiveQuillasCompetitionService::class)->resetMatchResult($match, (string) ($data['match_revision'] ?? ''));
                 } catch (ValidationException $exception) {
                     Notification::make()->danger()->title('No se puede reiniciar el partido')
                         ->body(collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
@@ -1714,6 +1756,7 @@ class ManageTournamentCompetition extends Page
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
 
                 return [
+                    'match_revision' => $match?->editRevision(),
                     'player_one_entry_id' => $match?->player_one_entry_id,
                     'player_two_entry_id' => $match?->player_two_entry_id,
                 ];
@@ -1726,6 +1769,7 @@ class ManageTournamentCompetition extends Page
                     : [];
 
                 return [
+                    Hidden::make('match_revision'),
                     Select::make('player_one_entry_id')->label('Primera posición')
                         ->options($options)->searchable()->placeholder('LIBRE'),
                     Select::make('player_two_entry_id')->label('Segunda posición')
@@ -1746,6 +1790,7 @@ class ManageTournamentCompetition extends Page
                         $match,
                         filled($data['player_one_entry_id'] ?? null) ? (int) $data['player_one_entry_id'] : null,
                         filled($data['player_two_entry_id'] ?? null) ? (int) $data['player_two_entry_id'] : null,
+                        (string) ($data['match_revision'] ?? ''),
                     );
                 } catch (ValidationException $exception) {
                     Notification::make()->danger()->title('No se pudo corregir el partido')
@@ -1801,7 +1846,10 @@ class ManageTournamentCompetition extends Page
             ->fillForm(function (array $arguments): array {
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
 
-                return ['table_number' => $match?->table_number];
+                return [
+                    'table_number' => $match?->table_number,
+                    'match_revision' => $match?->editRevision(),
+                ];
             })
             ->schema(function (array $arguments): array {
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
@@ -1810,6 +1858,7 @@ class ManageTournamentCompetition extends Page
                     : [];
 
                 return [
+                    Hidden::make('match_revision'),
                     Select::make('table_number')
                         ->label('Mesa disponible')
                         ->options($options)
@@ -1828,7 +1877,14 @@ class ManageTournamentCompetition extends Page
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
                 abort_unless($match, 404);
 
-                app(FiveQuillasCompetitionService::class)->callMatch($match, (int) $data['table_number']);
+                try {
+                    app(FiveQuillasCompetitionService::class)->callMatch($match, (int) $data['table_number'], (string) ($data['match_revision'] ?? ''));
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('No se pudo actualizar el partido')
+                        ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
+
+                    return;
+                }
                 Notification::make()->success()->title('Partido llamado')
                     ->body('Mesa '.$data['table_number'].' quedó asignada.')->send();
             });
@@ -1846,14 +1902,25 @@ class ManageTournamentCompetition extends Page
             ->size('xs')
             ->iconButton()
             ->tooltip('Cancelar llamado y liberar mesa')
+            ->fillForm(fn (array $arguments): array => [
+                'match_revision' => $this->competitionMatch((int) ($arguments['matchId'] ?? 0))?->editRevision(),
+            ])
+            ->schema([Hidden::make('match_revision')])
             ->requiresConfirmation()
             ->modalHeading('Cancelar llamado')
             ->modalDescription('El partido dejará de estar llamado y la mesa quedará disponible para otro encuentro.')
-            ->action(function (array $arguments): void {
+            ->action(function (array $data, array $arguments): void {
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
                 abort_unless($match, 404);
 
-                app(FiveQuillasCompetitionService::class)->cancelMatchCall($match);
+                try {
+                    app(FiveQuillasCompetitionService::class)->cancelMatchCall($match, (string) ($data['match_revision'] ?? ''));
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('No se pudo actualizar el partido')
+                        ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
+
+                    return;
+                }
                 Notification::make()->success()->title('Llamado cancelado')
                     ->body('La mesa quedó disponible.')->send();
             });
@@ -1864,6 +1931,7 @@ class ManageTournamentCompetition extends Page
      */
     protected function getViewData(): array
     {
+        $competitionViewRevision = Cache::get($this->competitionViewRevisionKey());
         $competition = $this->competition();
         if ($competition) {
             $service = app(FiveQuillasCompetitionService::class);
@@ -1933,6 +2001,7 @@ class ManageTournamentCompetition extends Page
 
         return [
             'competition' => $competition,
+            'competitionViewRevision' => $competitionViewRevision,
             'entriesBySlot' => $entries->groupBy(fn ($entry): string => $entry->sourceSlot?->name ?? 'SIN HORARIO ASIGNADO'),
             'entriesByPhase' => $pendingEntries
                 ->groupBy(fn ($entry): string => $entry->entryPhase?->name ?? 'PRIMERA FASE'),

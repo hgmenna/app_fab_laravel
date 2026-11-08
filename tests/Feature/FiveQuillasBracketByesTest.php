@@ -30,6 +30,7 @@ beforeEach(function () {
     });
     Schema::create('five_quillas_groups', function (Blueprint $t) {
         $t->id(); $t->unsignedBigInteger('phase_id'); $t->integer('sort_order')->default(1);
+        $t->unsignedBigInteger('tournament_slot_id')->nullable();
         $t->string('status')->default('completed'); $t->timestamps();
     });
     Schema::create('five_quillas_group_entries', function (Blueprint $t) {
@@ -199,6 +200,70 @@ it('does not automatically recalculate a bracket with a played match', function 
     $before = $this->phase->matches()->get()->toArray();
     app(FiveQuillasCompetitionService::class)->repairPreviousResultsBracket($this->phase);
     expect($this->phase->matches()->get()->toArray())->toBe($before);
+});
+
+it('rejects a stale result or reset after another operator saves the match', function () {
+    $service = app(FiveQuillasCompetitionService::class);
+    $firstOperator = $this->played->fresh();
+    $secondOperator = $this->played->fresh();
+    $saved = $service->recordMatchResult($firstOperator, [
+        ['player_one_points' => 60, 'player_two_points' => 40],
+    ], $firstOperator->editRevision());
+
+    expect(fn () => $service->recordMatchResult($secondOperator, [
+        ['player_one_points' => 30, 'player_two_points' => 60],
+    ], $secondOperator->editRevision()))->toThrow(\Illuminate\Validation\ValidationException::class, 'Otro operador');
+    expect(fn () => $service->resetMatchResult($secondOperator, $secondOperator->editRevision()))
+        ->toThrow(\Illuminate\Validation\ValidationException::class, 'Otro operador');
+    expect($this->played->fresh()->getAttributes())->toBe($saved->getAttributes());
+
+    $current = $this->played->fresh();
+    expect($service->resetMatchResult($current, $current->editRevision())->status)->toBe('pending');
+});
+
+it('keeps a table reserved when a second match tries to claim it', function () {
+    $this->phase->update(['settings' => ['tables' => 2]]);
+    $other = $this->bye;
+    $fourth = FiveQuillasEntry::create(['competition_id' => $this->competition->id]);
+    $other->update(['player_two_entry_id' => $fourth->id]);
+    $other = $other->fresh();
+    $first = $this->played->fresh();
+    $service = app(FiveQuillasCompetitionService::class);
+    $service->callMatch($first, 1, $first->editRevision());
+
+    expect(fn () => $service->callMatch($other, 1, $other->editRevision()))
+        ->toThrow(\Illuminate\Validation\ValidationException::class, 'ya está ocupada');
+    expect($service->callMatch($other, 2, $other->editRevision())->table_number)->toBe(2)
+        ->and($first->fresh()->table_number)->toBe(1);
+});
+
+it('rejects a stale zone form for the modified time slot', function () {
+    $zones = $this->competition->phases()->create(['phase_type' => 'zones']);
+    $service = app(FiveQuillasCompetitionService::class);
+    $revision = $service->zoneConfigurationRevision($zones, 1);
+    $otherSlot = $service->zoneConfigurationRevision($zones, 2);
+    $group = $zones->groups()->create(['tournament_slot_id' => 1]);
+
+    expect(fn () => $service->createManualZones($this->competition, 1, [], $revision))
+        ->toThrow(\Illuminate\Validation\ValidationException::class, 'Otro operador');
+    expect($group->fresh())->not->toBeNull()
+        ->and($service->zoneConfigurationRevision($zones, 2))->toBe($otherSlot);
+});
+
+it('does not overwrite a schedule changed after the modal was opened', function () {
+    $this->phase->update(['settings' => [
+        'tables' => 1,
+        'estimated_minutes' => 45,
+        'schedules' => [['starts_at' => '2026-11-01 09:30:00']],
+    ]]);
+    $phase = $this->phase->fresh();
+    $revision = $phase->scheduleRevision();
+    $service = app(FiveQuillasCompetitionService::class);
+    $service->scheduleConfiguredMatches($phase, 0, ['starts_at' => '2026-11-01 10:00:00'], $revision);
+
+    expect(fn () => $service->scheduleConfiguredMatches($phase, 0, ['starts_at' => '2026-11-01 11:00:00'], $revision))
+        ->toThrow(\Illuminate\Validation\ValidationException::class, 'Otro operador');
+    expect($this->bye->fresh()->scheduled_at->format('H:i'))->toBe('10:00');
 });
 
 it('counts zone qualifiers before assigning times and excludes projected byes', function () {

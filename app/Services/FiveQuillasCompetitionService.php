@@ -177,10 +177,16 @@ class FiveQuillasCompetitionService
     /**
      * Guarda las zonas editables de un horario y conserva intactas las que ya tienen actividad deportiva.
      */
-    public function createManualZones(FiveQuillasCompetition $competition, int $slotId, array $zoneRows): int
+    public function createManualZones(FiveQuillasCompetition $competition, int $slotId, array $zoneRows, ?string $expectedRevision = null): int
     {
-        return DB::transaction(function () use ($competition, $slotId, $zoneRows): int {
+        return DB::transaction(function () use ($competition, $slotId, $zoneRows, $expectedRevision): int {
+            $this->lockCompetition($competition->id);
             $phase = $competition->phases()->where('phase_type', 'zones')->where('is_enabled', true)->firstOrFail();
+            if ($expectedRevision !== null && ! hash_equals($this->zoneConfigurationRevision($phase, $slotId), $expectedRevision)) {
+                throw ValidationException::withMessages([
+                    'zones' => 'Otro operador actualizó las zonas de este horario. Cerrá la ventana y volvé a abrirla.',
+                ]);
+            }
             $previousPhaseStatus = $phase->status;
             $existing = $phase->groups()->where('tournament_slot_id', $slotId)
                 ->with(['matches', 'groupEntries'])->get();
@@ -267,12 +273,26 @@ class FiveQuillasCompetitionService
         });
     }
 
+    public function zoneConfigurationRevision(FiveQuillasPhase $phase, int $slotId): string
+    {
+        $groups = $phase->groups()->where('tournament_slot_id', $slotId)->orderBy('id')
+            ->with(['groupEntries' => fn ($query) => $query->orderBy('id'), 'matches' => fn ($query) => $query->orderBy('id')])
+            ->get()->map(fn ($group): array => [
+                $group->getAttributes(),
+                $group->groupEntries->map->getAttributes()->all(),
+                $group->matches->map->editRevision()->all(),
+            ])->all();
+
+        return hash('sha256', serialize([$phase->id, $slotId, $groups]));
+    }
+
     /**
      * Reemplaza la definición de fases validando dependencias, reglas y orden del formato.
      */
     public function configureFormat(FiveQuillasCompetition $competition, array $phaseRows): int
     {
         return DB::transaction(function () use ($competition, $phaseRows): int {
+            $this->lockCompetition($competition->id);
             $rows = collect($phaseRows)->values();
             if ($rows->isEmpty()) {
                 throw ValidationException::withMessages(['phases' => 'El torneo debe tener al menos una fase.']);
@@ -444,6 +464,7 @@ class FiveQuillasCompetitionService
     public function applyCompetitionTemplate(FiveQuillasCompetition $competition, string $format): int
     {
         return DB::transaction(function () use ($competition, $format): int {
+            $this->lockCompetition($competition->id);
             if ($competition->phases()->whereHas('groups')->exists()
                 || $competition->phases()->whereHas('matches', function ($query): void {
                     // La vista crea cruces vacíos para previsualizar la grilla.
@@ -476,10 +497,16 @@ class FiveQuillasCompetitionService
     /**
      * Asigna fecha, hora y mesa a los partidos comprendidos por un bloque de programación.
      */
-    public function scheduleConfiguredMatches(FiveQuillasPhase $phase, int $scheduleIndex, array $overrides = []): int
+    public function scheduleConfiguredMatches(FiveQuillasPhase $phase, int $scheduleIndex, array $overrides = [], ?string $expectedScheduleRevision = null): int
     {
-        return DB::transaction(function () use ($phase, $scheduleIndex, $overrides): int {
+        return DB::transaction(function () use ($phase, $scheduleIndex, $overrides, $expectedScheduleRevision): int {
+            $this->lockCompetition($phase->competition_id);
             $phase = FiveQuillasPhase::query()->lockForUpdate()->findOrFail($phase->id);
+            if ($expectedScheduleRevision !== null && ! hash_equals($phase->scheduleRevision(), $expectedScheduleRevision)) {
+                throw ValidationException::withMessages([
+                    'schedule' => 'Otro operador cambió la programación de esta fase. Cerrá la ventana y volvé a abrirla.',
+                ]);
+            }
             if ($phase->phase_type === 'bracket') {
                 if ($phase->matches()->exists()) {
                     $this->refreshEmptyZoneBracket($phase);
@@ -569,6 +596,7 @@ class FiveQuillasCompetitionService
     public function ensureBracketSkeleton(FiveQuillasPhase $phase): int
     {
         return DB::transaction(function () use ($phase): int {
+            $this->lockCompetition($phase->competition_id);
             $phase->refresh()->loadMissing('competition');
             if ($phase->phase_type !== 'bracket') {
                 return $phase->matches()->count();
@@ -706,6 +734,7 @@ class FiveQuillasCompetitionService
     public function refreshEmptyZoneBracket(FiveQuillasPhase $phase): void
     {
         DB::transaction(function () use ($phase): void {
+            $this->lockCompetition($phase->competition_id);
             $phase = FiveQuillasPhase::query()->lockForUpdate()->findOrFail($phase->id);
             if ($phase->phase_type !== 'bracket' || ! $phase->is_enabled) {
                 return;
@@ -750,6 +779,7 @@ class FiveQuillasCompetitionService
     public function reconcileBracketRounds(FiveQuillasPhase $phase): void
     {
         DB::transaction(function () use ($phase): void {
+            $this->lockCompetition($phase->competition_id);
             $phase = FiveQuillasPhase::query()->whereKey($phase->id)->lockForUpdate()->firstOrFail();
             $size = (int) data_get($phase->settings, 'bracket_size', 0);
             $qualifiers = (int) data_get($phase->settings, 'qualifiers', 0);
@@ -782,6 +812,7 @@ class FiveQuillasCompetitionService
     public function repairPreviousResultsBracket(FiveQuillasPhase $phase): void
     {
         DB::transaction(function () use ($phase): void {
+            $this->lockCompetition($phase->competition_id);
             $phase = FiveQuillasPhase::query()->lockForUpdate()->findOrFail($phase->id);
             $previous = $this->previousPhase($phase);
             if ($phase->phase_type !== 'bracket' || $phase->seeding_method !== 'previous_results'
@@ -852,6 +883,7 @@ class FiveQuillasCompetitionService
     public function resolveBracketByes(FiveQuillasPhase $phase): void
     {
         DB::transaction(function () use ($phase): void {
+            $this->lockCompetition($phase->competition_id);
             $phase = FiveQuillasPhase::query()->lockForUpdate()->findOrFail($phase->id);
             if ($phase->phase_type !== 'bracket') {
                 return;
@@ -940,16 +972,48 @@ class FiveQuillasCompetitionService
             ->all();
     }
 
+    private function lockCompetition(int $competitionId): void
+    {
+        FiveQuillasCompetition::query()->lockForUpdate()->findOrFail($competitionId);
+    }
+
+    /** Serializa las escrituras que pueden compartir una mesa, zona o cruce posterior. */
+    private function lockMatchForEdit(FiveQuillasMatch $match, ?string $expectedRevision): FiveQuillasMatch
+    {
+        FiveQuillasCompetition::query()->whereIn('id', FiveQuillasPhase::query()
+            ->whereKey($match->phase_id)->select('competition_id'))->lockForUpdate()->firstOrFail();
+        $current = FiveQuillasMatch::query()->lockForUpdate()->findOrFail($match->id);
+        if ($expectedRevision !== null && ! hash_equals($current->editRevision(), $expectedRevision)) {
+            throw ValidationException::withMessages([
+                'match_revision' => 'Otro operador modificó el partido. Cerrá esta ventana y volvé a abrirla para revisar los datos actuales.',
+            ]);
+        }
+
+        return $current;
+    }
+
+    public function scheduleWaitingMatch(FiveQuillasMatch $match, string $startsAt, string $expectedRevision): void
+    {
+        DB::transaction(function () use ($match, $startsAt, $expectedRevision): void {
+            $match = $this->lockMatchForEdit($match, $expectedRevision);
+            if ((int) $match->round_number <= 1 || $match->is_bye
+                || ! in_array($match->status, ['pending', 'scheduled'], true)) {
+                throw ValidationException::withMessages([
+                    'scheduled_at' => 'Esta programación individual corresponde únicamente a partidas de rondas posteriores que todavía no comenzaron.',
+                ]);
+            }
+
+            $match->update(['scheduled_at' => $startsAt, 'status' => 'scheduled']);
+        });
+    }
+
     /**
      * Llama un partido y reserva de forma exclusiva una mesa disponible.
      */
-    public function callMatch(FiveQuillasMatch $match, int $tableNumber): FiveQuillasMatch
+    public function callMatch(FiveQuillasMatch $match, int $tableNumber, ?string $expectedRevision = null): FiveQuillasMatch
     {
-        return DB::transaction(function () use ($match, $tableNumber): FiveQuillasMatch {
-            $lockedMatch = FiveQuillasMatch::query()
-                ->with('phase')
-                ->lockForUpdate()
-                ->findOrFail($match->getKey());
+        return DB::transaction(function () use ($match, $tableNumber, $expectedRevision): FiveQuillasMatch {
+            $lockedMatch = $this->lockMatchForEdit($match, $expectedRevision);
 
             if (! $lockedMatch->player_one_entry_id || ! $lockedMatch->player_two_entry_id
                 || $lockedMatch->is_bye || $lockedMatch->status === 'completed') {
@@ -991,10 +1055,10 @@ class FiveQuillasCompetitionService
     /**
      * Cancela un llamado que todavía no comenzó y vuelve a liberar la mesa.
      */
-    public function cancelMatchCall(FiveQuillasMatch $match): FiveQuillasMatch
+    public function cancelMatchCall(FiveQuillasMatch $match, ?string $expectedRevision = null): FiveQuillasMatch
     {
-        return DB::transaction(function () use ($match): FiveQuillasMatch {
-            $lockedMatch = FiveQuillasMatch::query()->lockForUpdate()->findOrFail($match->getKey());
+        return DB::transaction(function () use ($match, $expectedRevision): FiveQuillasMatch {
+            $lockedMatch = $this->lockMatchForEdit($match, $expectedRevision);
 
             if ($lockedMatch->status !== 'called') {
                 throw ValidationException::withMessages([
@@ -1017,6 +1081,7 @@ class FiveQuillasCompetitionService
     public function preparePhase(FiveQuillasPhase $phase): int
     {
         return DB::transaction(function () use ($phase): int {
+            $this->lockCompetition($phase->competition_id);
             $phase->loadMissing('competition.tournament.type');
             // Repara también competencias ya iniciadas con el criterio anterior,
             // que no reconocía las categorías temporales N y M del Ranking General.
@@ -1887,6 +1952,7 @@ class FiveQuillasCompetitionService
     public function createManualSlotElimination(FiveQuillasPhase $phase, array $crossings): int
     {
         return DB::transaction(function () use ($phase, $crossings): int {
+            $this->lockCompetition($phase->competition_id);
             if ($phase->phase_type !== 'slot_elimination') {
                 throw ValidationException::withMessages(['crossings' => 'La fase seleccionada no corresponde a cruces por horario.']);
             }
@@ -2481,9 +2547,10 @@ class FiveQuillasCompetitionService
     /**
      * Valida los sets, calcula ganador y estadísticas, y propaga el resultado.
      */
-    public function recordMatchResult(FiveQuillasMatch $match, array $scores): FiveQuillasMatch
+    public function recordMatchResult(FiveQuillasMatch $match, array $scores, ?string $expectedRevision = null): FiveQuillasMatch
     {
-        return DB::transaction(function () use ($match, $scores): FiveQuillasMatch {
+        return DB::transaction(function () use ($match, $scores, $expectedRevision): FiveQuillasMatch {
+            $match = $this->lockMatchForEdit($match, $expectedRevision);
             $match->loadMissing(['phase', 'group']);
             if (! $match->player_one_entry_id || ! $match->player_two_entry_id) {
                 throw ValidationException::withMessages(['scores' => 'El partido todavía no tiene los dos jugadores definidos.']);
@@ -2548,13 +2615,13 @@ class FiveQuillasCompetitionService
                 $dependentMatchIds = collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique();
                 $hasCompletedDependentMatch = FiveQuillasMatch::query()
                     ->whereIn('id', $dependentMatchIds)
-                    ->where('status', 'completed')
+                    ->whereIn('status', ['called', 'in_progress', 'completed', 'suspended'])
                     ->where('is_bye', false)
                     ->exists();
 
                 if ($hasCompletedDependentMatch) {
                     throw ValidationException::withMessages([
-                        'scores' => 'No se puede cambiar el ganador porque ya se disputó un partido posterior. Corregí primero los resultados posteriores.',
+                        'scores' => 'No se puede cambiar el ganador porque un partido posterior ya fue llamado o iniciado. Revisá primero ese partido.',
                     ]);
                 }
 
@@ -2649,9 +2716,10 @@ class FiveQuillasCompetitionService
     /**
      * Proclama un ganador y genera los sets computados completos definidos para la fase.
      */
-    public function declareMatchWinner(FiveQuillasMatch $match, int $winnerEntryId): FiveQuillasMatch
+    public function declareMatchWinner(FiveQuillasMatch $match, int $winnerEntryId, ?string $expectedRevision = null): FiveQuillasMatch
     {
-        return DB::transaction(function () use ($match, $winnerEntryId): FiveQuillasMatch {
+        return DB::transaction(function () use ($match, $winnerEntryId, $expectedRevision): FiveQuillasMatch {
+            $match = $this->lockMatchForEdit($match, $expectedRevision);
             $match->loadMissing(['phase.competition', 'group']);
             $players = collect([$match->player_one_entry_id, $match->player_two_entry_id])->filter()->map(fn ($id): int => (int) $id);
             if ($match->is_bye || $players->count() !== 2 || ! $players->contains($winnerEntryId)) {
@@ -2660,8 +2728,8 @@ class FiveQuillasCompetitionService
             $previousWinnerId = (int) ($match->winner_entry_id ?? 0);
             if ($previousWinnerId && $previousWinnerId !== $winnerEntryId) {
                 $dependentIds = collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique();
-                if (FiveQuillasMatch::query()->whereIn('id', $dependentIds)->where('status', 'completed')->where('is_bye', false)->exists()) {
-                    throw ValidationException::withMessages(['winner' => 'Primero reiniciá el partido posterior que ya fue disputado.']);
+                if (FiveQuillasMatch::query()->whereIn('id', $dependentIds)->whereIn('status', ['called', 'in_progress', 'completed', 'suspended'])->where('is_bye', false)->exists()) {
+                    throw ValidationException::withMessages(['winner' => 'Revisá primero el partido posterior que ya fue llamado o iniciado.']);
                 }
                 foreach ($dependentIds as $dependentId) { $this->resetAutomaticByeChain((int) $dependentId); }
                 $this->removeAdvancedEntry($match->next_match_id, $match->next_match_position, $previousWinnerId);
@@ -2700,9 +2768,10 @@ class FiveQuillasCompetitionService
     /**
      * Corrige participantes de un partido no iniciado y revierte propagaciones dependientes.
      */
-    public function correctMatchParticipants(FiveQuillasMatch $match, ?int $playerOneId, ?int $playerTwoId): FiveQuillasMatch
+    public function correctMatchParticipants(FiveQuillasMatch $match, ?int $playerOneId, ?int $playerTwoId, ?string $expectedRevision = null): FiveQuillasMatch
     {
-        return DB::transaction(function () use ($match, $playerOneId, $playerTwoId): FiveQuillasMatch {
+        return DB::transaction(function () use ($match, $playerOneId, $playerTwoId, $expectedRevision): FiveQuillasMatch {
+            $match = $this->lockMatchForEdit($match, $expectedRevision);
             $match->loadMissing('phase.competition');
             if ((int) $match->round_number !== 1) {
                 throw ValidationException::withMessages([
@@ -2877,9 +2946,10 @@ class FiveQuillasCompetitionService
     }
 
     /** Elimina el resultado y reabre la fase sin afectar partidas posteriores disputadas. */
-    public function resetMatchResult(FiveQuillasMatch $match): FiveQuillasMatch
+    public function resetMatchResult(FiveQuillasMatch $match, ?string $expectedRevision = null): FiveQuillasMatch
     {
-        return DB::transaction(function () use ($match): FiveQuillasMatch {
+        return DB::transaction(function () use ($match, $expectedRevision): FiveQuillasMatch {
+            $match = $this->lockMatchForEdit($match, $expectedRevision);
             $match->loadMissing(['phase.competition', 'group.groupEntries.entry']);
             if (! in_array($match->status, ['in_progress', 'completed'], true) || $match->is_bye) {
                 throw ValidationException::withMessages([
@@ -2890,12 +2960,12 @@ class FiveQuillasCompetitionService
             $dependentIds = collect([$match->next_match_id, $match->loser_next_match_id])->filter()->unique();
             $completedDependent = FiveQuillasMatch::query()
                 ->whereIn('id', $dependentIds)
-                ->where('status', 'completed')
+                ->whereIn('status', ['called', 'in_progress', 'completed', 'suspended'])
                 ->where('is_bye', false)
                 ->exists();
             if ($completedDependent) {
                 throw ValidationException::withMessages([
-                    'match' => 'Primero tenés que reiniciar los partidos posteriores que ya fueron disputados.',
+                    'match' => 'Revisá primero los partidos posteriores que ya fueron llamados o iniciados.',
                 ]);
             }
 
