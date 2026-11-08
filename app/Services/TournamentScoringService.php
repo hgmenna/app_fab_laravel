@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\FiveQuillasCompetition;
 use App\Models\Tournament;
 use App\Models\TournamentInstance;
 use App\Models\TournamentRegistration;
@@ -142,8 +143,12 @@ class TournamentScoringService
             return [];
         }
 
-        $rules = array_values($typeRules);
+        return $this->orderedRules($typeRules);
+    }
 
+    private function orderedRules(array $rules): array
+    {
+        $rules = array_values($rules);
         usort(
             $rules,
             fn (array $left, array $right): int => strnatcasecmp(
@@ -183,15 +188,39 @@ class TournamentScoringService
                 'scoring_rules' => $rules === [] ? null : json_encode($rules),
             ]);
 
+            $finalRules = [];
+            $confirmed = [];
+            if ($type->assigns_points && $type->scoring_method === 'position'
+                && Schema::hasTable('five_quillas_competitions')) {
+                $competitionService = app(FiveQuillasCompetitionService::class);
+                $orderedRules = $this->orderedRules($rules);
+                FiveQuillasCompetition::query()->whereIn('tournament_id', $tournamentIds)
+                    ->where('status', 'completed')
+                    ->whereDoesntHave('phases', fn ($query) => $query->where('is_enabled', true)->where('status', '!=', 'completed'))
+                    ->lockForUpdate()
+                    ->eachById(function (FiveQuillasCompetition $competition) use ($competitionService, $orderedRules, &$finalRules, &$confirmed): void {
+                        $assignments = $competitionService->finalScoringRulesByRegistration($competition, $orderedRules);
+                        $finalRules += $assignments;
+                        if (data_get($competition->settings, 'scoring_confirmed_at')) {
+                            $confirmed += $assignments;
+                        }
+                    });
+            }
+
+            $usesOfficialInstances = $type->affects_ranking && (! $type->discipline || $type->discipline->code === 'five_quillas');
             TournamentRegistration::query()
                 ->whereIn('tournament_id', $tournamentIds)
-                ->where(function ($query): void {
+                ->where(function ($query) use ($finalRules, $confirmed): void {
                     $query->whereNotNull('tournament_instance_id')
-                        ->orWhereNotNull('result_code');
+                        ->orWhereNotNull('result_code')
+                        ->orWhereIntegerInRaw('id', array_keys($confirmed));
+                    if ($finalRules !== []) {
+                        $query->orWhere(fn ($assigned) => $assigned->whereNotNull('points')
+                            ->whereIntegerInRaw('id', array_keys($finalRules)));
+                    }
                 })
                 ->lockForUpdate()
-                ->get()
-                ->each(function (TournamentRegistration $registration) use ($type, $rulesByCode, $rulesByInstance): void {
+                ->eachById(function (TournamentRegistration $registration) use ($usesOfficialInstances, $finalRules, $rulesByCode, $rulesByInstance): void {
                     if ($registration->disqualified) {
                         $registration->points = 0;
                         $registration->saveQuietly();
@@ -199,19 +228,30 @@ class TournamentScoringService
                         return;
                     }
 
-                    $rule = $type->affects_ranking && (! $type->discipline || $type->discipline->code === 'five_quillas')
+                    $storedRule = $usesOfficialInstances
                         ? $rulesByInstance->get((int) $registration->tournament_instance_id)
-                        : $rulesByCode->get(trim((string) $registration->result_code));
+                        : null;
+                    $storedRule ??= $rulesByCode->get(trim((string) $registration->result_code));
+                    $rule = array_key_exists($registration->id, $finalRules)
+                        ? $finalRules[$registration->id]
+                        : $storedRule;
 
                     if (! $rule) {
                         $registration->points = null;
                         $registration->result_description = null;
                         $registration->result_instance_value = null;
+                        if ($registration->status === 'ausente') {
+                            $registration->penalty_points = 0;
+                        }
                         $registration->saveQuietly();
 
                         return;
                     }
 
+                    $sameCode = (string) $registration->result_code === (string) $rule['code'];
+                    $registration->tournament_instance_id = $usesOfficialInstances
+                        ? ($rule['tournament_instance_id'] ?? ($sameCode ? $registration->tournament_instance_id : null))
+                        : null;
                     $registration->result_code = (string) $rule['code'];
                     $registration->result_description = (string) $rule['description'];
                     $registration->result_instance_value = (int) $rule['instance_value'];

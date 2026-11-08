@@ -302,6 +302,8 @@ test('los cambios de la tabla actualizan asignaciones anteriores y futuras', fun
         TournamentRegistration::query()->findOrFail($firstRegistrationId),
         $instanceId,
     );
+    DB::table('tournament_registrations')->where('id', $firstRegistrationId)
+        ->update(['tournament_instance_id' => null]);
 
     $type = TournamentType::query()->findOrFail($typeId);
     $type->scoring_rules = [
@@ -340,6 +342,7 @@ test('los cambios de la tabla actualizan asignaciones anteriores y futuras', fun
 
     expect((float) $firstRegistration->points)->toBe(999.0)
         ->and($firstRegistration->result_description)->toBe('1° modificada')
+        ->and($firstRegistration->tournament_instance_id)->toBe($instanceId)
         ->and((float) $secondRegistration->points)->toBe(999.0)
         ->and($secondRegistration->result_description)->toBe('1° modificada')
         ->and((float) $tournament->scoring_rules[0]['points'])->toBe(999.0);

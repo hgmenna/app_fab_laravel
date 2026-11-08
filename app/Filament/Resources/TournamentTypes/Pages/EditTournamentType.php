@@ -13,6 +13,8 @@ class EditTournamentType extends EditRecord
 {
     protected static string $resource = TournamentTypeResource::class;
 
+    protected ?bool $hasDatabaseTransactions = true;
+
     protected function getHeaderActions(): array
     {
         return [

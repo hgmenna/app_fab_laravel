@@ -1779,6 +1779,18 @@ class FiveQuillasCompetitionService
         return $rule && array_key_exists('points', $rule) ? (float) $rule['points'] : null;
     }
 
+    /** Resuelve las reglas vigentes a partir de los puestos deportivos ya guardados. */
+    public function finalScoringRulesByRegistration(FiveQuillasCompetition $competition, array $rules): array
+    {
+        $competition->loadMissing(['phases.matches', 'phases.groups.groupEntries', 'entries']);
+
+        return $competition->entries->whereNotNull('final_position')->whereNotNull('tournament_registration_id')
+            ->sortBy('final_position')->unique('tournament_registration_id')
+            ->mapWithKeys(fn (FiveQuillasEntry $entry): array => [
+                (int) $entry->tournament_registration_id => $this->ruleForEntryPlacement($rules, $competition, $entry),
+            ])->all();
+    }
+
     /**
      * Confirma las puntuaciones finales de forma idempotente y devuelve un resumen de la operación.
      */
