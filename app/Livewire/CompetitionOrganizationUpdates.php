@@ -29,7 +29,7 @@ class CompetitionOrganizationUpdates extends Component
         return 'tournament-organization:'.$tournamentId;
     }
 
-    public static function revisionFor(int $tournamentId): string
+    public static function revisionFor(int $tournamentId, ?string $viewVersion = null): string
     {
         $competition = FiveQuillasCompetition::query()->where('tournament_id', $tournamentId)->select('id');
         $phases = FiveQuillasPhase::query()->whereIn('competition_id', $competition)->select('id');
@@ -40,7 +40,13 @@ class CompetitionOrganizationUpdates extends Component
             'player_one_entry_id', 'player_two_entry_id', 'scheduled_at', 'table_number',
         ]);
 
-        return hash('sha256', serialize([$matches->all(), Cache::get(self::revisionKey($tournamentId))]));
+        // Las pestañas anteriores al versionado también pueden recibir el
+        // diseño nuevo a través de su actualización de resultados habitual.
+        return hash('sha256', serialize([
+            $matches->all(),
+            Cache::get(self::revisionKey($tournamentId)),
+            $viewVersion ?? CompetitionViewVersion::current(organization: true),
+        ]));
     }
 
     public function checkForChanges(): void
@@ -53,7 +59,7 @@ class CompetitionOrganizationUpdates extends Component
             return;
         }
 
-        $revision = self::revisionFor($this->tournamentId);
+        $revision = self::revisionFor($this->tournamentId, $viewVersion);
         if ($revision !== $this->revision) {
             $this->revision = $revision;
             $this->dispatch('competition-organization-changed');

@@ -66,12 +66,22 @@ class ManageTournamentCompetition extends Page
         $key = $this->competitionViewRevisionKey();
         parent::afterActionCalled();
 
+        $this->publishCompetitionChange($key);
+    }
+
+    private function publishCompetitionChange(string $key): void
+    {
         $notify = static fn () => Cache::put($key, (string) Str::uuid(), now()->addDay());
         if (DB::transactionLevel() > 0) {
             DB::afterCommit($notify);
         } else {
             $notify();
         }
+    }
+
+    public function refreshOrganizationForEveryone(): void
+    {
+        $this->publishCompetitionChange($this->competitionViewRevisionKey());
     }
 
     #[On('competition-organization-changed')]

@@ -61,7 +61,7 @@
         @php
             $enabledPhases = $competition->phases->where('is_enabled', true)->values();
         @endphp
-        <x-filament::button type="button" color="gray" size="sm" icon="heroicon-o-arrow-path" wire:click="$refresh">
+        <x-filament::button type="button" color="gray" size="sm" icon="heroicon-o-arrow-path" wire:click="refreshOrganizationForEveryone">
             Actualizar resultados
         </x-filament::button>
         <div wire:key="competition-phases-{{ $competition->id }}-{{ $enabledPhases->pluck('id')->implode('-') }}" x-data="{ activePhase: @js((string) optional($enabledPhases->first())->id) }">

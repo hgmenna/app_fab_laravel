@@ -80,3 +80,18 @@ it('signals an organization layout change even when the results did not change',
         ->assertDispatched('competition-organization-view-changed', version: CompetitionViewVersion::current(organization: true))
         ->assertNotDispatched('competition-organization-changed');
 });
+
+it('refreshes a tab opened before layout versioning through its existing event', function () {
+    $operator = Livewire::test(CompetitionOrganizationUpdates::class, [
+        'tournamentId' => 21,
+        'revision' => hash('sha256', serialize([[], null])),
+    ]);
+
+    $operator->call('checkForChanges')
+        ->assertDispatched('competition-organization-changed')
+        ->assertNotDispatched('competition-organization-view-changed');
+    $operator->call('checkForChanges')->assertNotDispatched('competition-organization-changed');
+
+    Cache::put(CompetitionOrganizationUpdates::revisionKey(21), 'refresh-from-support');
+    $operator->call('checkForChanges')->assertDispatched('competition-organization-changed');
+});
