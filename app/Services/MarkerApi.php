@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class MarkerApi
@@ -26,6 +27,20 @@ class MarkerApi
     {
         return $this->configured()
             && (! $this->isPilot() || (int) config('marker.pilot_tournament_id') === $tournamentId);
+    }
+
+    /** @return array<string, string>|null */
+    public function pilotClubOptions(): ?array
+    {
+        if (! $this->isPilot()) {
+            return null;
+        }
+
+        return collect(explode(',', (string) config('marker.pilot_clubs')))
+            ->map(fn (string $code): string => Str::lower(trim($code)))
+            ->filter(fn (string $code): bool => preg_match('/^[a-z0-9][a-z0-9-]{0,63}$/D', $code) === 1)
+            ->mapWithKeys(fn (string $code): array => [$code => Str::headline($code)])
+            ->all();
     }
 
     private function isPilot(): bool

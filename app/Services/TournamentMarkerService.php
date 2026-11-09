@@ -20,6 +20,10 @@ class TournamentMarkerService
     public function connect(int $tournamentId, array $credentials): void
     {
         $code = Str::lower(trim($credentials['institution']));
+        $pilotClubs = $this->api->pilotClubOptions();
+        if ($pilotClubs !== null && ! array_key_exists($code, $pilotClubs)) {
+            throw new RuntimeException('Elegí un club habilitado para la prueba.');
+        }
         $existing = MarkerTournamentLink::query()->where('tournament_id', $tournamentId)->first();
         if ($existing && $existing->club_code !== $code && $existing->assignments()->whereIn('status', ['pending', 'sent'])->exists()) {
             throw new RuntimeException('Todavía hay partidas pendientes del club vinculado.');

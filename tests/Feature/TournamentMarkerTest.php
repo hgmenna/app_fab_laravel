@@ -56,6 +56,11 @@ it('limita el puente temporal a un torneo y envía la clave de prueba', function
     expect($api->configured())->toBeFalse();
     config(['marker.pilot_key' => str_repeat('a', 64), 'marker.pilot_tournament_id' => 42]);
     expect($api->availableFor(42))->toBeTrue()->and($api->availableFor(43))->toBeFalse();
+    expect($api->pilotClubOptions())->toBe(['club-demo' => 'Club Demo', 'club-sur' => 'Club Sur']);
+    config(['marker.pilot_clubs' => 'club-demo, Mi-Sala, , invalido!']);
+    expect($api->pilotClubOptions())->toBe(['club-demo' => 'Club Demo', 'mi-sala' => 'Mi Sala']);
+    expect(fn () => app(TournamentMarkerService::class)->connect(42, ['institution' => 'club-sur']))
+        ->toThrow(RuntimeException::class, 'Elegí un club habilitado para la prueba.');
 
     Http::fake(['https://piloto.trycloudflare.com/api/v1/fab/health' => Http::response(['ok' => true])]);
     expect($api->request('GET', '/health'))->toBe(['ok' => true]);

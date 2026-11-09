@@ -1899,11 +1899,18 @@ class ManageTournamentCompetition extends Page
             ->icon('heroicon-o-link')
             ->visible(fn (): bool => app(MarkerApi::class)->availableFor((int) $this->record->getKey()))
             ->fillForm(fn (): array => ['institution' => $this->markerLink?->club_code])
-            ->schema([
-                TextInput::make('institution')->label('Cliente o club')->required()->maxLength(64),
-                TextInput::make('username')->label('Usuario')->required()->maxLength(80),
-                TextInput::make('password')->label('Contraseña')->password()->required()->maxLength(128),
-            ])
+            ->schema(function (): array {
+                $clubs = app(MarkerApi::class)->pilotClubOptions();
+                $client = $clubs === null
+                    ? TextInput::make('institution')->label('Cliente o club')->maxLength(64)
+                    : Select::make('institution')->label('Cliente de prueba')->options($clubs)->native(false);
+
+                return [
+                    $client->required(),
+                    TextInput::make('username')->label('Usuario')->required()->maxLength(80),
+                    TextInput::make('password')->label('Contraseña')->password()->required()->maxLength(128),
+                ];
+            })
             ->action(function (array $data, Action $action): void {
                 $this->authorizeMarkerAccess();
                 abort_unless(app(MarkerApi::class)->availableFor((int) $this->record->getKey()), 403);
