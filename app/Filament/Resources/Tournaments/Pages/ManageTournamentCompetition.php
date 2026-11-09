@@ -13,6 +13,7 @@ use App\Models\MarkerTournamentLink;
 use App\Models\User;
 use App\Services\FiveQuillasCompetitionService;
 use App\Services\MarkerApi;
+use App\Services\MarkerPilot;
 use App\Services\TournamentMarkerService;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -138,7 +139,9 @@ class ManageTournamentCompetition extends Page
     protected function getHeaderActions(): array
     {
         return [
+            $this->enableMarkerPilotAction(),
             $this->connectMarkersAction(),
+            $this->stopMarkerPilotAction(),
             Action::make('initialize')
                 ->label(fn (): string => $this->competition() ? 'Actualizar inscriptos' : 'Iniciar organización')
                 ->icon('heroicon-o-arrow-path')
@@ -1890,6 +1893,59 @@ class ManageTournamentCompetition extends Page
         $user = Auth::user();
         abort_unless(Filament::getCurrentPanel()?->getId() === 'admin'
             && $user instanceof User && $user->canAccessTournament('ManageTournamentCompetition', $this->record), 403);
+    }
+
+    private function canManageMarkerPilot(): bool
+    {
+        return Auth::user()?->hasRole('super-admin') ?? false;
+    }
+
+    public function enableMarkerPilotAction(): Action
+    {
+        return Action::make('enableMarkerPilot')
+            ->label('Habilitar prueba de marcadores')
+            ->icon('heroicon-o-device-tablet')
+            ->visible(fn (): bool => $this->canManageMarkerPilot()
+                && ! app(MarkerApi::class)->availableFor((int) $this->record->getKey()))
+            ->modalDescription('Ingresá la dirección y la clave del puente local. La prueba dura cuatro horas y queda habilitada solo para este torneo.')
+            ->schema([
+                TextInput::make('url')->label('Dirección HTTPS del puente')->url()->required()->maxLength(200),
+                TextInput::make('key')->label('Clave temporal del puente')->password()->required()->length(64),
+            ])
+            ->action(function (array $data, Action $action): void {
+                $this->authorizeMarkerAccess();
+                abort_unless($this->canManageMarkerPilot(), 403);
+                try {
+                    MarkerPilot::enable((int) $this->record->getKey(), $data['url'], $data['key'], app(MarkerApi::class));
+                } catch (RuntimeException $exception) {
+                    Notification::make()->danger()->title('No se pudo habilitar la prueba')->body($exception->getMessage())->send();
+                    $action->halt();
+
+                    return;
+                }
+
+                unset($this->markerLink);
+                Notification::make()->success()->title('Prueba habilitada')
+                    ->body('Abrí Vincular marcadores y elegí el club de prueba.')->send();
+            });
+    }
+
+    public function stopMarkerPilotAction(): Action
+    {
+        return Action::make('stopMarkerPilot')
+            ->label('Detener prueba de marcadores')
+            ->color('gray')
+            ->requiresConfirmation()
+            ->visible(fn (): bool => $this->canManageMarkerPilot()
+                && (MarkerPilot::current()['tournament'] ?? null) === (int) $this->record->getKey())
+            ->action(function (): void {
+                $this->authorizeMarkerAccess();
+                abort_unless($this->canManageMarkerPilot()
+                    && (MarkerPilot::current()['tournament'] ?? null) === (int) $this->record->getKey(), 403);
+                MarkerPilot::stop();
+                unset($this->markerLink);
+                Notification::make()->success()->title('Prueba deshabilitada')->send();
+            });
     }
 
     public function connectMarkersAction(): Action

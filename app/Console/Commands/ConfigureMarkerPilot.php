@@ -30,29 +30,9 @@ class ConfigureMarkerPilot extends Command
 
             return self::FAILURE;
         }
-        if (! preg_match('#^https://[a-z0-9-]+\.trycloudflare\.com$#D', $url)) {
-            $this->error('Ingresá la dirección HTTPS temporal de Cloudflare.');
-
-            return self::FAILURE;
-        }
-        if (! app()->environment('testing') && in_array(config('cache.default'), ['array', 'null'], true)) {
-            $this->error('La prueba necesita un almacenamiento de caché compartido entre Artisan y la web.');
-
-            return self::FAILURE;
-        }
-
-        $key = trim((string) $this->secret('Clave temporal del puente'));
-        if (! preg_match('/^[a-f0-9]{64}$/D', $key)) {
-            $this->error('La clave temporal debe tener 64 caracteres hexadecimales.');
-
-            return self::FAILURE;
-        }
+        $key = (string) $this->secret('Clave temporal del puente');
         try {
-            if (! $api->verifyPilot($url, $key) || ! MarkerPilot::activate($tournament, $url, $key)) {
-                $this->error('No se pudo verificar o guardar la conexión de prueba.');
-
-                return self::FAILURE;
-            }
+            MarkerPilot::enable($tournament, $url, $key, $api);
         } catch (RuntimeException $exception) {
             $this->error($exception->getMessage());
 

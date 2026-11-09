@@ -1,5 +1,6 @@
 <?php
 
+use App\Filament\Resources\Tournaments\Pages\ManageTournamentCompetition;
 use App\Models\Category;
 use App\Models\FiveQuillasCompetition;
 use App\Models\FiveQuillasEntry;
@@ -8,8 +9,10 @@ use App\Models\FiveQuillasPhase;
 use App\Models\MarkerTournamentLink;
 use App\Models\Player;
 use App\Models\Tournament;
+use App\Models\User;
 use App\Services\FiveQuillasCompetitionService;
 use App\Services\MarkerApi;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use App\Services\TournamentMarkerService;
 use Illuminate\Validation\ValidationException;
@@ -59,6 +62,16 @@ it('habilita y detiene el piloto desde Artisan sin cambiar la configuración de 
     $url = 'https://piloto.trycloudflare.com';
     Http::fake([$url.'/api/v1/fab/health' => Http::response(['ok' => true])]);
 
+    $page = new ManageTournamentCompetition;
+    $page->record = Tournament::query()->findOrFail($tournament);
+    expect($page->enableMarkerPilotAction()->isVisible())->toBeFalse();
+
+    $admin = Mockery::mock(User::class);
+    $admin->shouldReceive('hasRole')->with('super-admin')->andReturn(true);
+    Auth::shouldReceive('user')->andReturn($admin);
+    expect($page->enableMarkerPilotAction()->isVisible())->toBeTrue()
+        ->and($page->connectMarkersAction()->isVisible())->toBeFalse();
+
     $this->artisan('marcador:piloto', ['torneo' => $tournament, 'url' => $url])
         ->expectsQuestion('Clave temporal del puente', $key)
         ->assertSuccessful();
@@ -66,6 +79,9 @@ it('habilita y detiene el piloto desde Artisan sin cambiar la configuración de 
         ->and(Cache::get('marker:temporary-pilot')['key'])->not->toBe($key)
         ->and(app(MarkerApi::class)->availableFor($tournament))->toBeTrue()
         ->and(app(MarkerApi::class)->availableFor($tournament + 1))->toBeFalse();
+    expect($page->enableMarkerPilotAction()->isVisible())->toBeFalse()
+        ->and($page->connectMarkersAction()->isVisible())->toBeTrue()
+        ->and($page->stopMarkerPilotAction()->isVisible())->toBeTrue();
     Http::assertSent(fn (Request $request) => $request->hasHeader('X-Marker-Pilot-Key', $key));
 
     $this->travel(4)->hours();

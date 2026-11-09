@@ -25,7 +25,7 @@ Configurar `MARKER_SERVER_URL` con la dirección del servidor del marcador y eje
 
 Para enviar una partida, **llamarla**, asignar una mesa y pulsar **Enviar a tablet**. Con el marcador vinculado, FAB ofrece las mesas libres con tablet habilitada y usa la cantidad de mesas con tablet para programar los horarios. La tarjeta del partido muestra el tanteador del set en curso y los sets ganados. Con la organización abierta, FAB consulta los marcadores cada dos segundos e importa los sets cuando termina el partido. Los resultados editados en FAB después del envío requieren revisión antes de importarse.
 
-Para probar FAB en producción con el marcador en una PC, iniciar el puente de prueba y ejecutar `php artisan marcador:piloto ID_TORNEO URL_HTTPS` en FAB. El comando solicita la clave en forma oculta, verifica la conexión y habilita el selector solo para ese torneo durante cuatro horas. Se puede terminar antes con `php artisan marcador:piloto --detener`.
+Para probar FAB en producción con el marcador en una PC, iniciar el puente local. En **Organización** del torneo, un superadministrador puede pulsar **Habilitar prueba de marcadores** e ingresar la dirección HTTPS y la clave temporal del puente. La conexión se verifica antes de mostrar **Vincular marcadores**. La prueba dura cuatro horas y se puede cerrar desde **Detener prueba de marcadores**.
 
 ### Navegación para mantenimiento
 
