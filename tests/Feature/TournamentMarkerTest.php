@@ -9,6 +9,7 @@ use App\Models\MarkerTournamentLink;
 use App\Models\Player;
 use App\Models\Tournament;
 use App\Services\FiveQuillasCompetitionService;
+use App\Services\MarkerApi;
 use App\Services\TournamentMarkerService;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Database\Schema\Blueprint;
@@ -48,6 +49,18 @@ beforeEach(function () {
 });
 
 afterEach(fn () => DB::purge('marker_test'));
+
+it('limita el puente temporal a un torneo y envía la clave de prueba', function () {
+    config(['marker.url' => 'https://piloto.trycloudflare.com']);
+    $api = app(MarkerApi::class);
+    expect($api->configured())->toBeFalse();
+    config(['marker.pilot_key' => str_repeat('a', 64), 'marker.pilot_tournament_id' => 42]);
+    expect($api->availableFor(42))->toBeTrue()->and($api->availableFor(43))->toBeFalse();
+
+    Http::fake(['https://piloto.trycloudflare.com/api/v1/fab/health' => Http::response(['ok' => true])]);
+    expect($api->request('GET', '/health'))->toBe(['ok' => true]);
+    Http::assertSent(fn (Request $request) => $request->hasHeader('X-Marker-Pilot-Key', str_repeat('a', 64)));
+});
 
 it('envía formato y categorías, recibe el tanteador y registra el resultado confirmado', function () {
     config(['app.key' => 'base64:'.base64_encode(str_repeat('a', 32)), 'marker.url' => 'https://marcador.test']);

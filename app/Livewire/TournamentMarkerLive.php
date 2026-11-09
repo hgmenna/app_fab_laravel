@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\MarkerTournamentLink;
 use App\Models\Tournament;
 use App\Models\User;
+use App\Services\MarkerApi;
 use App\Services\TournamentMarkerService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Isolate;
@@ -39,6 +40,12 @@ class TournamentMarkerLive extends Component
         $tournament = Tournament::query()->findOrFail($this->tournamentId);
         abort_unless($user instanceof User && $user->canAccessTournament('ManageTournamentCompetition', $tournament), 403);
 
+        if (! app(MarkerApi::class)->availableFor($this->tournamentId)) {
+            $this->error = 'El marcador de prueba ya no está disponible para este torneo.';
+            $this->dispatch('marker-live', scores: (object) []);
+
+            return;
+        }
         $link = MarkerTournamentLink::query()->where('tournament_id', $this->tournamentId)->firstOrFail();
         $this->club = $link->club_name;
         $this->error = null;

@@ -1866,7 +1866,7 @@ class ManageTournamentCompetition extends Page
     #[Computed]
     public function markerLink(): ?MarkerTournamentLink
     {
-        return app(MarkerApi::class)->configured()
+        return app(MarkerApi::class)->availableFor((int) $this->record->getKey())
             ? MarkerTournamentLink::query()->where('tournament_id', $this->record->getKey())->first()
             : null;
     }
@@ -1897,7 +1897,7 @@ class ManageTournamentCompetition extends Page
         return Action::make('connectMarkers')
             ->label('Vincular marcadores')
             ->icon('heroicon-o-link')
-            ->visible(fn (): bool => app(MarkerApi::class)->configured())
+            ->visible(fn (): bool => app(MarkerApi::class)->availableFor((int) $this->record->getKey()))
             ->fillForm(fn (): array => ['institution' => $this->markerLink?->club_code])
             ->schema([
                 TextInput::make('institution')->label('Cliente o club')->required()->maxLength(64),
@@ -1906,6 +1906,7 @@ class ManageTournamentCompetition extends Page
             ])
             ->action(function (array $data, Action $action): void {
                 $this->authorizeMarkerAccess();
+                abort_unless(app(MarkerApi::class)->availableFor((int) $this->record->getKey()), 403);
                 try {
                     app(TournamentMarkerService::class)->connect((int) $this->record->getKey(), $data);
                 } catch (RuntimeException $exception) {
