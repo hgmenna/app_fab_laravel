@@ -1338,20 +1338,34 @@ class ManageTournamentCompetition extends Page
                         $index => (string) ($schedule['name'] ?? 'Horario '.($index + 1)),
                     ])->all();
 
+                $marker = $this->markerLink;
+                $tableField = TextInput::make('tables')->label('Mesas disponibles para programar')->numeric()->integer()->minValue(1)->required()
+                    ->default(data_get($phase?->settings, 'schedules.'.array_key_first($options).'.tables') ?? data_get($phase?->settings, 'tables'));
+                if ($marker) {
+                    try {
+                        $linked = count(app(TournamentMarkerService::class)->tableNumbers($marker)['linked']);
+                        $capacity = $linked.' mesas con tablet vinculada';
+                    } catch (RuntimeException $exception) {
+                        $capacity = $exception->getMessage();
+                    }
+                    $tableField = Placeholder::make('marker_table_capacity')->label('Mesas para programar · '.$marker->club_name)->content($capacity);
+                }
+
                 return [
                     Hidden::make('schedule_revision')->default($phase?->scheduleRevision()),
                     Select::make('schedule_index')->label('Horario a asignar')
                         ->options($options)->default(array_key_first($options))->required()->native(false)->live()
-                        ->afterStateUpdated(function ($state, Set $set) use ($phase): void {
+                        ->afterStateUpdated(function ($state, Set $set) use ($phase, $marker): void {
                             $schedule = data_get($phase?->settings, 'schedules.'.(int) $state, []);
                             $set('starts_at', $schedule['starts_at'] ?? null);
-                            $set('tables', $schedule['tables'] ?? data_get($phase?->settings, 'tables'));
+                            if (! $marker) {
+                                $set('tables', $schedule['tables'] ?? data_get($phase?->settings, 'tables'));
+                            }
                             $set('estimated_minutes', $schedule['estimated_minutes'] ?? data_get($phase?->settings, 'estimated_minutes'));
                         }),
                     DateTimePicker::make('starts_at')->label('Fecha y hora de inicio')->seconds(false)->required()
                         ->default(data_get($phase?->settings, 'schedules.'.array_key_first($options).'.starts_at')),
-                    TextInput::make('tables')->label('Mesas disponibles para programar')->numeric()->integer()->minValue(1)->required()
-                        ->default(data_get($phase?->settings, 'schedules.'.array_key_first($options).'.tables') ?? data_get($phase?->settings, 'tables')),
+                    $tableField,
                     TextInput::make('estimated_minutes')->label('Duración estimada por partido (minutos)')->numeric()->integer()->minValue(1)->required()
                         ->default(data_get($phase?->settings, 'schedules.'.array_key_first($options).'.estimated_minutes') ?? data_get($phase?->settings, 'estimated_minutes')),
                 ];
@@ -1363,10 +1377,15 @@ class ManageTournamentCompetition extends Page
                     ->where('phase_type', '!=', 'zones')->where('is_enabled', true)->firstOrFail();
                 $service = app(FiveQuillasCompetitionService::class);
                 try {
+                    $markerTables = $this->markerTablesForOperation('linked');
+                    if ($markerTables === []) {
+                        throw ValidationException::withMessages(['tables' => 'El club no tiene mesas con tablets vinculadas.']);
+                    }
                     $count = $service->scheduleConfiguredMatches($phase, (int) $data['schedule_index'], [
-                        'starts_at' => $data['starts_at'], 'tables' => (int) $data['tables'],
+                        'starts_at' => $data['starts_at'],
                         'estimated_minutes' => (int) $data['estimated_minutes'],
-                    ], (string) ($data['schedule_revision'] ?? ''));
+                        ...($markerTables === null ? ['tables' => (int) $data['tables']] : []),
+                    ], (string) ($data['schedule_revision'] ?? ''), markerCapacity: $markerTables === null ? null : count($markerTables));
                 } catch (ValidationException $exception) {
                     Notification::make()->danger()->title('No se pudieron asignar los horarios')
                         ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
@@ -1852,6 +1871,20 @@ class ManageTournamentCompetition extends Page
             : null;
     }
 
+    /** @return list<int>|null */
+    private function markerTablesForOperation(string $kind): ?array
+    {
+        if (! $this->markerLink) {
+            return null;
+        }
+
+        try {
+            return app(TournamentMarkerService::class)->tableNumbers($this->markerLink)[$kind];
+        } catch (RuntimeException $exception) {
+            throw ValidationException::withMessages(['table_number' => $exception->getMessage()]);
+        }
+    }
+
     private function authorizeMarkerAccess(): void
     {
         $user = Auth::user();
@@ -1941,9 +1974,17 @@ class ManageTournamentCompetition extends Page
             })
             ->schema(function (array $arguments): array {
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
-                $options = $match
-                    ? app(FiveQuillasCompetitionService::class)->availableTableOptions($match)
-                    : [];
+                $options = [];
+                try {
+                    if ($match) {
+                        $options = app(FiveQuillasCompetitionService::class)->availableTableOptions($match, $this->markerTablesForOperation('available'));
+                    }
+                    $tableHint = $this->markerLink
+                        ? $this->markerLink->club_name.' · '.count($options).' mesas libres con tablet vinculada'
+                        : 'Solo se muestran mesas libres.';
+                } catch (ValidationException $exception) {
+                    $tableHint = collect($exception->errors())->flatten()->first();
+                }
 
                 return [
                     Hidden::make('match_revision'),
@@ -1951,9 +1992,7 @@ class ManageTournamentCompetition extends Page
                         ->label('Mesa disponible')
                         ->options($options)
                         ->placeholder($options === [] ? 'No hay mesas disponibles' : 'Seleccioná una mesa')
-                        ->helperText($options === []
-                            ? 'Todas las mesas configuradas están ocupadas por partidas llamadas o en juego.'
-                            : 'Solo se muestran mesas libres.')
+                        ->helperText($tableHint)
                         ->native(false)
                         ->searchable()
                         ->required(),
@@ -1969,7 +2008,9 @@ class ManageTournamentCompetition extends Page
                     if ($this->markerLink && app(TournamentMarkerService::class)->outstanding($this->markerLink, $match)) {
                         throw ValidationException::withMessages(['table_number' => 'Cancelá el envío a la tablet antes de cambiar la mesa.']);
                     }
-                    app(FiveQuillasCompetitionService::class)->callMatch($match, (int) $data['table_number'], (string) ($data['match_revision'] ?? ''));
+                    app(FiveQuillasCompetitionService::class)->callMatch(
+                        $match, (int) $data['table_number'], (string) ($data['match_revision'] ?? ''), $this->markerTablesForOperation('available'),
+                    );
                 } catch (ValidationException $exception) {
                     Notification::make()->danger()->title('No se pudo actualizar el partido')
                         ->body(collect($exception->errors())->flatten()->first())->persistent()->send();

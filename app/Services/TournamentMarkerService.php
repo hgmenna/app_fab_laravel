@@ -35,6 +35,30 @@ class TournamentMarkerService
         ]);
     }
 
+    /** @return array{linked: list<int>, available: list<int>} */
+    public function tableNumbers(MarkerTournamentLink $link): array
+    {
+        $response = $this->api->request('GET', '/tables', token: $link->token);
+        if (! is_array($response['tables'] ?? null)) {
+            throw new RuntimeException('El servidor de marcadores no informó las mesas.');
+        }
+
+        $numbers = ['linked' => [], 'available' => []];
+        foreach ($response['tables'] as $table) {
+            if (! is_int($table['number'] ?? null) || $table['number'] < 1 || $table['number'] > 1000) {
+                throw new RuntimeException('El servidor de marcadores devolvió un número de mesa inválido.');
+            }
+            if (($table['linked'] ?? false) === true) {
+                $numbers['linked'][] = $table['number'];
+                if (($table['available'] ?? false) === true) {
+                    $numbers['available'][] = $table['number'];
+                }
+            }
+        }
+
+        return $numbers;
+    }
+
     public function send(MarkerTournamentLink $link, FiveQuillasMatch $match): void
     {
         $failure = DB::transaction(function () use ($link, $match): ?RuntimeException {

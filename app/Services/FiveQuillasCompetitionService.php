@@ -497,9 +497,9 @@ class FiveQuillasCompetitionService
     /**
      * Asigna fecha, hora y mesa a los partidos comprendidos por un bloque de programación.
      */
-    public function scheduleConfiguredMatches(FiveQuillasPhase $phase, int $scheduleIndex, array $overrides = [], ?string $expectedScheduleRevision = null): int
+    public function scheduleConfiguredMatches(FiveQuillasPhase $phase, int $scheduleIndex, array $overrides = [], ?string $expectedScheduleRevision = null, ?int $markerCapacity = null): int
     {
-        return DB::transaction(function () use ($phase, $scheduleIndex, $overrides, $expectedScheduleRevision): int {
+        return DB::transaction(function () use ($phase, $scheduleIndex, $overrides, $expectedScheduleRevision, $markerCapacity): int {
             $this->lockCompetition($phase->competition_id);
             $phase = FiveQuillasPhase::query()->lockForUpdate()->findOrFail($phase->id);
             if ($expectedScheduleRevision !== null && ! hash_equals($phase->scheduleRevision(), $expectedScheduleRevision)) {
@@ -524,7 +524,7 @@ class FiveQuillasCompetitionService
             if (! filled($schedule['starts_at'] ?? null)) {
                 throw ValidationException::withMessages(['schedule' => 'Indicá la fecha y hora de inicio del horario.']);
             }
-            $tables = (int) ($schedule['tables'] ?? data_get($phase->settings, 'tables', 0));
+            $tables = $markerCapacity ?? (int) ($schedule['tables'] ?? data_get($phase->settings, 'tables', 0));
             $minutes = (int) ($schedule['estimated_minutes'] ?? data_get($phase->settings, 'estimated_minutes', 0));
             if ($tables < 1 || $minutes < 1) {
                 throw ValidationException::withMessages([
@@ -949,11 +949,18 @@ class FiveQuillasCompetitionService
      *
      * @return array<int, string>
      */
-    public function availableTableOptions(FiveQuillasMatch $match): array
+    public function availableTableOptions(FiveQuillasMatch $match, ?array $markerTables = null): array
     {
         $match->loadMissing('phase');
-        $tableCount = $this->configuredTableCountForMatch($match);
-        if ($tableCount < 1 || ! $match->phase) {
+        if (! $match->phase) {
+            return [];
+        }
+
+        if ($markerTables === null) {
+            $tableCount = $this->configuredTableCountForMatch($match);
+            $markerTables = $tableCount > 0 ? range(1, $tableCount) : [];
+        }
+        if ($markerTables === []) {
             return [];
         }
 
@@ -966,7 +973,7 @@ class FiveQuillasCompetitionService
             ->map(fn ($number): int => (int) $number)
             ->all();
 
-        return collect(range(1, $tableCount))
+        return collect($markerTables)
             ->reject(fn (int $number): bool => in_array($number, $occupied, true))
             ->mapWithKeys(fn (int $number): array => [$number => "Mesa {$number}"])
             ->all();
@@ -1010,9 +1017,9 @@ class FiveQuillasCompetitionService
     /**
      * Llama un partido y reserva de forma exclusiva una mesa disponible.
      */
-    public function callMatch(FiveQuillasMatch $match, int $tableNumber, ?string $expectedRevision = null): FiveQuillasMatch
+    public function callMatch(FiveQuillasMatch $match, int $tableNumber, ?string $expectedRevision = null, ?array $markerTables = null): FiveQuillasMatch
     {
-        return DB::transaction(function () use ($match, $tableNumber, $expectedRevision): FiveQuillasMatch {
+        return DB::transaction(function () use ($match, $tableNumber, $expectedRevision, $markerTables): FiveQuillasMatch {
             $lockedMatch = $this->lockMatchForEdit($match, $expectedRevision);
 
             if (! $lockedMatch->player_one_entry_id || ! $lockedMatch->player_two_entry_id
@@ -1022,10 +1029,14 @@ class FiveQuillasCompetitionService
                 ]);
             }
 
-            $tableCount = $this->configuredTableCountForMatch($lockedMatch);
-            if ($tableNumber < 1 || $tableNumber > $tableCount) {
+            $allowed = $markerTables === null
+                ? $tableNumber >= 1 && $tableNumber <= $this->configuredTableCountForMatch($lockedMatch)
+                : in_array($tableNumber, $markerTables, true);
+            if (! $allowed) {
                 throw ValidationException::withMessages([
-                    'table_number' => 'Seleccioná una mesa configurada para este horario.',
+                    'table_number' => $markerTables === null
+                        ? 'Seleccioná una mesa configurada para este horario.'
+                        : 'La mesa ya no está disponible en el marcador del club.',
                 ]);
             }
 

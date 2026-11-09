@@ -23,7 +23,7 @@ Los botones y modales están en [ManageTournamentCompetition.php](app/Filament/R
 
 Configurar `MARKER_SERVER_URL` con la dirección del servidor del marcador y ejecutar `php artisan migrate`. En producción la dirección debe usar HTTPS. En la organización de un torneo de cinco quillas, pulsar **Vincular marcadores** e ingresar el código de cliente, usuario y contraseña del club. El acceso se guarda cifrado por torneo y vence a los siete días.
 
-Para enviar una partida, **llamarla**, asignar una mesa y pulsar **Enviar a tablet**. La tarjeta del partido muestra el tanteador del set en curso y los sets ganados. Con la organización abierta, FAB consulta los marcadores cada dos segundos e importa los sets cuando termina el partido. Los resultados editados en FAB después del envío requieren revisión antes de importarse.
+Para enviar una partida, **llamarla**, asignar una mesa y pulsar **Enviar a tablet**. Con el marcador vinculado, FAB ofrece las mesas libres con tablet habilitada y usa la cantidad de mesas con tablet para programar los horarios. La tarjeta del partido muestra el tanteador del set en curso y los sets ganados. Con la organización abierta, FAB consulta los marcadores cada dos segundos e importa los sets cuando termina el partido. Los resultados editados en FAB después del envío requieren revisión antes de importarse.
 
 ### Navegación para mantenimiento
 
