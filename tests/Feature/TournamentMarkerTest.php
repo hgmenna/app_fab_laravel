@@ -44,6 +44,7 @@ beforeEach(function () {
         '2026_10_17_120000_create_five_quillas_competition_tables.php',
         '2026_10_17_190000_add_computed_scores_to_five_quillas_matches.php',
         '2026_11_09_000000_create_marker_tournament_links.php',
+        '2026_11_09_010000_add_marker_username_to_tournament_links.php',
     ] as $migration) {
         (require database_path('migrations/'.$migration))->up();
     }
@@ -86,7 +87,12 @@ it('limita el puente temporal a un torneo y envía la clave de prueba', function
     expect(fn () => app(TournamentMarkerService::class)->connect(42, ['institution' => 'club-sur']))
         ->toThrow(RuntimeException::class, 'Elegí un club habilitado para la prueba.');
 
-    Http::fake(['https://piloto.trycloudflare.com/api/v1/fab/health' => Http::response(['ok' => true])]);
+    Http::fake([
+        'https://piloto.trycloudflare.com/api/v1/fab/health' => Http::response(['ok' => true]),
+        'https://piloto.trycloudflare.com/api/v1/fab/users?club=club-demo' => Http::response(['users' => ['administrador', 'control_mesas']]),
+    ]);
+    expect(app(TournamentMarkerService::class)->pilotUsers('club-demo'))->toBe(['administrador' => 'administrador', 'control_mesas' => 'control_mesas']);
+    expect(app(TournamentMarkerService::class)->pilotUsers('club-sur'))->toBe([]);
     expect($api->request('GET', '/health'))->toBe(['ok' => true]);
     Http::assertSent(fn (Request $request) => $request->hasHeader('X-Marker-Pilot-Key', str_repeat('a', 64)));
 });
@@ -117,7 +123,7 @@ it('envía formato y categorías, recibe el tanteador y registra el resultado co
     $remote = [];
     Http::fake(function (Request $request) use (&$remote) {
         if (str_ends_with($request->url(), '/login')) {
-            return Http::response(['code' => 'club-demo', 'club' => 'Club Demo', 'token' => str_repeat('a', 64), 'expiresAt' => now()->addWeek()->valueOf()]);
+            return Http::response(['code' => 'club-demo', 'club' => 'Club Demo', 'username' => 'control_mesas', 'token' => str_repeat('a', 64), 'expiresAt' => now()->addWeek()->valueOf()]);
         }
         if (str_ends_with($request->url(), '/tables')) {
             return Http::response(['tables' => [
@@ -136,7 +142,8 @@ it('envía formato y categorías, recibe el tanteador y registra el resultado co
     $service = app(TournamentMarkerService::class);
     $service->connect($tournament->id, ['institution' => 'club-demo', 'username' => 'control_mesas', 'password' => 'contraseña-demo']);
     $link = MarkerTournamentLink::query()->where('tournament_id', $tournament->id)->firstOrFail();
-    expect($link->getRawOriginal('token'))->not->toBe($link->token);
+    expect($link->getRawOriginal('token'))->not->toBe($link->token)
+        ->and($link->marker_username)->toBe('control_mesas');
     $numbers = $service->tableNumbers($link);
     expect($numbers)->toBe(['linked' => [2, 3, 4], 'available' => [2, 4]]);
     $organization = app(FiveQuillasCompetitionService::class);

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MarkerTournamentLink extends Model
 {
-    protected $fillable = ['tournament_id', 'external_id', 'club_code', 'club_name', 'token', 'expires_at'];
+    protected $fillable = ['tournament_id', 'external_id', 'club_code', 'club_name', 'marker_username', 'token', 'expires_at'];
 
     protected $hidden = ['token'];
 

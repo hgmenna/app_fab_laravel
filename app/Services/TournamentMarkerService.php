@@ -17,6 +17,24 @@ class TournamentMarkerService
 {
     public function __construct(private MarkerApi $api, private FiveQuillasCompetitionService $competition) {}
 
+    /** @return array<string, string> */
+    public function pilotUsers(string $club): array
+    {
+        if (! isset($this->api->pilotClubOptions()[$club])) {
+            return [];
+        }
+
+        $result = $this->api->request('GET', '/users?club='.rawurlencode($club));
+        if (! is_array($result['users'] ?? null)) {
+            throw new RuntimeException('El marcador no devolvió la lista de usuarios habilitados.');
+        }
+
+        return collect($result['users'])
+            ->filter(fn ($username): bool => is_string($username) && $username !== '')
+            ->mapWithKeys(fn (string $username): array => [$username => $username])
+            ->all();
+    }
+
     public function connect(int $tournamentId, array $credentials): void
     {
         $code = Str::lower(trim($credentials['institution']));
@@ -29,11 +47,13 @@ class TournamentMarkerService
             throw new RuntimeException('Todavía hay partidas pendientes del club vinculado.');
         }
         $externalId = $existing?->club_code === $code ? $existing->external_id : (string) Str::uuid();
-        $grant = $this->api->request('POST', '/login', [...$credentials, 'tournament' => $externalId]);
+        $username = trim((string) ($credentials['username'] ?? ''));
+        $grant = $this->api->request('POST', '/login', [...$credentials, 'username' => $username, 'tournament' => $externalId]);
         MarkerTournamentLink::query()->updateOrCreate(['tournament_id' => $tournamentId], [
             'external_id' => $externalId,
             'club_code' => $grant['code'],
             'club_name' => $grant['club'],
+            'marker_username' => $grant['username'] ?? $username,
             'token' => $grant['token'],
             'expires_at' => Carbon::createFromTimestampMs($grant['expiresAt']),
         ]);

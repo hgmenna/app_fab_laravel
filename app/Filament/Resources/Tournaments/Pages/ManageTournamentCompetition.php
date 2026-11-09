@@ -1898,7 +1898,10 @@ class ManageTournamentCompetition extends Page
             ->label('Vincular marcadores')
             ->icon('heroicon-o-link')
             ->visible(fn (): bool => app(MarkerApi::class)->availableFor((int) $this->record->getKey()))
-            ->fillForm(fn (): array => ['institution' => $this->markerLink?->club_code])
+            ->fillForm(fn (): array => [
+                'institution' => $this->markerLink?->club_code,
+                'username' => $this->markerLink?->marker_username,
+            ])
             ->schema(function (): array {
                 $clubs = app(MarkerApi::class)->pilotClubOptions();
                 $client = $clubs === null
@@ -1910,10 +1913,18 @@ class ManageTournamentCompetition extends Page
                         });
                 $showCredentials = fn (Get $get): bool => $clubs === null || isset($clubs[(string) $get('institution')]);
 
+                $user = $clubs === null
+                    ? TextInput::make('username')->maxLength(80)
+                    : Select::make('username')->options(fn (Get $get): array => $this->markerPilotUserOptions((string) $get('institution')))
+                        ->native(false)->live()
+                        ->afterStateUpdated(fn (Set $set) => $set('password', null))
+                        ->placeholder('Seleccioná un usuario habilitado');
+                $showPassword = fn (Get $get): bool => $clubs === null || ($showCredentials($get) && filled($get('username')));
+
                 return [
                     $client->required(),
-                    TextInput::make('username')->label('Usuario')->visible($showCredentials)->required()->maxLength(80),
-                    TextInput::make('password')->label('Contraseña')->visible($showCredentials)->password()->required()->maxLength(128),
+                    $user->label('Usuario')->visible($showCredentials)->required(),
+                    TextInput::make('password')->label('Contraseña')->visible($showPassword)->password()->required()->maxLength(128),
                 ];
             })
             ->action(function (array $data, Action $action): void {
@@ -1929,6 +1940,17 @@ class ManageTournamentCompetition extends Page
                 unset($this->markerLink);
                 Notification::make()->success()->title('Club de marcadores vinculado')->send();
             });
+    }
+
+    private function markerPilotUserOptions(string $club): array
+    {
+        try {
+            return app(TournamentMarkerService::class)->pilotUsers($club);
+        } catch (RuntimeException $exception) {
+            Notification::make()->danger()->title('No se pudieron consultar los usuarios')->body($exception->getMessage())->send();
+
+            return [];
+        }
     }
 
     public function sendMarkerMatchAction(): Action
