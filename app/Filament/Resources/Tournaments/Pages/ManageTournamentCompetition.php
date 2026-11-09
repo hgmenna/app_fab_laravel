@@ -9,8 +9,11 @@ use App\Models\Category;
 use App\Models\FiveQuillasCompetition;
 use App\Models\FiveQuillasEntry;
 use App\Models\FiveQuillasMatch;
+use App\Models\MarkerTournamentLink;
 use App\Models\User;
 use App\Services\FiveQuillasCompetitionService;
+use App\Services\MarkerApi;
+use App\Services\TournamentMarkerService;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Checkbox;
@@ -37,7 +40,9 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
+use RuntimeException;
 use Livewire\Attributes\On;
 
 /**
@@ -133,6 +138,7 @@ class ManageTournamentCompetition extends Page
     protected function getHeaderActions(): array
     {
         return [
+            $this->connectMarkersAction(),
             Action::make('initialize')
                 ->label(fn (): string => $this->competition() ? 'Actualizar inscriptos' : 'Iniciar organización')
                 ->icon('heroicon-o-arrow-path')
@@ -1838,9 +1844,69 @@ class ManageTournamentCompetition extends Page
             .($match?->playerTwo?->player?->full_name ?? 'A definir');
     }
 
-    /**
-     * Busca un partido y verifica que pertenezca a la competencia abierta.
-     */
+    #[Computed]
+    public function markerLink(): ?MarkerTournamentLink
+    {
+        return app(MarkerApi::class)->configured()
+            ? MarkerTournamentLink::query()->where('tournament_id', $this->record->getKey())->first()
+            : null;
+    }
+
+    private function authorizeMarkerAccess(): void
+    {
+        $user = Auth::user();
+        abort_unless(Filament::getCurrentPanel()?->getId() === 'admin'
+            && $user instanceof User && $user->canAccessTournament('ManageTournamentCompetition', $this->record), 403);
+    }
+
+    public function connectMarkersAction(): Action
+    {
+        return Action::make('connectMarkers')
+            ->label('Vincular marcadores')
+            ->icon('heroicon-o-link')
+            ->visible(fn (): bool => app(MarkerApi::class)->configured())
+            ->fillForm(fn (): array => ['institution' => $this->markerLink?->club_code])
+            ->schema([
+                TextInput::make('institution')->label('Cliente o club')->required()->maxLength(64),
+                TextInput::make('username')->label('Usuario')->required()->maxLength(80),
+                TextInput::make('password')->label('Contraseña')->password()->required()->maxLength(128),
+            ])
+            ->action(function (array $data, Action $action): void {
+                $this->authorizeMarkerAccess();
+                try {
+                    app(TournamentMarkerService::class)->connect((int) $this->record->getKey(), $data);
+                } catch (RuntimeException $exception) {
+                    Notification::make()->danger()->title('No se pudo vincular el club')->body($exception->getMessage())->send();
+                    $action->halt();
+                    return;
+                }
+                unset($this->markerLink);
+                Notification::make()->success()->title('Club de marcadores vinculado')->send();
+            });
+    }
+
+    public function sendMarkerMatchAction(): Action
+    {
+        return Action::make('sendMarkerMatch')
+            ->label('Enviar a tablet')
+            ->icon('heroicon-o-device-tablet')
+            ->iconButton()->size('xs')->tooltip('Enviar partido a la tablet de la mesa')
+            ->action(function (array $arguments): void {
+                $this->authorizeMarkerAccess();
+                $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
+                $link = $this->markerLink;
+                abort_unless($match && $link, 404);
+                try {
+                    app(TournamentMarkerService::class)->send($link, $match);
+                } catch (RuntimeException $exception) {
+                    Notification::make()->danger()->title('No se pudo enviar el partido')->body($exception->getMessage())->send();
+                    return;
+                }
+                Notification::make()->success()->title('Partido enviado')->body('Mesa '.$match->table_number)->send();
+            });
+    }
+
+    /** Busca un partido dentro de la competencia abierta. */
     private function competitionMatch(int $matchId): ?FiveQuillasMatch
     {
         if ($matchId < 1 || ! $this->competition()) {
@@ -1900,6 +1966,9 @@ class ManageTournamentCompetition extends Page
                 abort_unless($match, 404);
 
                 try {
+                    if ($this->markerLink && app(TournamentMarkerService::class)->outstanding($this->markerLink, $match)) {
+                        throw ValidationException::withMessages(['table_number' => 'Cancelá el envío a la tablet antes de cambiar la mesa.']);
+                    }
                     app(FiveQuillasCompetitionService::class)->callMatch($match, (int) $data['table_number'], (string) ($data['match_revision'] ?? ''));
                 } catch (ValidationException $exception) {
                     Notification::make()->danger()->title('No se pudo actualizar el partido')
@@ -1936,10 +2005,16 @@ class ManageTournamentCompetition extends Page
                 abort_unless($match, 404);
 
                 try {
-                    app(FiveQuillasCompetitionService::class)->cancelMatchCall($match, (string) ($data['match_revision'] ?? ''));
-                } catch (ValidationException $exception) {
+                    DB::transaction(function () use ($match, $data): void {
+                        app(FiveQuillasCompetitionService::class)->cancelMatchCall($match, (string) ($data['match_revision'] ?? ''));
+                        if ($this->markerLink) {
+                            app(TournamentMarkerService::class)->cancel($this->markerLink, $match);
+                        }
+                    });
+                } catch (ValidationException|RuntimeException $exception) {
+                    $message = $exception instanceof ValidationException ? collect($exception->errors())->flatten()->first() : $exception->getMessage();
                     Notification::make()->danger()->title('No se pudo actualizar el partido')
-                        ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
+                        ->body($message)->persistent()->send();
 
                     return;
                 }

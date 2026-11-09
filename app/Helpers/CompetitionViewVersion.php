@@ -12,6 +12,8 @@ final class CompetitionViewVersion
             'filament/resources/tournaments/pages/partials/competition-bracket.blade.php',
             'filament/resources/tournaments/pages/partials/competition-qualified-action.blade.php',
             'filament/resources/tournaments/pages/partials/competition-section-tools.blade.php',
+            'filament/resources/tournaments/pages/partials/marker-live-score.blade.php',
+            'livewire/tournament-marker-live.blade.php',
         ] : [
             'public/five-quillas-competition.blade.php',
             'public/five-quillas-competition-broadcast.blade.php',

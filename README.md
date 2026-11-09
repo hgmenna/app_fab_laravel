@@ -19,6 +19,12 @@ Está dentro de [manage-tournament-competition.blade.php](resources/views/filame
 
 Los botones y modales están en [ManageTournamentCompetition.php](app/Filament/Resources/Tournaments/Pages/ManageTournamentCompetition.php); los cálculos y reglas están en [FiveQuillasCompetitionService.php](app/Services/FiveQuillasCompetitionService.php). La [guía de mantenimiento](docs/guia-mantenimiento.md) explica esta separación y los archivos de público, OBS e impresión.
 
+### Marcadores de mesa
+
+Configurar `MARKER_SERVER_URL` con la dirección del servidor del marcador y ejecutar `php artisan migrate`. En producción la dirección debe usar HTTPS. En la organización de un torneo de cinco quillas, pulsar **Vincular marcadores** e ingresar el código de cliente, usuario y contraseña del club. El acceso se guarda cifrado por torneo y vence a los siete días.
+
+Para enviar una partida, **llamarla**, asignar una mesa y pulsar **Enviar a tablet**. La tarjeta del partido muestra el tanteador del set en curso y los sets ganados. Con la organización abierta, FAB consulta los marcadores cada dos segundos e importa los sets cuando termina el partido. Los resultados editados en FAB después del envío requieren revisión antes de importarse.
+
 ### Navegación para mantenimiento
 
 - [Mapa de archivos por módulo](docs/mapa-archivos.md): formularios, tablas, páginas, vistas, servicios, modelos, permisos, comandos y pruebas.

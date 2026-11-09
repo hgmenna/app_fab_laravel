@@ -1,4 +1,7 @@
 <x-filament-panels::page>
+    @if($this->markerLink)
+        <livewire:tournament-marker-live :tournament-id="(int) $this->record->getKey()" />
+    @endif
     @if($this->mountedActions === [])
         <livewire:competition-organization-updates
             :tournament-id="(int) $this->record->getKey()"
@@ -188,6 +191,7 @@
                                                         @elseif($match->table_number)
                                                             <small class="fq-match-time">Mesa {{ $match->table_number }}</small>
                                                         @endif
+                                                        @include('filament.resources.tournaments.pages.partials.marker-live-score')
                                                     </div>
                                                     @if($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
                                                         <div class="fq-match-actions">
@@ -195,6 +199,7 @@
                                                                 {{ ($this->callMatchAction)(['matchId' => $match->id]) }}
                                                             @endif
                                                             @if($match->status === 'called')
+                                                                @if($this->markerLink){{ ($this->sendMarkerMatchAction)(['matchId' => $match->id]) }}@endif
                                                                 {{ ($this->cancelMatchCallAction)(['matchId' => $match->id]) }}
                                                             @endif
                                                             {{ ($this->recordResultAction)(['matchId' => $match->id]) }}

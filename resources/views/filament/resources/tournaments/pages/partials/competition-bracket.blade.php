@@ -73,13 +73,17 @@
                                     @elseif($match->table_number)
                                         <small class="fq-match-time">Mesa {{ $match->table_number }}</small>
                                     @endif
+                                    @include('filament.resources.tournaments.pages.partials.marker-live-score')
                                 </div>
                                 @if($match->phase?->phase_type === 'bracket' && (int)$match->round_number === 1 && (in_array($match->status, ['pending', 'scheduled'], true) || $match->is_bye))
                                     <div class="fq-match-actions">
                                         {{ ($this->correctMatchParticipantsAction)(['matchId' => $match->id]) }}
                                         @if($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
                                             @if($match->status !== 'completed'){{ ($this->callMatchAction)(['matchId' => $match->id]) }}@endif
-                                            @if($match->status === 'called'){{ ($this->cancelMatchCallAction)(['matchId' => $match->id]) }}@endif
+                                            @if($match->status === 'called')
+                                                @if($this->markerLink){{ ($this->sendMarkerMatchAction)(['matchId' => $match->id]) }}@endif
+                                                {{ ($this->cancelMatchCallAction)(['matchId' => $match->id]) }}
+                                            @endif
                                             {{ ($this->recordResultAction)(['matchId' => $match->id]) }}
                                         @endif
                                     </div>
@@ -87,7 +91,10 @@
                                     <div class="fq-match-actions {{ $match->status === 'completed' ? 'fq-result-actions' : '' }} {{ (int)$match->round_number > 1 && in_array($match->status, ['pending', 'scheduled'], true) ? 'fq-schedule-action' : '' }}">
                                         @if((int)$match->round_number > 1 && in_array($match->status, ['pending', 'scheduled'], true)){{ ($this->scheduleWaitingMatchAction)(['matchId' => $match->id]) }}@endif
                                         @if($match->status !== 'completed'){{ ($this->callMatchAction)(['matchId' => $match->id]) }}@endif
-                                        @if($match->status === 'called'){{ ($this->cancelMatchCallAction)(['matchId' => $match->id]) }}@endif
+                                        @if($match->status === 'called')
+                                            @if($this->markerLink){{ ($this->sendMarkerMatchAction)(['matchId' => $match->id]) }}@endif
+                                            {{ ($this->cancelMatchCallAction)(['matchId' => $match->id]) }}
+                                        @endif
                                         {{ ($this->recordResultAction)(['matchId' => $match->id]) }}
                                         @if(in_array($match->status, ['in_progress', 'completed'], true)){{ ($this->resetResultAction)(['matchId' => $match->id]) }}@endif
                                     </div>
