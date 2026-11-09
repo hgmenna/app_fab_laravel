@@ -10,6 +10,7 @@ use App\Models\Player;
 use App\Models\Tournament;
 use App\Services\FiveQuillasCompetitionService;
 use App\Services\MarkerApi;
+use Illuminate\Support\Facades\Cache;
 use App\Services\TournamentMarkerService;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Database\Schema\Blueprint;
@@ -49,6 +50,29 @@ beforeEach(function () {
 });
 
 afterEach(fn () => DB::purge('marker_test'));
+
+it('habilita y detiene el piloto desde Artisan sin cambiar la configuración de entorno', function () {
+    config(['app.key' => 'base64:'.base64_encode(str_repeat('a', 32)), 'marker.url' => null]);
+    $tournament = DB::table('tournaments')->insertGetId(['tournament_type_id' => null]);
+    $key = str_repeat('b', 64);
+    $url = 'https://piloto.trycloudflare.com';
+    Http::fake([$url.'/api/v1/fab/health' => Http::response(['ok' => true])]);
+
+    $this->artisan('marcador:piloto', ['torneo' => $tournament, 'url' => $url])
+        ->expectsQuestion('Clave temporal del puente', $key)
+        ->assertSuccessful();
+    expect(config('marker.url'))->toBeNull()
+        ->and(Cache::get('marker:temporary-pilot')['key'])->not->toBe($key)
+        ->and(app(MarkerApi::class)->availableFor($tournament))->toBeTrue()
+        ->and(app(MarkerApi::class)->availableFor($tournament + 1))->toBeFalse();
+    Http::assertSent(fn (Request $request) => $request->hasHeader('X-Marker-Pilot-Key', $key));
+
+    $this->travel(4)->hours();
+    expect(app(MarkerApi::class)->availableFor($tournament))->toBeFalse();
+    $this->travelBack();
+    $this->artisan('marcador:piloto', ['--detener' => true])->assertSuccessful();
+    expect(Cache::get('marker:temporary-pilot'))->toBeNull();
+});
 
 it('limita el puente temporal a un torneo y envía la clave de prueba', function () {
     config(['marker.url' => 'https://piloto.trycloudflare.com']);

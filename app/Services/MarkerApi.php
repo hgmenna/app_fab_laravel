@@ -11,10 +11,15 @@ class MarkerApi
 {
     public function configured(): bool
     {
-        $url = parse_url((string) config('marker.url'));
+        return $this->validConnection($this->connection());
+    }
 
-        if ($this->isPilot() && (! preg_match('/^[a-f0-9]{64}$/D', (string) config('marker.pilot_key'))
-            || ! preg_match('/^[1-9][0-9]*$/D', (string) config('marker.pilot_tournament_id')))) {
+    private function validConnection(array $connection): bool
+    {
+        $url = parse_url($connection['url']);
+
+        if ($this->isPilot($connection) && (! preg_match('/^[a-f0-9]{64}$/D', $connection['key'])
+            || ! preg_match('/^[1-9][0-9]*$/D', (string) $connection['tournament']))) {
             return false;
         }
 
@@ -25,14 +30,16 @@ class MarkerApi
 
     public function availableFor(int $tournamentId): bool
     {
-        return $this->configured()
-            && (! $this->isPilot() || (int) config('marker.pilot_tournament_id') === $tournamentId);
+        $connection = $this->connection();
+
+        return $this->validConnection($connection)
+            && (! $this->isPilot($connection) || (int) $connection['tournament'] === $tournamentId);
     }
 
     /** @return array<string, string>|null */
     public function pilotClubOptions(): ?array
     {
-        if (! $this->isPilot()) {
+        if (! $this->isPilot($this->connection())) {
             return null;
         }
 
@@ -43,29 +50,49 @@ class MarkerApi
             ->all();
     }
 
-    private function isPilot(): bool
+    private function connection(): array
     {
-        $host = parse_url((string) config('marker.url'), PHP_URL_HOST);
+        return MarkerPilot::current() ?? [
+            'url' => (string) config('marker.url'),
+            'key' => (string) config('marker.pilot_key'),
+            'tournament' => config('marker.pilot_tournament_id'),
+        ];
+    }
 
-        return filled(config('marker.pilot_key')) || filled(config('marker.pilot_tournament_id'))
+    private function isPilot(array $connection): bool
+    {
+        $host = parse_url($connection['url'], PHP_URL_HOST);
+
+        return filled($connection['key']) || filled($connection['tournament'])
             || str_ends_with(strtolower((string) $host), '.trycloudflare.com');
     }
 
     public function request(string $method, string $path, array $payload = [], ?string $token = null): array
     {
-        if (! $this->configured()) {
+        $connection = $this->connection();
+        if (! $this->validConnection($connection)) {
             throw new RuntimeException('Configurá la dirección del servidor de marcadores.');
         }
 
+        return $this->send($connection['url'], $connection['key'], $method, $path, $payload, $token);
+    }
+
+    public function verifyPilot(string $url, string $key): bool
+    {
+        return ($this->send($url, $key, 'GET', '/health', [], null)['ok'] ?? false) === true;
+    }
+
+    private function send(string $baseUrl, string $key, string $method, string $path, array $payload, ?string $token): array
+    {
         try {
             $client = Http::acceptJson()->asJson()->withoutRedirecting()->connectTimeout(2)->timeout(4);
-            if ($this->isPilot()) {
-                $client = $client->withHeaders(['X-Marker-Pilot-Key' => config('marker.pilot_key')]);
+            if ($key !== '') {
+                $client = $client->withHeaders(['X-Marker-Pilot-Key' => $key]);
             }
             if ($token !== null) {
                 $client = $client->withToken($token);
             }
-            $url = rtrim((string) config('marker.url'), '/').'/api/v1/fab'.$path;
+            $url = rtrim($baseUrl, '/').'/api/v1/fab'.$path;
             $response = $method === 'GET' ? $client->get($url) : $client->post($url, $payload);
         } catch (ConnectionException) {
             throw new RuntimeException('El servidor de marcadores no respondió.');
