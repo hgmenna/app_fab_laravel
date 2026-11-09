@@ -1903,12 +1903,17 @@ class ManageTournamentCompetition extends Page
                 $clubs = app(MarkerApi::class)->pilotClubOptions();
                 $client = $clubs === null
                     ? TextInput::make('institution')->label('Cliente o club')->maxLength(64)
-                    : Select::make('institution')->label('Cliente de prueba')->options($clubs)->native(false);
+                    : Select::make('institution')->label('Cliente de prueba')->options($clubs)->native(false)->live()
+                        ->afterStateUpdated(function (Set $set): void {
+                            $set('username', null);
+                            $set('password', null);
+                        });
+                $showCredentials = fn (Get $get): bool => $clubs === null || isset($clubs[(string) $get('institution')]);
 
                 return [
                     $client->required(),
-                    TextInput::make('username')->label('Usuario')->required()->maxLength(80),
-                    TextInput::make('password')->label('Contraseña')->password()->required()->maxLength(128),
+                    TextInput::make('username')->label('Usuario')->visible($showCredentials)->required()->maxLength(80),
+                    TextInput::make('password')->label('Contraseña')->visible($showCredentials)->password()->required()->maxLength(128),
                 ];
             })
             ->action(function (array $data, Action $action): void {
