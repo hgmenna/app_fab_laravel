@@ -23,9 +23,6 @@ class TournamentMarkerLive extends Component
     public ?string $error = null;
 
     #[Locked]
-    public string $club = '';
-
-    #[Locked]
     public int $conflicts = 0;
 
     public function mount(int $tournamentId): void
@@ -47,12 +44,13 @@ class TournamentMarkerLive extends Component
             return;
         }
         $link = MarkerTournamentLink::query()->where('tournament_id', $this->tournamentId)->firstOrFail();
-        $this->club = $link->club_name;
         $this->error = null;
+        $marker = app(TournamentMarkerService::class);
+
         $scores = [];
         try {
             $assignments = $link->assignments()->whereIn('status', ['pending', 'sent'])->get();
-            $live = app(TournamentMarkerService::class)->live($link, $assignments);
+            $live = $marker->live($link, $assignments);
             foreach ($assignments as $assignment) {
                 if (isset($live[$assignment->id])) {
                     $scores[(string) $assignment->five_quillas_match_id] = $live[$assignment->id];

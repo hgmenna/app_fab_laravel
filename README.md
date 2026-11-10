@@ -21,11 +21,11 @@ Los botones y modales están en [ManageTournamentCompetition.php](app/Filament/R
 
 ### Marcadores de mesa
 
-Configurar `MARKER_SERVER_URL` con la dirección del servidor del marcador y ejecutar `php artisan migrate`. En producción la dirección debe usar HTTPS. En la organización de un torneo de cinco quillas, pulsar **Vincular marcadores** e ingresar el código de cliente, usuario y contraseña del club. El acceso se guarda cifrado por torneo y vence a los siete días.
+FAB en producción usa el marcador alojado en `https://marcador.federacionargentinadebillar.org`. Si otra instalación usa un servidor distinto, puede indicar su dirección HTTPS con `MARKER_SERVER_URL`. Aplicar las migraciones con `php artisan migrate`. En la organización de un torneo de cinco quillas, pulsar **Vincular marcadores** e ingresar el código de cliente, usuario y contraseña del club. El acceso se guarda cifrado por torneo y vence a los siete días.
 
-Para enviar una partida, **llamarla**, asignar una mesa y pulsar **Enviar a tablet**. Con el marcador vinculado, FAB ofrece las mesas libres con tablet habilitada y usa la cantidad de mesas con tablet para programar los horarios. La tarjeta del partido muestra el tanteador del set en curso y los sets ganados. Con la organización abierta, FAB consulta los marcadores cada dos segundos e importa los sets cuando termina el partido. Los resultados editados en FAB después del envío requieren revisión antes de importarse.
+Para enviar una partida, pulsar **Llamar partido** y confirmar la mesa. FAB la envía automáticamente a la tablet vinculada. Con el marcador vinculado, FAB ofrece las mesas libres con tablet habilitada y usa la cantidad de mesas con tablet para programar los horarios. La tarjeta del partido muestra el tanteador del set en curso y los sets ganados. Con la organización abierta, FAB consulta los marcadores cada dos segundos e importa los sets cuando termina el partido. Los resultados editados en FAB después del envío requieren revisión antes de importarse.
 
-Para probar FAB en producción con el marcador en una PC, iniciar el puente local. En **Organización** del torneo, un superadministrador puede pulsar **Habilitar prueba de marcadores** e ingresar la dirección HTTPS y la clave temporal del puente. La conexión se verifica antes de mostrar **Vincular marcadores**. La prueba dura cuatro horas y se puede cerrar desde **Detener prueba de marcadores**.
+En el entorno local, FAB usa el marcador de prueba en el puerto 8792. En **Organización → Competencia**, pulsar **Vincular marcadores** e ingresar el club, el usuario y la contraseña del marcador.
 
 ### Navegación para mantenimiento
 

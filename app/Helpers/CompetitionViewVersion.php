@@ -10,6 +10,7 @@ final class CompetitionViewVersion
         $files = $organization ? [
             'filament/resources/tournaments/pages/manage-tournament-competition.blade.php',
             'filament/resources/tournaments/pages/partials/competition-bracket.blade.php',
+            'filament/resources/tournaments/pages/partials/competition-heading.blade.php',
             'filament/resources/tournaments/pages/partials/competition-qualified-action.blade.php',
             'filament/resources/tournaments/pages/partials/competition-section-tools.blade.php',
             'filament/resources/tournaments/pages/partials/marker-live-score.blade.php',

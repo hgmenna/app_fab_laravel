@@ -52,8 +52,17 @@ class MarkerApi
 
     private function connection(): array
     {
+        $url = config('marker.url');
+        if (blank($url) && app()->environment('local')) {
+            return ['url' => config('marker.local_url'), 'key' => '', 'tournament' => null];
+        }
+
+        if (blank($url) && app()->environment('production')) {
+            $url = config('marker.production_url');
+        }
+
         return MarkerPilot::current() ?? [
-            'url' => (string) config('marker.url'),
+            'url' => (string) $url,
             'key' => (string) config('marker.pilot_key'),
             'tournament' => config('marker.pilot_tournament_id'),
         ];

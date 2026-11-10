@@ -59,7 +59,7 @@ class TournamentMarkerService
         ]);
     }
 
-    /** @return array{linked: list<int>, available: list<int>} */
+    /** @return array{linked: list<int>, available: list<int>, unlinked: list<int>} */
     public function tableNumbers(MarkerTournamentLink $link): array
     {
         $response = $this->api->request('GET', '/tables', token: $link->token);
@@ -67,7 +67,7 @@ class TournamentMarkerService
             throw new RuntimeException('El servidor de marcadores no informó las mesas.');
         }
 
-        $numbers = ['linked' => [], 'available' => []];
+        $numbers = ['linked' => [], 'available' => [], 'unlinked' => []];
         foreach ($response['tables'] as $table) {
             if (! is_int($table['number'] ?? null) || $table['number'] < 1 || $table['number'] > 1000) {
                 throw new RuntimeException('El servidor de marcadores devolvió un número de mesa inválido.');
@@ -77,10 +77,31 @@ class TournamentMarkerService
                 if (($table['available'] ?? false) === true) {
                     $numbers['available'][] = $table['number'];
                 }
+            } else {
+                $numbers['unlinked'][] = $table['number'];
             }
         }
 
         return $numbers;
+    }
+
+    public function callAndSend(MarkerTournamentLink $link, FiveQuillasMatch $match, int $tableNumber, string $revision): void
+    {
+        $tables = $this->tableNumbers($link)['available'];
+        $failure = DB::transaction(function () use ($link, $match, $tableNumber, $revision, $tables): ?RuntimeException {
+            $called = $this->competition->callMatch($match, $tableNumber, $revision, $tables);
+            if ($this->outstanding($link, $called)) {
+                throw ValidationException::withMessages([
+                    'table_number' => 'Cancelá el envío a la tablet antes de cambiar la mesa.',
+                ]);
+            }
+
+            return $this->sendLocked($link, $called);
+        });
+
+        if ($failure) {
+            throw new RuntimeException('La mesa quedó asignada y el envío está pendiente. '.$failure->getMessage(), previous: $failure);
+        }
     }
 
     public function send(MarkerTournamentLink $link, FiveQuillasMatch $match): void

@@ -9,10 +9,8 @@ use App\Models\FiveQuillasPhase;
 use App\Models\MarkerTournamentLink;
 use App\Models\Player;
 use App\Models\Tournament;
-use App\Models\User;
 use App\Services\FiveQuillasCompetitionService;
 use App\Services\MarkerApi;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use App\Services\TournamentMarkerService;
 use Illuminate\Validation\ValidationException;
@@ -62,16 +60,6 @@ it('habilita y detiene el piloto desde Artisan sin cambiar la configuración de 
     $url = 'https://piloto.trycloudflare.com';
     Http::fake([$url.'/api/v1/fab/health' => Http::response(['ok' => true])]);
 
-    $page = new ManageTournamentCompetition;
-    $page->record = Tournament::query()->findOrFail($tournament);
-    expect($page->enableMarkerPilotAction()->isVisible())->toBeFalse();
-
-    $admin = Mockery::mock(User::class);
-    $admin->shouldReceive('hasRole')->with('super-admin')->andReturn(true);
-    Auth::shouldReceive('user')->andReturn($admin);
-    expect($page->enableMarkerPilotAction()->isVisible())->toBeTrue()
-        ->and($page->connectMarkersAction()->isVisible())->toBeFalse();
-
     $this->artisan('marcador:piloto', ['torneo' => $tournament, 'url' => $url])
         ->expectsQuestion('Clave temporal del puente', $key)
         ->assertSuccessful();
@@ -79,9 +67,6 @@ it('habilita y detiene el piloto desde Artisan sin cambiar la configuración de 
         ->and(Cache::get('marker:temporary-pilot')['key'])->not->toBe($key)
         ->and(app(MarkerApi::class)->availableFor($tournament))->toBeTrue()
         ->and(app(MarkerApi::class)->availableFor($tournament + 1))->toBeFalse();
-    expect($page->enableMarkerPilotAction()->isVisible())->toBeFalse()
-        ->and($page->connectMarkersAction()->isVisible())->toBeTrue()
-        ->and($page->stopMarkerPilotAction()->isVisible())->toBeTrue();
     Http::assertSent(fn (Request $request) => $request->hasHeader('X-Marker-Pilot-Key', $key));
 
     $this->travel(4)->hours();
@@ -89,6 +74,21 @@ it('habilita y detiene el piloto desde Artisan sin cambiar la configuración de 
     $this->travelBack();
     $this->artisan('marcador:piloto', ['--detener' => true])->assertSuccessful();
     expect(Cache::get('marker:temporary-pilot'))->toBeNull();
+});
+
+it('muestra la vinculación de marcadores directamente en el entorno local', function () {
+    config(['marker.url' => null]);
+    $page = new ManageTournamentCompetition;
+    $page->record = Tournament::query()->findOrFail(DB::table('tournaments')->insertGetId(['tournament_type_id' => null]));
+    expect($page->connectMarkersAction()->isVisible())->toBeFalse();
+
+    $this->app->detectEnvironment(fn () => 'local');
+    expect($page->connectMarkersAction()->isVisible())->toBeTrue();
+    Http::fake(['http://127.0.0.1:8792/api/v1/fab/login' => Http::response(['code' => 'club-demo'])]);
+
+    $credentials = ['institution' => 'club-demo', 'username' => 'control_mesas', 'password' => 'control-demo'];
+    expect(app(MarkerApi::class)->request('POST', '/login', $credentials))->toBe(['code' => 'club-demo']);
+    Http::assertSent(fn (Request $request) => $request->data() === $credentials && ! $request->hasHeader('X-Marker-Pilot-Key'));
 });
 
 it('limita el puente temporal a un torneo y envía la clave de prueba', function () {
@@ -113,6 +113,18 @@ it('limita el puente temporal a un torneo y envía la clave de prueba', function
     Http::assertSent(fn (Request $request) => $request->hasHeader('X-Marker-Pilot-Key', str_repeat('a', 64)));
 });
 
+it('usa el marcador de producción de FAB sin configurar una URL ni enviar la clave del puente', function () {
+    config(['marker.url' => null, 'marker.pilot_key' => null, 'marker.pilot_tournament_id' => null]);
+    $this->app->detectEnvironment(fn () => 'production');
+    $url = 'https://marcador.federacionargentinadebillar.org/api/v1/fab/login';
+    Http::fake([$url => Http::response(['code' => 'club-prueba'])]);
+    $api = app(MarkerApi::class);
+    expect($api->availableFor(42))->toBeTrue()
+        ->and($api->pilotClubOptions())->toBeNull()
+        ->and($api->request('POST', '/login', ['institution' => 'club-prueba']))->toBe(['code' => 'club-prueba']);
+    Http::assertSent(fn (Request $request) => $request->url() === $url && ! $request->hasHeader('X-Marker-Pilot-Key'));
+});
+
 it('envía formato y categorías, recibe el tanteador y registra el resultado confirmado', function () {
     config(['app.key' => 'base64:'.base64_encode(str_repeat('a', 32)), 'marker.url' => 'https://marcador.test']);
     $tournament = Tournament::query()->findOrFail(DB::table('tournaments')->insertGetId(['tournament_type_id' => null]));
@@ -130,14 +142,14 @@ it('envía formato y categorías, recibe el tanteador y registra el resultado co
     $match = FiveQuillasMatch::create([
         'phase_id' => $phase->id, 'round_number' => 1, 'bracket_order' => 1, 'label' => 'Final',
         'player_one_entry_id' => $entries[0]->id, 'player_two_entry_id' => $entries[1]->id,
-        'table_number' => 2, 'status' => 'called',
     ]);
     $other = FiveQuillasMatch::create([
         'phase_id' => $phase->id, 'round_number' => 1, 'bracket_order' => 2,
         'player_one_entry_id' => $entries[0]->id, 'player_two_entry_id' => $entries[1]->id,
     ]);
     $remote = [];
-    Http::fake(function (Request $request) use (&$remote) {
+    $failedTableFourId = null;
+    Http::fake(function (Request $request) use (&$remote, &$failedTableFourId) {
         if (str_ends_with($request->url(), '/login')) {
             return Http::response(['code' => 'club-demo', 'club' => 'Club Demo', 'username' => 'control_mesas', 'token' => str_repeat('a', 64), 'expiresAt' => now()->addWeek()->valueOf()]);
         }
@@ -150,6 +162,12 @@ it('envía formato y categorías, recibe el tanteador y registra el resultado co
             ]]);
         }
         if ($request->method() === 'POST') {
+            if ($request['table'] === 4 && $failedTableFourId === null) {
+                $failedTableFourId = $request['id'];
+
+                return Http::response([], 503);
+            }
+
             return Http::response(['id' => $request['id']]);
         }
 
@@ -161,13 +179,27 @@ it('envía formato y categorías, recibe el tanteador y registra el resultado co
     expect($link->getRawOriginal('token'))->not->toBe($link->token)
         ->and($link->marker_username)->toBe('control_mesas');
     $numbers = $service->tableNumbers($link);
-    expect($numbers)->toBe(['linked' => [2, 3, 4], 'available' => [2, 4]]);
+    expect($numbers)->toBe(['linked' => [2, 3, 4], 'available' => [2, 4], 'unlinked' => [1]]);
     $organization = app(FiveQuillasCompetitionService::class);
+    $service->callAndSend($link, $match, 2, $match->refresh()->editRevision());
+    expect($match->fresh()->status)->toBe('called');
+    expect(fn () => $organization->configureFormat($competition, [[
+        'id' => $phase->id, 'name' => $phase->name, 'phase_type' => 'bracket',
+        'seeding_method' => 'manual', 'sets_to_play' => 5, 'points_per_set' => 60, 'is_enabled' => true,
+    ]]))->toThrow(ValidationException::class, 'ya se aplicaron a partidos llamados');
+    expect((int) $phase->fresh()->sets_to_play)->toBe(3);
     $other->refresh();
     expect($organization->availableTableOptions($other))->toBe([])
         ->and($organization->availableTableOptions($other, $numbers['available']))->toBe([4 => 'Mesa 4']);
     expect(fn () => $organization->callMatch($other, 3, $other->editRevision(), $numbers['available']))->toThrow(ValidationException::class);
-    expect((int) $organization->callMatch($other, 4, $other->editRevision(), $numbers['available'])->table_number)->toBe(4);
+    expect(fn () => $service->callAndSend($link, $other, 4, $other->editRevision()))->toThrow(RuntimeException::class, 'el envío está pendiente');
+    $pending = $service->outstanding($link, $other);
+    expect((int) $other->fresh()->table_number)->toBe(4)
+        ->and($pending->status)->toBe('pending')
+        ->and($pending->external_id)->toBe($failedTableFourId);
+    $service->send($link, $other);
+    expect($pending->fresh()->status)->toBe('sent')
+        ->and($pending->fresh()->external_id)->toBe($failedTableFourId);
     $schedulePhase = FiveQuillasPhase::create([
         'competition_id' => $competition->id, 'code' => 'play-in', 'name' => 'Emparejamientos',
         'phase_type' => 'play_in', 'sort_order' => 2,
@@ -179,8 +211,8 @@ it('envía formato y categorías, recibe el tanteador y registra el resultado co
     expect($organization->scheduleConfiguredMatches($schedulePhase, 0, markerCapacity: count($numbers['linked'])))->toBe(4)
         ->and($schedulePhase->matches()->where('bracket_order', 4)->first()->scheduled_at->format('H:i'))->toBe('10:25')
         ->and($schedulePhase->fresh()->settings['schedules'][0]['tables'])->toBe(9);
-    $service->send($link, $match);
-    $assignment = $link->assignments()->firstOrFail();
+    $assignment = $service->outstanding($link, $match);
+    expect($assignment->status)->toBe('sent');
     Http::assertSent(fn (Request $request) => $request->method() === 'POST'
         && str_ends_with($request->url(), '/matches')
         && $request['pointsPerSet'] === 60 && $request['setsToWin'] === 2 && $request['table'] === 2

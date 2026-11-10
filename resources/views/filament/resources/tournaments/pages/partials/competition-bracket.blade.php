@@ -48,15 +48,11 @@
                             <article class="fq-match {{ $match->status === 'called' ? 'is-called' : ($match->status === 'in_progress' ? 'is-in-progress' : '') }}">
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_one_entry_id ? 'is-winner' : '' }}">
                                     <span><b>{{ $numberOne }}</b> · {{ $emptyLabel($match->playerOne, $numberOne) }}</span>
-                                    <span class="fq-set-points">
-                                        @forelse($matchSets as $set)<span class="fq-set-point {{ isset($set['player_one_points']) && (int) $set['player_one_points'] === $pointsPerSet ? 'is-set-winner' : '' }}">{{ $set['player_one_points'] ?? '—' }}</span>@empty<span class="fq-set-point">—</span>@endforelse
-                                    </span>
+                                    @include('filament.resources.tournaments.pages.partials.marker-live-score', ['side' => 0])
                                 </div>
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_two_entry_id ? 'is-winner' : '' }}">
                                     <span><b>{{ $numberTwo }}</b> · {{ $emptyLabel($match->playerTwo, $numberTwo) }}</span>
-                                    <span class="fq-set-points">
-                                        @forelse($matchSets as $set)<span class="fq-set-point {{ isset($set['player_two_points']) && (int) $set['player_two_points'] === $pointsPerSet ? 'is-set-winner' : '' }}">{{ $set['player_two_points'] ?? '—' }}</span>@empty<span class="fq-set-point">—</span>@endforelse
-                                    </span>
+                                    @include('filament.resources.tournaments.pages.partials.marker-live-score', ['side' => 1])
                                 </div>
                                 @if($match->phase?->phase_type === 'slot_elimination' && $match->status === 'completed' && $match->winner)
                                     <div class="fq-crossing-winner">
@@ -73,7 +69,6 @@
                                     @elseif($match->table_number)
                                         <small class="fq-match-time">Mesa {{ $match->table_number }}</small>
                                     @endif
-                                    @include('filament.resources.tournaments.pages.partials.marker-live-score')
                                 </div>
                                 @if($match->phase?->phase_type === 'bracket' && (int)$match->round_number === 1 && (in_array($match->status, ['pending', 'scheduled'], true) || $match->is_bye))
                                     <div class="fq-match-actions">
@@ -81,7 +76,7 @@
                                         @if($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
                                             @if($match->status !== 'completed'){{ ($this->callMatchAction)(['matchId' => $match->id]) }}@endif
                                             @if($match->status === 'called')
-                                                @if($this->markerLink){{ ($this->sendMarkerMatchAction)(['matchId' => $match->id]) }}@endif
+                                                @if($this->markerLink && ! in_array((int) $match->id, $this->sentMarkerMatchIds, true)){{ ($this->sendMarkerMatchAction)(['matchId' => $match->id]) }}@endif
                                                 {{ ($this->cancelMatchCallAction)(['matchId' => $match->id]) }}
                                             @endif
                                             {{ ($this->recordResultAction)(['matchId' => $match->id]) }}
@@ -92,7 +87,7 @@
                                         @if((int)$match->round_number > 1 && in_array($match->status, ['pending', 'scheduled'], true)){{ ($this->scheduleWaitingMatchAction)(['matchId' => $match->id]) }}@endif
                                         @if($match->status !== 'completed'){{ ($this->callMatchAction)(['matchId' => $match->id]) }}@endif
                                         @if($match->status === 'called')
-                                            @if($this->markerLink){{ ($this->sendMarkerMatchAction)(['matchId' => $match->id]) }}@endif
+                                            @if($this->markerLink && ! in_array((int) $match->id, $this->sentMarkerMatchIds, true)){{ ($this->sendMarkerMatchAction)(['matchId' => $match->id]) }}@endif
                                             {{ ($this->cancelMatchCallAction)(['matchId' => $match->id]) }}
                                         @endif
                                         {{ ($this->recordResultAction)(['matchId' => $match->id]) }}

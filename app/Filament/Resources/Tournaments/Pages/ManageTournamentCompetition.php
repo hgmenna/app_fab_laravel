@@ -13,7 +13,6 @@ use App\Models\MarkerTournamentLink;
 use App\Models\User;
 use App\Services\FiveQuillasCompetitionService;
 use App\Services\MarkerApi;
-use App\Services\MarkerPilot;
 use App\Services\TournamentMarkerService;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -133,15 +132,18 @@ class ManageTournamentCompetition extends Page
         return 'Organización · '.$this->record->name;
     }
 
+    public function getHeading(): \Illuminate\View\View
+    {
+        return view('filament.resources.tournaments.pages.partials.competition-heading', ['title' => $this->getTitle()]);
+    }
+
     /**
      * Define las acciones generales disponibles sobre el torneo.
      */
     protected function getHeaderActions(): array
     {
         return [
-            $this->enableMarkerPilotAction(),
             $this->connectMarkersAction(),
-            $this->stopMarkerPilotAction(),
             Action::make('initialize')
                 ->label(fn (): string => $this->competition() ? 'Actualizar inscriptos' : 'Iniciar organización')
                 ->icon('heroicon-o-arrow-path')
@@ -587,11 +589,19 @@ class ManageTournamentCompetition extends Page
                 ->modalHeading('Formato de competencia del torneo')
                 ->modalDescription('El orden de las filas determina el orden de disputa. Las zonas usan los horarios ya creados en el torneo; no comparten jugadores ni horarios entre sí. Las fases con resultados cargados se conservan para preservar el historial.')
                 ->modalWidth('7xl')
-                ->action(function (array $data): void {
-                    $enabled = app(FiveQuillasCompetitionService::class)->configureFormat(
-                        $this->competition(),
-                        $data['phases'] ?? [],
-                    );
+                ->action(function (Action $action, array $data): void {
+                    try {
+                        $enabled = app(FiveQuillasCompetitionService::class)->configureFormat(
+                            $this->competition(),
+                            $data['phases'] ?? [],
+                        );
+                    } catch (ValidationException $exception) {
+                        Notification::make()->danger()->title('No se pudo actualizar el formato')
+                            ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
+                        $action->halt();
+
+                        return;
+                    }
                     Notification::make()->success()->title('Formato actualizado')
                         ->body($enabled.' fases habilitadas para este torneo.')->send();
                 }),
@@ -1874,6 +1884,13 @@ class ManageTournamentCompetition extends Page
             : null;
     }
 
+    #[Computed]
+    public function sentMarkerMatchIds(): array
+    {
+        return $this->markerLink?->assignments()->whereIn('status', ['sent', 'conflict'])
+            ->pluck('five_quillas_match_id')->map(fn ($id): int => (int) $id)->all() ?? [];
+    }
+
     /** @return list<int>|null */
     private function markerTablesForOperation(string $kind): ?array
     {
@@ -1895,59 +1912,6 @@ class ManageTournamentCompetition extends Page
             && $user instanceof User && $user->canAccessTournament('ManageTournamentCompetition', $this->record), 403);
     }
 
-    private function canManageMarkerPilot(): bool
-    {
-        return Auth::user()?->hasRole('super-admin') ?? false;
-    }
-
-    public function enableMarkerPilotAction(): Action
-    {
-        return Action::make('enableMarkerPilot')
-            ->label('Habilitar prueba de marcadores')
-            ->icon('heroicon-o-device-tablet')
-            ->visible(fn (): bool => $this->canManageMarkerPilot()
-                && ! app(MarkerApi::class)->availableFor((int) $this->record->getKey()))
-            ->modalDescription('Ingresá la dirección y la clave del puente local. La prueba dura cuatro horas y queda habilitada solo para este torneo.')
-            ->schema([
-                TextInput::make('url')->label('Dirección HTTPS del puente')->url()->required()->maxLength(200),
-                TextInput::make('key')->label('Clave temporal del puente')->password()->required()->length(64),
-            ])
-            ->action(function (array $data, Action $action): void {
-                $this->authorizeMarkerAccess();
-                abort_unless($this->canManageMarkerPilot(), 403);
-                try {
-                    MarkerPilot::enable((int) $this->record->getKey(), $data['url'], $data['key'], app(MarkerApi::class));
-                } catch (RuntimeException $exception) {
-                    Notification::make()->danger()->title('No se pudo habilitar la prueba')->body($exception->getMessage())->send();
-                    $action->halt();
-
-                    return;
-                }
-
-                unset($this->markerLink);
-                Notification::make()->success()->title('Prueba habilitada')
-                    ->body('Abrí Vincular marcadores y elegí el club de prueba.')->send();
-            });
-    }
-
-    public function stopMarkerPilotAction(): Action
-    {
-        return Action::make('stopMarkerPilot')
-            ->label('Detener prueba de marcadores')
-            ->color('gray')
-            ->requiresConfirmation()
-            ->visible(fn (): bool => $this->canManageMarkerPilot()
-                && (MarkerPilot::current()['tournament'] ?? null) === (int) $this->record->getKey())
-            ->action(function (): void {
-                $this->authorizeMarkerAccess();
-                abort_unless($this->canManageMarkerPilot()
-                    && (MarkerPilot::current()['tournament'] ?? null) === (int) $this->record->getKey(), 403);
-                MarkerPilot::stop();
-                unset($this->markerLink);
-                Notification::make()->success()->title('Prueba deshabilitada')->send();
-            });
-    }
-
     public function connectMarkersAction(): Action
     {
         return Action::make('connectMarkers')
@@ -1961,7 +1925,7 @@ class ManageTournamentCompetition extends Page
             ->schema(function (): array {
                 $clubs = app(MarkerApi::class)->pilotClubOptions();
                 $client = $clubs === null
-                    ? TextInput::make('institution')->label('Cliente o club')->maxLength(64)
+                    ? TextInput::make('institution')->label('Club')->maxLength(64)
                     : Select::make('institution')->label('Cliente de prueba')->options($clubs)->native(false)->live()
                         ->afterStateUpdated(function (Set $set): void {
                             $set('username', null);
@@ -2012,9 +1976,9 @@ class ManageTournamentCompetition extends Page
     public function sendMarkerMatchAction(): Action
     {
         return Action::make('sendMarkerMatch')
-            ->label('Enviar a tablet')
+            ->label('Reintentar envío a tablet')
             ->icon('heroicon-o-device-tablet')
-            ->iconButton()->size('xs')->tooltip('Enviar partido a la tablet de la mesa')
+            ->iconButton()->size('xs')->tooltip('Reintentar envío a tablet')
             ->action(function (array $arguments): void {
                 $this->authorizeMarkerAccess();
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
@@ -2026,6 +1990,7 @@ class ManageTournamentCompetition extends Page
                     Notification::make()->danger()->title('No se pudo enviar el partido')->body($exception->getMessage())->send();
                     return;
                 }
+                unset($this->sentMarkerMatchIds);
                 Notification::make()->success()->title('Partido enviado')->body('Mesa '.$match->table_number)->send();
             });
     }
@@ -2090,26 +2055,36 @@ class ManageTournamentCompetition extends Page
                 ];
             })
             ->modalHeading('Llamar partido')
-            ->modalDescription('Asigná la mesa disponible al momento de llamar a los jugadores.')
+            ->modalDescription(fn (): string => $this->markerLink
+                ? 'Al confirmar la mesa, el partido se enviará a su tablet.'
+                : 'Asigná la mesa disponible al momento de llamar a los jugadores.')
             ->action(function (array $data, array $arguments): void {
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
                 abort_unless($match, 404);
 
+                $link = $this->markerLink;
+                $table = (int) $data['table_number'];
+                $revision = (string) ($data['match_revision'] ?? '');
+
                 try {
-                    if ($this->markerLink && app(TournamentMarkerService::class)->outstanding($this->markerLink, $match)) {
-                        throw ValidationException::withMessages(['table_number' => 'Cancelá el envío a la tablet antes de cambiar la mesa.']);
+                    if ($link) {
+                        $this->authorizeMarkerAccess();
+                        app(TournamentMarkerService::class)->callAndSend($link, $match, $table, $revision);
+                        unset($this->sentMarkerMatchIds);
+                    } else {
+                        app(FiveQuillasCompetitionService::class)->callMatch($match, $table, $revision);
                     }
-                    app(FiveQuillasCompetitionService::class)->callMatch(
-                        $match, (int) $data['table_number'], (string) ($data['match_revision'] ?? ''), $this->markerTablesForOperation('available'),
-                    );
-                } catch (ValidationException $exception) {
-                    Notification::make()->danger()->title('No se pudo actualizar el partido')
-                        ->body(collect($exception->errors())->flatten()->first())->persistent()->send();
+                } catch (ValidationException|RuntimeException $exception) {
+                    $message = $exception instanceof ValidationException
+                        ? collect($exception->errors())->flatten()->first()
+                        : $exception->getMessage();
+                    Notification::make()->danger()->title('No se pudo completar el llamado')
+                        ->body($message)->persistent()->send();
 
                     return;
                 }
-                Notification::make()->success()->title('Partido llamado')
-                    ->body('Mesa '.$data['table_number'].' quedó asignada.')->send();
+                Notification::make()->success()->title($link ? 'Partido llamado y enviado a la tablet' : 'Partido llamado')
+                    ->body('Mesa '.$table.' quedó asignada.')->send();
             });
     }
 

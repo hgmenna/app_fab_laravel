@@ -362,14 +362,23 @@ class FiveQuillasCompetitionService
                     ]);
                 }
 
+                $sets = (int) $row['sets_to_play'];
+                $points = (int) $row['points_per_set'];
+                if ($phase && ($sets !== (int) $phase->sets_to_play || $points !== (int) $phase->points_per_set)
+                    && $phase->matches()->where('is_bye', false)->whereIn('status', ['called', 'in_progress', 'completed'])->exists()) {
+                    throw ValidationException::withMessages([
+                        'phases' => "Los sets y puntos de {$phase->name} ya se aplicaron a partidos llamados, en juego o finalizados.",
+                    ]);
+                }
+
                 $code = $phase?->code ?: $this->uniquePhaseCode($competition, (string) $row['name'], $usedCodes);
                 $attributes = [
                     'code' => $code,
                     'name' => trim((string) $row['name']),
                     'phase_type' => $row['phase_type'],
                     'sort_order' => $index + 1,
-                    'sets_to_play' => (int) $row['sets_to_play'],
-                    'points_per_set' => (int) $row['points_per_set'],
+                    'sets_to_play' => $sets,
+                    'points_per_set' => $points,
                     'seeding_method' => $row['seeding_method'],
                     'split_by_slot' => (bool) ($row['split_by_slot'] ?? false),
                     'is_enabled' => (bool) ($row['is_enabled'] ?? true),
