@@ -53,12 +53,15 @@ class MarkerApi
     private function connection(): array
     {
         $url = config('marker.url');
-        if (blank($url) && app()->environment('local')) {
-            return ['url' => config('marker.local_url'), 'key' => '', 'tournament' => null];
-        }
-
-        if (blank($url) && app()->environment('production')) {
-            $url = config('marker.production_url');
+        if (blank($url)) {
+            $productionHost = 'sistem.federacionargentinadebillar.org';
+            if (app()->environment('production')
+                || request()->getHost() === $productionHost
+                || parse_url((string) config('app.url'), PHP_URL_HOST) === $productionHost) {
+                $url = config('marker.production_url');
+            } elseif (app()->environment('local')) {
+                return ['url' => config('marker.local_url'), 'key' => '', 'tournament' => null];
+            }
         }
 
         return MarkerPilot::current() ?? [

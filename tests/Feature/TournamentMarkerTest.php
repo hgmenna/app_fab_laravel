@@ -123,6 +123,10 @@ it('usa el marcador de producción de FAB sin configurar una URL ni enviar la cl
         ->and($api->pilotClubOptions())->toBeNull()
         ->and($api->request('POST', '/login', ['institution' => 'club-prueba']))->toBe(['code' => 'club-prueba']);
     Http::assertSent(fn (Request $request) => $request->url() === $url && ! $request->hasHeader('X-Marker-Pilot-Key'));
+
+    $this->app->detectEnvironment(fn () => 'local');
+    config(['app.url' => 'https://sistem.federacionargentinadebillar.org']);
+    expect($api->request('POST', '/login', ['institution' => 'club-prueba']))->toBe(['code' => 'club-prueba']);
 });
 
 it('envía formato y categorías, recibe el tanteador y registra el resultado confirmado', function () {
