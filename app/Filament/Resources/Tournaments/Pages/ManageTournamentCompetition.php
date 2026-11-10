@@ -1961,10 +1961,15 @@ class ManageTournamentCompetition extends Page
                 abort_unless(app(MarkerApi::class)->availableFor((int) $this->record->getKey()), 403);
                 try {
                     app(TournamentMarkerService::class)->connect((int) $this->record->getKey(), $data);
+                } catch (\Illuminate\Database\QueryException $exception) {
+                    report($exception);
+                    throw ValidationException::withMessages([
+                        "mountedActions.{$action->getNestingIndex()}.data.password" => 'FAB no pudo guardar la vinculación. Revisá el registro del servidor de FAB.',
+                    ]);
                 } catch (RuntimeException $exception) {
-                    Notification::make()->danger()->title('No se pudo vincular el club')->body($exception->getMessage())->send();
-                    $action->halt();
-                    return;
+                    throw ValidationException::withMessages([
+                        "mountedActions.{$action->getNestingIndex()}.data.password" => $exception->getMessage(),
+                    ]);
                 }
                 unset($this->markerLink);
                 Notification::make()->success()->title('Club de marcadores vinculado')->send();
