@@ -1925,21 +1925,30 @@ class ManageTournamentCompetition extends Page
             ->schema(function (): array {
                 $clubs = app(MarkerApi::class)->pilotClubOptions();
                 $client = $clubs === null
-                    ? TextInput::make('institution')->label('Club')->maxLength(64)
+                    ? TextInput::make('institution')->label('Cliente')->maxLength(64)
+                        ->helperText('Ingresá el código del cliente registrado en el sistema de marcadores.')
+                        ->live(onBlur: true)
+                        ->afterStateUpdated(function (Set $set): void {
+                            $set('username', null);
+                            $set('password', null);
+                        })
                     : Select::make('institution')->label('Cliente de prueba')->options($clubs)->native(false)->live()
                         ->afterStateUpdated(function (Set $set): void {
                             $set('username', null);
                             $set('password', null);
                         });
-                $showCredentials = fn (Get $get): bool => $clubs === null || isset($clubs[(string) $get('institution')]);
+                $showCredentials = fn (Get $get): bool => $clubs === null
+                    ? filled($get('institution'))
+                    : isset($clubs[(string) $get('institution')]);
 
                 $user = $clubs === null
-                    ? TextInput::make('username')->maxLength(80)
+                    ? TextInput::make('username')->maxLength(80)->live(onBlur: true)
+                        ->afterStateUpdated(fn (Set $set) => $set('password', null))
                     : Select::make('username')->options(fn (Get $get): array => $this->markerPilotUserOptions((string) $get('institution')))
                         ->native(false)->live()
                         ->afterStateUpdated(fn (Set $set) => $set('password', null))
                         ->placeholder('Seleccioná un usuario habilitado');
-                $showPassword = fn (Get $get): bool => $clubs === null || ($showCredentials($get) && filled($get('username')));
+                $showPassword = fn (Get $get): bool => $showCredentials($get) && filled($get('username'));
 
                 return [
                     $client->required(),
