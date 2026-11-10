@@ -75,7 +75,7 @@ function setPoints(m,key){
     const live=m.marcador_en_vivo,side=key==='player_one_points'?0:1,target=Number(m.puntos_por_set||0);
     const confirmed=live ? live.sets.map(set=>set[side]) : (m.sets?.sets||[]).map(set=>set[key]);
     const scores=confirmed.map(value=>`<span class="set-point${target>0&&Number(value)===target?' is-set-winner':''}">${esc(value)}</span>`);
-    if(live) scores.push(`<span class="set-point is-live" title="Puntos del set en curso">${esc(live.points[side])}</span>`);
+    if(live?.points) scores.push(`<span class="set-point is-live" title="Puntos del set en curso">${esc(live.points[side])}</span>`);
     return `<span class="set-points">${scores.join('')||'<span class="set-point">—</span>'}</span>`;
 }
 function zoneMatchCard(m){const label=m.etiqueta==='Partido de recuperación'?'Perdedores':m.etiqueta;return `<article class="match ${zoneClass(m)}${activeMatchClass(m)}"><b>${esc(label)}</b><div class="line ${m.ganador===m.jugador_1?'winner':''}"><span>${esc(m.jugador_1)}</span>${setPoints(m,'player_one_points')}</div><div class="line ${m.ganador===m.jugador_2?'winner':''}"><span>${esc(m.jugador_2)}</span>${setPoints(m,'player_two_points')}</div>${matchMeta(m)}</article>`}

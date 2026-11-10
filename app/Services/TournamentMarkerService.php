@@ -184,7 +184,7 @@ class TournamentMarkerService
         }
     }
 
-    public function live(MarkerTournamentLink $link, iterable $assignments): array
+    public function live(MarkerTournamentLink $link, iterable $assignments, bool $importResults = true): array
     {
         $scores = [];
         foreach (collect($assignments)->whereIn('status', ['pending', 'sent'])->chunk(30) as $chunk) {
@@ -203,14 +203,51 @@ class TournamentMarkerService
                         'revision' => $assignment->revision,
                         'points' => $score['points'],
                         'sets' => $score['sets'] ?? [],
-                    ], now()->addSeconds(30));
+                    ], now()->addSeconds(4));
                 } else {
                     Cache::forget($key);
                 }
-                if ($score['status'] === 'completed') {
+                if ($importResults && $score['status'] === 'completed') {
                     $this->importResult($link, $assignment, $score['sets']);
                 }
             }
+        }
+
+        return $scores;
+    }
+
+    public function publicScores(int $tournamentId, array $matches): array
+    {
+        $keys = array_map(self::publicScoreKey(...), $matches);
+        $scores = Cache::many($keys);
+        $missing = array_values(array_filter($matches, fn (int $id): bool => ! isset($scores[self::publicScoreKey($id)])));
+        if ($missing === [] || ! $this->api->availableFor($tournamentId)) {
+            return $scores;
+        }
+
+        $link = MarkerTournamentLink::query()->where('tournament_id', $tournamentId)->where('expires_at', '>', now())->first();
+        if (! $link) {
+            return $scores;
+        }
+
+        $assignments = $link->assignments()->whereIn('five_quillas_match_id', $missing)
+            ->whereIn('status', ['pending', 'sent'])->get();
+        try {
+            $live = $this->live($link, $assignments, importResults: false);
+            foreach ($assignments as $assignment) {
+                $score = $live[$assignment->id] ?? null;
+                if ($score && in_array($score['status'], ['in_progress', 'completed'], true)) {
+                    $key = self::publicScoreKey($assignment->five_quillas_match_id);
+                    $scores[$key] = [
+                        'revision' => $assignment->revision,
+                        'points' => $score['status'] === 'completed' ? null : $score['points'],
+                        'sets' => $score['sets'] ?? [],
+                    ];
+                    Cache::put($key, $scores[$key], now()->addSeconds(4));
+                }
+            }
+        } catch (RuntimeException) {
+            // Una interrupción del marcador no impide publicar resultados guardados.
         }
 
         return $scores;

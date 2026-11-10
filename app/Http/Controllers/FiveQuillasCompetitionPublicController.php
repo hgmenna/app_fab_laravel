@@ -7,7 +7,6 @@ use App\Models\FiveQuillasCompetition;
 use App\Services\FiveQuillasCompetitionService;
 use App\Services\TournamentMarkerService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -74,10 +73,11 @@ class FiveQuillasCompetitionPublicController extends Controller
                     ->first()?->winner)
             : null;
         $championPhoto = $championEntry?->player?->photo_path;
-        $scoreKeys = $competition->phases->flatMap->matches
+        $liveMatchIds = $competition->phases->flatMap->matches
             ->whereIn('status', ['called', 'in_progress'])
-            ->map(fn ($match): string => TournamentMarkerService::publicScoreKey($match->id))->all();
-        $liveScores = $scoreKeys === [] ? [] : Cache::many($scoreKeys);
+            ->map(fn ($match): int => $match->id)->values()->all();
+        $liveScores = $liveMatchIds === [] ? [] : app(TournamentMarkerService::class)
+            ->publicScores($competition->tournament_id, $liveMatchIds);
 
         return response()->json([
             'view_version' => CompetitionViewVersion::current(),

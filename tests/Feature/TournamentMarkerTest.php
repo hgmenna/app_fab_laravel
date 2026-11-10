@@ -226,8 +226,14 @@ it('envía formato y categorías, recibe el tanteador y registra el resultado co
     expect($service->live($link, [$assignment])[$assignment->id]['points'])->toBe([30, 45])
         ->and(Cache::get(TournamentMarkerService::publicScoreKey($match->id))['points'])->toBe([30, 45])
         ->and($match->fresh()->status)->toBe('called');
+    $key = TournamentMarkerService::publicScoreKey($match->id);
+    Cache::forget($key);
+    expect($service->publicScores($link->tournament_id, [$match->id])[$key]['points'])->toBe([30, 45]);
     $remote['status'] = 'completed';
     $remote['sets'] = [[25, 60], [60, 30], [56, 63]];
+    Cache::forget($key);
+    expect($service->publicScores($link->tournament_id, [$match->id])[$key]['sets'])->toBe($remote['sets'])
+        ->and($match->fresh()->status)->toBe('called');
     $service->live($link, [$assignment]);
     expect($match->fresh()->status)->toBe('completed')
         ->and((int) $match->fresh()->winner_entry_id)->toBe($entries[1]->id)
