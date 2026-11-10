@@ -25,6 +25,7 @@
     @include('partials.competition-finalists-style')
         .bracket:has(.finalist-anchor){min-height:340px}.bracket .match.finalist-anchor{overflow:visible}
         .bracket .semifinal-portraits{margin-block:96px;--finalist-photo-size:72px}
+        .set-point.is-live{border-color:#b87812;color:inherit;outline:1px solid #b87812}
     </style>
 </head>
 <body>
@@ -70,7 +71,13 @@ function matchMeta(m){return `<div class="match-meta">${m.horario?`<small>${esc(
 @include('partials.competition-finalists-script')
 function matchCard(m){const portraits=finalistPortraits(m);return `<article class="match${activeMatchClass(m)}${portraits?(m.semifinal_del_torneo?' finalist-anchor semifinal-portraits':' finalist-anchor'):''}"><div class="line ${m.ganador===m.jugador_1?'winner':''}"><span><strong>${esc(m.numero_1)}</strong> · ${esc(m.jugador_1||m.placeholder_1||'A designar')}</span>${setPoints(m,'player_one_points')}</div><div class="line ${m.ganador===m.jugador_2?'winner':''}"><span><strong>${esc(m.numero_2)}</strong> · ${esc(m.jugador_2||m.placeholder_2||'A designar')}</span>${setPoints(m,'player_two_points')}</div>${matchMeta(m)}${portraits}</article>`}
 function zoneClass(m){return {'Partido 1':'z-m1','Partido 2':'z-m2','Definición del primer puesto':'z-win','Perdedores':'z-loss','Partido de recuperación':'z-loss','Definición del segundo puesto':'z-second'}[m.etiqueta]||''}
-function setPoints(m,key){const sets=Array.isArray(m.sets?.sets)?m.sets.sets:[],target=Number(m.puntos_por_set||0);return `<span class="set-points">${sets.length?sets.map(s=>{const value=s[key];return `<span class="set-point${target>0&&Number(value)===target?' is-set-winner':''}">${esc(value)}</span>`}).join(''):'<span class="set-point">—</span>'}</span>`}
+function setPoints(m,key){
+    const live=m.marcador_en_vivo,side=key==='player_one_points'?0:1,target=Number(m.puntos_por_set||0);
+    const confirmed=live ? live.sets.map(set=>set[side]) : (m.sets?.sets||[]).map(set=>set[key]);
+    const scores=confirmed.map(value=>`<span class="set-point${target>0&&Number(value)===target?' is-set-winner':''}">${esc(value)}</span>`);
+    if(live) scores.push(`<span class="set-point is-live" title="Puntos del set en curso">${esc(live.points[side])}</span>`);
+    return `<span class="set-points">${scores.join('')||'<span class="set-point">—</span>'}</span>`;
+}
 function zoneMatchCard(m){const label=m.etiqueta==='Partido de recuperación'?'Perdedores':m.etiqueta;return `<article class="match ${zoneClass(m)}${activeMatchClass(m)}"><b>${esc(label)}</b><div class="line ${m.ganador===m.jugador_1?'winner':''}"><span>${esc(m.jugador_1)}</span>${setPoints(m,'player_one_points')}</div><div class="line ${m.ganador===m.jugador_2?'winner':''}"><span>${esc(m.jugador_2)}</span>${setPoints(m,'player_two_points')}</div>${matchMeta(m)}</article>`}
 function filterZonePdf(link){const selected=document.querySelector('[data-slot].on');if(!selected)return;const url=new URL(link.href);url.searchParams.set('slot',selected.dataset.slotId);link.href=url.toString()}
 function zones(phase){const slots=[...new Set(phase.zonas.map(z=>z.horario||'SIN HORARIO'))];const nav=slots.map((s,i)=>`<button class="slot ${i?'':'on'}" data-slot="${esc(s)}" data-slot-id="${Number(phase.zonas.find(z=>(z.horario||'SIN HORARIO')===s)?.horario_id??0)}">${esc(s)}</button>`).join('');return `<div class="slots">${nav}</div><div class="zones" id="zones">${zoneCards(phase,slots[0])}</div>`}

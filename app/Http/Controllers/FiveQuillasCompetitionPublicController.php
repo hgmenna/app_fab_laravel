@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Helpers\CompetitionViewVersion;
 use App\Models\FiveQuillasCompetition;
 use App\Services\FiveQuillasCompetitionService;
+use App\Services\TournamentMarkerService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -72,6 +74,10 @@ class FiveQuillasCompetitionPublicController extends Controller
                     ->first()?->winner)
             : null;
         $championPhoto = $championEntry?->player?->photo_path;
+        $scoreKeys = $competition->phases->flatMap->matches
+            ->whereIn('status', ['called', 'in_progress'])
+            ->map(fn ($match): string => TournamentMarkerService::publicScoreKey($match->id))->all();
+        $liveScores = $scoreKeys === [] ? [] : Cache::many($scoreKeys);
 
         return response()->json([
             'view_version' => CompetitionViewVersion::current(),
@@ -167,8 +173,9 @@ class FiveQuillasCompetitionPublicController extends Controller
                             'clasificacion' => $row->final_place,
                         ])->values(),
                     ])->values(),
-                    'partidos' => $phase->matches->map(function ($match) use ($phase): array {
+                    'partidos' => $phase->matches->map(function ($match) use ($phase, $liveScores): array {
                         $portraitRound = $phase->portraitRound($match);
+                        $live = $liveScores[TournamentMarkerService::publicScoreKey($match->id)] ?? null;
 
                         return [
                             'id' => $match->id, 'zona_id' => $match->group_id,
@@ -192,6 +199,9 @@ class FiveQuillasCompetitionPublicController extends Controller
                             'sets_reales' => [$match->player_one_actual_sets, $match->player_two_actual_sets],
                             'sets_computables' => [$match->player_one_computed_sets, $match->player_two_computed_sets],
                             'puntos' => [$match->player_one_points, $match->player_two_points],
+                            'marcador_en_vivo' => $live && $live['revision'] === $match->editRevision()
+                                ? ['points' => $live['points'], 'sets' => $live['sets']]
+                                : null,
                             'ganador' => $match->winner?->player?->full_name, 'mesa' => $match->table_number,
                             'horario' => $this->dateTimeLabel($match->scheduled_at), 'pase_automatico' => $match->is_bye,
                             'siguiente_partido_id' => $match->next_match_id,

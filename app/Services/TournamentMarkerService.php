@@ -17,6 +17,11 @@ class TournamentMarkerService
 {
     public function __construct(private MarkerApi $api, private FiveQuillasCompetitionService $competition) {}
 
+    public static function publicScoreKey(int $matchId): string
+    {
+        return 'tournament-marker-score:'.$matchId;
+    }
+
     /** @return array<string, string> */
     public function pilotUsers(string $club): array
     {
@@ -192,6 +197,16 @@ class TournamentMarkerService
                     continue;
                 }
                 $scores[$assignment->id] = $score;
+                $key = self::publicScoreKey($assignment->five_quillas_match_id);
+                if ($score['status'] === 'in_progress') {
+                    Cache::put($key, [
+                        'revision' => $assignment->revision,
+                        'points' => $score['points'],
+                        'sets' => $score['sets'] ?? [],
+                    ], now()->addSeconds(30));
+                } else {
+                    Cache::forget($key);
+                }
                 if ($score['status'] === 'completed') {
                     $this->importResult($link, $assignment, $score['sets']);
                 }
