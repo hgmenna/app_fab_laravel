@@ -2120,7 +2120,9 @@ class ManageTournamentCompetition extends Page
             ->schema([Hidden::make('match_revision')])
             ->requiresConfirmation()
             ->modalHeading('Cancelar llamado')
-            ->modalDescription('El partido dejará de estar llamado y la mesa quedará disponible para otro encuentro.')
+            ->modalDescription(fn (): string => $this->markerLink
+                ? 'Si la tablet recibió el partido, se cerrará y liberará la mesa. Los puntos en juego se descartarán.'
+                : 'El partido dejará de estar llamado y la mesa quedará disponible para otro encuentro.')
             ->action(function (array $data, array $arguments): void {
                 $match = $this->competitionMatch((int) ($arguments['matchId'] ?? 0));
                 abort_unless($match, 404);
@@ -2139,6 +2141,7 @@ class ManageTournamentCompetition extends Page
 
                     return;
                 }
+                unset($this->sentMarkerMatchIds);
                 Notification::make()->success()->title('Llamado cancelado')
                     ->body('La mesa quedó disponible.')->send();
             });
