@@ -241,3 +241,29 @@ it('envía formato y categorías, recibe el tanteador y registra el resultado co
         ->and($assignment->fresh()->status)->toBe('imported')
         ->and(Cache::get(TournamentMarkerService::publicScoreKey($match->id)))->toBeNull();
 });
+
+it('elimina fases con cruces vacíos y protege las fases con partidos programados', function () {
+    (require database_path('migrations/2026_10_17_180000_add_enabled_to_five_quillas_phases.php'))->up();
+    Schema::create('tournament_registrations', function (Blueprint $table): void {
+        $table->id();
+        $table->unsignedBigInteger('tournament_id');
+        $table->string('status');
+    });
+    $tournamentId = DB::table('tournaments')->insertGetId(['tournament_type_id' => null]);
+    $competition = FiveQuillasCompetition::create(['tournament_id' => $tournamentId, 'public_slug' => 'prueba-quitar-fase']);
+    $format = ['phase_type' => 'bracket', 'seeding_method' => 'manual', 'sets_to_play' => 3,
+        'points_per_set' => 60, 'is_enabled' => true];
+    $final = $competition->phases()->create($format + ['code' => 'final', 'name' => 'Final', 'sort_order' => 1]);
+    $removed = $competition->phases()->create($format + ['code' => 'previa', 'name' => 'Previa', 'sort_order' => 2]);
+    $match = $removed->matches()->create(['round_number' => 1, 'bracket_order' => 1, 'scheduled_at' => now()]);
+    $rows = [$format + ['id' => $final->id, 'name' => $final->name]];
+    $service = app(FiveQuillasCompetitionService::class);
+
+    expect(fn () => $service->configureFormat($competition, $rows))
+        ->toThrow(ValidationException::class, 'No se puede eliminar la fase');
+    expect($removed->fresh()->is_enabled)->toBeTrue();
+
+    $match->update(['scheduled_at' => null]);
+    expect($service->configureFormat($competition, $rows))->toBe(1);
+    expect($removed->fresh())->toBeNull();
+});

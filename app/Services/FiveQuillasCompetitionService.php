@@ -454,17 +454,36 @@ class FiveQuillasCompetitionService
             }
 
             foreach ($existing->whereNotIn('id', $retainedIds) as $phase) {
-                if ($phase->groups_count > 0 || $phase->matches_count > 0) {
-                    $phase->update(['is_enabled' => false, 'is_public' => false]);
-                } else {
-                    $phase->delete();
+                if ($phase->groups_count > 0 || $phase->matches()->where($this->configuredMatchFilter())->exists()) {
+                    throw ValidationException::withMessages([
+                        'phases' => 'No se puede eliminar la fase «'.$phase->name.'» porque ya tiene zonas o partidos cargados.',
+                    ]);
                 }
+                $phase->delete();
             }
 
             $this->syncApprovedEntries($competition);
 
             return $rows->where('is_enabled', true)->count();
         });
+    }
+
+    private function configuredMatchFilter(): \Closure
+    {
+        return function ($query): void {
+            // La vista crea cruces vacíos para previsualizar la grilla.
+            // Sólo bloqueamos cuando ya hay datos deportivos cargados.
+            $query->where(function ($query): void {
+                $query->whereNotNull('player_one_entry_id')
+                    ->orWhereNotNull('player_two_entry_id')
+                    ->orWhereNotNull('winner_entry_id')
+                    ->orWhereNotNull('scheduled_at')
+                    ->orWhereNotNull('table_number')
+                    ->orWhere('status', '!=', 'pending')
+                    ->orWhere('is_bye', true)
+                    ->orWhereNotNull('set_scores');
+            });
+        };
     }
 
     /**
@@ -474,21 +493,8 @@ class FiveQuillasCompetitionService
     {
         return DB::transaction(function () use ($competition, $format): int {
             $this->lockCompetition($competition->id);
-            if ($competition->phases()->whereHas('groups')->exists()
-                || $competition->phases()->whereHas('matches', function ($query): void {
-                    // La vista crea cruces vacíos para previsualizar la grilla.
-                    // Sólo bloqueamos cuando ya hay datos deportivos cargados.
-                    $query->where(function ($query): void {
-                        $query->whereNotNull('player_one_entry_id')
-                            ->orWhereNotNull('player_two_entry_id')
-                            ->orWhereNotNull('winner_entry_id')
-                            ->orWhereNotNull('scheduled_at')
-                            ->orWhereNotNull('table_number')
-                            ->orWhere('status', '!=', 'pending')
-                            ->orWhere('is_bye', true)
-                            ->orWhereNotNull('set_scores');
-                    });
-                })->exists()) {
+            if ($competition->phases()->where(fn ($query) => $query->whereHas('groups')
+                ->orWhereHas('matches', $this->configuredMatchFilter()))->exists()) {
                 throw ValidationException::withMessages([
                     'format' => 'No se puede reemplazar la plantilla porque ya existen zonas o partidos cargados.',
                 ]);

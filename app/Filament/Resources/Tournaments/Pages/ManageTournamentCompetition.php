@@ -587,7 +587,7 @@ class ManageTournamentCompetition extends Page
                         ->columnSpanFull(),
                 ])
                 ->modalHeading('Formato de competencia del torneo')
-                ->modalDescription('El orden de las filas determina el orden de disputa. Las zonas usan los horarios ya creados en el torneo; no comparten jugadores ni horarios entre sí. Las fases con resultados cargados se conservan para preservar el historial.')
+                ->modalDescription('El orden de las filas determina el orden de disputa. Las zonas usan los horarios ya creados en el torneo; no comparten jugadores ni horarios entre sí. Solo se pueden eliminar fases sin zonas ni partidos cargados.')
                 ->modalWidth('7xl')
                 ->action(function (Action $action, array $data): void {
                     try {
