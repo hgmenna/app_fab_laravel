@@ -1,5 +1,10 @@
 <x-filament-panels::page class="fq-organization-page">
-    @if($this->markerLink)
+    @if($markerLink = $this->markerLink)
+        <div>
+            <x-filament::badge color="success" icon="heroicon-o-link" size="lg">
+                Marcadores vinculados · {{ $markerLink->club_name ?: $markerLink->club_code }}
+            </x-filament::badge>
+        </div>
         <livewire:tournament-marker-live :tournament-id="(int) $this->record->getKey()" />
     @endif
     @if($this->mountedActions === [])
