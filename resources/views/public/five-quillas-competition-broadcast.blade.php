@@ -63,7 +63,11 @@
     @include('partials.competition-finalists-style')
         .knockout-column .match.finalist-anchor{overflow:visible;--finalist-photo-size:92px;--finalist-top-gap:34px}.knockout-column .finalist-portrait{color:#e6f4ff}
         .knockout-column .match.semifinal-portraits{--finalist-photo-size:82px;--finalist-top-gap:10px}
-    </style>
+        .pairing-card .player{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.55rem}
+    .pairing-card .grid-position{position:static;transform:none;margin:0;font-size:.8rem}
+    .pairing-card>strong{display:block;margin-bottom:.4rem;font-size:1.05rem}
+    .pairing-winner{margin-top:.4rem;padding:.5rem .7rem;border-radius:.45rem;background:#16324a;color:#eef5fa;font-size:1rem}
+</style>
 </head>
 <body>
 <template id="unavailable-screen">@include('public.partials.competition-availability')</template>
@@ -95,8 +99,8 @@ function championSpotlight(){if(!data.campeon)return'';const visual=data.campeon
 function pairingSlides(phase,matches){
     const slides=[];
     for(let start=0;start<matches.length;start+=6){
-        const rows=matches.slice(start,start+6).map(match=>'<div><strong>Posición '+esc(match.posicion_ingreso)+'</strong>'
-            +matchCard(match,'','center',true)+'<div>Ganador: '+esc(match.ganador||'A definir')+'</div></div>').join('');
+        const rows=matches.slice(start,start+6).map(match=>'<div class="pairing-card"><strong>Posición '+esc(match.posicion_ingreso)+'</strong>'
+            +matchCard(match,'','center',true)+'<div class="pairing-winner">Ganador: '+esc(match.ganador||'A definir')+'</div></div>').join('');
         slides.push({key:'phase-'+phase.id+'-pairings-'+start,html:'<div class="heading"><div class="phase">Emparejamientos · '+esc(phase.nombre)+'</div></div><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem">'+rows+'</div>'});
     }
     return slides;
@@ -105,7 +109,7 @@ function bracketSlides(phase){if(!phase.partidos.length)return[{key:'phase-'+pha
 function buildSlides(){const allowedPhases=(config.allPhases?data.fases:data.fases.filter(phase=>config.phaseIds.includes(Number(phase.id))));slides=allowedPhases.flatMap(phase=>{if(phase.tipo!=='zones')return bracketSlides(phase);const zones=config.allZoneSlots?phase.zonas:phase.zonas.filter(zone=>(config.zoneSlotKeys||[]).includes(String(zone.horario_clave))),bySlot=zones.reduce((groups,zone)=>{(groups[String(zone.horario_clave||'without_slot')]??=[]).push(zone);return groups},{});return Object.entries(bySlot).flatMap(([slotKey,slotZones])=>zoneScheduleSlides(phase,slotKey,slotZones))});if(activeSlide>=slides.length)activeSlide=0}
 function restartRotation(){if(rotationTimer){clearInterval(rotationTimer);rotationTimer=null}if(slides.length>1)rotationTimer=setInterval(()=>{if(slides.length<2)return;activeSlide=(activeSlide+1)%slides.length;showSlide()},config.rotationSeconds*1000)}
 function showUnavailable(){if(rotationTimer){clearInterval(rotationTimer);rotationTimer=null}stage.innerHTML=document.getElementById('unavailable-screen').innerHTML}
-function showSlide(){if(!config.enabled){showUnavailable();return}if(!slides.length){stage.innerHTML='<div class="empty">No hay contenido seleccionado para la transmisión.</div>';restartRotation();return}const slide=slides[activeSlide],staticClass=slides.length===1?' static':'';stage.innerHTML='<section class="slide'+staticClass+'">'+identity()+'<div class="content">'+slide.html+'</div></section><footer class="broadcast-credit">Powered by <strong>© ${esc(@json(config('cliente.proveedor.nombre')))}</strong></footer>';if(slides.length>1&&!rotationTimer)restartRotation()}
+function showSlide(){if(!config.enabled){showUnavailable();return}if(!slides.length){stage.innerHTML='<div class="empty">No hay contenido seleccionado para la transmisión.</div>';restartRotation();return}const slide=slides[activeSlide],staticClass=slides.length===1?' static':'';stage.innerHTML='<section class="slide'+staticClass+'">'+identity()+'<div class="content">'+slide.html+'</div></section><footer class="broadcast-credit">Powered by <strong>© '+esc(@json(config('cliente.proveedor.nombre')))+'</strong></footer>';if(slides.length>1&&!rotationTimer)restartRotation()}
 function syncConfig(transmission){if(!transmission)return false;const next={enabled:Boolean(transmission.habilitada),allPhases:Boolean(transmission.todas_fases),phaseIds:(transmission.fases||[]).map(Number),allZoneSlots:Boolean(transmission.todos_horarios_zonas),zoneSlotKeys:(transmission.horarios_zonas||[]).map(String),finalSections:transmission.secciones_etapa_final||'both',rotationSeconds:Math.max(4,Math.min(60,Number(transmission.segundos||8)))};const changed=JSON.stringify(next)!==JSON.stringify({enabled:config.enabled??true,allPhases:config.allPhases,phaseIds:config.phaseIds,allZoneSlots:config.allZoneSlots,zoneSlotKeys:config.zoneSlotKeys,finalSections:config.finalSections,rotationSeconds:config.rotationSeconds});Object.assign(config,next);return changed}
 async function refresh(){if(loading)return;loading=true;try{const separator=endpoint.includes('?')?'&':'?',response=await fetch(endpoint+separator+'_='+Date.now(),{cache:'no-store',headers:{Accept:'application/json'}});if(response.status===404||response.status===403){data=null;lastPayload='';slides=[];showUnavailable();return}if(!response.ok)throw new Error('No fue posible obtener los resultados');const payload=await response.json();if(reloadCompetitionViewIfChanged(payload.view_version))return;const signature=JSON.stringify(payload.data),configChanged=syncConfig(payload.data.transmision);if(signature!==lastPayload||configChanged){const currentKey=slides[activeSlide]?.key;lastPayload=signature;data=payload.data;buildSlides();const sameIndex=slides.findIndex(slide=>slide.key===currentKey);if(sameIndex>=0)activeSlide=sameIndex;if(configChanged)restartRotation();showSlide()}}catch(error){if(!data)showUnavailable()}finally{loading=false}}
 fitStage();refresh();window.addEventListener('resize',fitStage);setInterval(()=>{if(!document.hidden)refresh()},4000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
