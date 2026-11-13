@@ -857,7 +857,9 @@ class FiveQuillasCompetitionService
             $this->lockCompetition($phase->competition_id);
             $phase = FiveQuillasPhase::query()->lockForUpdate()->findOrFail($phase->id);
             $previous = $this->previousPhase($phase);
-            if ($phase->phase_type !== 'bracket' || $phase->seeding_method !== 'previous_results'
+            if ($phase->phase_type !== 'bracket'
+                || ($phase->seeding_method !== 'previous_results'
+                    && ! ($phase->seeding_method === 'manual' && $this->usesFinalWithPairings($phase)))
                 || $previous?->status !== 'completed') {
                 return;
             }
