@@ -236,6 +236,14 @@ class TournamentMarkerService
             $live = $this->live($link, $assignments, importResults: false);
             foreach ($assignments as $assignment) {
                 $score = $live[$assignment->id] ?? null;
+                if (($score['status'] ?? null) === 'completed') {
+                    $this->importResult($link, $assignment, $score['sets']);
+                    $assignment->refresh();
+                    if ($assignment->status !== 'sent' && $assignment->status !== 'pending') {
+                        Cache::forget(self::publicScoreKey($assignment->five_quillas_match_id));
+                        continue;
+                    }
+                }
                 if ($score && in_array($score['status'], ['in_progress', 'completed'], true)) {
                     $key = self::publicScoreKey($assignment->five_quillas_match_id);
                     $scores[$key] = [
