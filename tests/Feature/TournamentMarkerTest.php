@@ -222,6 +222,7 @@ it('envía formato y categorías, recibe el tanteador y registra el resultado co
         && $request['pointsPerSet'] === 60 && $request['setsToWin'] === 2 && $request['table'] === 2
         && array_column($request['players'], 'category') === ['1', 'M']);
 
+    $match->update(['scheduled_at' => '2026-11-10 11:00:00']);
     $remote = ['id' => $assignment->external_id, 'status' => 'in_progress', 'points' => [30, 45], 'setsWon' => [0, 1]];
     expect($service->live($link, [$assignment])[$assignment->id]['points'])->toBe([30, 45])
         ->and(Cache::get(TournamentMarkerService::publicScoreKey($match->id))['points'])->toBe([30, 45])

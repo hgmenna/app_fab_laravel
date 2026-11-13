@@ -134,7 +134,7 @@ class TournamentMarkerService
             throw new RuntimeException('La fase debe estar configurada al mejor de 1, 3, 5, 7 o 9 sets.');
         }
         $settings = [
-            'table_number' => $match->table_number, 'revision' => $match->editRevision(),
+            'table_number' => $match->table_number, 'revision' => $this->markerRevision($match),
             'points_per_set' => $match->phase->points_per_set, 'sets_to_win' => intdiv($bestOf, 2) + 1,
         ];
         $assignment = $link->assignments()->firstOrCreate(['five_quillas_match_id' => $match->id], [
@@ -147,7 +147,7 @@ class TournamentMarkerService
                 'external_id' => (string) Str::uuid(), ...$settings, 'status' => 'pending',
             ]);
         }
-        if ((int) $assignment->table_number !== (int) $match->table_number || $assignment->revision !== $match->editRevision()) {
+        if (! $this->matchesAssignment($assignment, $match)) {
             throw new RuntimeException('El partido cambió después del envío. Revisá su estado en Marcadores.');
         }
         try {
@@ -168,6 +168,21 @@ class TournamentMarkerService
         $assignment->update(['status' => 'sent']);
 
         return null;
+    }
+
+    private function markerRevision(FiveQuillasMatch $match): string
+    {
+        return hash('sha256', implode(':', [
+            $match->id, $match->phase_id, $match->table_number,
+            $match->player_one_entry_id, $match->player_two_entry_id,
+        ]));
+    }
+
+    private function matchesAssignment(MarkerMatchAssignment $assignment, FiveQuillasMatch $match): bool
+    {
+        return in_array($match->status, ['called', 'in_progress'], true)
+            && (int) $match->table_number === (int) $assignment->table_number
+            && in_array($assignment->revision, [$this->markerRevision($match), $match->editRevision()], true);
     }
 
     public function outstanding(MarkerTournamentLink $link, FiveQuillasMatch $match): ?MarkerMatchAssignment
@@ -218,10 +233,8 @@ class TournamentMarkerService
 
     public function publicScores(int $tournamentId, array $matches): array
     {
-        $keys = array_map(self::publicScoreKey(...), $matches);
-        $scores = Cache::many($keys);
-        $missing = array_values(array_filter($matches, fn (int $id): bool => ! isset($scores[self::publicScoreKey($id)])));
-        if ($missing === [] || ! $this->api->availableFor($tournamentId)) {
+        $scores = [];
+        if (! $this->api->availableFor($tournamentId)) {
             return $scores;
         }
 
@@ -230,8 +243,21 @@ class TournamentMarkerService
             return $scores;
         }
 
-        $assignments = $link->assignments()->whereIn('five_quillas_match_id', $missing)
-            ->whereIn('status', ['pending', 'sent'])->get();
+        $assignments = $link->assignments()->whereIn('five_quillas_match_id', $matches)
+            ->whereIn('status', ['pending', 'sent'])->with('match')->get()
+            ->filter(fn ($assignment): bool => $assignment->match
+                && $this->matchesAssignment($assignment, $assignment->match));
+        $cached = Cache::many($assignments->map(fn ($assignment): string => self::publicScoreKey($assignment->five_quillas_match_id))->all());
+        $assignments = $assignments->reject(function ($assignment) use ($cached, &$scores): bool {
+            $key = self::publicScoreKey($assignment->five_quillas_match_id);
+            $score = $cached[$key] ?? null;
+            if (($score['revision'] ?? null) !== $assignment->revision) {
+                return false;
+            }
+            $scores[$key] = $score;
+
+            return true;
+        });
         try {
             $live = $this->live($link, $assignments, importResults: false);
             foreach ($assignments as $assignment) {
@@ -270,7 +296,7 @@ class TournamentMarkerService
                 return;
             }
             $target = (int) $locked->points_per_set;
-            if ($target !== (int) $match->phase->points_per_set || (int) $locked->sets_to_win !== intdiv((int) $match->phase->sets_to_play, 2) + 1) {
+            if (! $this->matchesAssignment($locked, $match) || ! empty($match->set_scores) || $target !== (int) $match->phase->points_per_set || (int) $locked->sets_to_win !== intdiv((int) $match->phase->sets_to_play, 2) + 1) {
                 $locked->update(['status' => 'conflict']);
                 return;
             }
@@ -279,7 +305,7 @@ class TournamentMarkerService
                 'player_two_points' => min($points[1], $target),
             ], $sets);
             try {
-                $updated = $this->competition->recordMatchResult($match, $scores, $locked->revision);
+                $updated = $this->competition->recordMatchResult($match, $scores, $match->editRevision());
             } catch (ValidationException) {
                 $locked->update(['status' => 'conflict']);
 

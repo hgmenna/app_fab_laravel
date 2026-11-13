@@ -201,7 +201,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                             'sets_reales' => [$match->player_one_actual_sets, $match->player_two_actual_sets],
                             'sets_computables' => [$match->player_one_computed_sets, $match->player_two_computed_sets],
                             'puntos' => [$match->player_one_points, $match->player_two_points],
-                            'marcador_en_vivo' => $live && $live['revision'] === $match->editRevision()
+                            'marcador_en_vivo' => $live
                                 ? ['points' => $live['points'], 'sets' => $live['sets']]
                                 : null,
                             'ganador' => $match->winner?->player?->full_name, 'mesa' => $match->table_number,
