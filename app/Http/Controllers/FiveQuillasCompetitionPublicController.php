@@ -181,6 +181,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                             'id' => $match->id, 'zona_id' => $match->group_id,
                             'puntos_por_set' => (int) $phase->points_per_set,
                             'ronda' => $match->round_number, 'orden' => $match->bracket_order,
+                            'posicion_ingreso' => (int) $match->round_number === 0 ? $match->bracket_order : null,
                             'etiqueta' => $match->label === 'Partido de recuperación' ? 'Perdedores' : $match->label,
                             'final_del_torneo' => $portraitRound === 'final',
                             'semifinal_del_torneo' => $portraitRound === 'semifinal',

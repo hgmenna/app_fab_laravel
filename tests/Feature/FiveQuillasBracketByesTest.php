@@ -158,6 +158,8 @@ function configureResultsOrderFixture(): array
     $context = test();
     $previous = FiveQuillasPhase::create(['competition_id' => $context->competition->id,
         'phase_type' => 'zones', 'status' => 'completed', 'sort_order' => 0]);
+    FiveQuillasPhase::create(['competition_id' => $context->competition->id,
+        'phase_type' => 'bracket', 'sort_order' => 2]);
     $entries = $context->entries->push(FiveQuillasEntry::create(['competition_id' => $context->competition->id]));
     foreach ($entries as $i => $entry) $entry->update(['entry_phase_id' => $previous->id, 'national_ranking_snapshot' => [100,1,200,2][$i]]);
     foreach ([[$entries[0],$entries[1]],[$entries[2],$entries[3]]] as $i => $groupEntries) {
@@ -898,4 +900,34 @@ it('reconciles already assigned points with configured final positions and remai
         Schema::dropIfExists('tournaments');
         Schema::dropIfExists('tournament_types');
     }
+});
+
+it('keeps a 32-place final and advances the winners of the two entry matches', function () {
+    $this->phase->matches()->delete();
+    $zones = FiveQuillasPhase::create(['competition_id' => $this->competition->id,
+        'phase_type' => 'zones', 'status' => 'completed', 'sort_order' => 0, 'settings' => ['qualifiers' => 34]]);
+    $this->phase->update(['seeding_method' => 'previous_results', 'sets_to_play' => 1]);
+    $entries = collect(range(1, 34))->map(function (int $seed) use ($zones) {
+        $entry = FiveQuillasEntry::create(['competition_id' => $this->competition->id, 'entry_phase_id' => $zones->id]);
+        $group = \App\Models\FiveQuillasGroup::create(['phase_id' => $zones->id]);
+        \App\Models\FiveQuillasGroupEntry::create(['group_id' => $group->id, 'entry_id' => $entry->id,
+            'position' => 1, 'final_place' => 1, 'sets_difference' => 35 - $seed]);
+
+        return $entry;
+    });
+    $service = app(FiveQuillasCompetitionService::class);
+    $service->preparePhase($this->phase);
+    $pairings = $this->phase->matches()->where('round_number', 0)->get()->keyBy('bracket_order');
+    expect($this->phase->matches()->where('round_number', 1)->count())->toBe(16)
+        ->and($pairings->count())->toBe(2)
+        ->and($pairings[31]->player_one_entry_id)->toBe($entries[30]->id)
+        ->and($pairings[31]->player_two_entry_id)->toBe($entries[33]->id)
+        ->and($pairings[32]->player_one_entry_id)->toBe($entries[31]->id)
+        ->and($pairings[32]->player_two_entry_id)->toBe($entries[32]->id);
+    $match = $pairings[32];
+    expect($match->nextMatch->status)->toBe('pending');
+    $service->scheduleWaitingMatch($match, '2026-11-13 10:00:00', $match->editRevision());
+    $match->refresh();
+    $service->recordMatchResult($match, [['player_one_points' => 40, 'player_two_points' => 60]], $match->editRevision());
+    expect($match->nextMatch()->first()->player_two_entry_id)->toBe($entries[32]->id);
 });

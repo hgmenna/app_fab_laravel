@@ -1,5 +1,5 @@
 @php
-    $matchesByRound = collect($matches)->groupBy('round_number')->sortKeys();
+    $matchesByRound = collect($matches)->filter(fn ($match) => (int) $match->round_number === 0 ? ($pairingsOnly ?? false) : ! ($pairingsOnly ?? false))->groupBy('round_number')->sortKeys();
     $lastRoundMatches = $matchesByRound->last() ?? collect();
     $showQualifiedColumn = $lastRoundMatches->isNotEmpty()
         && $lastRoundMatches->first()?->phase?->phase_type === 'bracket'
@@ -9,7 +9,7 @@
     <div class="fq-empty">Todavía no hay partidos preparados para esta sección.</div>
 @else
     <div class="fq-bracket-scroll">
-        <div class="fq-bracket" style="grid-template-columns:repeat({{ max($matchesByRound->count() + ($showQualifiedColumn ? 1 : 0), 1) }},minmax(12rem,1fr))">
+        <div class="fq-bracket" style="{{ ($pairingsOnly ?? false) ? 'min-width:0;' : '' }}grid-template-columns:repeat({{ max($matchesByRound->count() + ($showQualifiedColumn ? 1 : 0), 1) }},minmax(12rem,1fr))">
             @foreach($matchesByRound as $roundMatches)
                 <section class="fq-round">
                     @foreach($roundMatches->sortBy('bracket_order') as $match)
@@ -44,7 +44,10 @@
                                     : 'LIBRE';
                             };
                         @endphp
-                        <div @class(['fq-match-shell', 'finalist-anchor' => $portraitRound, 'semifinal-portraits' => $portraitRound === 'semifinal'])>
+                        <div @class(['fq-match-shell', 'finalist-anchor' => $portraitRound, 'semifinal-portraits' => $portraitRound === 'semifinal', 'fq-pairing-row' => ($pairingsOnly ?? false)])>
+                            @if((int) $match->round_number === 0)
+                                <strong>{{ $match->label }}</strong>
+                            @endif
                             <article class="fq-match {{ $match->status === 'called' ? 'is-called' : ($match->status === 'in_progress' ? 'is-in-progress' : '') }}">
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_one_entry_id ? 'is-winner' : '' }}">
                                     <span><b>{{ $numberOne }}</b> · {{ $emptyLabel($match->playerOne, $numberOne) }}</span>
@@ -83,8 +86,8 @@
                                         @endif
                                     </div>
                                 @elseif($match->player_one_entry_id && $match->player_two_entry_id && !$match->is_bye)
-                                    <div class="fq-match-actions {{ $match->status === 'completed' ? 'fq-result-actions' : '' }} {{ (int)$match->round_number > 1 && in_array($match->status, ['pending', 'scheduled'], true) ? 'fq-schedule-action' : '' }}">
-                                        @if((int)$match->round_number > 1 && in_array($match->status, ['pending', 'scheduled'], true)){{ ($this->scheduleWaitingMatchAction)(['matchId' => $match->id]) }}@endif
+                                    <div class="fq-match-actions {{ $match->status === 'completed' ? 'fq-result-actions' : '' }} {{ (int)$match->round_number !== 1 && in_array($match->status, ['pending', 'scheduled'], true) ? 'fq-schedule-action' : '' }}">
+                                        @if((int)$match->round_number !== 1 && in_array($match->status, ['pending', 'scheduled'], true)){{ ($this->scheduleWaitingMatchAction)(['matchId' => $match->id]) }}@endif
                                         @if($match->status !== 'completed'){{ ($this->callMatchAction)(['matchId' => $match->id]) }}@endif
                                         @if($match->status === 'called')
                                             @if($this->markerLink && ! in_array((int) $match->id, $this->sentMarkerMatchIds, true)){{ ($this->sendMarkerMatchAction)(['matchId' => $match->id]) }}@endif
@@ -93,12 +96,15 @@
                                         {{ ($this->recordResultAction)(['matchId' => $match->id]) }}
                                         @if(in_array($match->status, ['in_progress', 'completed'], true)){{ ($this->resetResultAction)(['matchId' => $match->id]) }}@endif
                                     </div>
-                                @elseif((int)$match->round_number > 1 && in_array($match->status, ['pending', 'scheduled'], true) && !$match->is_bye)
+                                @elseif((int)$match->round_number !== 1 && in_array($match->status, ['pending', 'scheduled'], true) && !$match->is_bye)
                                     <div class="fq-match-actions fq-schedule-action">
                                         {{ ($this->scheduleWaitingMatchAction)(['matchId' => $match->id]) }}
                                     </div>
                                 @endif
                             </article>
+                            @if($pairingsOnly ?? false)
+                                <div class="fq-place"><b>Ganador</b><span>{{ $match->winner?->player?->full_name ?? 'A definir' }}</span></div>
+                            @endif
                             @if($portraitRound)
                                     @foreach([$match->playerOne?->player, $match->playerTwo?->player] as $finalist)
                                         <figure class="finalist-card {{ $loop->first ? 'is-top' : 'is-bottom' }}" aria-hidden="true">

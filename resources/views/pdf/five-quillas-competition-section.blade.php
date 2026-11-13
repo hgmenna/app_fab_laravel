@@ -97,7 +97,7 @@
     @empty<p>Información no disponible en este momento.</p>@endforelse
 @else
     <h2 class="section-title">{{ $phase->name }}</h2>
-    @php $rounds = $phase->matches->groupBy('round_number')->sortKeys(); @endphp
+    @php $rounds = $phase->matches->where('round_number', '>', 0)->groupBy('round_number')->sortKeys(); @endphp
     @if($rounds->isEmpty())<p>Información no disponible en este momento.</p>@else
     @php
         $roundColumns = $rounds->map(fn($matches) => $matches->sortBy('bracket_order')->values());

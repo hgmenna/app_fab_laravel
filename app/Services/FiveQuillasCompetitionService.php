@@ -547,7 +547,7 @@ class FiveQuillasCompetitionService
                 ]);
             }
 
-            $round = max(1, (int) ($schedule['round_number'] ?? 1));
+            $round = $this->usesFinalWithPairings($phase) ? 1 : max(1, (int) ($schedule['round_number'] ?? 1));
             $matches = $phase->matches()->where('round_number', $round)
                 ->with(['playerOne', 'playerTwo'])->orderBy('bracket_order')->get();
             // Los rangos Desde/Hasta se definen sobre bracket_order, que es el
@@ -608,6 +608,14 @@ class FiveQuillasCompetitionService
      * programarla antes de conocer todos los clasificados. Los ingresos directos
      * ya conocidos conservan su posición; los rivales faltantes quedan A definir.
      */
+    private function usesFinalWithPairings(FiveQuillasPhase $phase): bool
+    {
+        return $phase->phase_type === 'bracket'
+            && (int) data_get($phase->settings, 'qualifiers', 0) === 0
+            && $this->previousPhase($phase)?->phase_type === 'zones'
+            && $phase->competition->phases()->where('is_enabled', true)->count() === 2;
+    }
+
     public function ensureBracketSkeleton(FiveQuillasPhase $phase): int
     {
         return DB::transaction(function () use ($phase): int {
@@ -632,9 +640,13 @@ class FiveQuillasCompetitionService
             $configuredSize = (int) data_get($phase->settings, 'bracket_size', 0);
             // Si todavía no existe ninguna fuente cuantificable se conserva el
             // tamaño configurado; nunca se reduce una llave válida a dos plazas.
-            $requiredSize = $expectedTotal > 0
+            $requiredSize = $this->usesFinalWithPairings($phase) ? 32 : ($expectedTotal > 0
                 ? $this->nextPowerOfTwo(max(2, $expectedTotal))
-                : ($configuredSize >= 2 ? $configuredSize : 16);
+                : ($configuredSize >= 2 ? $configuredSize : 16));
+            if ($this->usesFinalWithPairings($phase) && $configuredSize !== 32
+                && $phase->matches()->whereIn('status', ['called', 'in_progress', 'completed', 'suspended'])->where('is_bye', false)->exists()) {
+                return $phase->matches()->count();
+            }
             $settings = array_merge($phase->settings ?? [], [
                 'bracket_size' => $requiredSize,
                 'bracket_pairs' => $this->officialBracketPairs($requiredSize),
@@ -681,7 +693,7 @@ class FiveQuillasCompetitionService
                 foreach ($assignments as $entryId => $seed) {
                     $entry = $candidates->get((int) $entryId);
                     $seed = (int) $seed;
-                    if ($entry && $seed > 0 && $seed <= (int) data_get($phase->settings, 'bracket_size', 16)) {
+                    if ($entry && $seed > 0 && $seed <= ($this->usesFinalWithPairings($phase) ? 64 : $requiredSize)) {
                         $entry->update(['seed' => $seed, 'status' => 'assigned']);
                         $seeds[$seed] = $entry;
                     }
@@ -697,6 +709,21 @@ class FiveQuillasCompetitionService
                         $seeds[$seed] = $entry;
                     }
                 });
+            }
+
+            if ($this->usesFinalWithPairings($phase) && $previous?->status === 'completed') {
+                if ($phase->matches()->where('round_number', 0)->exists()) {
+                    return $phase->matches()->count();
+                }
+                if ($phase->seeding_method === 'number_draw' && ! $hasStartedMatches && count($seeds) > 32
+                    && count($seeds) === $this->qualifiedEntriesFromPhase($previous)->count()
+                    && array_diff(range(1, count($seeds)), array_keys($seeds)) === []) {
+                    return $this->preparePhase($phase);
+                }
+                if ($phase->seeding_method !== 'number_draw' && ! $hasStartedMatches
+                    && (int) data_get($phase->settings, 'bracket_build_version', 0) < 4) {
+                    return $this->preparePhase($phase);
+                }
             }
 
             if ($phase->matches()->exists()) {
@@ -838,6 +865,13 @@ class FiveQuillasCompetitionService
             if ($matches->isEmpty() || $matches->contains(fn ($match): bool =>
                 in_array($match->status, ['called', 'in_progress', 'suspended'], true)
                 || ($match->status === 'completed' && ! $match->is_bye))) {
+                return;
+            }
+            if ($this->usesFinalWithPairings($phase)) {
+                if ($matches->where('round_number', 1)->count() !== 16
+                    || (int) data_get($phase->settings, 'bracket_build_version', 0) < 4) {
+                    $this->preparePhase($phase);
+                }
                 return;
             }
             $first = $matches->where('round_number', 1)->sortBy('bracket_order')->values();
@@ -1018,10 +1052,10 @@ class FiveQuillasCompetitionService
     {
         DB::transaction(function () use ($match, $startsAt, $expectedRevision): void {
             $match = $this->lockMatchForEdit($match, $expectedRevision);
-            if ((int) $match->round_number <= 1 || $match->is_bye
+            if ((int) $match->round_number === 1 || $match->is_bye
                 || ! in_array($match->status, ['pending', 'scheduled'], true)) {
                 throw ValidationException::withMessages([
-                    'scheduled_at' => 'Esta programación individual corresponde únicamente a partidas de rondas posteriores que todavía no comenzaron.',
+                    'scheduled_at' => 'Esta programación individual corresponde únicamente a emparejamientos o partidas de rondas posteriores que todavía no comenzaron.',
                 ]);
             }
 
@@ -1121,6 +1155,8 @@ class FiveQuillasCompetitionService
             if ($phase->phase_type === 'zones') {
                 throw ValidationException::withMessages(['phase' => 'Las zonas se confeccionan con la acción Cargar zonas.']);
             }
+            $savedSchedules = $phase->matches()->whereNotNull('scheduled_at')->get()
+                ->keyBy(fn ($match): string => $match->round_number.':'.$match->bracket_order);
             $progressiveFill = (bool) data_get($phase->settings, 'progressive_fill', false);
             $preserveStartedMatches = $phase->matches()->where(function ($query): void {
                 $query->whereIn('status', ['called', 'in_progress'])
@@ -1221,7 +1257,14 @@ class FiveQuillasCompetitionService
                 $lastRequiredSeed = $directCapacity > 0
                     ? $directCapacity + max($previousEntries->count(), $expectedPrevious)
                     : max($source->count(), $expectedPrevious);
-                $requiredSize = $this->nextPowerOfTwo(max(2, $lastRequiredSeed));
+                $fixedFinal = $this->usesFinalWithPairings($phase);
+                $requiredSize = $fixedFinal ? 32 : $this->nextPowerOfTwo(max(2, $lastRequiredSeed));
+                if ($fixedFinal && $preserveStartedMatches && (int) data_get($phase->settings, 'bracket_size') !== 32) {
+                    throw ValidationException::withMessages(['phase' => 'La grilla anterior tiene partidos iniciados. Se debe conservar su estructura.']);
+                }
+                if ($fixedFinal && $source->count() > 64) {
+                    throw ValidationException::withMessages(['phase' => 'Un solo emparejamiento por posición admite hasta 64 clasificados.']);
+                }
                 if ((int) data_get($phase->settings, 'bracket_size', 0) !== $requiredSize) {
                     $phase->update(['settings' => array_merge($phase->settings ?? [], [
                         'bracket_size' => $requiredSize,
@@ -1235,7 +1278,7 @@ class FiveQuillasCompetitionService
                 && in_array($phase->seeding_method, ['previous_results', 'manual'], true)) {
                 $size = (int) data_get($phase->settings, 'bracket_size', 16);
                 $seeded = [];
-                $this->orderByPreviousPhaseResult($phase, $source)->take($size)
+                $this->orderByPreviousPhaseResult($phase, $source)->take(($fixedFinal ?? false) ? 64 : $size)
                     ->each(function ($entry, int $index) use (&$seeded): void {
                         $seed = $index + 1;
                         $entry->update(['seed' => $seed, 'status' => 'assigned']);
@@ -1259,6 +1302,15 @@ class FiveQuillasCompetitionService
                 throw ValidationException::withMessages([
                     'phase' => 'No se encontraron jugadores clasificados para completar la grilla final.',
                 ]);
+            }
+            if (($fixedFinal ?? false) && ! $preserveStartedMatches) {
+                $phase->update(['settings' => array_merge($phase->settings ?? [], [
+                    'expected_participant_count' => min(32, count($seeded)),
+                ])]);
+            }
+            if (($fixedFinal ?? false) && ! $preserveStartedMatches && $phase->matches()->exists()
+                && ($phase->matches()->where('round_number', 1)->count() !== 16 || count($seeded) > 32)) {
+                $phase->matches()->delete();
             }
             if ($preserveStartedMatches) {
                 // Los pases LIBRES automáticos no son resultados deportivos y se
@@ -1286,9 +1338,18 @@ class FiveQuillasCompetitionService
                     ! $progressiveFill || $previous?->status === 'completed',
                 );
             }
+            if (($fixedFinal ?? false) && ! $preserveStartedMatches) {
+                foreach ($phase->matches()->where('status', 'pending')->get() as $match) {
+                    $saved = $savedSchedules->get($match->round_number.':'.$match->bracket_order);
+                    if ($saved && ($match->round_number !== 0 || ($saved->player_one_entry_id === $match->player_one_entry_id
+                        && $saved->player_two_entry_id === $match->player_two_entry_id))) {
+                        $match->update(['scheduled_at' => $saved->scheduled_at, 'table_number' => $saved->table_number, 'status' => 'scheduled']);
+                    }
+                }
+            }
             $phase->update([
                 'status' => $preserveStartedMatches && $phase->displayStatus() === 'in_progress' ? 'in_progress' : 'ready',
-                'settings' => array_merge($phase->settings ?? [], ['bracket_build_version' => 3]),
+                'settings' => array_merge($phase->settings ?? [], ['bracket_build_version' => ($fixedFinal ?? false) ? 4 : 3]),
             ]);
 
             return $count;
@@ -1395,11 +1456,12 @@ class FiveQuillasCompetitionService
         $expectedQualified = $previous
             ? (int) data_get($previous->settings, 'qualifiers', 0)
             : 0;
-        $requiredSize = $this->nextPowerOfTwo(max(
+        $requiredSize = $this->usesFinalWithPairings($phase) ? 32 : $this->nextPowerOfTwo(max(
             2,
             $directCapacity + max($qualified->count(), $expectedQualified),
         ));
-        if ((int) data_get($phase->settings, 'bracket_size', 0) !== $requiredSize) {
+        if ((int) data_get($phase->settings, 'bracket_size', 0) !== $requiredSize
+            && (! $this->usesFinalWithPairings($phase) || ! $phase->matches()->whereIn('status', ['called', 'in_progress', 'completed', 'suspended'])->where('is_bye', false)->exists())) {
             $phase->update(['settings' => array_merge($phase->settings ?? [], [
                 'bracket_size' => $requiredSize,
                 'bracket_pairs' => $this->officialBracketPairs($requiredSize),
@@ -1636,7 +1698,7 @@ class FiveQuillasCompetitionService
         $expectedQualified = $previous
             ? (int) data_get($previous->settings, 'qualifiers', 0)
             : 0;
-        $size = $this->nextPowerOfTwo(max(
+        $size = $this->usesFinalWithPairings($phase) ? 32 : $this->nextPowerOfTwo(max(
             2,
             $directCapacity + max($participants->where('origin_type', 'qualified')->count(), $expectedQualified),
         ));
@@ -1709,9 +1771,11 @@ class FiveQuillasCompetitionService
      */
     public function saveDrawNumbers(FiveQuillasPhase $phase, array $rows): void
     {
-        $size = (int) data_get($phase->settings, 'bracket_size', 16);
-        $directCapacity = (int) data_get($phase->settings, 'direct_entry_seed_count', 0);
         $candidates = $this->drawCandidates($phase)->keyBy('id');
+        $size = $this->usesFinalWithPairings($phase)
+            ? min(64, max(32, $candidates->count(), $this->expectedZoneQualifiers($this->previousPhase($phase))))
+            : (int) data_get($phase->settings, 'bracket_size', 16);
+        $directCapacity = (int) data_get($phase->settings, 'direct_entry_seed_count', 0);
         $numbers = collect($rows)->pluck('draw_number')->filter()->map(fn ($number): int => (int) $number);
         if ($numbers->duplicates()->isNotEmpty()) {
             throw ValidationException::withMessages(['draws' => 'Los números de sorteo no pueden repetirse.']);
@@ -2397,6 +2461,9 @@ class FiveQuillasCompetitionService
             });
         } else {
             if ($phase->seeding_method === 'number_draw') {
+                if ($this->usesFinalWithPairings($phase)) {
+                    $size = max($size, $source->count());
+                }
                 $missing = $source->filter(fn ($entry): bool => ! $entry->seed || $entry->seed > $size);
                 if ($missing->isNotEmpty()) {
                     throw ValidationException::withMessages([
@@ -2415,7 +2482,7 @@ class FiveQuillasCompetitionService
                     'previous_results' => $this->orderByPreviousPhaseResult($phase, $source),
                     default => $source->values(),
                 };
-                $ordered->take($size)->each(fn ($entry, $index) => $seeds[$index + 1] = $entry);
+                $ordered->take($this->usesFinalWithPairings($phase) ? 64 : $size)->each(fn ($entry, $index) => $seeds[$index + 1] = $entry);
             }
         }
 
@@ -2460,13 +2527,27 @@ class FiveQuillasCompetitionService
             $pairs = $this->officialBracketPairs($size);
             $phase->update(['settings' => array_merge($phase->settings ?? [], ['bracket_pairs' => $pairs])]);
         }
+        $pairingCount = $this->usesFinalWithPairings($phase) && isset($seeds[33]) ? max(0, count($seeds) - $size) : 0;
         foreach ($pairs as $index => $pair) {
             $match = $created[1][$index + 1];
-            $match->update([
-                'player_one_entry_id' => ($seeds[$pair[0]] ?? null)?->id,
-                'player_two_entry_id' => ($seeds[$pair[1]] ?? null)?->id,
-            ]);
-            if ($finalizeByes) {
+            $players = [];
+            foreach ($pair as $side => $seed) {
+                $entry = $seeds[$seed] ?? null;
+                if ($pairingCount > 0 && $seed > $size - $pairingCount) {
+                    $opponent = $seeds[2 * $size + 1 - $seed];
+                    $phase->matches()->create([
+                        'round_number' => 0, 'bracket_order' => $seed,
+                        'label' => 'Posición '.$seed,
+                        'player_one_entry_id' => $entry->id, 'player_two_entry_id' => $opponent->id,
+                        'next_match_id' => $match->id, 'next_match_position' => $side + 1,
+                        'is_public' => (bool) $phase->is_public,
+                    ]);
+                    $entry = null;
+                }
+                $players[$side === 0 ? 'player_one_entry_id' : 'player_two_entry_id'] = $entry?->id;
+            }
+            $match->update($players);
+            if ($finalizeByes && ($pairingCount === 0 || max($pair) <= $size - $pairingCount)) {
                 $this->resolveBye($match->fresh());
             }
         }
@@ -2474,7 +2555,7 @@ class FiveQuillasCompetitionService
             ->get(['player_one_entry_id', 'player_two_entry_id'])
             ->flatMap(fn ($match): array => [$match->player_one_entry_id, $match->player_two_entry_id])
             ->filter()->unique()->count();
-        $expectedAssignments = min(count($seeds), $size);
+        $expectedAssignments = min(count($seeds), $size) - $pairingCount;
         if ($assignedSlots !== $expectedAssignments) {
             throw ValidationException::withMessages([
                 'phase' => "La grilla esperaba {$expectedAssignments} clasificados y pudo ubicar {$assignedSlots}. Revisá la configuración del cuadro.",
@@ -2498,6 +2579,9 @@ class FiveQuillasCompetitionService
             if (! $match || in_array($match->status, ['called', 'in_progress', 'completed'], true)) {
                 continue;
             }
+            if ($phase->matches()->where('round_number', 0)->where('next_match_id', $match->id)->exists()) {
+                continue;
+            }
             $match->update([
                 'player_one_entry_id' => ($seeds[$pair[0]] ?? null)?->id,
                 'player_two_entry_id' => ($seeds[$pair[1]] ?? null)?->id,
@@ -2506,7 +2590,8 @@ class FiveQuillasCompetitionService
             ]);
         }
         if ($finalizeByes) {
-            $firstRound->each(fn ($match) => $this->resolveBye($match->fresh()));
+            $waiting = $phase->matches()->where('round_number', 0)->pluck('next_match_id');
+            $firstRound->whereNotIn('id', $waiting)->each(fn ($match) => $this->resolveBye($match->fresh()));
             $this->resolveReadyByes($phase->matches()->pluck('id'));
         }
 
@@ -3377,7 +3462,7 @@ class FiveQuillasCompetitionService
         $finalLoser = $this->loserEntryId($final);
         if ($finalLoser) { $placements->put($finalLoser, 2); }
         $position = 3;
-        for ($round = $lastRound - 1; $round >= 1; $round--) {
+        for ($round = $lastRound - 1; $round >= 0; $round--) {
             $roundLosers = $matches->where('round_number', $round)->map(fn ($match) => $this->loserEntryId($match))
                 ->filter()->unique()->sort(function (int $left, int $right) use ($matches): int {
                     $leftStats = $this->entryPerformance($matches, $left);
