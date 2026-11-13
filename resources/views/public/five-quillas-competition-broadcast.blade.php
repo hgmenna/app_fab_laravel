@@ -63,10 +63,15 @@
     @include('partials.competition-finalists-style')
         .knockout-column .match.finalist-anchor{overflow:visible;--finalist-photo-size:92px;--finalist-top-gap:34px}.knockout-column .finalist-portrait{color:#e6f4ff}
         .knockout-column .match.semifinal-portraits{--finalist-photo-size:82px;--finalist-top-gap:10px}
-        .pairing-card .player{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.55rem}
-    .pairing-card .grid-position{position:static;transform:none;margin:0;font-size:.8rem}
-    .pairing-card>strong{display:block;margin-bottom:.4rem;font-size:1.05rem}
-    .pairing-winner{margin-top:.4rem;padding:.5rem .7rem;border-radius:.45rem;background:#16324a;color:#eef5fa;font-size:1rem}
+        .pairing-grid{display:grid;gap:.7rem}
+        .pairing-card{display:grid;grid-template-columns:minmax(7rem,.9fr) minmax(0,6fr) minmax(0,3fr);align-items:center;gap:.9rem}
+        .pairing-card>strong{font-size:1.25rem}
+        .pairing-card .match{min-height:0;padding:.65rem .8rem;border-left-color:#2464ce;background:#182334}
+        .pairing-card .player{display:grid;grid-template-columns:max-content minmax(0,1fr) auto;align-items:center;gap:.35rem;font-size:1rem}
+        .pairing-card .grid-position{position:static;display:inline;width:auto;height:auto;transform:none;margin:0;border:0;background:none;box-shadow:none;color:inherit;font:inherit}
+        .pairing-card .grid-position::after{content:' ·'}
+        .pairing-winner{display:grid;gap:.35rem;padding:.6rem;text-align:center;border:1px solid #2464ce;border-radius:.5rem;background:#111a28;color:#eef5fa;overflow-wrap:anywhere}
+        .pairing-winner small{color:#8db7ff;font-weight:800;text-transform:uppercase}
 </style>
 </head>
 <body>
@@ -98,10 +103,10 @@ function knockoutBracket(phase){const ordered=phase.partidos.filter(match=>!matc
 function championSpotlight(){if(!data.campeon)return'';const visual=data.campeon.foto?'<div class="champion-visual"><img class="champion-photo" src="'+esc(mediaUrl(data.campeon.foto))+'" alt="'+esc(data.campeon.nombre)+'"><img class="champion-mini-cup" src="'+esc(trophyImage)+'" alt=""></div>':'<div class="champion-visual"><img class="champion-trophy" src="'+esc(trophyImage)+'" alt="Copa del torneo"></div>';return '<section class="champion-spotlight">'+visual+'<div class="champion-copy"><div class="champion-label">Campeón del torneo</div><div class="champion-name">'+esc(data.campeon.nombre)+'</div><div class="champion-club">'+esc(data.campeon.club||'Club sin informar')+'</div></div></section>'}
 function pairingSlides(phase,matches){
     const slides=[];
-    for(let start=0;start<matches.length;start+=6){
-        const rows=matches.slice(start,start+6).map(match=>'<div class="pairing-card"><strong>Posición '+esc(match.posicion_ingreso)+'</strong>'
-            +matchCard(match,'','center',true)+'<div class="pairing-winner">Ganador: '+esc(match.ganador||'A definir')+'</div></div>').join('');
-        slides.push({key:'phase-'+phase.id+'-pairings-'+start,html:'<div class="heading"><div class="phase">Emparejamientos · '+esc(phase.nombre)+'</div></div><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem">'+rows+'</div>'});
+    for(let start=0;start<matches.length;start+=4){
+        const rows=matches.slice(start,start+4).map(match=>'<div class="pairing-card"><strong>Posición '+esc(match.posicion_ingreso)+'</strong>'
+            +matchCard(match,'','center',true)+'<div class="pairing-winner"><small>Ganador</small><strong>'+esc(match.ganador||'A definir')+'</strong></div></div>').join('');
+        slides.push({key:'phase-'+phase.id+'-pairings-'+start,html:'<div class="heading"><div class="phase">Emparejamientos · '+esc(phase.nombre)+'</div></div><div class="pairing-grid">'+rows+'</div>'});
     }
     return slides;
 }
