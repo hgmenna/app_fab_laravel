@@ -672,9 +672,13 @@ class FiveQuillasCompetitionService
             }
             $hasStartedMatches = $phase->matches()->whereIn('status', ['called', 'in_progress', 'completed'])
                 ->where('is_bye', false)->exists();
-            if ($phase->matches()->exists()
-                && ! $hasStartedMatches
-                && $phase->matches()->where('round_number', 1)->count() !== intdiv($requiredSize, 2)) {
+            $projectedPairings = $this->usesFinalWithPairings($phase) && $previous?->status !== 'completed'
+                ? max(0, min(64, $expectedTotal) - 32) : 0;
+            $savedFirstRound = collect();
+            if ($phase->matches()->exists() && ! $hasStartedMatches
+                && ($phase->matches()->where('round_number', 1)->count() !== intdiv($requiredSize, 2)
+                    || ($previous?->status !== 'completed' && $phase->matches()->where('round_number', 0)->count() !== $projectedPairings))) {
+                $savedFirstRound = $phase->matches()->where('round_number', 1)->whereNotNull('scheduled_at')->get()->keyBy('bracket_order');
                 $phase->matches()->delete();
             }
 
@@ -712,7 +716,7 @@ class FiveQuillasCompetitionService
             }
 
             if ($this->usesFinalWithPairings($phase) && $previous?->status === 'completed') {
-                if ($phase->matches()->where('round_number', 0)->exists()) {
+                if ($phase->matches()->where('round_number', 0)->whereNotNull('player_one_entry_id')->exists()) {
                     return $phase->matches()->count();
                 }
                 if ($phase->seeding_method === 'number_draw' && ! $hasStartedMatches && count($seeds) > 32
@@ -749,7 +753,12 @@ class FiveQuillasCompetitionService
                     });
                 $count = $phase->matches()->count();
             } else {
-                $count = $this->createEliminationBracket($phase->fresh(), $seeds, false);
+                $count = $this->createEliminationBracket($phase->fresh(), $seeds, false, $projectedPairings);
+                foreach ($phase->matches()->where('round_number', 1)->get() as $match) {
+                    if ($saved = $savedFirstRound->get($match->bracket_order)) {
+                        $match->update(['scheduled_at' => $saved->scheduled_at, 'estimated_minutes' => $saved->estimated_minutes, 'status' => 'scheduled']);
+                    }
+                }
             }
             $phase->update(['status' => 'ready']);
 
@@ -788,6 +797,16 @@ class FiveQuillasCompetitionService
             }
 
             $expected = $this->expectedZoneQualifiers($previous);
+            if ($this->usesFinalWithPairings($phase) && $previous->status !== 'completed') {
+                $size = $phase->matches()->where('round_number', 1)->count() * 2;
+                $pairings = $phase->matches()->where('round_number', 0)->count();
+                if ($size !== 32 || $pairings !== max(0, min(64, $expected) - 32)
+                    || (int) data_get($phase->settings, 'expected_participant_count', 0) !== min(32, $expected)) {
+                    $this->ensureBracketSkeleton($phase);
+                }
+
+                return;
+            }
             if ($previous->status !== 'completed'
                 && ($expected < 1 || $expected === (int) data_get($phase->settings, 'expected_participant_count', 0))) {
                 return;
@@ -1343,7 +1362,7 @@ class FiveQuillasCompetitionService
             if (($fixedFinal ?? false) && ! $preserveStartedMatches) {
                 foreach ($phase->matches()->where('status', 'pending')->get() as $match) {
                     $saved = $savedSchedules->get($match->round_number.':'.$match->bracket_order);
-                    if ($saved && ($match->round_number !== 0 || ($saved->player_one_entry_id === $match->player_one_entry_id
+                    if ($saved && ($match->round_number !== 0 || ! $saved->player_one_entry_id || ($saved->player_one_entry_id === $match->player_one_entry_id
                         && $saved->player_two_entry_id === $match->player_two_entry_id))) {
                         $match->update(['scheduled_at' => $saved->scheduled_at, 'table_number' => $saved->table_number, 'status' => 'scheduled']);
                     }
@@ -2497,7 +2516,7 @@ class FiveQuillasCompetitionService
     /**
      * Crea todas las rondas y conexiones de una llave de eliminación directa.
      */
-    private function createEliminationBracket(FiveQuillasPhase $phase, array $seeds, bool $finalizeByes = true): int
+    private function createEliminationBracket(FiveQuillasPhase $phase, array $seeds, bool $finalizeByes = true, int $projectedPairings = 0): int
     {
         $size = (int) data_get($phase->settings, 'bracket_size', 16);
         $rounds = (int) log($size, 2);
@@ -2529,18 +2548,18 @@ class FiveQuillasCompetitionService
             $pairs = $this->officialBracketPairs($size);
             $phase->update(['settings' => array_merge($phase->settings ?? [], ['bracket_pairs' => $pairs])]);
         }
-        $pairingCount = $this->usesFinalWithPairings($phase) && isset($seeds[33]) ? max(0, count($seeds) - $size) : 0;
+        $pairingCount = max($projectedPairings, $this->usesFinalWithPairings($phase) && isset($seeds[33]) ? max(0, count($seeds) - $size) : 0);
         foreach ($pairs as $index => $pair) {
             $match = $created[1][$index + 1];
             $players = [];
             foreach ($pair as $side => $seed) {
                 $entry = $seeds[$seed] ?? null;
                 if ($pairingCount > 0 && $seed > $size - $pairingCount) {
-                    $opponent = $seeds[2 * $size + 1 - $seed];
+                    $opponent = $seeds[2 * $size + 1 - $seed] ?? null;
                     $phase->matches()->create([
                         'round_number' => 0, 'bracket_order' => $seed,
                         'label' => 'Posición '.$seed,
-                        'player_one_entry_id' => $entry->id, 'player_two_entry_id' => $opponent->id,
+                        'player_one_entry_id' => $entry?->id, 'player_two_entry_id' => $opponent?->id,
                         'next_match_id' => $match->id, 'next_match_position' => $side + 1,
                         'is_public' => (bool) $phase->is_public,
                     ]);
@@ -2557,7 +2576,7 @@ class FiveQuillasCompetitionService
             ->get(['player_one_entry_id', 'player_two_entry_id'])
             ->flatMap(fn ($match): array => [$match->player_one_entry_id, $match->player_two_entry_id])
             ->filter()->unique()->count();
-        $expectedAssignments = min(count($seeds), $size) - $pairingCount;
+        $expectedAssignments = count(array_filter(array_keys($seeds), fn ($seed): bool => $seed >= 1 && $seed <= $size - $pairingCount));
         if ($assignedSlots !== $expectedAssignments) {
             throw ValidationException::withMessages([
                 'phase' => "La grilla esperaba {$expectedAssignments} clasificados y pudo ubicar {$assignedSlots}. Revisá la configuración del cuadro.",

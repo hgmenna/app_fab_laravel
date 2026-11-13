@@ -22,10 +22,10 @@
                             // el nombre y nunca renumera las posiciones del partido.
                             $numberOne = $match->round_number === 1
                                 ? ($pair[0] ?? '—')
-                                : ($match->playerOne?->seed ?? '—');
+                                : ($match->playerOne?->seed ?? (($pairingsOnly ?? false) ? $match->bracket_order : '—'));
                             $numberTwo = $match->round_number === 1
                                 ? ($pair[1] ?? '—')
-                                : ($match->playerTwo?->seed ?? '—');
+                                : ($match->playerTwo?->seed ?? (($pairingsOnly ?? false) ? 65 - $match->bracket_order : '—'));
                             $expectedParticipants = (int) data_get($match->phase?->settings, 'expected_participant_count', 0);
                             $matchSets = collect(data_get($match->set_scores, 'sets', []));
                             $pointsPerSet = (int) $match->phase?->points_per_set;
@@ -35,7 +35,7 @@
                                 if ($entry?->player) {
                                     return $entry->player->full_name.($entry->registration?->status === 'ausente' ? ' · AUSENTE' : '');
                                 }
-                                if ((int) $match->round_number > 1) {
+                                if ((int) $match->round_number !== 1) {
                                     return 'A designar';
                                 }
 

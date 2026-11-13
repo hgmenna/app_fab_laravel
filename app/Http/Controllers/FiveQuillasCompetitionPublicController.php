@@ -191,12 +191,12 @@ class FiveQuillasCompetitionPublicController extends Controller
                             'placeholder_1' => $this->bracketSlotPlaceholder($phase, $match, 0),
                             'numero_1' => $match->round_number === 1
                                 ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1).'.0')
-                                : $match->playerOne?->seed,
+                                : ($match->playerOne?->seed ?? ((int) $match->round_number === 0 ? $match->bracket_order : null)),
                             'jugador_2' => $match->playerTwo?->player?->full_name,
                             'placeholder_2' => $this->bracketSlotPlaceholder($phase, $match, 1),
                             'numero_2' => $match->round_number === 1
                                 ? data_get($phase->settings, 'bracket_pairs.'.($match->bracket_order - 1).'.1')
-                                : $match->playerTwo?->seed, 'sets' => $match->set_scores,
+                                : ($match->playerTwo?->seed ?? ((int) $match->round_number === 0 ? 65 - $match->bracket_order : null)), 'sets' => $match->set_scores,
                             'sets_reales' => [$match->player_one_actual_sets, $match->player_two_actual_sets],
                             'sets_computables' => [$match->player_one_computed_sets, $match->player_two_computed_sets],
                             'puntos' => [$match->player_one_points, $match->player_two_points],
@@ -228,7 +228,7 @@ class FiveQuillasCompetitionPublicController extends Controller
 
     private function bracketSlotPlaceholder($phase, $match, int $side): string
     {
-        if ($phase->phase_type !== 'bracket' || (int) $match->round_number > 1) {
+        if ($phase->phase_type !== 'bracket' || (int) $match->round_number !== 1) {
             return 'A designar';
         }
         $seed = (int) data_get(

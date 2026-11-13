@@ -916,6 +916,15 @@ it('keeps a 32-place final and advances the winners of the two entry matches', f
         return $entry;
     });
     $service = app(FiveQuillasCompetitionService::class);
+    $zones->update(['status' => 'ready']);
+    $this->phase->update(['settings' => ['bracket_size' => 64, 'expected_participant_count' => 34]]);
+    foreach (range(1, 32) as $order) {
+        $this->phase->matches()->create(['bracket_order' => $order]);
+    }
+    $service->refreshEmptyZoneBracket($this->phase);
+    expect($this->phase->matches()->where('round_number', 1)->count())->toBe(16)
+        ->and($this->phase->matches()->where('round_number', 0)->pluck('bracket_order')->all())->toBe([31, 32]);
+    $zones->update(['status' => 'completed']);
     $service->preparePhase($this->phase);
     $pairings = $this->phase->matches()->where('round_number', 0)->get()->keyBy('bracket_order');
     expect($this->phase->matches()->where('round_number', 1)->count())->toBe(16)
