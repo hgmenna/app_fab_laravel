@@ -109,6 +109,7 @@ class FiveQuillasCompetitionPublicController extends Controller
                     'todas_fases' => (bool) data_get($competition->settings, 'broadcast.all_phases', true),
                     'fases' => collect(data_get($competition->settings, 'broadcast.phase_ids', []))
                         ->map(fn ($id): int => (int) $id)->values(),
+                    'secciones_etapa_final' => data_get($competition->settings, 'broadcast.final_sections', 'both'),
                     'todos_horarios_zonas' => (bool) data_get($competition->settings, 'broadcast.all_zone_slots', true),
                     'horarios_zonas' => collect(data_get($competition->settings, 'broadcast.zone_slot_keys', []))
                         ->map(fn ($key): string => (string) $key)->values(),

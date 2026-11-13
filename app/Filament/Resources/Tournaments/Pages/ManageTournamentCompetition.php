@@ -257,6 +257,7 @@ class ManageTournamentCompetition extends Page
                         'phase_ids' => collect($settings['phase_ids'] ?? [])->map(fn ($id): string => (string) $id)->all(),
                         'all_zone_slots' => (bool) ($settings['all_zone_slots'] ?? empty($settings['zone_slot_keys'] ?? [])),
                         'zone_slot_keys' => collect($settings['zone_slot_keys'] ?? [])->map(fn ($key): string => (string) $key)->all(),
+                        'final_sections' => $settings['final_sections'] ?? 'both',
                         'rotation_seconds' => (int) ($settings['rotation_seconds'] ?? 8),
                     ];
                 })
@@ -298,6 +299,17 @@ class ManageTournamentCompetition extends Page
                             ->orderBy('sort_order')->pluck('name', 'id')->all())
                         ->columns(2)
                         ->visible(fn (Get $get): bool => (bool) $get('enabled') && ! (bool) $get('all_phases')),
+                    Select::make('final_sections')
+                        ->label('Mostrar en Etapa final (OBS)')
+                        ->options([
+                            'both' => 'Emparejamientos y grilla final',
+                            'pairings' => 'Solo emparejamientos',
+                            'grid' => 'Solo grilla final',
+                        ])
+                        ->helperText('Se aplica cuando la etapa final tiene emparejamientos.')
+                        ->default('both')
+                        ->required()
+                        ->visible(fn (Get $get): bool => (bool) $get('enabled')),
                     Toggle::make('all_zone_slots')
                         ->label('Rotar todos los horarios de zonas')
                         ->helperText('Genera una pantalla independiente para cada horario publicado y las recorre automáticamente.')
@@ -376,6 +388,8 @@ class ManageTournamentCompetition extends Page
                         'zone_slot_keys' => (bool) ($data['all_zone_slots'] ?? true)
                             ? []
                             : $broadcastSlotKeys->values()->all(),
+                        'final_sections' => in_array($data['final_sections'] ?? null, ['both', 'pairings', 'grid'], true)
+                            ? $data['final_sections'] : (data_get($settings, 'broadcast.final_sections') ?? 'both'),
                         'rotation_seconds' => max(4, min(60, (int) ($data['rotation_seconds'] ?? 8))),
                     ]);
                     $competition->update([
