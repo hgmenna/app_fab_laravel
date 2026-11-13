@@ -296,7 +296,7 @@ class TournamentMarkerService
                 return;
             }
             $target = (int) $locked->points_per_set;
-            if (! $this->matchesAssignment($locked, $match) || ! empty($match->set_scores) || $target !== (int) $match->phase->points_per_set || (int) $locked->sets_to_win !== intdiv((int) $match->phase->sets_to_play, 2) + 1) {
+            if (! $this->matchesAssignment($locked, $match) || ! empty(data_get($match->set_scores, 'sets')) || $target !== (int) $match->phase->points_per_set || (int) $locked->sets_to_win !== intdiv((int) $match->phase->sets_to_play, 2) + 1) {
                 $locked->update(['status' => 'conflict']);
                 return;
             }
