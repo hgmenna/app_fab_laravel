@@ -190,8 +190,7 @@ class FiveQuillasCompetitionService
             $previousPhaseStatus = $phase->status;
             $existing = $phase->groups()->where('tournament_slot_id', $slotId)
                 ->with(['matches', 'groupEntries'])->get();
-            // Un registro de partido no bloquea por sí solo una zona. Se protege
-            // recién cuando existe un set real o una proclamación manual.
+            // Conserva los partidos convocados y los resultados al modificar otras zonas.
             $lockedGroups = $existing->filter(
                 fn ($group): bool => $group->matches->contains(function ($match): bool {
                     if ($match->is_bye) {
@@ -201,7 +200,8 @@ class FiveQuillasCompetitionService
                     $scores = is_array($match->set_scores) ? $match->set_scores : [];
                     $sets = $scores['sets'] ?? (array_is_list($scores) ? $scores : []);
 
-                    return (bool) ($scores['manual_winner'] ?? false)
+                    return in_array($match->status, ['called', 'in_progress', 'suspended'], true)
+                        || (bool) ($scores['manual_winner'] ?? false)
                         || collect($sets)->contains(fn ($set): bool => is_array($set));
                 })
             );

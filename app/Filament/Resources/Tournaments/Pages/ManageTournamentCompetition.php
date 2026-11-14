@@ -858,7 +858,8 @@ class ManageTournamentCompetition extends Page
                         $scores = is_array($match->set_scores) ? $match->set_scores : [];
                         $sets = $scores['sets'] ?? (array_is_list($scores) ? $scores : []);
 
-                        return (bool) ($scores['manual_winner'] ?? false)
+                        return in_array($match->status, ['called', 'in_progress', 'suspended'], true)
+                            || (bool) ($scores['manual_winner'] ?? false)
                             || collect($sets)->contains(fn ($set): bool => is_array($set));
                     }),
                     'name' => $group->name,
