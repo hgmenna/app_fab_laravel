@@ -1,4 +1,4 @@
-<div wire:poll.2s.keep-alive="pollScores" @if(! $error && ! $conflicts) hidden @endif>
+<div wire:poll.2s.keep-alive="pollScores">
     @if($error || $conflicts)
         <div class="fq-card" role="status">
             @if($error)

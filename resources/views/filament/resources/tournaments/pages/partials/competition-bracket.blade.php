@@ -48,7 +48,13 @@
                             @if((int) $match->round_number === 0)
                                 <strong>{{ $match->label }}</strong>
                             @endif
-                            <article class="fq-match {{ $match->status === 'called' ? 'is-called' : ($match->status === 'in_progress' ? 'is-in-progress' : '') }}">
+                            <article class="fq-match {{ $match->status === 'called' ? 'is-called' : ($match->status === 'in_progress' ? 'is-in-progress' : '') }}"
+    @if($this->markerLink && $match->status === 'called')
+        x-data="{ runningOnTablet: false }"
+        x-on:marker-live.window="runningOnTablet = $event.detail.scores[{{ (int) $match->id }}]?.status === 'in_progress'"
+        x-bind:class="runningOnTablet ? 'is-in-progress' : 'is-called'"
+    @endif
+>
                                 <div class="fq-match-player {{ $match->winner_entry_id === $match->player_one_entry_id ? 'is-winner' : '' }}">
                                     <span><b>{{ $numberOne }}</b> · {{ $emptyLabel($match->playerOne, $numberOne) }}</span>
                                     @include('filament.resources.tournaments.pages.partials.marker-live-score', ['side' => 0])
