@@ -49,8 +49,13 @@ class TournamentMarkerLive extends Component
 
         $scores = [];
         try {
-            $assignments = $link->assignments()->whereIn('status', ['pending', 'sent'])->get();
+            $assignments = $link->assignments()->whereIn('status', ['pending', 'sent'])->with('match')->get();
             $live = $marker->live($link, $assignments);
+            $active = $assignments->filter(fn ($assignment) => in_array($assignment->match?->status, ['called', 'in_progress'], true));
+            $missing = $active->reject(fn ($assignment) => isset($live[$assignment->id]));
+            if ($missing->isNotEmpty()) {
+                $this->error = 'El marcador no devolvió datos para las mesas '.$missing->pluck('table_number')->unique()->implode(', ').'.';
+            }
             foreach ($assignments as $assignment) {
                 if (isset($live[$assignment->id])) {
                     $scores[(string) $assignment->five_quillas_match_id] = $live[$assignment->id];
@@ -58,6 +63,8 @@ class TournamentMarkerLive extends Component
             }
         } catch (RuntimeException $exception) {
             $this->error = $exception->getMessage();
+
+            return;
         }
         $this->conflicts = $link->assignments()->where('status', 'conflict')->count();
 
