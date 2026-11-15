@@ -3209,6 +3209,9 @@ class FiveQuillasCompetitionService
         } elseif ($phase->matches()->where('status', 'completed')->exists()) {
             $phase->update(['status' => 'in_progress']);
             $phase->competition()->update(['status' => 'in_progress']);
+            if ($this->usesFinalWithPairings($phase)) {
+                $this->assignFinalPoints($phase);
+            }
         }
     }
 
@@ -3348,17 +3351,19 @@ class FiveQuillasCompetitionService
     public function recalculateFinalStandings(FiveQuillasCompetition $competition): void
     {
         DB::transaction(function () use ($competition): void {
+            $this->lockCompetition($competition->id);
             $competition->entries()->update(['final_position' => null]);
             $phases = $competition->phases()->where('is_enabled', true)
-                ->where('status', 'completed')->orderBy('sort_order')->get();
+                ->orderBy('sort_order')->get();
 
             foreach ($phases as $phase) {
                 $hasLaterPhase = $competition->phases()->where('is_enabled', true)
                     ->where('sort_order', '>', $phase->sort_order)->exists();
 
-                if (! $hasLaterPhase && $phase->phase_type === 'bracket') {
+                if (! $hasLaterPhase && $phase->phase_type === 'bracket'
+                    && ($phase->status === 'completed' || $this->usesFinalWithPairings($phase))) {
                     $this->assignFinalPoints($phase);
-                } else {
+                } elseif ($phase->status === 'completed') {
                     $this->assignPhaseEliminationPoints($phase);
                 }
             }
@@ -3370,7 +3375,7 @@ class FiveQuillasCompetitionService
      */
     public function ensureFinalStandingsOrder(FiveQuillasCompetition $competition): void
     {
-        if ((int) data_get($competition->settings, 'standings_order_version', 0) >= 5) {
+        if ((int) data_get($competition->settings, 'standings_order_version', 0) >= 6) {
             if ($competition->status !== 'completed') {
                 return;
             }
@@ -3391,7 +3396,7 @@ class FiveQuillasCompetitionService
         $this->normalizeByeScores($competition);
         $this->recalculateFinalStandings($competition);
         $competition->update([
-            'settings' => array_merge($competition->settings ?? [], ['standings_order_version' => 5]),
+            'settings' => array_merge($competition->settings ?? [], ['standings_order_version' => 6]),
         ]);
     }
 
@@ -3477,12 +3482,19 @@ class FiveQuillasCompetitionService
         $matches = $phase->matches()->with('winner')->get();
         $lastRound = (int) $matches->max('round_number');
         $final = $matches->where('round_number', $lastRound)->first();
-        if (! $final?->winner_entry_id) { return; }
+        $completed = $final?->status === 'completed' && $final->winner_entry_id;
+        if (! $completed && (! $this->usesFinalWithPairings($phase) || $matches->where('round_number', 1)->count() !== 16)) {
+            return;
+        }
 
-        $placements = collect([(int) $final->winner_entry_id => 1]);
-        $finalLoser = $this->loserEntryId($final);
-        if ($finalLoser) { $placements->put($finalLoser, 2); }
+        $placements = collect();
         $position = 3;
+        if ($completed) {
+            $placements->put((int) $final->winner_entry_id, 1);
+            if ($finalLoser = $this->loserEntryId($final)) {
+                $placements->put($finalLoser, 2);
+            }
+        }
         for ($round = $lastRound - 1; $round >= 0; $round--) {
             $roundLosers = $matches->where('round_number', $round)->map(fn ($match) => $this->loserEntryId($match))
                 ->filter()->unique()->sort(function (int $left, int $right) use ($matches): int {
@@ -3498,6 +3510,9 @@ class FiveQuillasCompetitionService
                     }
                     return $left <=> $right;
                 });
+            if (! $completed) {
+                $position = intdiv(32, 2 ** $round) + 1;
+            }
             foreach ($roundLosers as $loser) {
                 if (! $placements->has($loser)) { $placements->put($loser, $position++); }
             }

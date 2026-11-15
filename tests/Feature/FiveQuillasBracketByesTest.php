@@ -939,4 +939,6 @@ it('keeps a 32-place final and advances the winners of the two entry matches', f
     $match->refresh();
     $service->recordMatchResult($match, [['player_one_points' => 40, 'player_two_points' => 60]], $match->editRevision());
     expect($match->nextMatch()->first()->player_two_entry_id)->toBe($entries[32]->id);
+    expect((int) $entries[31]->fresh()->final_position)->toBe(33);
+    expect($entries[32]->fresh()->final_position)->toBeNull();
 });
