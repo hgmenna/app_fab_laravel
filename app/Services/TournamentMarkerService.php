@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Livewire\CompetitionOrganizationUpdates;
 use App\Models\FiveQuillasMatch;
+use App\Models\GeneralRanking;
 use App\Models\MarkerMatchAssignment;
 use App\Models\MarkerTournamentLink;
 use Illuminate\Support\Carbon;
@@ -150,13 +151,16 @@ class TournamentMarkerService
         if (! $this->matchesAssignment($assignment, $match)) {
             throw new RuntimeException('El partido cambió después del envío. Revisá su estado en Marcadores.');
         }
+        $rankedCategories = GeneralRanking::query()
+            ->whereIn('player_id', [$one->id, $two->id])
+            ->pluck('category', 'player_id');
         try {
             $this->api->request('POST', '/matches', [
                 'id' => $assignment->external_id,
                 'table' => (int) $assignment->table_number,
                 'players' => [
-                    ['name' => $one->full_name, 'category' => $one->category?->code ?: $one->category?->name],
-                    ['name' => $two->full_name, 'category' => $two->category?->code ?: $two->category?->name],
+                    ['name' => $one->full_name, 'category' => ($rankedCategories->get($one->id) ?: $one->category?->code) ?: $one->category?->name],
+                    ['name' => $two->full_name, 'category' => ($rankedCategories->get($two->id) ?: $two->category?->code) ?: $two->category?->name],
                 ],
                 'pointsPerSet' => (int) $assignment->points_per_set,
                 'setsToWin' => (int) $assignment->sets_to_win,

@@ -41,6 +41,10 @@ beforeEach(function () {
         $table->unsignedBigInteger('category_id');
         $table->timestamps();
     });
+    Schema::create('general_rankings', function (Blueprint $table): void {
+        $table->unsignedBigInteger('player_id');
+        $table->string('category');
+    });
     foreach ([
         '2026_10_17_120000_create_five_quillas_competition_tables.php',
         '2026_10_17_190000_add_computed_scores_to_five_quillas_matches.php',
@@ -185,6 +189,10 @@ it('envía formato y categorías, recibe el tanteador y registra el resultado co
     $numbers = $service->tableNumbers($link);
     expect($numbers)->toBe(['linked' => [2, 3, 4], 'available' => [2, 4], 'unlinked' => [1]]);
     $organization = app(FiveQuillasCompetitionService::class);
+    \Illuminate\Support\Facades\DB::table('general_rankings')->insert([
+        'player_id' => $match->playerOne->player_id,
+        'category' => 'N',
+    ]);
     $service->callAndSend($link, $match, 2, $match->refresh()->editRevision());
     expect($match->fresh()->status)->toBe('called');
     expect(fn () => $organization->configureFormat($competition, [[
@@ -220,7 +228,7 @@ it('envía formato y categorías, recibe el tanteador y registra el resultado co
     Http::assertSent(fn (Request $request) => $request->method() === 'POST'
         && str_ends_with($request->url(), '/matches')
         && $request['pointsPerSet'] === 60 && $request['setsToWin'] === 2 && $request['table'] === 2
-        && array_column($request['players'], 'category') === ['1', 'M']);
+        && array_column($request['players'], 'category') === ['N', 'M']);
 
     $match->update(['scheduled_at' => '2026-11-10 11:00:00']);
     $remote = ['id' => $assignment->external_id, 'status' => 'in_progress', 'points' => [30, 45], 'setsWon' => [0, 1]];
