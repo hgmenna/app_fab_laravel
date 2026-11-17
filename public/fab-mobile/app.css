@@ -149,3 +149,32 @@ button:disabled{opacity:.6;cursor:default}
 .mobile-developer div{display:flex;justify-content:center;flex-wrap:wrap;gap:.2rem 1rem}
 .mobile-developer a{overflow-wrap:anywhere}
 .mobile-developer strong{color:var(--ink)}
+/* Tournament development preserves bracket geometry and readable touch-screen text. */
+#mobile-results{min-width:0}
+#mobile-results>label{display:block;margin-bottom:.75rem}
+#results-filters{margin-bottom:1rem}
+.development-tabs{display:flex;gap:.5rem;flex-wrap:wrap}
+.development-tabs button{flex:1;min-width:8rem}
+.development-tabs .selected{outline:2px solid var(--accent)}
+.development-zone{padding:1rem 0;border-bottom:1px solid var(--line)}
+.development-zone h2,.development-zone p{margin:.3rem 0}
+.development-hint{font-size:.8rem;color:var(--muted)}
+.development-scroll{max-width:100%;overflow:auto;overscroll-behavior-x:contain;padding-bottom:.6rem}
+.development-canvas{position:relative}
+.development-match{background:var(--surface);border:1px solid var(--line);border-left:4px solid #418bff;border-radius:.55rem;padding:.5rem .65rem;overflow:auto}
+.development-canvas>.development-match{position:absolute;width:300px;height:166px;z-index:1}
+.match-label,.match-detail{display:block;font-size:.72rem;color:var(--muted);line-height:1.35}
+.development-player{display:grid;grid-template-columns:minmax(0,1fr) 2rem;gap:.4rem;align-items:center;margin:.35rem 0;font-size:.85rem;line-height:1.25;min-height:2rem}
+.development-player>span{overflow-wrap:anywhere}
+.development-player.winner{color:#7ce4b3;font-weight:700}
+.set-score{border:1px solid var(--line);text-align:center;padding:.15rem;font-variant-numeric:tabular-nums}
+.live-label{color:var(--accent);font-size:.7rem}
+.round-heading{position:absolute;top:0;margin:0;font-size:.9rem}
+.development-connectors{position:absolute;inset:0;pointer-events:none}
+.development-connectors path{fill:none;stroke:#728bad;stroke-width:2}
+.development-table{border-collapse:collapse;min-width:100%;font-size:.8rem}
+.development-table th,.development-table td{text-align:left;padding:.5rem;border-bottom:1px solid var(--line);white-space:nowrap}
+.development-table th{background:var(--surface)}
+.development-pairing{margin:1rem 0}
+.development-pairing h2{font-size:1rem}
+.pairing-winner{background:var(--surface);border:1px solid #418bff;border-radius:.4rem;padding:.5rem;text-align:center}
