@@ -72,7 +72,8 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function disciplineAssignments()
     {
-        return $this->hasMany(DisciplineUserRole::class);
+        // El invitado hereda esta relación; la tabla siempre referencia users mediante user_id.
+        return $this->hasMany(DisciplineUserRole::class, 'user_id');
     }
 
     public function hasActiveDisciplineAssignments(): bool
