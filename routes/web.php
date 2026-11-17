@@ -58,3 +58,24 @@ Route::get('/debug-path', function () {
         'public_html_5' => realpath('/home/usuario/public_html'),
     ];
 });
+
+Route::get('/app', \App\Http\Controllers\MobileAppController::class)
+    ->name('mobile-app');
+
+Route::get('/app/torneos/{tournament}/inscripcion', [\App\Http\Controllers\MobileRegistrationController::class, 'show'])->name('mobile-registration.show');
+Route::get('/app/torneos/{tournament}/inscripcion/opciones', [\App\Http\Controllers\MobileRegistrationController::class, 'options'])->middleware('throttle:60,1')->name('mobile-registration.options');
+Route::post('/app/torneos/{tournament}/inscripcion', [\App\Http\Controllers\MobileRegistrationController::class, 'store'])->middleware('throttle:15,1')->name('mobile-registration.store');
+
+Route::get('/app/jugadores', [\App\Http\Controllers\MobilePlayersController::class, 'index'])->name('mobile-players.index');
+Route::get('/app/jugadores/{player}/desempeno', [\App\Http\Controllers\MobilePlayersController::class, 'performance'])
+    ->whereNumber('player')->name('mobile-players.performance');
+
+Route::get('/app/calendario.json', UpcomingTournamentsController::class)->name('mobile-app.calendar');
+Route::get('/app/torneos/{tournament}/organizacion', \App\Http\Controllers\MobileTournamentOrganizationController::class)
+    ->name('mobile-tournament.organization');
+
+Route::get('/app/cuenta', [\App\Http\Controllers\MobileAccountController::class, 'show'])->name('mobile-account.show');
+Route::post('/app/cuenta', [\App\Http\Controllers\MobileAccountController::class, 'login'])->middleware('throttle:6,1')->name('mobile-account.login');
+Route::post('/app/cuenta/salir', [\App\Http\Controllers\MobileAccountController::class, 'logout'])->name('mobile-account.logout');
+
+Route::view('/app/resultados/{slug}', 'mobile-results')->where('slug', '[a-z0-9-]+')->name('mobile-results.show');

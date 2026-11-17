@@ -97,7 +97,7 @@ class TournamentRegistrationForm
         return $tournament?->tournamentModalities()->value('id');
     }
 
-    private static function eligiblePlayers(mixed $configurationId): array
+    public static function eligiblePlayers(mixed $configurationId): array
     {
         $configuration = TournamentModality::find($configurationId);
         if (! $configuration) {

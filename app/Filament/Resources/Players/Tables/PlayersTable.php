@@ -140,27 +140,8 @@ class PlayersTable
                         ->pluck('name', 'id')
                         ->all())
                     ->multiple()
-                    ->query(function (Builder $query, array $data): Builder {
-                        $federationIds = array_values(array_filter($data['values'] ?? []));
-
-                        if ($federationIds === []) {
-                            return $query;
-                        }
-
-                        return $query->where(function (Builder $affiliations) use ($federationIds): void {
-                            $affiliations
-                                ->whereHas('discipline', fn (Builder $disciplines) => $disciplines
-                                    ->where('affiliation_mode', 'direct')
-                                    ->whereIn('direct_federation_id', $federationIds))
-                                ->orWhere(function (Builder $provincial) use ($federationIds): void {
-                                    $provincial
-                                        ->whereHas('discipline', fn (Builder $disciplines) => $disciplines
-                                            ->where('affiliation_mode', 'provincial'))
-                                        ->whereHas('club.city.state', fn (Builder $state) => $state
-                                            ->whereIn('federation_id', $federationIds));
-                                });
-                        });
-                    }),
+                    ->query(fn (Builder $query, array $data): Builder => $query
+                        ->inAffiliationFederations(array_values(array_filter($data['values'] ?? [])))),
                 SelectFilter::make('discipline_id')
                     ->relationship('discipline', 'name')
                     ->label('Disciplina')

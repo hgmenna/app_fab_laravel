@@ -1,0 +1,28 @@
+plugins {
+    id 'com.android.application' version '8.12.3'
+}
+
+android {
+    namespace 'ar.fab.deportes'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'ar.fab.deportes'
+        minSdk 24
+        targetSdk 36
+        versionCode 2
+        versionName '1.0.0'
+        buildConfigField 'String', 'FAB_HOME', '"https://sistem.federacionargentinadebillar.org/app"'
+    }
+    buildFeatures { buildConfig true }
+    buildTypes {
+        debug {
+            applicationIdSuffix '.demo'
+            versionNameSuffix '-prueba'
+            buildConfigField 'String', 'FAB_HOME', '"http://127.0.0.1:8017/app"'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

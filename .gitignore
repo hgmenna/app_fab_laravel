@@ -20,3 +20,6 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+/mobile-signing/
+/mobile-dist/

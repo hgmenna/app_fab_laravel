@@ -21,7 +21,7 @@ class UpcomingTournamentsController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $filters = $request->validate([
-            'estado' => ['nullable', 'in:vigentes,finalizados,todos'],
+            'estado' => ['nullable', 'in:vigentes,proximos,en-curso,finalizados,todos'],
             'desde' => ['nullable', 'date_format:Y-m-d'],
             'hasta' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:desde'],
             'anio' => ['nullable', 'integer', 'min:2000', 'max:2100'],
@@ -49,7 +49,7 @@ class UpcomingTournamentsController extends Controller
 
         $query = Tournament::query()
             ->with([
-                'discipline:id,name',
+                'discipline:id,name,code',
                 'type:id,name,has_handicap,is_official,publication_logo_source,publication_federation_id',
                 'type.publicationFederation:id,name,logo_path',
                 'venue:id,name,logo_path,address,lat,lng,city_id',
@@ -68,6 +68,10 @@ class UpcomingTournamentsController extends Controller
             ->withCount('registrations');
 
         match ($view) {
+            'proximos' => $query->whereDate('start_date', '>', $today),
+            'en-curso' => $query->whereDate('start_date', '<=', $today)
+                ->where(fn ($builder) => $builder->whereDate('end_date', '>=', $today)
+                    ->orWhereNull('end_date')->whereDate('start_date', $today)),
             'finalizados' => $query->whereDate('end_date', '<', $today),
             'todos' => $query,
             default => $query->whereDate('end_date', '>=', $today),
@@ -96,6 +100,9 @@ class UpcomingTournamentsController extends Controller
                 });
             });
 
+        $mobile = $request->routeIs('mobile-app.calendar');
+        $organizer = $mobile ? $request->user() : null;
+
         $rows = $query
             ->when(
                 $view === 'finalizados',
@@ -103,7 +110,7 @@ class UpcomingTournamentsController extends Controller
                 fn ($builder) => $builder->orderBy('start_date')->orderBy('id'),
             )
             ->get()
-            ->map(function (Tournament $tournament) use ($monthNames, $categoriesByDiscipline, $today): array {
+            ->map(function (Tournament $tournament) use ($monthNames, $categoriesByDiscipline, $today, $organizer): array {
                 $club = $tournament->venue;
 
                 $disciplineCategories = $categoriesByDiscipline
@@ -233,6 +240,9 @@ class UpcomingTournamentsController extends Controller
                     'desarrollo_mensaje' => 'Información no disponible en este momento',
                     'desarrollo_json_url' => $competitionJsonUrl,
                     'desarrollo_url' => $competitionPageUrl,
+                    ...($organizer?->hasVerifiedEmail() && $tournament->discipline?->code === 'five_quillas'
+                        && $organizer->canAccessTournament('ManageTournamentCompetition', $tournament)
+                        ? ['organizacion_url' => route('mobile-tournament.organization', $tournament)] : []),
                 ];
             });
 
@@ -249,7 +259,7 @@ class UpcomingTournamentsController extends Controller
                     'fecha_referencia' => $today->toDateString(),
                     'anios' => $years,
                     'filtros' => [
-                        'estado' => ['vigentes', 'finalizados', 'todos'],
+                        'estado' => ['vigentes', 'proximos', 'en-curso', 'finalizados', 'todos'],
                         'desde' => 'YYYY-MM-DD',
                         'hasta' => 'YYYY-MM-DD',
                         'anio' => 'YYYY',
@@ -261,7 +271,7 @@ class UpcomingTournamentsController extends Controller
                 ],
             ])
             ->withHeaders([
-                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0',
+                'Cache-Control' => ($mobile ? 'private, ' : '').'no-store, no-cache, must-revalidate, max-age=0, s-maxage=0',
                 'Pragma' => 'no-cache',
                 'Expires' => '0',
                 'Access-Control-Allow-Origin' => '*',
