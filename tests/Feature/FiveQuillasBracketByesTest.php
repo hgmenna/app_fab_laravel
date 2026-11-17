@@ -942,3 +942,31 @@ it('keeps a 32-place final and advances the winners of the two entry matches', f
     expect((int) $entries[31]->fresh()->final_position)->toBe(33);
     expect($entries[32]->fresh()->final_position)->toBeNull();
 });
+
+it('reserves final-table capacity for manually scheduled pairings before scheduling the grid', function () {
+    $this->phase->matches()->delete();
+    $this->phase->update(['settings' => [
+        'schedules' => [['starts_at' => '2026-11-01 10:00:00', 'tables' => 6, 'estimated_minutes' => 30]],
+    ]]);
+
+    $pairings = collect(range(1, 2))->map(fn (int $order) => $this->phase->matches()->create([
+        'round_number' => 0,
+        'bracket_order' => $order,
+        'scheduled_at' => '2026-11-01 10:00:00',
+        'estimated_minutes' => 30,
+        'table_number' => $order,
+        'status' => 'scheduled',
+    ]));
+    foreach (range(1, 8) as $order) {
+        $this->phase->matches()->create(['round_number' => 1, 'bracket_order' => $order]);
+    }
+
+    $service = app(FiveQuillasCompetitionService::class);
+    expect($service->scheduleConfiguredMatches($this->phase, 0))->toBe(8)
+        ->and($service->scheduleConfiguredMatches($this->phase, 0))->toBe(8);
+
+    $times = $this->phase->matches()->where('round_number', 1)->orderBy('bracket_order')->get()
+        ->map(fn (FiveQuillasMatch $match) => $match->scheduled_at->format('H:i'))->all();
+    expect($times)->toBe(['10:00', '10:00', '10:00', '10:00', '10:30', '10:30', '10:30', '10:30'])
+        ->and($pairings->map(fn ($match) => $match->fresh()->table_number)->all())->toBe([1, 2]);
+});

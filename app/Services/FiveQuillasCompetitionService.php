@@ -512,9 +512,9 @@ class FiveQuillasCompetitionService
     /**
      * Asigna fecha, hora y mesa a los partidos comprendidos por un bloque de programación.
      */
-    public function scheduleConfiguredMatches(FiveQuillasPhase $phase, int $scheduleIndex, array $overrides = [], ?string $expectedScheduleRevision = null, ?int $markerCapacity = null): int
+    public function scheduleConfiguredMatches(FiveQuillasPhase $phase, int $scheduleIndex, array $overrides = [], ?string $expectedScheduleRevision = null): int
     {
-        return DB::transaction(function () use ($phase, $scheduleIndex, $overrides, $expectedScheduleRevision, $markerCapacity): int {
+        return DB::transaction(function () use ($phase, $scheduleIndex, $overrides, $expectedScheduleRevision): int {
             $this->lockCompetition($phase->competition_id);
             $phase = FiveQuillasPhase::query()->lockForUpdate()->findOrFail($phase->id);
             if ($expectedScheduleRevision !== null && ! hash_equals($phase->scheduleRevision(), $expectedScheduleRevision)) {
@@ -539,7 +539,7 @@ class FiveQuillasCompetitionService
             if (! filled($schedule['starts_at'] ?? null)) {
                 throw ValidationException::withMessages(['schedule' => 'Indicá la fecha y hora de inicio del horario.']);
             }
-            $tables = $markerCapacity ?? (int) ($schedule['tables'] ?? data_get($phase->settings, 'tables', 0));
+            $tables = (int) ($schedule['tables'] ?? data_get($phase->settings, 'tables', 0));
             $minutes = (int) ($schedule['estimated_minutes'] ?? data_get($phase->settings, 'estimated_minutes', 0));
             if ($tables < 1 || $minutes < 1) {
                 throw ValidationException::withMessages([
@@ -589,10 +589,47 @@ class FiveQuillasCompetitionService
                 $settings['schedules'][$scheduleIndex] = $schedule;
                 $phase->update(['settings' => $settings]);
             }
-            foreach ($matches as $index => $match) {
-                $batch = intdiv($index, $tables);
+            // Los emparejamientos (ronda 0) y los partidos ya programados que
+            // quedan fuera de este bloque conservan sus horarios y ocupan mesa.
+            $reservationPhaseIds = [$phase->id];
+            if ($phase->phase_type === 'bracket') {
+                $reservationPhaseIds = array_merge($reservationPhaseIds, $phase->competition->phases()
+                    ->where('phase_type', 'play_in')
+                    ->where('is_enabled', true)
+                    ->where('sort_order', '<', $phase->sort_order)
+                    ->pluck('id')->all());
+            }
+
+            $occupied = FiveQuillasMatch::query()
+                ->whereIn('phase_id', $reservationPhaseIds)
+                ->whereNotIn('id', $matches->modelKeys())
+                ->where('is_bye', false)
+                ->whereNotNull('scheduled_at')
+                ->get(['scheduled_at', 'estimated_minutes'])
+                ->map(fn ($match) => [
+                    $match->scheduled_at->timestamp,
+                    $match->scheduled_at->copy()->addMinutes($match->estimated_minutes ?: $minutes)->timestamp,
+                ]);
+
+            $turn = $start->copy();
+            $assignedInTurn = 0;
+            $availableInTurn = 0;
+            foreach ($matches as $match) {
+                while ($assignedInTurn >= $availableInTurn) {
+                    $turnEnd = $turn->copy()->addMinutes($minutes)->timestamp;
+                    $availableInTurn = $tables - $occupied->filter(
+                        fn (array $reservation): bool => $reservation[0] < $turnEnd && $reservation[1] > $turn->timestamp
+                    )->count();
+                    if ($availableInTurn > 0 && $assignedInTurn === 0) {
+                        break;
+                    }
+                    $turn->addMinutes($minutes);
+                    $assignedInTurn = 0;
+                    $availableInTurn = 0;
+                }
+                $assignedInTurn++;
                 $match->update([
-                    'scheduled_at' => $start->copy()->addMinutes($batch * $minutes),
+                    'scheduled_at' => $turn->copy(),
                     'table_number' => null,
                     'estimated_minutes' => $minutes,
                     'status' => $match->status === 'pending' ? 'scheduled' : $match->status,

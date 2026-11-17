@@ -220,8 +220,8 @@ it('envía formato y categorías, recibe el tanteador y registra el resultado co
     foreach (range(1, 4) as $position) {
         FiveQuillasMatch::create(['phase_id' => $schedulePhase->id, 'bracket_order' => $position]);
     }
-    expect($organization->scheduleConfiguredMatches($schedulePhase, 0, markerCapacity: count($numbers['linked'])))->toBe(4)
-        ->and($schedulePhase->matches()->where('bracket_order', 4)->first()->scheduled_at->format('H:i'))->toBe('10:25')
+    expect($organization->scheduleConfiguredMatches($schedulePhase, 0))->toBe(4)
+        ->and($schedulePhase->matches()->where('bracket_order', 4)->first()->scheduled_at->format('H:i'))->toBe('10:00')
         ->and($schedulePhase->fresh()->settings['schedules'][0]['tables'])->toBe(9);
     $assignment = $service->outstanding($link, $match);
     expect($assignment->status)->toBe('sent');
