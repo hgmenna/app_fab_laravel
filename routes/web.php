@@ -79,3 +79,10 @@ Route::post('/app/cuenta', [\App\Http\Controllers\MobileAccountController::class
 Route::post('/app/cuenta/salir', [\App\Http\Controllers\MobileAccountController::class, 'logout'])->name('mobile-account.logout');
 
 Route::view('/app/resultados/{slug}', 'mobile-results')->where('slug', '[a-z0-9-]+')->name('mobile-results.show');
+
+Route::get('/fab-mobile/{file}', \App\Http\Controllers\MobileAssetController::class)
+    ->where('file', '[a-zA-Z0-9.-]+')->name('mobile-app.asset');
+Route::get('/fab-mobile-worker.js', fn () => response()->file(
+    base_path('public/fab-mobile-worker.js'),
+    ['Content-Type' => 'text/javascript', 'Cache-Control' => 'no-cache'],
+));

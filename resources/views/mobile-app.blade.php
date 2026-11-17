@@ -8,8 +8,8 @@
     <title>FAB · Calendario deportivo</title>
     <link rel="manifest" href="{{ asset('fab-mobile/manifest.webmanifest') }}">
     <link rel="apple-touch-icon" href="{{ asset('fab-mobile/icon-192.png') }}">
-    <link rel="stylesheet" href="{{ asset('fab-mobile/app.css') . '?v=' . filemtime(public_path('fab-mobile/app.css')) }}">
-    <script type="module" src="{{ asset('fab-mobile/app.js') . '?v=' . filemtime(public_path('fab-mobile/app.js')) }}"></script>
+    <link rel="stylesheet" href="{{ asset('fab-mobile/app.css') . '?v=' . filemtime(base_path('public/fab-mobile/app.css')) }}">
+    <script type="module" src="{{ asset('fab-mobile/app.js') . '?v=' . filemtime(base_path('public/fab-mobile/app.js')) }}"></script>
 </head>
 <body>
 <a class="skip" href="#calendario">Ir al calendario</a>
