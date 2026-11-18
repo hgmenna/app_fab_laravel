@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     @include('partials.mobile-pwa-head')
-    <title>FAB · Calendario deportivo</title>
+    <title>FAB Movil · Calendario deportivo</title>
     <link rel="stylesheet" href="{{ asset('fab-mobile/app.css') . '?v=' . filemtime(base_path('public/fab-mobile/app.css')) }}">
     <script type="module" src="{{ asset('fab-mobile/app.js') . '?v=' . filemtime(base_path('public/fab-mobile/app.js')) }}"></script>
 </head>
@@ -13,7 +13,7 @@
 <header class="masthead">
     <div class="wrap header-inner">
         <img src="{{ asset('fab-mobile/icon-192.png') }}" alt="" width="42" height="42">
-        <div><strong aria-label="Federación Argentina de Billar">FAB</strong><small>Federación Argentina de Billar</small></div>
+        <div><strong aria-label="Federación Argentina de Billar">FAB Movil</strong><small>Federación Argentina de Billar</small></div>
         <details class="app-navigation">
             <summary>☰ Menú</summary>
             <nav class="app-menu" aria-label="Navegación principal">
@@ -32,7 +32,7 @@
 <main class="wrap">
 <aside class="pwa-install-banner" data-pwa-browser-only>
     <img src="{{ asset('fab-mobile/icon-192.png') }}" alt="" width="40" height="40">
-    <div><strong>FAB Deportes en tu celular</strong><small>Instalá la app desde este enlace.</small></div>
+    <div><strong>FAB Movil en tu celular</strong><small>Instalá la app desde este enlace.</small></div>
     <a class="button" href="{{ route('mobile-app.install') }}">Instalar</a>
 </aside>
 <section id="calendario" aria-labelledby="calendar-title">

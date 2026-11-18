@@ -1,8 +1,8 @@
-# PWA FAB Deportes — instalación y distribución
+# PWA FAB Movil — instalación y distribución
 
 ## Publicación
 
-Versión de interfaz: 1.0.5. No requiere reconstruir ni reinstalar la APK existente.
+Versión de interfaz: 1.0.6. No requiere reconstruir ni reinstalar la APK existente.
 
 En PuTTY, dentro de `app-production`:
 
@@ -21,7 +21,7 @@ La página permite instalar cuando el navegador ofrece esa opción, consultar in
 ### Android
 
 1. Abrir el enlace en Chrome. Si se abre dentro de WhatsApp, elegir abrir en el navegador.
-2. Tocar **Instalar FAB Deportes** y confirmar.
+2. Tocar **Instalar FAB Movil** y confirmar.
 3. Si el botón no aparece, usar el menú de Chrome: **Instalar aplicación** o **Agregar a pantalla principal → Instalar**, según la versión.
 4. Abrir FAB desde su icono. Iniciar sesión para las funciones administrativas autorizadas.
 
@@ -35,7 +35,7 @@ La página permite instalar cuando el navegador ofrece esa opción, consultar in
 ### Windows
 
 1. Abrir el enlace en Chrome o Microsoft Edge.
-2. Elegir el botón **Instalar FAB Deportes** o el icono de instalación en la barra de direcciones.
+2. Elegir el botón **Instalar FAB Movil** o el icono de instalación en la barra de direcciones.
 3. En Edge también está disponible **Menú → Aplicaciones → Instalar este sitio como una aplicación**.
 
 No hace falta una cuenta de Play Store o App Store para instalar desde el navegador. La PWA requiere un navegador compatible; no reemplaza la APK en tablets que carecen de navegador.

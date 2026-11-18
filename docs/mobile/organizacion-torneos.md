@@ -1,4 +1,4 @@
-# Organización de torneos en FAB Deportes
+# Organización de torneos en FAB Movil
 
 La ruta `GET /app/torneos/{tournament}/organizacion` mantiene al usuario en la aplicación móvil. Requiere correo verificado y el permiso `ManageTournamentCompetition` para el torneo. Actualmente esta organización corresponde a cinco quillas.
 

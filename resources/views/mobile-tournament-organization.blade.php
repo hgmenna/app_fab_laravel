@@ -1,6 +1,6 @@
 <!doctype html><html lang="es" class="dark">
 <head>@include('partials.mobile-pwa-head')<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}">
-<title>Organización · FAB</title>
+<title>Organización · FAB Movil</title>
 @livewireStyles
 @filamentStyles
 {{ filament()->getTheme()->getHtml() }}

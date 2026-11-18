@@ -13,7 +13,7 @@ function displayInstalledState(isInstalled = installed()) {
     for (const element of document.querySelectorAll('[data-pwa-browser-only]')) element.hidden = isInstalled || androidWebView;
     if (button) button.hidden = isInstalled || !promptEvent;
     if (isInstalled && status) {
-        status.textContent = 'FAB Deportes ya está abierta como aplicación.';
+        status.textContent = 'FAB Movil ya está abierta como aplicación.';
         const guides = document.getElementById('pwa-install-guides');
         if (guides) guides.hidden = true;
     }
@@ -22,12 +22,12 @@ window.addEventListener('beforeinstallprompt', event => {
     event.preventDefault();
     promptEvent = event;
     displayInstalledState();
-    if (status && !installed()) status.textContent = 'Todo listo. Tocá Instalar FAB Deportes y confirmá.';
+    if (status && !installed()) status.textContent = 'Todo listo. Tocá Instalar FAB Movil y confirmá.';
 });
 window.addEventListener('appinstalled', () => {
     promptEvent = null;
     displayInstalledState(true);
-    if (status) status.textContent = 'Instalación confirmada. Buscá el icono FAB en tu dispositivo.';
+    if (status) status.textContent = 'Instalación confirmada. Buscá el icono FAB Movil en tu dispositivo.';
 });
 standalone.addEventListener?.('change', () => displayInstalledState());
 button?.addEventListener('click', async () => {
@@ -40,7 +40,7 @@ button?.addEventListener('click', async () => {
         await event.prompt();
         const choice = await event.userChoice;
         if (status) status.textContent = choice.outcome === 'accepted'
-            ? 'El navegador está completando la instalación. Buscá el icono FAB.'
+            ? 'El navegador está completando la instalación. Buscá el icono FAB Movil.'
             : 'Podés instalarla más adelante desde el menú del navegador.';
     } catch {
         if (status) status.textContent = 'Usá el menú del navegador para instalarla siguiendo los pasos de abajo.';
@@ -75,7 +75,7 @@ if (page) {
     document.getElementById('pwa-share-button')?.addEventListener('click', async () => {
         if (!navigator.share) return copyLink();
         try {
-            await navigator.share({title: 'FAB Deportes', text: 'Instalá FAB Deportes: calendario, inscripciones, rankings y resultados de torneos.', url: page.dataset.installUrl});
+            await navigator.share({title: 'FAB Movil', text: 'Instalá FAB Movil: calendario, inscripciones, rankings y resultados de torneos.', url: page.dataset.installUrl});
             shareStatus.textContent = 'Enlace compartido.';
         } catch (error) {
             if (error.name !== 'AbortError') await copyLink();

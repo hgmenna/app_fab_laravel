@@ -1,6 +1,6 @@
 <!doctype html><html lang="es">
 <head>@include('partials.mobile-pwa-head')<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Padrón de jugadores · FAB</title><link rel="stylesheet" href="{{ asset('fab-mobile/app.css') }}"></head>
+<title>Padrón de jugadores · FAB Movil</title><link rel="stylesheet" href="{{ asset('fab-mobile/app.css') }}"></head>
 <body>@include('partials.mobile-header')<main class="wrap ranking">
     <a class="back" href="{{ route('mobile-app') }}">‹ Calendario</a>
     <h1>Padrón de jugadores</h1>

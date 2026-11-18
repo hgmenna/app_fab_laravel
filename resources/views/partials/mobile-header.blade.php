@@ -2,7 +2,7 @@
 <header class="masthead mobile-shell-header">
     <div class="wrap header-inner">
         <a href="{{ route('mobile-app') }}" aria-label="Calendario de FAB"><img src="{{ asset('fab-mobile/icon-192.png') }}" alt="FAB" width="36" height="36"></a>
-        <div><strong>FAB</strong><small>Federación Argentina de Billar</small></div>
+        <div><strong>FAB Movil</strong><small>Federación Argentina de Billar</small></div>
         <details class="app-navigation">
             <summary aria-label="Abrir menú">☰ Menú</summary>
             <nav class="app-menu" aria-label="Navegación principal">

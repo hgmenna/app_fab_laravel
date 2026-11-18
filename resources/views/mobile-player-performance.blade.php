@@ -1,6 +1,6 @@
 <!doctype html><html lang="es">
 <head>@include('partials.mobile-pwa-head')<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Desempeño de jugador · FAB</title><link rel="stylesheet" href="{{ asset('fab-mobile/app.css') }}"></head>
+<title>Desempeño de jugador · FAB Movil</title><link rel="stylesheet" href="{{ asset('fab-mobile/app.css') }}"></head>
 <body>@include('partials.mobile-header')<main class="wrap ranking">
     <a class="back" href="{{ route('mobile-players.index') }}">‹ Padrón de jugadores</a>
     <h1>Desempeño en torneos</h1>

@@ -3,7 +3,7 @@
 <head>@include('partials.mobile-pwa-head')
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Anotarse · FAB</title>
+    <title>Anotarse · FAB Movil</title>
     <link rel="stylesheet" href="{{ asset('fab-mobile/app.css') }}">
     <script type="module" src="{{ asset('fab-mobile/registration.js') }}"></script>
 </head>

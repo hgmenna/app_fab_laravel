@@ -1,7 +1,7 @@
 {
   "id": "/app",
-  "name": "FAB Deportes",
-  "short_name": "FAB",
+  "name": "FAB Movil",
+  "short_name": "FAB Movil",
   "lang": "es-AR",
   "start_url": "/app",
   "scope": "/app",

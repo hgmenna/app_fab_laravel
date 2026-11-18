@@ -4,7 +4,7 @@ beforeEach(fn() => config(['app.key' => 'base64:'.base64_encode(str_repeat('a', 
 
 it('serves the installation page without an account or access to the sports database', function () {
     $this->get('/app/instalar')->assertOk()
-        ->assertSee('Instalar FAB Deportes')
+        ->assertSee('Instalar FAB Movil')
         ->assertSee('iPhone y iPad')
         ->assertSee('Windows y computadoras')
         ->assertSee(route('mobile-app.install'))
