@@ -274,3 +274,36 @@ it('elimina fases con cruces vacíos y protege las fases con partidos programado
     expect($service->configureFormat($competition, $rows))->toBe(1);
     expect($removed->fresh())->toBeNull();
 });
+
+it('guarda desde la acción móvil el resultado y rechaza un partido de otra competencia', function () {
+    foreach (['2026_10_17_180000_add_enabled_to_five_quillas_phases.php', '2026_10_17_232000_add_entry_phase_to_five_quillas_entries.php', '2026_10_18_120000_add_final_position_to_five_quillas_entries.php'] as $migration) { (require database_path('migrations/'.$migration))->up(); }
+    config(['app.key' => 'base64:'.base64_encode(str_repeat('a', 32))]);
+    $tournament = Tournament::query()->findOrFail(DB::table('tournaments')->insertGetId(['tournament_type_id' => null]));
+    $competition = FiveQuillasCompetition::create(['tournament_id' => $tournament->id, 'public_slug' => 'resultado-movil']);
+    $phase = FiveQuillasPhase::create(['competition_id' => $competition->id, 'code' => 'final', 'name' => 'Final', 'phase_type' => 'bracket', 'sort_order' => 1, 'sets_to_play' => 3, 'points_per_set' => 60]);
+    $entries = collect(['A', 'B'])->map(function ($name) use ($competition) {
+        $category = Category::create(['name' => 'Categoría '.$name, 'code' => $name]);
+        $player = Player::create(['first_name' => 'Jugador', 'last_name' => $name, 'category_id' => $category->id]);
+        return FiveQuillasEntry::create(['competition_id' => $competition->id, 'player_id' => $player->id, 'status' => 'eligible']);
+    });
+    $match = FiveQuillasMatch::create(['phase_id' => $phase->id, 'round_number' => 1, 'bracket_order' => 1, 'label' => 'Final', 'player_one_entry_id' => $entries[0]->id, 'player_two_entry_id' => $entries[1]->id]);
+    $mobile = new class extends \App\Livewire\MobileTournamentOrganization {
+        public ?FiveQuillasCompetition $fixture = null;
+        public function competition(): ?FiveQuillasCompetition { return $this->fixture; }
+    };
+    $mobile->record = $tournament;
+    $mobile->fixture = $competition;
+    $action = $mobile->recordResultAction();
+    ($action->getActionFunction())([
+        'match_revision' => $match->fresh()->editRevision(),
+        'player_one_set_1' => 60, 'player_two_set_1' => 32,
+        'player_one_set_2' => 60, 'player_two_set_2' => 45,
+    ], ['matchId' => $match->id], $action);
+    expect($match->fresh()->status)->toBe('completed')
+        ->and((int)$match->fresh()->winner_entry_id)->toBe($entries[0]->id)
+        ->and($match->fresh()->set_scores['sets'][1])->toBe(['player_one_points' => 60, 'player_two_points' => 45]);
+    $mobile->fixture = new FiveQuillasCompetition;
+    $mobile->fixture->id = $competition->id + 1;
+    expect(fn() => ($action->getActionFunction())([], ['matchId' => $match->id], $action))
+        ->toThrow(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+});

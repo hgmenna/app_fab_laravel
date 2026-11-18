@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Tournament;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Filament\Facades\Filament;
 
 class MobileTournamentOrganizationController extends Controller
 {
@@ -14,13 +15,11 @@ class MobileTournamentOrganizationController extends Controller
         abort_unless($user?->hasVerifiedEmail() && $user->canAccessTournament('ManageTournamentCompetition', $tournament), 403);
         abort_unless($tournament->discipline?->code === 'five_quillas', 404);
 
-        $competition = $tournament->fiveQuillasCompetition;
-        $phases = $competition?->phases()->where('is_enabled', true)->get() ?? collect();
-        $phase = $phases->firstWhere('id', $request->integer('fase')) ?? $phases->first();
-        $matches = $phase?->matches()->where('is_bye', false)->with(['playerOne.player', 'playerTwo.player'])
-            ->simplePaginate(15)->withQueryString();
+        // Los formularios reutilizan las acciones del panel, dentro de una interfaz exclusiva de la app.
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Filament::bootCurrentPanel();
 
-        return response()->view('mobile-tournament-organization', compact('tournament', 'phases', 'phase', 'matches'))
+        return response()->view('mobile-tournament-organization', compact('tournament'))
             ->header('Cache-Control', 'private, no-store');
     }
 }
