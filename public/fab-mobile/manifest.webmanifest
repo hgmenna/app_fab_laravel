@@ -1,13 +1,16 @@
 {
   "id": "/app",
-  "name": "Federación Argentina de Billar",
+  "name": "FAB Deportes",
   "short_name": "FAB",
   "lang": "es-AR",
   "start_url": "/app",
-  "scope": "/",
+  "scope": "/app",
   "display": "standalone",
   "background_color": "#0b1422",
   "theme_color": "#111e31",
+  "description": "Calendario deportivo, inscripciones, resultados en vivo, rankings y organización de torneos de la Federación Argentina de Billar.",
+  "categories": ["sports"],
+  "prefer_related_applications": false,
   "icons": [
     {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
     {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"}

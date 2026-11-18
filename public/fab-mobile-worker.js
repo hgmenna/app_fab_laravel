@@ -1,9 +1,12 @@
-/** El calendario y la sesión se obtienen siempre de FAB. El aviso sin red no guarda datos del usuario. */
+/** Solo ofrece una pantalla de recuperación sin red; no almacena páginas ni información personal. */
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
-    if (event.request.mode !== 'navigate' || url.origin !== self.location.origin || url.pathname !== '/app') return;
+    const appPage = url.pathname === '/app' || url.pathname.startsWith('/app/');
+    if (event.request.method !== 'GET' || event.request.mode !== 'navigate' || url.origin !== self.location.origin || !appPage) return;
     event.respondWith(fetch(event.request).catch(() => new Response(
-        '<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>FAB · Sin conexión</title><body style="font:1.1rem system-ui;padding:1.25rem"><h1>Sin conexión</h1><p>Conectate a Internet para consultar el calendario de FAB.</p><a href="/app">Reintentar</a></body></html>',
-        { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } },
+        '<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#111e31"><title>FAB Deportes · Sin conexión</title><style>body{margin:0;background:#0b1422;color:#f0f5fd;font:1.1rem/1.6 system-ui;padding:8vh 6vw}main{max-width:32rem;margin:auto}a{display:inline-block;margin-top:1rem;padding:.8rem 1.2rem;background:#ffca70;color:#182132;border-radius:.6rem;text-decoration:none;font-weight:700}</style><main><strong>FAB Deportes</strong><h1>Sin conexión a Internet</h1><p>Conectate para consultar el calendario y los resultados, inscribirte o administrar torneos.</p><p>No se guardaron cambios desde esta pantalla.</p><a href="">Reintentar</a></main></html>',
+        {status: 503, headers: {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store'}},
     )));
 });

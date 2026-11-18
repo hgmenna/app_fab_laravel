@@ -178,3 +178,12 @@ button:disabled{opacity:.6;cursor:default}
 .development-pairing{margin:1rem 0}
 .development-pairing h2{font-size:1rem}
 .pairing-winner{background:var(--surface);border:1px solid #418bff;border-radius:.4rem;padding:.5rem;text-align:center}
+/* Installation controls are secondary to the calendar; the dedicated page explains each platform. */
+[hidden]{display:none!important}
+.pwa-install-banner{display:flex;align-items:center;gap:.65rem;margin:1rem 0;padding:.7rem;border:1px solid var(--line);background:var(--surface);border-radius:.7rem}
+.pwa-install-banner img{border-radius:.5rem;flex-shrink:0}.pwa-install-banner div{flex:1;min-width:0}.pwa-install-banner strong{font-size:.85rem;display:block}.pwa-install-banner small{display:block;color:var(--muted);font-size:.75rem}.pwa-install-banner .button{font-size:.85rem;flex-shrink:0}
+.pwa-install-page{max-width:42rem;padding-block:1.5rem}.pwa-install-hero>img{border-radius:1rem}.pwa-install-hero h1{font-size:clamp(1.7rem,5vw,2.5rem);margin-top:1rem}.pwa-install-hero>p{color:var(--muted)}
+.pwa-install-actions,.pwa-share-actions{display:flex;gap:.6rem;flex-wrap:wrap;margin:1rem 0}.pwa-install-actions>*{flex:1 1 12rem}
+.pwa-guide{padding:.8rem 1rem;margin:.7rem 0;border:1px solid var(--line);border-radius:.7rem;background:var(--surface)}.pwa-guide summary{color:var(--ink);padding:.35rem 0}.pwa-guide ol{padding-left:1.3rem;margin:.6rem 0}.pwa-guide li{margin:.6rem 0}
+.pwa-notice{border-left:3px solid var(--accent);padding:.7rem;background:var(--surface)}.pwa-share{padding-block:1rem;margin-top:1rem;border-top:1px solid var(--line)}.pwa-share-address{font-size:.85rem}.pwa-share-address input{font-size:.8rem;margin-top:.35rem}
+.pwa-qr{margin:1rem auto;text-align:center}.pwa-qr img{display:block;margin:auto;width:min(100%,18rem);height:auto;background:white;border-radius:.5rem}.pwa-qr figcaption{font-size:.85rem;color:var(--muted);margin:.5rem 0}.pwa-install-note{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:1rem}

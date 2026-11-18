@@ -205,11 +205,6 @@ form.addEventListener('reset', () => setTimeout(() => {
 window.addEventListener('pageshow', event => { if (event.persisted) void loadCalendar(); });
 void loadCalendar();
 
-if ('serviceWorker' in navigator) {
-    const worker = new URL('../fab-mobile-worker.js', import.meta.url);
-    void navigator.serviceWorker.register(worker, { scope: '/app' }).catch(() => {});
-}
-
 const navigation = document.querySelector('.app-navigation');
 const sections = [...navigation.querySelectorAll('[data-section]')];
 const ranking = mobileRanking();

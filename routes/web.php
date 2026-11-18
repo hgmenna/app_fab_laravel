@@ -62,6 +62,8 @@ Route::get('/debug-path', function () {
 Route::get('/app', \App\Http\Controllers\MobileAppController::class)
     ->name('mobile-app');
 
+Route::view('/app/instalar', 'mobile-install')->name('mobile-app.install');
+
 Route::get('/app/torneos/{tournament}/inscripcion', [\App\Http\Controllers\MobileRegistrationController::class, 'show'])->name('mobile-registration.show');
 Route::get('/app/torneos/{tournament}/inscripcion/opciones', [\App\Http\Controllers\MobileRegistrationController::class, 'options'])->middleware('throttle:60,1')->name('mobile-registration.options');
 Route::post('/app/torneos/{tournament}/inscripcion', [\App\Http\Controllers\MobileRegistrationController::class, 'store'])->middleware('throttle:15,1')->name('mobile-registration.store');

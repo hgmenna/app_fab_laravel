@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="es">
-<head>
+<head>@include('partials.mobile-pwa-head')
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Anotarse · FAB</title>

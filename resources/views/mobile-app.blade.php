@@ -3,11 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#111e31">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    @include('partials.mobile-pwa-head')
     <title>FAB · Calendario deportivo</title>
-    <link rel="manifest" href="{{ asset('fab-mobile/manifest.webmanifest') }}">
-    <link rel="apple-touch-icon" href="{{ asset('fab-mobile/icon-192.png') }}">
     <link rel="stylesheet" href="{{ asset('fab-mobile/app.css') . '?v=' . filemtime(base_path('public/fab-mobile/app.css')) }}">
     <script type="module" src="{{ asset('fab-mobile/app.js') . '?v=' . filemtime(base_path('public/fab-mobile/app.js')) }}"></script>
 </head>
@@ -33,6 +30,11 @@
     </div>
 </header>
 <main class="wrap">
+<aside class="pwa-install-banner" data-pwa-browser-only>
+    <img src="{{ asset('fab-mobile/icon-192.png') }}" alt="" width="40" height="40">
+    <div><strong>FAB Deportes en tu celular</strong><small>Instalá la app desde este enlace.</small></div>
+    <a class="button" href="{{ route('mobile-app.install') }}">Instalar</a>
+</aside>
 <section id="calendario" aria-labelledby="calendar-title">
     <h1 id="calendar-title">Calendario deportivo</h1>
     <form id="filters" data-endpoint="{{ route('mobile-app.calendar') }}" data-results="{{ route('mobile-results.show', ['slug' => 'result-slug']) }}" data-registration="{{ route('mobile-registration.show', ['tournament' => '__TOURNAMENT__']) }}">
@@ -81,11 +83,6 @@
         </table>
         <button id="ranking-more" type="button" class="icon-button secondary" hidden aria-label="Ver más jugadores" title="Ver más jugadores"><x-fab-icon name="more" /></button>
     </section>
-    <details class="install">
-        <summary>Instalar en el celular</summary>
-        <p><strong>Android</strong> · En Chrome, abrí el menú y elegí <em>Instalar aplicación</em> o <em>Agregar a pantalla principal</em>.</p>
-        <p><strong>iPhone</strong> · En Safari, tocá <em>Compartir</em> y elegí <em>Agregar a pantalla de inicio</em>.</p>
-    </details>
 </main>
 
 @include('partials.mobile-footer')
