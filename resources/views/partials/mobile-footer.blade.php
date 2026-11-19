@@ -3,6 +3,6 @@
     <span>{{ config('cliente.proveedor.actividad') ?: 'Desarrollo y Arquitectura de Software' }}</span>
     <div><a href="mailto:{{ config('cliente.proveedor.email') ?: 'hgmenna@hotmail.com' }}">{{ config('cliente.proveedor.email') ?: 'hgmenna@hotmail.com' }}</a>
         <a href="tel:+5493415988191">{{ config('cliente.proveedor.telefono') ?: '+54 9 341 598 8191' }}</a></div>
-    <small>FAB Movil · Versión 1.0.6</small>
+    <small>FAB Movil · Versión 1.0.7</small>
     <a href="{{ route('mobile-app.install') }}" data-pwa-browser-only>Instalar FAB Movil</a>
 </footer>

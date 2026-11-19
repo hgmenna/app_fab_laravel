@@ -42,9 +42,39 @@ class TournamentRegistration extends Model
         'player_ids' => 'array',
     ];
 
+    /** Serializa las altas y modificaciones de la web y la app antes de validar cupos y duplicados. */
+    public function save(array $options = [])
+    {
+        return $this->getConnection()->transaction(function () use ($options) {
+            if ($this->tournament_id) {
+                Tournament::query()->whereKey($this->tournament_id)->lockForUpdate()->first(['id']);
+            }
+
+            return parent::save($options);
+        });
+    }
+
     public function tournament()
     {
         return $this->belongsTo(Tournament::class);
+    }
+
+    /** Comprueba el cupo actual bajo el bloqueo del torneo, tanto al crear como al cambiar de horario o estado. */
+    private static function validateSlotCapacity(self $registration): void
+    {
+        if (! $registration->tournament_slot_id) return;
+        $slot = TournamentSlot::query()->where('tournament_id', $registration->tournament_id)
+            ->where('tournament_modality_id', $registration->tournament_modality_id)->find($registration->tournament_slot_id);
+        if (! $slot) {
+            throw ValidationException::withMessages(['tournament_slot_id' => 'El horario seleccionado no pertenece a la modalidad elegida.']);
+        }
+        if ($slot->max_players !== null && ! in_array($registration->status, ['denegado', 'rechazado'], true)) {
+            $occupied = $slot->registrations()->whereNotIn('status', ['denegado', 'rechazado'])
+                ->when($registration->exists, fn($query) => $query->whereKeyNot($registration->getKey()))->count();
+            if ($occupied + 1 > $slot->max_players) {
+                throw ValidationException::withMessages(['tournament_slot_id' => 'El horario no tiene lugares suficientes para esta inscripción.']);
+            }
+        }
     }
 
     public function bankTransferOrderItems()
@@ -142,6 +172,10 @@ class TournamentRegistration extends Model
                 'player_id',
                 'partner_player_id',
             ])) {
+                // Un cambio de horario/estado revalida cupos, sin volver a evaluar la elegibilidad histórica del jugador.
+                if ($registration->isDirty(['tournament_slot_id', 'status'])) {
+                    static::validateSlotCapacity($registration);
+                }
                 return;
             }
 
@@ -191,38 +225,7 @@ class TournamentRegistration extends Model
                 ]);
             }
 
-            if ($registration->tournament_slot_id) {
-                $slot = TournamentSlot::query()
-                    ->where('tournament_id', $tournament->id)
-                    ->where('tournament_modality_id', $configuration->id)
-                    ->find($registration->tournament_slot_id);
-
-                if (! $slot) {
-                    throw ValidationException::withMessages([
-                        'tournament_slot_id' => 'El horario seleccionado no pertenece a la modalidad elegida.',
-                    ]);
-                }
-
-                if ($slot->max_players !== null) {
-                    $occupiedPlaces = $slot->registrations()
-                        ->where('status', '!=', 'denegado')
-                        ->when(
-                            $registration->exists,
-                            fn ($query) => $query->whereKeyNot($registration->getKey())
-                        )
-                        ->count();
-
-                    $requiredPlaces = $registration->status === 'denegado'
-                        ? 0
-                        : 1;
-
-                    if ($occupiedPlaces + $requiredPlaces > $slot->max_players) {
-                        throw ValidationException::withMessages([
-                            'tournament_slot_id' => 'El horario no tiene lugares suficientes para esta inscripción.',
-                        ]);
-                    }
-                }
-            }
+            static::validateSlotCapacity($registration);
 
             $players = $playerIds->mapWithKeys(fn (int $id, int $index) => ["player_ids.{$index}" => $id]);
 

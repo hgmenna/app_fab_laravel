@@ -1,9 +1,14 @@
 import { mobileRanking } from './ranking.js';
+import { startLiveRefresh } from './live-refresh.js';
 
 const form = document.querySelector('#filters');
 const list = document.querySelector('#tournaments');
 const status = document.querySelector('#calendar-status');
 let current;
+let calendarLoading = false;
+let calendarLoaded = false;
+let lastCalendarQuery = '';
+let renderedTournaments = new Map();
 
 function node(tag, text, className) {
     const element = document.createElement(tag);
@@ -89,6 +94,7 @@ function addContacts(details, tournament) {
 
 function tournamentCard(tournament) {
     const card = node('article', '', 'tournament');
+    card.dataset.tournamentId = String(tournament.id);
     const top = node('div', '', 'card-top');
     top.append(node('span', tournament.disciplina), node('span', tournament.estado_torneo, 'badge'));
     card.append(top, node('h2', tournament.torneo));
@@ -140,34 +146,84 @@ function tournamentCard(tournament) {
     return card;
 }
 
-async function loadCalendar() {
+/** Actualiza solo los registros modificados: conserva detalles abiertos, filtros y posición de lectura. */
+function updateCalendar(data, preservePosition) {
+    const anchor = preservePosition ? [...list.children].find(card => card.getBoundingClientRect().bottom > 0) : null;
+    const anchorTop = anchor?.getBoundingClientRect().top;
+    const next = new Map();
+    for (const tournament of data) {
+        const key = String(tournament.id);
+        const fingerprint = JSON.stringify(tournament);
+        const previous = renderedTournaments.get(key);
+        const element = previous?.fingerprint === fingerprint ? previous.element : tournamentCard(tournament);
+        if (previous && element !== previous.element) {
+            for (const selector of ['.tournament-details', '.contacts']) {
+                const oldDetails = previous.element.querySelector(selector);
+                const newDetails = element.querySelector(selector);
+                if (oldDetails && newDetails) newDetails.open = oldDetails.open;
+            }
+        }
+        next.set(key, {fingerprint, element});
+    }
+    let index = 0;
+    for (const {element} of next.values()) {
+        if (list.children[index] !== element) list.insertBefore(element, list.children[index] ?? null);
+        index++;
+    }
+    for (const element of [...list.children]) if (!next.has(element.dataset.tournamentId) || next.get(element.dataset.tournamentId).element !== element) element.remove();
+    renderedTournaments = next;
+    const restored = anchor && next.get(anchor.dataset.tournamentId)?.element;
+    if (restored && anchorTop != null) window.scrollBy(0, restored.getBoundingClientRect().top - anchorTop);
+}
+
+async function loadCalendar({background = false} = {}) {
+    // Los eventos de foco y conexión pueden llegar juntos; no duplican una consulta pendiente.
+    if (background && calendarLoading) return;
     current?.abort();
     const request = new AbortController();
     current = request;
+    calendarLoading = true;
     const url = new URL(form.dataset.endpoint);
     for (const [key, value] of new FormData(form)) if (value) url.searchParams.set(key, value);
-    status.textContent = 'Cargando torneos…';
-    list.setAttribute('aria-busy', 'true');
+    const quiet = background && calendarLoaded;
+    if (!quiet) {
+        status.textContent = 'Cargando torneos…';
+        list.setAttribute('aria-busy', 'true');
+    }
+    const timeout = setTimeout(() => request.abort(), 15000);
     try {
-        const response = await fetch(url, { headers: { Accept: 'application/json' }, signal: request.signal });
+        const response = await fetch(url, {cache: 'no-store', headers: { Accept: 'application/json' }, signal: request.signal });
         if (!response.ok) throw Error(response.status === 422 ? 'Revisá los filtros, en especial el rango de fechas.' : 'No pudimos cargar el calendario.');
         const { data, meta } = await response.json();
         if (current !== request) return;
         const year = form.elements.anio;
-        if (year.options.length === 1) {
-            for (const value of meta.anios ?? []) {
+        const selectedYear = year.value;
+        const years = [...new Set([...(meta.anios ?? []).map(String), ...(selectedYear ? [selectedYear] : [])])].sort((one, two) => Number(two) - Number(one));
+        if (JSON.stringify([...year.options].slice(1).map(option => option.value)) !== JSON.stringify(years)) {
+            year.replaceChildren(node('option', 'Todos'));
+            year.options[0].value = '';
+            for (const value of years) {
                 const option = node('option', String(value));
                 option.value = String(value);
                 year.append(option);
             }
+            year.value = selectedYear;
         }
-        list.replaceChildren(...data.map(tournamentCard));
+        updateCalendar(data, quiet && lastCalendarQuery === url.href);
+        lastCalendarQuery = url.href;
+        calendarLoaded = true;
         status.textContent = data.length ? data.length + (data.length === 1 ? ' torneo' : ' torneos') : 'No hay torneos para los filtros elegidos.';
     } catch (error) {
-        if (request.signal.aborted) return;
-        status.textContent = error instanceof TypeError ? 'Sin conexión. Revisá la red y volvé a aplicar los filtros.' : error.message;
+        if (current !== request) return;
+        status.textContent = quiet
+            ? 'No se pudo actualizar el calendario. Se conserva la última información y se reintentará automáticamente.'
+            : request.signal.aborted || error instanceof TypeError ? 'No se pudo conectar. Revisá la red; se reintentará automáticamente.' : error.message;
     } finally {
-        if (current === request) list.removeAttribute('aria-busy');
+        clearTimeout(timeout);
+        if (current === request) {
+            calendarLoading = false;
+            list.removeAttribute('aria-busy');
+        }
     }
 }
 
@@ -202,11 +258,8 @@ form.addEventListener('reset', () => setTimeout(() => {
     filterCategories();
     void loadCalendar();
 }, 0));
-window.addEventListener('pageshow', event => { if (event.persisted) void loadCalendar(); });
-void loadCalendar();
 
 const navigation = document.querySelector('.app-navigation');
-const sections = [...navigation.querySelectorAll('[data-section]')];
 const ranking = mobileRanking();
 
 function showSection() {
@@ -215,7 +268,8 @@ function showSection() {
     document.getElementById('ranking').hidden = !key;
     document.getElementById('calendario').hidden = Boolean(key);
     if (key) void ranking.open(key);
-    for (const link of sections) {
+    else void loadCalendar({background: true});
+    for (const link of navigation.querySelectorAll('[data-section]')) {
         if (link.dataset.section === active) link.setAttribute('aria-current', 'page');
         else link.removeAttribute('aria-current');
     }
@@ -229,3 +283,4 @@ window.addEventListener('hashchange', () => {
     window.scrollTo(0, 0);
 });
 showSection();
+startLiveRefresh(() => { void loadCalendar({background: true}); }, () => !document.getElementById('calendario').hidden);

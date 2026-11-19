@@ -14,6 +14,8 @@ it('serves the installation page without an account or access to the sports data
 it('serves the PWA installation assets through Laravel for separate public directories', function () {
     $this->get('/fab-mobile/manifest.webmanifest')->assertOk()->assertHeader('Content-Type', 'application/manifest+json');
     $this->get('/fab-mobile/install.js')->assertOk()->assertHeader('Content-Type', 'text/javascript; charset=utf-8');
+    $this->get('/fab-mobile/live-refresh.js')->assertOk();
+    $this->get('/fab-mobile/live-updates.js')->assertOk();
     $this->get('/fab-mobile/install-qr.png')->assertOk()->assertHeader('Content-Type', 'image/png');
     $this->get('/fab-mobile-worker.js')->assertOk()->assertHeader('Cache-Control', 'no-cache, public');
     $this->get('/fab-mobile/private-file.txt')->assertNotFound();

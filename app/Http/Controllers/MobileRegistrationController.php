@@ -7,6 +7,7 @@ use App\Filament\Resources\BankTransferOrders\BankTransferOrderResource;
 use App\Filament\Resources\TournamentRegistrations\Schemas\TournamentRegistrationForm;
 use App\Models\Tournament;
 use App\Models\TournamentRegistration;
+use App\Services\TournamentSlotAvailability;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,23 +33,16 @@ class MobileRegistrationController extends Controller
     {
         $this->authorizeRegistration($request, $tournament);
         abort_unless($tournament->isRegistrationOpen(), 409, 'La inscripción está cerrada.');
-        $data = $request->validate(['modality' => ['required', 'integer', 'min:1']]);
-        $modality = $tournament->tournamentModalities()->with('modality')->findOrFail($data['modality']);
+        $data = $request->validate(['modality' => ['nullable', 'integer', 'min:1']]);
+        $modalities = $tournament->tournamentModalities()->with('modality')->get();
+        $modality = $modalities->firstWhere('id', $data['modality'] ?? null);
 
         return response()->json([
-            'required' => (int) $modality->modality->players_per_registration,
-            'players' => collect(TournamentRegistrationForm::eligiblePlayers($modality->id))
+            'modalities' => $modalities->map(fn ($item) => ['id' => $item->id, 'name' => $item->modality->name]),
+            'required' => (int) $modality?->modality?->players_per_registration,
+            'players' => collect($modality ? TournamentRegistrationForm::eligiblePlayers($modality->id) : [])
                 ->map(fn ($name, $id) => ['id' => $id, 'name' => $name])->values(),
-            'slots' => $tournament->slots()->where('tournament_modality_id', $modality->id)
-                ->where('is_active', true)->orderBy('starts_at')
-                ->withCount(['registrations as occupied_places' => fn ($query) => $query->where('status', '!=', 'denegado')])
-                ->get()->map(fn ($slot) => [
-                    'id' => $slot->id,
-                    'name' => $slot->name,
-                    'starts_at' => $slot->starts_at?->format('d/m/Y H:i'),
-                    'capacity' => $slot->max_players,
-                    'remaining' => $slot->max_players === null ? null : max(0, $slot->max_players - $slot->occupied_places),
-                ])->values(),
+            ...app(TournamentSlotAvailability::class)->options($modality),
         ])->header('Cache-Control', 'private, no-store');
     }
 
@@ -67,11 +61,10 @@ class MobileRegistrationController extends Controller
             if (! $locked->isRegistrationOpen()) {
                 throw ValidationException::withMessages(['tournament_modality_id' => 'La inscripción está cerrada.']);
             }
-            if (! empty($data['tournament_slot_id']) && ! $locked->slots()
-                ->where('tournament_modality_id', $data['tournament_modality_id'])
-                ->where('is_active', true)->whereKey($data['tournament_slot_id'])->exists()) {
-                throw ValidationException::withMessages(['tournament_slot_id' => 'Elegí un horario habilitado para esta modalidad.']);
-            }
+            $modality = $locked->tournamentModalities()->findOrFail($data['tournament_modality_id']);
+            app(TournamentSlotAvailability::class)->assertAvailable($modality, $data['tournament_slot_id'] ?? null);
+
+            // La validación del modelo vuelve a contar los cupos dentro del bloqueo compartido con la web.
 
             return $locked->registrations()->create([...$data, 'status' => 'pendiente']);
         });

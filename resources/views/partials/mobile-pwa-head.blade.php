@@ -8,3 +8,5 @@
 <link rel="icon" type="image/png" href="{{ asset('fab-mobile/icon-192.png') }}">
 <link rel="apple-touch-icon" href="{{ asset('fab-mobile/icon-192.png') }}">
 <script type="module" src="{{ asset('fab-mobile/install.js').'?v='.filemtime(base_path('public/fab-mobile/install.js')) }}"></script>
+<meta name="mobile-app-state" content="{{ route('mobile-app.state') }}">
+<script type="module" src="{{ asset('fab-mobile/live-updates.js').'?v='.filemtime(base_path('public/fab-mobile/live-updates.js')) }}"></script>

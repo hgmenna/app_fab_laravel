@@ -1,3 +1,5 @@
+import { startLiveRefresh } from './live-refresh.js';
+
 export function mobileRanking() {
     const panel = document.getElementById('ranking');
     const title = document.getElementById('ranking-title');
@@ -12,6 +14,8 @@ export function mobileRanking() {
     let limit = 30;
     let season;
     let selected;
+    let loading = false;
+    let fingerprint = '';
 
     function append(parent, tag, value, className) {
         const item = document.createElement(tag);
@@ -46,25 +50,30 @@ export function mobileRanking() {
             : 'No hay jugadores para mostrar.'].filter(Boolean).join(' · ');
     }
 
-    async function open(key) {
-        if (selected === key) return;
+    async function open(key, {background = false} = {}) {
+        if (background && loading) return;
+        const changedSection = selected !== key;
         selected = key;
         request?.abort();
         const current = new AbortController();
         request = current;
+        loading = true;
+        const timeout = setTimeout(() => current.abort(), 15000);
         title.textContent = key === 'five' ? 'Ranking de 5 Quillas' : 'Ranking de 3 Bandas';
-        rows = [];
-        season = null;
-        search.value = '';
-        category.replaceChildren(new Option('Todas', ''));
-        list.replaceChildren();
-        more.hidden = true;
-        status.textContent = 'Cargando ranking…';
+        if (changedSection) {
+            rows = []; season = null; fingerprint = ''; limit = 30;
+            search.value = ''; category.replaceChildren(new Option('Todas', ''));
+            list.replaceChildren(); more.hidden = true;
+        }
+        if (!background || changedSection) status.textContent = 'Cargando ranking…';
         try {
-            const response = await fetch(panel.dataset[key], { headers: { Accept: 'application/json' }, signal: current.signal });
+            const response = await fetch(panel.dataset[key], { cache: 'no-store', headers: { Accept: 'application/json' }, signal: current.signal });
             if (!response.ok) throw Error('No se pudo cargar el ranking. Volvé a intentarlo.');
             const result = await response.json();
             if (request !== current) return;
+            const nextFingerprint = JSON.stringify([result.season, result.meta?.season, result.data]);
+            if (fingerprint === nextFingerprint) { renderStatus(); return; }
+            fingerprint = nextFingerprint;
             season = result.season ?? result.meta?.season ?? null;
             rows = result.data.filter(row => row.jugador ?? row.player).map(row => ({
                 name: row.jugador ?? row.player,
@@ -75,20 +84,29 @@ export function mobileRanking() {
                 points: Number(row.puntos_total ?? row.ranking_points),
             }));
             const categories = [...new Set(rows.map(row => row.category).filter(Boolean))];
-            category.append(...categories.sort((a, b) => String(a).localeCompare(String(b), 'es')).map(value => new Option(value, value)));
-            limit = 30;
+            const previousCategory = category.value;
+            category.replaceChildren(new Option('Todas', ''), ...categories.sort((a, b) => String(a).localeCompare(String(b), 'es')).map(value => new Option(value, value)));
+            if (categories.includes(previousCategory)) category.value = previousCategory;
             render();
         } catch (error) {
             if (request === current && !current.signal.aborted) {
-                selected = null;
-                status.textContent = error.message;
+                status.textContent = rows.length ? 'No se pudo actualizar el ranking. Se conserva la última información y se reintentará automáticamente.' : 'No se pudo cargar el ranking. Se reintentará automáticamente.';
             }
+        } finally {
+            clearTimeout(timeout);
+            if (request === current) loading = false;
         }
     }
 
     search.addEventListener('input', () => { limit = 30; render(); });
     category.addEventListener('change', () => { limit = 30; render(); });
     more.addEventListener('click', () => { limit += 30; render(); });
+    function renderStatus() {
+        const term = normalize(search.value.trim());
+        const count = rows.filter(row => (!category.value || row.category === category.value) && normalize(row.name).includes(term)).length;
+        status.textContent = [season && 'Temporada ' + season, count ? count + (count === 1 ? ' jugador' : ' jugadores') : 'No hay jugadores para mostrar.'].filter(Boolean).join(' · ');
+    }
+    startLiveRefresh(() => { if (selected) void open(selected, {background: true}); }, () => !panel.hidden);
 
     return { open };
 }

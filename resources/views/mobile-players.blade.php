@@ -34,10 +34,10 @@
         </details>
         <div class="actions"><button type="submit" class="icon-button" aria-label="Buscar" title="Buscar"><x-fab-icon name="search" /></button><a class="icon-button button secondary" href="{{ route('mobile-players.index') }}" aria-label="Limpiar" title="Limpiar"><x-fab-icon name="reset" /></a></div>
     </form>
-    <ul class="ranking-results">
+    <section data-live-region="directory"><ul class="ranking-results">
         @forelse ($players as $player)
             @php($rank = ($rankings ?? collect())->get($player->id))
-            <li class="directory-entry">
+            <li class="directory-entry" data-live-key="player-{{ $player->id }}">
                 <details>
                     <summary class="directory-summary">
                         <span><strong>{{ $player->full_name }}</strong>
@@ -68,5 +68,6 @@
         @if ($players->previousPageUrl())<a class="button secondary icon-button" href="{{ $players->previousPageUrl() }}" aria-label="Anterior" title="Anterior"><x-fab-icon name="previous" /></a>@endif
         @if ($players->nextPageUrl())<a class="button secondary icon-button" href="{{ $players->nextPageUrl() }}" aria-label="Siguiente" title="Siguiente"><x-fab-icon name="next" /></a>@endif
     </nav>
+    </section>
 </main>@include('partials.mobile-footer')
 </body></html>

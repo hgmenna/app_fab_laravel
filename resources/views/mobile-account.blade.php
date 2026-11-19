@@ -3,7 +3,7 @@
 <title>Cuenta · FAB Movil</title><link rel="stylesheet" href="{{ asset('fab-mobile/app.css') }}"></head>
 <body>@include('partials.mobile-header')<main class="wrap registration-screen">
     <a class="back" href="{{ route('mobile-app') }}">‹ Calendario</a>
-    @if ($user)
+    <section data-live-region="account">@if ($user)
         <h1>Mi cuenta</h1><p>{{ $user->name }}</p>
         <form method="post" action="{{ route('mobile-account.logout') }}">@csrf<button type="submit" class="icon-button" aria-label="Cerrar sesión" title="Cerrar sesión"><x-fab-icon name="signout" /></button></form>
     @else
@@ -19,5 +19,6 @@
             <button type="submit" @disabled(!empty($localPreview)) class="icon-button" aria-label="Ingresar" title="Ingresar"><x-fab-icon name="signin" /></button>
         </form>
     @endif
+    </section>
 </main>@include('partials.mobile-footer')
 </body></html>

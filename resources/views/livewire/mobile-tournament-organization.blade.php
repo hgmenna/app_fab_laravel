@@ -1,4 +1,5 @@
 <div class="mobile-competition" wire:key="mobile-competition-{{ $this->record->id }}">
+    @if($this->mountedActions === [])<span wire:poll.30s="refreshCompetitionView" aria-hidden="true"></span>@endif
     <h2>{{ $this->record->name }}</h2>
     <details class="mobile-operation-menu"><summary>Configuración y publicación</summary>
         <div class="mobile-operation-actions">

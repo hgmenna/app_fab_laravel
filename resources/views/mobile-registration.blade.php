@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Anotarse · FAB Movil</title>
     <link rel="stylesheet" href="{{ asset('fab-mobile/app.css') }}">
-    <script type="module" src="{{ asset('fab-mobile/registration.js') }}"></script>
+    <script type="module" src="{{ asset('fab-mobile/registration.js').'?v='.filemtime(base_path('public/fab-mobile/registration.js')) }}"></script>
 </head>
 <body>@include('partials.mobile-header')
 <main class="wrap registration-screen">
     <a class="back" href="{{ route('mobile-app') }}">‹ Calendario</a>
-    <h1>Anotarse</h1>
+    <section data-live-region="registration" @if($confirmation && $confirmation['tournament_id'] === $tournament->id) data-live-final @endif><h1>Anotarse</h1>
     <h2>{{ $tournament->name }}</h2>
     @if ($confirmation && $confirmation['tournament_id'] === $tournament->id)
         <p role="status">Inscripción registrada.</p>
@@ -45,6 +45,7 @@
             <button type="submit" disabled class="icon-button" aria-label="Confirmar inscripción" title="Confirmar inscripción"><x-fab-icon name="check" /></button>
         </form>
     @endif
+    </section>
 </main>
 @include('partials.mobile-footer')
 </body>

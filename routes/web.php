@@ -73,6 +73,7 @@ Route::get('/app/jugadores/{player}/desempeno', [\App\Http\Controllers\MobilePla
     ->whereNumber('player')->name('mobile-players.performance');
 
 Route::get('/app/calendario.json', UpcomingTournamentsController::class)->name('mobile-app.calendar');
+Route::get('/app/estado.json', \App\Http\Controllers\MobileAppStateController::class)->name('mobile-app.state');
 Route::get('/app/torneos/{tournament}/organizacion', \App\Http\Controllers\MobileTournamentOrganizationController::class)
     ->name('mobile-tournament.organization');
 

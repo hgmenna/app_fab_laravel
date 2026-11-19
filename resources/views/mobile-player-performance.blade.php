@@ -3,13 +3,13 @@
 <title>Desempeño de jugador · FAB Movil</title><link rel="stylesheet" href="{{ asset('fab-mobile/app.css') }}"></head>
 <body>@include('partials.mobile-header')<main class="wrap ranking">
     <a class="back" href="{{ route('mobile-players.index') }}">‹ Padrón de jugadores</a>
-    <h1>Desempeño en torneos</h1>
+    <section data-live-region="performance"><h1>Desempeño en torneos</h1>
     @if (!empty($livePublicPerformance))<p class="muted">Historial público de desempeño de FAB</p>@endif
     <h2>{{ $record->full_name }}</h2>
     <ul class="ranking-results">
         @forelse ($rows as $row)
             @php($score = $row->performance_score)
-            <li class="ranking-row player-directory-row">
+            <li class="ranking-row player-directory-row" data-live-key="performance-{{ $row->id ?? $loop->index }}">
                 <div class="ranking-player">
                     <strong>{{ $row->tournament->name }}</strong>
                     <small>{{ collect([$row->dateLabel ?? $row->tournament->end_date?->format('d/m/Y'), $row->tournament->type?->name, $row->tournament->discipline?->name])->filter()->join(' · ') }}</small>
@@ -28,5 +28,6 @@
         @if ($rows->previousPageUrl())<a class="button secondary icon-button" href="{{ $rows->previousPageUrl() }}" aria-label="Anterior" title="Anterior"><x-fab-icon name="previous" /></a>@endif
         @if ($rows->nextPageUrl())<a class="button secondary icon-button" href="{{ $rows->nextPageUrl() }}" aria-label="Siguiente" title="Siguiente"><x-fab-icon name="next" /></a>@endif
     </nav>
+    </section>
 </main>@include('partials.mobile-footer')
 </body></html>

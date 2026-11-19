@@ -10,6 +10,8 @@ class MobileAssetController extends Controller
     {
         $types = [
             'app.js' => 'text/javascript',
+            'live-refresh.js' => 'text/javascript',
+            'live-updates.js' => 'text/javascript',
             'ranking.js' => 'text/javascript',
             'registration.js' => 'text/javascript',
             'results.js' => 'text/javascript',

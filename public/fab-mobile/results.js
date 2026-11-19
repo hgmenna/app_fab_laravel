@@ -1,3 +1,5 @@
+import { startLiveRefresh } from './live-refresh.js';
+
 const screen = document.getElementById('mobile-results');
 const title = document.getElementById('results-title');
 const selector = document.getElementById('results-phase');
@@ -147,8 +149,16 @@ function render() {
 async function load() {
     if (loading) return;
     loading = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-        const response = await fetch(screen.dataset.source, {cache: 'no-store', headers: {Accept: 'application/json'}});
+        const response = await fetch(screen.dataset.source, {cache: 'no-store', headers: {Accept: 'application/json'}, signal: controller.signal});
+        if ([403, 404].includes(response.status)) {
+            data = undefined; fingerprint = undefined;
+            rows.replaceChildren(); filters.replaceChildren(); selector.replaceChildren(); selector.disabled = true;
+            status.textContent = 'El desarrollo del torneo ya no está disponible para este acceso.';
+            return;
+        }
         if (!response.ok) throw Error('Resultados no disponibles');
         const payload = (await response.json()).data;
         const nextFingerprint = JSON.stringify(payload);
@@ -167,9 +177,8 @@ async function load() {
         rows.querySelectorAll('.development-scroll').forEach((element, index) => { element.scrollLeft = positions[index] || 0; });
     } catch {
         status.textContent = data ? 'No se pudo actualizar. Se conservan los últimos resultados; se reintentará automáticamente.' : 'No se pudieron cargar los resultados. Se reintentará automáticamente.';
-    } finally { loading = false; }
+    } finally { clearTimeout(timeout); loading = false; }
 }
 selector.addEventListener('change', () => { selectedZone = ''; subsection = 'bracket'; render(); });
-setInterval(() => { if (!document.hidden) void load(); }, 10000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) void load(); });
+startLiveRefresh(() => { void load(); }, () => true, {every: 10000});
 void load();

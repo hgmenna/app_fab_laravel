@@ -52,7 +52,7 @@ class TournamentSlot extends Model
     public function occupiedPlaces(): int
     {
         return $this->registrations()
-            ->where('status', '!=', 'denegado')
+            ->whereNotIn('status', ['denegado', 'rechazado'])
             ->count();
     }
 }
