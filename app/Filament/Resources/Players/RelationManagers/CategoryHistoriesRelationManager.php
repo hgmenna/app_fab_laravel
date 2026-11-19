@@ -12,6 +12,7 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Filament\Tables\Enums\RecordActionsPosition;
 
 class CategoryHistoriesRelationManager extends RelationManager
 {
@@ -138,9 +139,9 @@ class CategoryHistoriesRelationManager extends RelationManager
                     PlayerCategoryHistoryActions::view(),
                     PlayerCategoryHistoryActions::edit(),
                     PlayerCategoryHistoryActions::delete(),
-                ]),
+                ])->iconButton()->tooltip('Acciones'),
                 //
-            ])
+            ], position: RecordActionsPosition::BeforeColumns)
             ->toolbarActions([
                 //
             ]);

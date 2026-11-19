@@ -5,6 +5,8 @@ namespace App\Filament\Resources\Players\Pages;
 use App\Filament\Resources\Players\PlayerResource;
 use App\Models\PlayerCategoryHistory;
 use App\Filament\Actions\PlayerCategoryHistoryActions;
+use App\Filament\Actions\GlobalActionGroup;
+use Filament\Tables\Enums\RecordActionsPosition;
 use Filament\Resources\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -199,7 +201,13 @@ class CategoryChangesReport extends Page implements HasTable
                     ->width('130px'),
             ])
             
-            ->recordActions([PlayerCategoryHistoryActions::view(), PlayerCategoryHistoryActions::edit(), PlayerCategoryHistoryActions::delete()])
+            ->recordActions([
+                GlobalActionGroup::make([
+                    PlayerCategoryHistoryActions::view(),
+                    PlayerCategoryHistoryActions::edit(),
+                    PlayerCategoryHistoryActions::delete(),
+                ])->iconButton()->tooltip('Acciones'),
+            ], position: RecordActionsPosition::BeforeColumns)
             ->filters([
             SelectFilter::make('season')
                 ->label('Temporada')
