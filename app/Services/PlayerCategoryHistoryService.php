@@ -322,6 +322,7 @@ class PlayerCategoryHistoryService
         $lastHistory = PlayerCategoryHistory::query()
             ->where('player_id', $player->id)
             ->whereNotNull('applied_at')
+            ->whereHas('category', fn($query) => $query->where('discipline_id', $player->discipline_id))
             ->whereIn('source', [
                 'affiliation',
                 'ranking',
@@ -365,6 +366,8 @@ class PlayerCategoryHistoryService
     public function getPlayersWithEffectiveTemporaryRankingCategory(): Collection
     {
         $latestHistories = PlayerCategoryHistory::query()
+            ->whereHas('player.discipline', fn($query) => $query->where('code', 'five_quillas'))
+            ->whereHas('category.discipline', fn($query) => $query->where('code', 'five_quillas'))
             ->whereNotNull('applied_at')
             ->whereIn('source', [
                 'affiliation',

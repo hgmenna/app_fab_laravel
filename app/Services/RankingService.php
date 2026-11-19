@@ -505,13 +505,12 @@ class RankingService
 
         $players = Player::query()
             ->with('category')
+            ->where('discipline_id', $latestRankingTournament->discipline_id)
             ->whereIn('id', $playerIds)
             ->get()
             ->keyBy('id');
 
-        $categories = Category::query()
-            ->get()
-            ->keyBy('code');
+        $categories = PlayerCategoryDiscipline::categories((int)$latestRankingTournament->discipline_id);
 
         DB::transaction(function () use (
             $data,

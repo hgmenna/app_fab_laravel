@@ -6,6 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class PlayerCategoryHistory extends Model
 {
+    /** Impide registrar cruces de disciplinas desde cualquier formulario, importación o proceso automático. */
+    protected static function booted(): void
+    {
+        static::saving(fn(self $history) => \App\Services\PlayerCategoryDiscipline::validateIds(
+            (int)$history->player_id, (int)$history->category_id,
+            $history->previous_category_id ? (int)$history->previous_category_id : null,
+        ));
+    }
     protected $fillable = [
         'player_id',
         'season',

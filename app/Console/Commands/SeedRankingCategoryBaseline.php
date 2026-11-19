@@ -185,6 +185,7 @@ protected $description = 'Inicializa el estado base de categorías temporales M/
         * 5) Validar las categorías temporales M y N.
         */
         $categories = Category::query()
+            ->whereHas('discipline', fn($query) => $query->where('code', 'five_quillas'))
             ->whereIn('code', ['M', 'N'])
             ->get()
             ->keyBy('code');

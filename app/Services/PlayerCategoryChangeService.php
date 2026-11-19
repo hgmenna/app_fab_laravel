@@ -40,6 +40,7 @@ class PlayerCategoryChangeService
         ?string $notes = null
     ): PlayerCategoryHistory {
         $effectiveDate = Carbon::parse($effectiveDate)->startOfDay();
+        PlayerCategoryDiscipline::validateIds($player->id, $newCategory->id, $player->category_id);
         $reason = trim($reason);
 
         if ($reason === '') {
@@ -146,6 +147,7 @@ class PlayerCategoryChangeService
     protected static function applyLockedChange(
         PlayerCategoryHistory $history
     ): void {
+        PlayerCategoryDiscipline::validateIds($history->player_id, $history->category_id, $history->previous_category_id);
         if ($history->applied_at) {
             return;
         }

@@ -2,7 +2,7 @@
 
 ## Publicación
 
-Versión de interfaz: 1.0.7. No requiere reconstruir ni reinstalar la APK existente.
+Versión de interfaz: 1.0.8. No requiere reconstruir ni reinstalar la APK existente.
 
 En PuTTY, dentro de `app-production`:
 

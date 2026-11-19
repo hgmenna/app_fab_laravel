@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Category;
+use App\Models\Discipline;
 use App\Models\PlayerCategoryHistory;
 use App\Models\PlayerCategoryPromotion;
 use App\Models\RankingHistory;
@@ -62,6 +63,7 @@ class PlayerCategoryPromotionService
 
         $ranking = RankingHistory::query()
             ->where('season', $season)
+            ->whereHas('player.discipline', fn($query) => $query->where('code', 'five_quillas'))
             ->with('player.category')
             ->orderBy('RG')
             ->get();
@@ -81,10 +83,8 @@ class PlayerCategoryPromotionService
             ->unique()
             ->values();
 
-        $categories = Category::query()
-            ->whereIn('code', $requiredCodes)
-            ->get()
-            ->keyBy('code');
+        $disciplineId = Discipline::query()->where('code', 'five_quillas')->firstOrFail()->id;
+        $categories = PlayerCategoryDiscipline::categories((int)$disciplineId);
 
         foreach ($requiredCodes as $code) {
             if (! $categories->has($code)) {
@@ -321,6 +321,7 @@ class PlayerCategoryPromotionService
                         "La promoción ID {$promotion->id} tiene relaciones incompletas."
                     );
                 }
+                PlayerCategoryDiscipline::validateIds($player->id, $newCategory->id, $previousCategory->id);
 
                 /*
                 * La promoción todavía no fue aplicada, por lo que la categoría
@@ -395,6 +396,7 @@ class PlayerCategoryPromotionService
                             "La promoción ID {$promotion->id} tiene relaciones incompletas."
                         );
                     }
+                    PlayerCategoryDiscipline::validateIds($player->id, $newCategory->id, $previousCategory->id);
 
                     /*
                     * Protección:
