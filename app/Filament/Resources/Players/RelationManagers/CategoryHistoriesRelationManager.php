@@ -3,10 +3,7 @@
 namespace App\Filament\Resources\Players\RelationManagers;
 
 use App\Filament\Actions\GlobalActionGroup;
-use App\Filament\Actions\GlobalDeleteAction;
-use App\Filament\Actions\GlobalEditAction;
-use App\Filament\Actions\GlobalViewAction;
-use App\Services\AdminNotifier;
+use App\Filament\Actions\PlayerCategoryHistoryActions;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -134,26 +131,13 @@ class CategoryHistoriesRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                //
+                PlayerCategoryHistoryActions::create($this->getOwnerRecord()),
             ])
             ->recordActions([
                 GlobalActionGroup::make([
-                    GlobalViewAction::make(),
-                    GlobalEditAction::make()
-                        ->after(fn ($record) => AdminNotifier::send(
-                            null,
-                            $record,
-                            'actualizó',
-                            ['effective_date', 'category.name'],
-                            'Historial de categorías',
-                        )),
-                    AdminNotifier::notifyAction(
-                        GlobalDeleteAction::make(),
-                        null,
-                        'eliminó',
-                        ['effective_date', 'category.name'],
-                        'Historial de categorías',
-                    ),
+                    PlayerCategoryHistoryActions::view(),
+                    PlayerCategoryHistoryActions::edit(),
+                    PlayerCategoryHistoryActions::delete(),
                 ]),
                 //
             ])

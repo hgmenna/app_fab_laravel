@@ -21,6 +21,8 @@ use App\Models\Federation;
 use App\Models\GeneralRanking;
 use App\Models\Membership;
 use App\Models\Player;
+use App\Models\PlayerCategoryHistory;
+use App\Services\PlayerCategoryHistoryEditor;
 use App\Services\AdminNotifier;
 use App\Services\AnnualMembershipService;
 use App\Services\PlayerCategoryChangeService;
@@ -43,6 +45,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Excel;
@@ -199,7 +202,8 @@ class PlayerResource extends Resource
             ->icon('heroicon-o-arrow-path')
             ->color('warning')
             ->visible(
-                fn () => Auth::user()?->hasPermissionTo('EditField') ?? false
+                fn (Player $record) => Gate::allows('create', PlayerCategoryHistory::class)
+                    && (Auth::user()?->can('update', $record) ?? false)
             )
             ->schema([
                 Select::make('category_id')
@@ -263,13 +267,7 @@ class PlayerResource extends Resource
                         ]);
                     }
 
-                    $history = PlayerCategoryChangeService::scheduleManualChange(
-                        player: $record,
-                        newCategory: $newCategory,
-                        effectiveDate: $data['effective_date'],
-                        reason: $data['reason'],
-                        notes: $data['notes'] ?? null
-                    );
+                    $history = app(PlayerCategoryHistoryEditor::class)->create($record, $data);
 
                     Notification::make()
                         ->title(

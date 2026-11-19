@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Players\Pages;
 
 use App\Filament\Resources\Players\PlayerResource;
 use App\Models\PlayerCategoryHistory;
+use App\Filament\Actions\PlayerCategoryHistoryActions;
 use Filament\Resources\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -31,6 +32,7 @@ class CategoryChangesReport extends Page implements HasTable
     protected function getHeaderActions(): array
     {
         return [
+            PlayerCategoryHistoryActions::create(),
             Action::make('exportPdf')
                 ->label('Generar PDF')
                 ->icon('heroicon-o-document-arrow-down')
@@ -72,6 +74,7 @@ class CategoryChangesReport extends Page implements HasTable
         return $table
             ->query(
                 PlayerCategoryHistory::query()
+                    ->whereIn('player_id', PlayerResource::getEloquentQuery()->select('players.id'))
                     ->whereNotNull('previous_category_id')
                     ->with([
                         'player.club.city.state.federation',
@@ -196,6 +199,7 @@ class CategoryChangesReport extends Page implements HasTable
                     ->width('130px'),
             ])
             
+            ->recordActions([PlayerCategoryHistoryActions::view(), PlayerCategoryHistoryActions::edit(), PlayerCategoryHistoryActions::delete()])
             ->filters([
             SelectFilter::make('season')
                 ->label('Temporada')

@@ -25,6 +25,20 @@ class PlayerCategoryChangeService
         string $reason,
         ?string $notes = null
     ): PlayerCategoryHistory {
+        return DB::transaction(function () use ($player, $newCategory, $effectiveDate, $reason, $notes) {
+            $locked = Player::query()->lockForUpdate()->findOrFail($player->id);
+            return static::scheduleLockedManualChange($locked, $newCategory, $effectiveDate, $reason, $notes);
+        });
+    }
+
+    /** Mantiene validaciones y aplicación inmediata dentro del bloqueo compartido con las correcciones. */
+    protected static function scheduleLockedManualChange(
+        Player $player,
+        Category $newCategory,
+        CarbonInterface|string $effectiveDate,
+        string $reason,
+        ?string $notes = null
+    ): PlayerCategoryHistory {
         $effectiveDate = Carbon::parse($effectiveDate)->startOfDay();
         $reason = trim($reason);
 
@@ -120,12 +134,24 @@ class PlayerCategoryChangeService
     public static function applyChange(
         PlayerCategoryHistory $history
     ): void {
+        DB::transaction(function () use ($history) {
+            $player = Player::query()->lockForUpdate()->findOrFail($history->player_id);
+            $locked = PlayerCategoryHistory::query()->lockForUpdate()->findOrFail($history->id);
+            $locked->setRelation('player', $player);
+            static::applyLockedChange($locked);
+        });
+    }
+
+    /** Aplica un registro vigente después de releer la categoría actual bajo bloqueo. */
+    protected static function applyLockedChange(
+        PlayerCategoryHistory $history
+    ): void {
         if ($history->applied_at) {
             return;
         }
 
         if (
-            $history->source !== 'manual'
+            ! in_array($history->source, ['manual', 'season_promotion'], true)
             || $history->change_type !== 'affiliation'
         ) {
             throw new \RuntimeException(
@@ -189,7 +215,7 @@ class PlayerCategoryChangeService
     public static function applyDueChanges(): int
     {
         $changes = PlayerCategoryHistory::query()
-            ->where('source', 'manual')
+            ->whereIn('source', ['manual', 'season_promotion'])
             ->where('change_type', 'affiliation')
             ->whereNull('applied_at')
             ->whereDate('effective_date', '<=', today())
