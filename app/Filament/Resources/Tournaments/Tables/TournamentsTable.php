@@ -215,10 +215,29 @@ class TournamentsTable
                     ->modifyFormFieldUsing(fn (Select $field): Select => $field
                         ->live()
                         ->afterStateUpdated(function ($livewire): void {
-                            $livewire->tableFilters['type_id']['value'] = null;
+                            // Los tipos pertenecen a una disciplina: al cambiarla se limpia la selección múltiple.
+                            $livewire->tableFilters['type_id']['values'] = [];
                         })),
+                SelectFilter::make('official')
+                    ->label('Carácter del torneo')
+                    ->placeholder('Oficiales y no oficiales')
+                    ->options([
+                        'official' => 'Oficiales',
+                        'non_official' => 'No oficiales',
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        // La condición oficial se define en el tipo de torneo, no en el torneo individual.
+                        return $query->when(
+                            in_array($data['value'] ?? null, ['official', 'non_official'], true),
+                            fn (Builder $query): Builder => $query->whereHas(
+                                'type',
+                                fn (Builder $type): Builder => $type->where('is_official', $data['value'] === 'official'),
+                            ),
+                        );
+                    }),
                 SelectFilter::make('type_id')
                     ->label('Tipo de Torneo')
+                    ->multiple()
                     ->options(function ($livewire): array {
                         $disciplineId = data_get($livewire->tableFilters, 'discipline_id.value');
 
@@ -229,8 +248,8 @@ class TournamentsTable
                             ->all();
                     })
                     ->query(fn (Builder $query, array $data): Builder => $query->when(
-                        filled($data['value'] ?? null),
-                        fn (Builder $query): Builder => $query->where('tournament_type_id', $data['value']),
+                        filled($data['values'] ?? []),
+                        fn (Builder $query): Builder => $query->whereIn('tournament_type_id', $data['values']),
                     ))
                     ->searchable()
                     ->preload(),
