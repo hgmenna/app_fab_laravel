@@ -13,6 +13,7 @@ use App\Models\TournamentType;
 use App\Services\AdminNotifier;
 use App\Services\TournamentSelectionPdfService;
 use Filament\Actions\BulkAction;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Collection;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -215,8 +216,21 @@ class TournamentsTable
                 BulkAction::make('printSelectedTournaments')
                     ->label('Imprimir PDF de seleccionados')
                     ->icon('heroicon-o-printer')
+                    // Filament oculta las acciones masivas hasta seleccionar filas; este botón permanece visible.
+                    ->extraAttributes(['x-show' => 'true'])
+                    ->tooltip('Marcá los torneos con las casillas de la tabla y descargá el PDF')
                     ->authorizeIndividualRecords('view')
                     ->action(function (Collection $records) {
+                        if ($records->isEmpty()) {
+                            Notification::make()
+                                ->title('Seleccioná al menos un torneo')
+                                ->body('Marcá las casillas de los torneos que querés incluir en el PDF.')
+                                ->warning()
+                                ->send();
+
+                            return null;
+                        }
+
                         // El servicio recibe únicamente los torneos seleccionados y autorizados por Filament.
                         $pdf = TournamentSelectionPdfService::pdf($records);
 
