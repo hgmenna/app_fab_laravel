@@ -11,6 +11,9 @@ use App\Models\Category;
 use App\Models\Tournament;
 use App\Models\TournamentType;
 use App\Services\AdminNotifier;
+use App\Services\TournamentSelectionPdfService;
+use Filament\Actions\BulkAction;
+use Illuminate\Support\Collection;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Tables\Columns\IconColumn;
@@ -208,6 +211,22 @@ class TournamentsTable
                     ->tooltip('Acciones'),
             ], position: RecordActionsPosition::BeforeColumns)
             ->recordActionsColumnLabel('Acc.')
+            ->toolbarActions([
+                BulkAction::make('printSelectedTournaments')
+                    ->label('Imprimir PDF de seleccionados')
+                    ->icon('heroicon-o-printer')
+                    ->authorizeIndividualRecords('view')
+                    ->action(function (Collection $records) {
+                        // El servicio recibe únicamente los torneos seleccionados y autorizados por Filament.
+                        $pdf = TournamentSelectionPdfService::pdf($records);
+
+                        return response()->streamDownload(
+                            fn () => print ($pdf->output()),
+                            'Torneos-seleccionados-'.now()->format('Y-m-d-His').'.pdf',
+                            ['Content-Type' => 'application/pdf'],
+                        );
+                    }),
+            ])
             ->filters([
                 SelectFilter::make('discipline_id')
                     ->relationship('discipline', 'name')
