@@ -2,9 +2,9 @@
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <title>Torneos seleccionados</title>
+    <title>Listado de torneos</title>
     <style>
-        @page { margin: 28px 30px 42px; }
+        @page { margin: 110px 30px 90px; }
         body { font-family: DejaVu Sans, sans-serif; font-size: 10px; color: #172d40; }
         h1 { font-size: 20px; margin: 0 0 8px; }
         .meta { color: #5a6975; font-size: 9px; margin-bottom: 16px; }
@@ -20,12 +20,41 @@
         .discipline { width: 10%; }
         .type { width: 17%; }
         .categories { width: 17%; }
-        .footer { position: fixed; bottom: -25px; font-size: 8px; color: #667786; }
+        .header { position: fixed; top: -88px; left: 0; right: 0; height: 76px; border-bottom: 2px solid #154a70; }
+        .header table { border: 0; }
+        .header td { border: 0; padding: 0; vertical-align: middle; }
+        .header .logo { width: 58px; max-height: 64px; }
+        .institution { font-size: 16px; font-weight: bold; text-align: center; }
+        .header-date { font-size: 9px; text-align: right; }
+        .footer { position: fixed; bottom: -74px; left: 0; right: 0; height: 62px; border-top: 1px solid #154a70; padding-top: 5px; text-align: center; font-size: 8px; color: #667786; }
+        .footer img { max-width: 70%; max-height: 38px; }
+        .page-number:after { content: counter(page); }
     </style>
 </head>
 <body>
-<div class="footer">{{ config('app.name') }} · Gestión de torneos · {{ $generatedAt->format('d/m/Y H:i') }}</div>
-<h1>Torneos seleccionados</h1>
+@php
+    // Usa las mismas imágenes institucionales configuradas para los demás documentos del sistema.
+    $logo = \App\Helpers\FabPath::logo();
+    $footerImage = \App\Helpers\FabPath::footer();
+    // Incrusta las imágenes para que DomPDF no dependa de rutas del sistema operativo ni de descargas HTTP.
+    $embeddedImage = fn ($path) => is_file($path)
+        ? 'data:'.(getimagesize($path)['mime'] ?? 'image/png').';base64,'.base64_encode(file_get_contents($path))
+        : null;
+    $logoSource = $embeddedImage($logo);
+    $footerSource = $embeddedImage($footerImage);
+@endphp
+<div class="header">
+    <table><tr>
+        <td style="width: 12%">@if($logoSource)<img src="{{ $logoSource }}" class="logo" alt="Logo institucional">@endif</td>
+        <td class="institution">{{ config('cliente.nombre') }}</td>
+        <td class="header-date" style="width: 18%">{{ $generatedAt->format('d/m/Y H:i') }}</td>
+    </tr></table>
+</div>
+<div class="footer">
+    @if($footerSource)<div><img src="{{ $footerSource }}" alt="Pie institucional"></div>@endif
+    <div>{{ config('cliente.sistema') }} · Listado de torneos · Página <span class="page-number"></span></div>
+</div>
+<h1>Listado de torneos</h1>
 <p class="meta">{{ $tournaments->count() }} torneos · Emitido {{ $generatedAt->format('d/m/Y H:i') }}</p>
 <table>
     <thead><tr>
