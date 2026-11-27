@@ -138,6 +138,7 @@
                 <h2>{{ $zonePhase->name }}</h2>
                 <div class="fq-phase-actions">
                     @if($zonePhase->status !== 'completed'){{ ($this->createZonesAction)(['phaseId' => $zonePhase->id]) }}@endif
+                    @if($zonePhase->groups->isNotEmpty()){{ $this->clearZonesAction }}@endif
                     @include('filament.resources.tournaments.pages.partials.competition-qualified-action', ['phase' => $zonePhase])
                     @include('filament.resources.tournaments.pages.partials.competition-section-tools', ['sectionTitle' => $zonePhase->name, 'sectionKey' => 'phase-'.$zonePhase->id, 'filterZoneSlot' => true])
                 </div>

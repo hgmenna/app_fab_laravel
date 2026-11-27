@@ -875,6 +875,33 @@ class ManageTournamentCompetition extends Page
     }
 
     /**
+     * Permite vaciar el armado previo de todas las zonas con confirmación explícita.
+     */
+    public function clearZonesAction(): Action
+    {
+        return Action::make('clearZones')
+            ->label('Vaciar zonas')->icon('heroicon-o-trash')->color('danger')->size('sm')
+            ->requiresConfirmation()
+            ->modalHeading('Vaciar todas las zonas del torneo')
+            ->modalDescription('Se eliminarán las zonas y sus partidos de todos los horarios para armarlas nuevamente. Se conservan las inscripciones, el ranking y la configuración de fases. Esta acción sólo se permite antes de que haya partidos llamados, iniciados o resultados.')
+            ->modalSubmitActionLabel('Vaciar zonas')
+            ->action(function (Action $action): void {
+                try {
+                    $count = app(FiveQuillasCompetitionService::class)->clearUnstartedZones($this->competition());
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('No se pudieron vaciar las zonas')
+                        ->body(collect($exception->errors())->flatten()->first())
+                        ->persistent()->send();
+                    $action->halt();
+
+                    return;
+                }
+                Notification::make()->success()->title('Zonas vaciadas')
+                    ->body($count.' zonas eliminadas. Los inscriptos están disponibles para volver a asignarlos.')->send();
+            });
+    }
+
+    /**
      * Configura el modal que crea o corrige zonas antes de que comiencen.
      */
     public function createZonesAction(): Action

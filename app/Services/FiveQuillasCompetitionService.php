@@ -176,6 +176,48 @@ class FiveQuillasCompetitionService
     }
 
     /**
+     * Vacía el armado de zonas antes del inicio, sin eliminar inscriptos ni alterar otras fases.
+     */
+    public function clearUnstartedZones(FiveQuillasCompetition $competition): int
+    {
+        return DB::transaction(function () use ($competition): int {
+            $this->lockCompetition($competition->id);
+            $phase = $competition->phases()->where('phase_type', 'zones')->where('is_enabled', true)->firstOrFail();
+            $phaseIds = $competition->phases()->pluck('id');
+            $matches = FiveQuillasMatch::query()->whereIn('phase_id', $phaseIds)->lockForUpdate()->get();
+            foreach ($matches as $match) {
+                $hasScores = ! empty($match->set_scores)
+                    || $match->player_one_points > 0 || $match->player_two_points > 0
+                    || $match->player_one_actual_sets > 0 || $match->player_two_actual_sets > 0;
+                if (in_array($match->status, ['called', 'in_progress', 'suspended'], true)
+                    || (! $match->is_bye && ($match->status === 'completed' || $match->winner_entry_id !== null || $hasScores))) {
+                    throw ValidationException::withMessages(['zones' => 'No se pueden vaciar las zonas: hay partidos llamados, iniciados o con resultados en la competencia.']);
+                }
+            }
+            $groupIds = $phase->groups()->pluck('id');
+            $entryIds = FiveQuillasGroupEntry::query()->whereIn('group_id', $groupIds)->pluck('entry_id')->unique();
+            $hasDependentPlayers = $matches->where('phase_id', '!=', $phase->id)->contains(
+                fn ($match): bool => $entryIds->contains($match->player_one_entry_id)
+                    || $entryIds->contains($match->player_two_entry_id),
+            );
+            $zoneMatchIds = $matches->where('phase_id', $phase->id)->pluck('id');
+            $hasDependentLinks = $matches->contains(fn ($match): bool => $match->phase_id === $phase->id
+                ? collect([$match->next_match_id, $match->loser_next_match_id])->filter()->diff($zoneMatchIds)->isNotEmpty()
+                : $zoneMatchIds->contains($match->next_match_id) || $zoneMatchIds->contains($match->loser_next_match_id));
+            if ($hasDependentPlayers || $hasDependentLinks) {
+                throw ValidationException::withMessages(['zones' => 'No se pueden vaciar las zonas porque ya tienen cruces vinculados. Primero hay que revisar la fase siguiente.']);
+            }
+            $phase->matches()->delete();
+            FiveQuillasGroupEntry::query()->whereIn('group_id', $groupIds)->delete();
+            $count = $phase->groups()->delete();
+            $competition->entries()->whereIn('id', $entryIds)->where('status', 'assigned')->update(['status' => 'eligible']);
+            $phase->update(['status' => 'pending']);
+
+            return $count;
+        });
+    }
+
+    /**
      * Guarda las zonas editables de un horario y conserva intactas las que ya tienen actividad deportiva.
      */
     public function createManualZones(FiveQuillasCompetition $competition, int $slotId, array $zoneRows, ?string $expectedRevision = null): int
