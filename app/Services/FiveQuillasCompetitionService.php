@@ -103,7 +103,8 @@ class FiveQuillasCompetitionService
                 $entry->fill([
                     'tournament_registration_id' => $registration->id,
                     'registration_participant_id' => $participant->id ?? null,
-                    'source_slot_id' => $registration->tournament_slot_id,
+                    // Las inscripciones históricas pueden conservar un ID de horario eliminado.
+                    'source_slot_id' => $registration->slot?->getKey(),
                     'entry_phase_id' => $entryPhase?->id,
                     'national_ranking_snapshot' => $entry->exists ? $entry->national_ranking_snapshot : $ranking,
                 ]);
@@ -2392,7 +2393,7 @@ class FiveQuillasCompetitionService
                     'national_ranking_snapshot' => (int) $master->ranking,
                     'tournament_registration_id' => $master->registration->id,
                     'registration_participant_id' => $master->participant_id,
-                    'source_slot_id' => $master->registration->tournament_slot_id,
+                    'source_slot_id' => $master->registration->slot?->getKey(),
                     'seed' => $index + 1, 'status' => 'eligible',
                 ]);
             }

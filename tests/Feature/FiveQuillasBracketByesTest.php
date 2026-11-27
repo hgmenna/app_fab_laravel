@@ -667,6 +667,13 @@ it('loads historical Masters from their inactive slot despite a different curren
         \Illuminate\Support\Facades\DB::table('general_rankings')->where('player_id', 33)->update(['RG' => 500]);
         $service->syncApprovedEntries($this->competition);
         expect($absentEntry->fresh()->national_ranking_snapshot)->toBe(200);
+        // Legacy registrations may still reference a slot removed outside Eloquent.
+        // Opening organization must keep the player without copying the orphan ID.
+        \Illuminate\Support\Facades\DB::table('tournament_registrations')->where('id', 33)->update(['tournament_slot_id' => 999999]);
+        expect($service->syncApprovedEntries($this->competition))->toBe(17);
+        expect($absentEntry->fresh()->source_slot_id)->toBeNull()
+            ->and($absentEntry->fresh()->status)->toBe('eligible')
+            ->and($absentEntry->fresh()->national_ranking_snapshot)->toBe(200);
         $master->matches()->first()->update(['status' => 'called']);
         expect(fn () => $service->loadRegisteredMasters($master->fresh()))->toThrow(\Illuminate\Validation\ValidationException::class);
     } finally {
